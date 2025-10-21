@@ -17,7 +17,7 @@ class RegisterUseCase {
     required DateTime birthDate,
     required String country,
   }) async {
-    // ✅ Validation logic
+    //  Validation logic
     if (email.isEmpty || !email.contains('@')) {
       return Left(ValidationFailure('Invalid email'));
     }
@@ -31,7 +31,7 @@ class RegisterUseCase {
       return Left(ValidationFailure('Phone number cannot be empty'));
     }
 
-    // ✅ Call repository
+    //  Call repository
     return await repository.register(
       email: email,
       userName: userName,

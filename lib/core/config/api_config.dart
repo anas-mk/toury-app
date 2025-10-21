@@ -1,7 +1,7 @@
 class ApiConfig {
   //API base URL
-  //http://tourestaapi.runasp.net/api/Auth/register
-  static const String baseUrl = 'http://tourestaapi.runasp.net/api/';
+
+  static const String baseUrl = 'API BASE URL';
 
   // Auth endpoints
   static const String loginEndpoint = 'Auth/check-email';
