@@ -1,0 +1,17 @@
+{
+  "app_title": "Tour Meta",
+  "toggle_theme": "Toggle Theme",
+  "toggle_language": "Change Language",
+  "choose_language": "Choose Language",
+  "login": "Login",
+  "login_subtitle": "Login to continue in the app",
+  "email": "Email",
+  "password": "Password",
+  "invalid_email": "Please enter a valid email address",
+  "invalid_password": "Password must be at least 6 characters long",
+  "login_button": "Login",
+  "forgot_password": "Forgot Password?",
+  "or": "OR",
+  "signup_now": "Create a New Account",
+  "success_login": "Login successful ✅"
+}

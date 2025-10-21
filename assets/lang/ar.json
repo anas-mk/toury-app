@@ -1,0 +1,18 @@
+{
+  "app_title": "تور ميتا",
+  "toggle_theme": "تبديل الثيم",
+  "toggle_language": "تغيير اللغة",
+  "choose_language": "اختر اللغة",
+  "login": "سجّل الدخول",
+  "login_subtitle": "سجّل الدخول للمتابعة في التطبيق",
+  "email": "البريد الإلكتروني",
+  "password": "كلمة المرور",
+  "invalid_email": "من فضلك أدخل بريد إلكتروني صحيح",
+  "invalid_password": "يجب أن تكون كلمة المرور 6 أحرف على الأقل",
+  "login_button": "تسجيل الدخول",
+  "forgot_password": "هل نسيت كلمة المرور؟",
+  "or": "أو",
+  "signup_now": "إنشاء حساب جديد",
+  "success_login": "تم تسجيل الدخول بنجاح ✅"
+}
+
