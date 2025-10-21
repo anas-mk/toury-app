@@ -1,16 +1,33 @@
-# toury
+# Toury App
 
-A new Flutter project.
+**Toury** is a smart tourism platform that connects **tourists visiting Egypt** with professional **local tour guides** who speak their language — just like **Uber, but for tourism**.
 
-## Getting Started
+The goal is to make it easy for visitors to find the right guide who understands their culture and can provide personalized tours across Egypt’s most beautiful destinations.
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## Core Idea
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Tourists can **sign up and log in** to find guides nearby.
+- Guides can **register** and list their languages and services.
+- Tourists can **choose guides** who speak their native language.
+- The guide helps the tourist explore attractions, museums, and landmarks.
+- The platform is **simple, fast, multilingual, and modern**, with both **Light and Dark Modes**.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+---
+
+## Features
+
+-  **Role Selection** → Choose to log in as a **Tourist** or **Guide**
+-  **Authentication** → Login & Register with Email/Password or Google
+-  **Forgot Password** → Send password reset link
+-  **Multilingual Support** → English 🇬🇧 & Arabic 🇪🇬
+-  **Dark & Light Themes** → Adaptive theme switch
+-  **Role-based Home Pages** (Tourist / Guide)
+- ️ **Bloc / Cubit State Management**
+-  **Dio API Setup** for future backend communication
+
+---
+
+## Project Structure
+
