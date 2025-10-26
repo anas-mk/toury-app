@@ -1,7 +1,9 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
-import 'package:toury/features/auth/presentation/pages/login_page.dart';
-import '../../features/home/presentation/pages/home_page.dart';
+
+import '../../features/tourist/features/auth/presentation/pages/login_page.dart';
+import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
+
 
 class AppRouter {
   static const String login = '/login';
@@ -18,7 +20,7 @@ class AppRouter {
       GoRoute(
         path: home,
         name: 'home',
-        builder: (context, state) => const HomePage(),
+        builder: (context, state) => const HomeLayout(),
       ),
     ],
     errorBuilder:

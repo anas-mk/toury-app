@@ -12,21 +12,20 @@ abstract class Failure extends Equatable {
 
 /// Server-related failures (e.g. API, Firebase)
 class ServerFailure extends Failure {
-  const ServerFailure([String message = 'Server Failure']) : super(message);
+  const ServerFailure([super.message = 'Server Failure']);
 }
 
 /// Cache or local storage failures
 class CacheFailure extends Failure {
-  const CacheFailure([String message = 'Cache Failure']) : super(message);
+  const CacheFailure([super.message = 'Cache Failure']);
 }
 
 /// Network connection failures
 class NetworkFailure extends Failure {
-  const NetworkFailure([String message = 'No Internet Connection'])
-      : super(message);
+  const NetworkFailure([super.message = 'No Internet Connection']);
 }
 
 /// Validation or input failures
 class ValidationFailure extends Failure {
-  const ValidationFailure([String message = 'Invalid Input']) : super(message);
+  const ValidationFailure([super.message = 'Invalid Input']);
 }
