@@ -9,6 +9,10 @@ class UserModel extends UserEntity {
     required super.gender,
     required super.birthDate,
     required super.country,
+    super.isVerified,
+    super.type,
+    super.token,
+    super.profileImageUrl,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -18,10 +22,15 @@ class UserModel extends UserEntity {
       userName: json['userName'] ?? '',
       phoneNumber: json['phoneNumber'] ?? '',
       gender: json['gender'] ?? '',
-      birthDate: json['birthDate'] != null
+      birthDate: json['birthDate'] != null && json['birthDate'] != ''
           ? DateTime.tryParse(json['birthDate'])
           : null,
       country: json['country'] ?? '',
+      isVerified: json['isVerified'] ?? false,
+      type: json['type'] ?? '',
+      token: json['token'],
+      profileImageUrl: json['profileImageUrl'] ??
+          'https://i.pinimg.com/736x/e8/7a/b0/e87ab0a15b2b65662020e614f7e05ef1.jpg',
     );
   }
 
@@ -33,5 +42,9 @@ class UserModel extends UserEntity {
     'gender': gender,
     'birthDate': birthDate?.toIso8601String(),
     'country': country,
+    'isVerified': isVerified,
+    'type': type,
+    'token': token,
+    'profileImageUrl': profileImageUrl,
   };
 }

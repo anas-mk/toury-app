@@ -1,11 +1,15 @@
 class UserEntity {
-  final String id;
+  final dynamic id;
   final String email;
   final String userName;
   final String phoneNumber;
   final String gender;
   final DateTime? birthDate;
   final String country;
+  final bool? isVerified;
+  final String? type;
+  final String? token;
+  final String? profileImageUrl;
 
   const UserEntity({
     required this.id,
@@ -15,15 +19,9 @@ class UserEntity {
     required this.gender,
     required this.birthDate,
     required this.country,
+    this.isVerified,
+    this.type,
+    this.token,
+    this.profileImageUrl,
   });
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'email': email,
-    'userName': userName,
-    'phoneNumber': phoneNumber,
-    'gender': gender,
-    'birthDate': birthDate?.toIso8601String(),
-    'country': country,
-  };
 }

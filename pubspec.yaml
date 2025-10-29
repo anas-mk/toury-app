@@ -26,6 +26,7 @@ dependencies:
   go_router: ^16.2.5
   get_it: ^8.2.0
   google_sign_in: ^6.2.1
+  intl_phone_number_input: ^0.7.5
 
 dev_dependencies:
   flutter_test:

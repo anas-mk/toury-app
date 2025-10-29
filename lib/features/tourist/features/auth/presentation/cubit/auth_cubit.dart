@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/usecases/check_email_usecas.dart';
 import '../../domain/usecases/register_usecase.dart';
 import '../../domain/usecases/verify_google_code_usecase.dart';
@@ -45,11 +47,20 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> verifyPassword(String email, String password) async {
     emit(AuthLoading());
     final result = await verifyPasswordUseCase(email, password);
+
     result.fold(
-      (failure) => emit(AuthError(failure.message)),
-      (user) => emit(AuthAuthenticated(user)),
+          (failure) => emit(AuthError(failure.message)),
+          (user) async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user', jsonEncode(user));
+
+        emit(AuthAuthenticated(user));
+      },
     );
   }
+
+
+
 
   // ---------------- REGISTER ----------------
   Future<void> register({

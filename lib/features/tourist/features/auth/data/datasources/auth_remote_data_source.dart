@@ -37,18 +37,23 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       final response = await dio.post(
         ApiConfig.loginEndpoint,
         data: {"email": email},
+        options: Options(headers: ApiConfig.defaultHeaders),
       );
 
       if (response.statusCode == 200) {
-        final data = response.data is String
-            ? jsonDecode(response.data)
-            : response.data;
+        final Map<String, dynamic> data = response.data is String
+            ? Map<String, dynamic>.from(jsonDecode(response.data))
+            : Map<String, dynamic>.from(response.data);
 
-        //  action
+        final Map<String, dynamic>? userData =
+        data['data'] != null ? Map<String, dynamic>.from(data['data']) : null;
+
         return {
+          'success': data['success'] ?? false,
           'message': data['message'] ?? '',
           'action': data['action'] ?? '',
-          'email': data['email'] ?? email,
+          'email': userData?['email'] ?? email,
+          'userExists': userData?['userExists'] ?? false,
         };
       } else {
         throw Exception('Check email failed: ${response.statusCode}');
@@ -58,7 +63,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
   }
 
-  // ----------------LOGIN VERIFY PASSWORD ----------------
+
   @override
   Future<UserModel> verifyPassword(String email, String password) async {
     try {
@@ -69,12 +74,30 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       if (response.statusCode == 200) {
-        final data = response.data is String
-            ? jsonDecode(response.data)
-            : response.data;
-        return UserModel.fromJson(data);
-      } else {
+        final Map<String, dynamic> responseData = response.data is String
+            ? Map<String, dynamic>.from(jsonDecode(response.data))
+            : Map<String, dynamic>.from(response.data);
+
+        final Map<String, dynamic>? data =
+        responseData['data'] != null ? Map<String, dynamic>.from(responseData['data']) : null;
+
+        final Map<String, dynamic>? userData =
+        data?['user'] != null ? Map<String, dynamic>.from(data!['user']) : null;
+
+        if (userData == null) {
+          throw Exception('Invalid response format: user not found');
+        }
+
+        final userJson = {
+          ...userData,
+          'token': data?['token'] ?? responseData['token'],
+        };
+
+        return UserModel.fromJson(userJson);
+      } else if (response.statusCode == 401) {
         throw Exception('Incorrect password');
+      } else {
+        throw Exception('Login failed: ${response.statusMessage}');
       }
     } on DioException catch (e) {
       throw Exception(_handleDioError(e));
@@ -108,10 +131,25 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = response.data is String
-            ? jsonDecode(response.data)
-            : response.data;
-        return UserModel.fromJson(data);
+        final Map<String, dynamic> responseData = response.data is String
+            ? Map<String, dynamic>.from(jsonDecode(response.data))
+            : Map<String, dynamic>.from(response.data);
+
+        final userDataRaw = responseData['data']?['user'];
+        final token = responseData['data']?['token'];
+
+        if (userDataRaw == null) {
+          throw Exception('Invalid response format: user not found');
+        }
+
+        final Map<String, dynamic> userData = Map<String, dynamic>.from(userDataRaw);
+
+        final userJson = {
+          ...userData,
+          'token': token,
+        };
+
+        return UserModel.fromJson(userJson);
       } else if (response.statusCode == 400 || response.statusCode == 409) {
         throw Exception('This email is already registered');
       } else {
@@ -121,6 +159,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception(_handleDioError(e));
     }
   }
+
 
   // ---------------- GOOGLE LOGIN ----------------
   @override
@@ -199,7 +238,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         case 500:
           return 'Server error. Please try again later.';
         default:
-          return 'Error ${statusCode}: ${data ?? 'Unknown error'}';
+          return 'Error $statusCode: ${data ?? 'Unknown error'}';
       }
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||
