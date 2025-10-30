@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class CustomCard extends StatelessWidget {
@@ -26,27 +27,45 @@ class CustomCard extends StatelessWidget {
 
     final bgColor = backgroundColor ??
         (isDarkMode
-            ? Theme.of(context).cardColor.withOpacity(0.9)
-            : Colors.white);
+            ? Colors.white.withOpacity(0.07)
+            : Colors.white.withOpacity(0.9));
 
     final shadow = shadowColor ??
-        (isDarkMode ? Colors.black54 : Colors.black.withOpacity(0.1));
+        (isDarkMode
+            ? Colors.black.withOpacity(0.4)
+            : Colors.grey.withOpacity(0.2));
 
     return Container(
       margin: margin,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: bgColor,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: shadow,
-            blurRadius: elevation,
-            offset: const Offset(0, 6),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            padding: padding,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(borderRadius),
+              boxShadow: [
+                BoxShadow(
+                  color: shadow,
+                  blurRadius: elevation,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: Border.all(
+                color: isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05),
+                width: 1,
+              ),
+            ),
+            child: child,
           ),
-        ],
+        ),
       ),
-      child: child,
     );
   }
 }

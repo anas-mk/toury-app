@@ -6,7 +6,7 @@ import 'core/di/injection_container.dart' as di;
 import 'core/theme/theme_cubit.dart';
 import 'core/localization/cubit/localization_cubit.dart';
 import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
-import 'features/tourist/features/home/cubit/bottom_nav_cubit.dart';
+import 'features/tourist/features/home/presentation/cubit/bottom_nav_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

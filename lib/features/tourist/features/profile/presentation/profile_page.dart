@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/core/theme/app_color.dart';
 import 'package:toury/core/theme/theme_cubit.dart';
+import 'package:toury/core/localization/app_localizations.dart';
 import '../cubit/profile_cubit/profile_cubit.dart';
 import '../cubit/profile_cubit/profile_state.dart';
 
@@ -11,6 +12,8 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     return BlocProvider(
       create: (_) => ProfileCubit()..loadUser(),
       child: BlocBuilder<ProfileCubit, ProfileState>(
@@ -18,9 +21,8 @@ class ProfilePage extends StatelessWidget {
           final isDark = context.watch<ThemeCubit>().state == ThemeMode.dark;
 
           return Scaffold(
-            backgroundColor: isDark
-                ? const Color(0xFF0E0E0E)
-                : const Color(0xFFF9FAFB),
+            backgroundColor:
+            isDark ? const Color(0xFF0E0E0E) : const Color(0xFFF9FAFB),
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 400),
               child: switch (state) {
@@ -56,9 +58,8 @@ class ProfilePage extends StatelessWidget {
                                     AppColor.primaryColor.withOpacity(0.7),
                                     isDark
                                         ? Colors.black
-                                        : Colors.lightBlueAccent.withOpacity(
-                                            0.4,
-                                          ),
+                                        : Colors.lightBlueAccent
+                                        .withOpacity(0.4),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
@@ -67,10 +68,7 @@ class ProfilePage extends StatelessWidget {
                             ),
                             Positioned.fill(
                               child: BackdropFilter(
-                                filter: ImageFilter.blur(
-                                  sigmaX: 10,
-                                  sigmaY: 10,
-                                ),
+                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                                 child: Container(
                                   color: Colors.black.withOpacity(0.1),
                                 ),
@@ -79,40 +77,35 @@ class ProfilePage extends StatelessWidget {
                             Align(
                               alignment: Alignment.bottomCenter,
                               child: Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 25,
-                                  top: 40,
-                                ),
+                                padding:
+                                const EdgeInsets.only(bottom: 25, top: 40),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     CircleAvatar(
                                       radius: 60,
                                       backgroundColor: Colors.white,
-                                      backgroundImage:
-                                          user.profileImageUrl != null
+                                      backgroundImage: user.profileImageUrl != null
                                           ? NetworkImage(user.profileImageUrl!)
                                           : null,
                                       child: user.profileImageUrl == null
                                           ? Text(
-                                              user.userName[0].toUpperCase(),
-                                              style: const TextStyle(
-                                                fontSize: 42,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.black54,
-                                              ),
-                                            )
+                                        user.userName[0].toUpperCase(),
+                                        style: const TextStyle(
+                                          fontSize: 42,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
+                                      )
                                           : null,
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
                                       user.userName,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.bold,
-                                        color: isDark
-                                            ? Colors.white
-                                            : Colors.white,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ],
@@ -124,10 +117,7 @@ class ProfilePage extends StatelessWidget {
                       ),
                       actions: [
                         IconButton(
-                          icon: const Icon(
-                            Icons.edit,
-                            color: Colors.white,
-                          ),
+                          icon: const Icon(Icons.edit, color: Colors.white),
                           onPressed: () {},
                         ),
                       ],
@@ -142,31 +132,31 @@ class ProfilePage extends StatelessWidget {
                           children: [
                             _buildInfoTile(
                               icon: Icons.email_rounded,
-                              label: "Email",
+                              label: loc.translate('email'),
                               value: user.email,
                               isDark: isDark,
                             ),
                             _buildInfoTile(
                               icon: Icons.phone_rounded,
-                              label: "Phone",
+                              label: loc.translate('phone_number'),
                               value: user.phoneNumber,
                               isDark: isDark,
                             ),
                             _buildInfoTile(
                               icon: Icons.wc_rounded,
-                              label: "Gender",
+                              label: loc.translate('gender'),
                               value: user.gender,
                               isDark: isDark,
                             ),
                             _buildInfoTile(
                               icon: Icons.flag_circle_outlined,
-                              label: "Country",
+                              label: loc.translate('country'),
                               value: user.country,
                               isDark: isDark,
                             ),
                             _buildInfoTile(
                               icon: Icons.cake_rounded,
-                              label: "Birth Date",
+                              label: loc.translate('birth_date'),
                               value: user.birthDate.toString().split(' ')[0],
                               isDark: isDark,
                             ),

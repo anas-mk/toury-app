@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
+import '../../../../../../core/widgets/custom_text_field.dart';
+import '../../../../../../core/localization/app_localizations.dart'; // ✅ الترجمة
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
 import 'login_page.dart';
-import '../../../../../../core/widgets/custom_text_field.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -43,9 +44,12 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!; // ✅ استخدم الترجمة
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary,
+      backgroundColor: isDark
+          ? const Color(0xFF0E0E0E)
+          : AppColor.primaryColor.withOpacity(0.95),
       appBar: const BasicAppBar(),
       body: SafeArea(
         child: BlocConsumer<AuthCubit, AuthState>(
@@ -59,27 +63,28 @@ class _RegisterPageState extends State<RegisterPage> {
               );
             } else if (state is AuthAuthenticated) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Registration successful!')),
+                SnackBar(
+                  content: Text(loc.translate("register_success") ??
+                      "Registration successful ✅"),
+                ),
               );
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const LoginPage()),
-                (route) => false,
+                    (route) => false,
               );
             }
           },
           builder: (context, state) {
             return Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
-                ),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      "Create Account",
+                      loc.translate("register") ?? "Register",
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -87,7 +92,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Join us and start your journey!",
+                      loc.translate("register_subtitle") ??
+                          "Create your account to get started",
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.white70,
                       ),
@@ -101,88 +107,99 @@ class _RegisterPageState extends State<RegisterPage> {
                         boxShadow: isDark
                             ? []
                             : [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           children: [
                             CustomTextField(
-                              hintText: 'Email',
+                              hintText: loc.translate("email") ?? "Email",
                               controller: emailController,
                               keyboardType: TextInputType.emailAddress,
                               prefixIcon: Icons.email_outlined,
                               validator: (v) {
                                 if (v == null || v.isEmpty) {
-                                  return 'Please enter an email';
+                                  return loc.translate("field_required") ??
+                                      'This field is required';
                                 }
                                 if (!v.contains('@')) {
-                                  return 'Enter a valid email';
+                                  return loc.translate("invalid_email") ??
+                                      'Enter a valid email';
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 16),
                             CustomTextField(
-                              hintText: 'Username',
+                              hintText: loc.translate("name") ?? "Username",
                               controller: userNameController,
                               prefixIcon: Icons.person_outline,
                               validator: (v) => v == null || v.isEmpty
-                                  ? 'Please enter a username'
+                                  ? loc.translate("field_required") ??
+                                  'This field is required'
                                   : null,
                             ),
                             const SizedBox(height: 16),
                             CustomTextField(
-                              hintText: 'Password',
+                              hintText: loc.translate("password") ?? "Password",
                               controller: passwordController,
                               isPassword: true,
                               prefixIcon: Icons.lock_outline,
                               validator: (v) => v == null || v.isEmpty
-                                  ? 'Please enter a password'
+                                  ? loc.translate("field_required") ??
+                                  'This field is required'
                                   : null,
                             ),
                             const SizedBox(height: 16),
                             CustomTextField(
-                              hintText: 'Confirm Password',
+                              hintText: loc.translate("confirm_password") ??
+                                  "Confirm Password",
                               controller: confirmPasswordController,
                               isPassword: true,
                               prefixIcon: Icons.lock_outline,
                               validator: (v) {
                                 if (v == null || v.isEmpty) {
-                                  return 'Please confirm your password';
+                                  return loc.translate("field_required") ??
+                                      'This field is required';
                                 }
                                 if (v != passwordController.text) {
-                                  return 'Passwords do not match';
+                                  return loc.translate("passwords_dont_match") ??
+                                      'Passwords do not match';
                                 }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 16),
                             CustomTextField(
-                              hintText: 'Phone Number',
+                              hintText: loc.translate("phone_number") ??
+                                  "Phone Number",
                               controller: phoneNumberController,
                               keyboardType: TextInputType.phone,
                               prefixIcon: Icons.phone_outlined,
                               validator: (v) => v == null || v.isEmpty
-                                  ? 'Please enter your phone number'
+                                  ? loc.translate("field_required") ??
+                                  'This field is required'
                                   : null,
                             ),
                             const SizedBox(height: 16),
-                            _buildGenderField(isDark),
+                            _buildGenderField(isDark, loc),
                             const SizedBox(height: 16),
-                            _buildBirthDateField(isDark),
+                            _buildBirthDateField(isDark, loc),
                             const SizedBox(height: 16),
                             CustomTextField(
-                              hintText: 'Country',
+                              hintText:
+                              loc.translate("country") ?? "Country",
                               controller: countryController,
                               prefixIcon: Icons.location_on_outlined,
                               validator: (v) => v == null || v.isEmpty
-                                  ? 'Please enter your country'
+                                  ? loc.translate("field_required") ??
+                                  'This field is required'
                                   : null,
                             ),
                             const SizedBox(height: 24),
@@ -190,36 +207,38 @@ class _RegisterPageState extends State<RegisterPage> {
                               onPressed: state is AuthLoading
                                   ? null
                                   : () {
-                                      if (_formKey.currentState!.validate()) {
-                                        if (selectedBirthDate == null) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Please select your birth date',
-                                              ),
-                                              backgroundColor: Colors.redAccent,
-                                            ),
-                                          );
-                                          return;
-                                        }
-                                        context.read<AuthCubit>().register(
-                                          email: emailController.text.trim(),
-                                          userName: userNameController.text
-                                              .trim(),
-                                          password: passwordController.text
-                                              .trim(),
-                                          phoneNumber: phoneNumberController
-                                              .text
-                                              .trim(),
-                                          gender: selectedGender,
-                                          birthDate: selectedBirthDate!,
-                                          country: countryController.text
-                                              .trim(),
-                                        );
-                                      }
-                                    },
+                                if (_formKey.currentState!.validate()) {
+                                  if (selectedBirthDate == null) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          loc.translate(
+                                              "select_birth_date") ??
+                                              'Please select your birth date',
+                                        ),
+                                        backgroundColor:
+                                        Colors.redAccent,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  context.read<AuthCubit>().register(
+                                    email: emailController.text.trim(),
+                                    userName: userNameController.text
+                                        .trim(),
+                                    password:
+                                    passwordController.text.trim(),
+                                    phoneNumber: phoneNumberController
+                                        .text
+                                        .trim(),
+                                    gender: selectedGender,
+                                    birthDate: selectedBirthDate!,
+                                    country: countryController.text
+                                        .trim(),
+                                  );
+                                }
+                              },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColor.primaryColor,
                                 foregroundColor: Colors.white,
@@ -230,28 +249,34 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               child: state is AuthLoading
                                   ? const SizedBox(
-                                      height: 22,
-                                      width: 22,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Register',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                                  : Text(
+                                loc.translate("register_button") ??
+                                    'Register',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 16),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  "Already have an account?",
-                                  style: theme.textTheme.bodyMedium,
+                                  loc.translate("already_have_account") ??
+                                      "Already have an account?",
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black87,
+                                  ),
                                 ),
                                 TextButton(
                                   onPressed: () {
@@ -262,9 +287,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                       ),
                                     );
                                   },
-                                  child: const Text(
-                                    "Login",
-                                    style: TextStyle(
+                                  child: Text(
+                                    loc.translate("login") ?? "Login",
+                                    style: const TextStyle(
                                       color: AppColor.primaryColor,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -286,33 +311,41 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildGenderField(bool isDark) {
+  Widget _buildGenderField(bool isDark, AppLocalizations loc) {
     return DropdownButtonFormField<String>(
       value: selectedGender,
       decoration: InputDecoration(
-        labelText: 'Gender',
+        labelText: loc.translate("gender") ?? 'Gender',
         prefixIcon: Icon(
           Icons.person_2_outlined,
           color: isDark ? Colors.white70 : Colors.grey[700],
         ),
+        filled: true,
+        fillColor: isDark ? Colors.grey[850] : Colors.grey.shade100,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      dropdownColor: isDark ? Colors.grey[850] : Colors.white,
+      dropdownColor: isDark ? Colors.grey[900] : Colors.white,
       style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-      items: genders
-          .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-          .toList(),
+      items: [
+        DropdownMenuItem(
+          value: 'Male',
+          child: Text(loc.translate("male") ?? "Male"),
+        ),
+        DropdownMenuItem(
+          value: 'Female',
+          child: Text(loc.translate("female") ?? "Female"),
+        ),
+      ],
       onChanged: (val) => setState(() => selectedGender = val ?? 'Male'),
     );
   }
 
-  Widget _buildBirthDateField(bool isDark) {
+  Widget _buildBirthDateField(bool isDark, AppLocalizations loc) {
     return InkWell(
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
-          initialDate:
-              selectedBirthDate ??
+          initialDate: selectedBirthDate ??
               DateTime.now().subtract(const Duration(days: 365 * 18)),
           firstDate: DateTime(1900),
           lastDate: DateTime.now(),
@@ -321,17 +354,20 @@ class _RegisterPageState extends State<RegisterPage> {
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: 'Birth Date',
+          labelText: loc.translate("birth_date") ?? 'Birth Date',
           prefixIcon: Icon(
             Icons.calendar_month_rounded,
             color: isDark ? Colors.white70 : Colors.grey[700],
           ),
+          filled: true,
+          fillColor: isDark ? Colors.grey[850] : Colors.grey.shade100,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: Text(
           selectedBirthDate != null
               ? '${selectedBirthDate!.day}/${selectedBirthDate!.month}/${selectedBirthDate!.year}'
-              : 'Select your birth date',
+              : loc.translate("select_birth_date") ??
+              'Select your birth date',
           style: TextStyle(
             color: selectedBirthDate != null
                 ? (isDark ? Colors.white : Colors.black87)

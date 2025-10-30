@@ -1,138 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/features/tourist/features/auth/presentation/pages/role_selection_page.dart';
-import 'package:toury/features/tourist/features/profile/presentation/profile_page.dart';
+import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/localization/cubit/localization_cubit.dart';
 import '../../../../../../core/router/app_navigator.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/theme_cubit.dart';
 import '../../../auth/data/datasources/auth_local_data_source.dart';
-import '../../../profile/cubit/profile_cubit/profile_cubit.dart';
-import '../../../profile/cubit/profile_cubit/profile_state.dart';
+import '../widgets/profile_box.dart';
 
 class AccountSettingsPage extends StatelessWidget {
   const AccountSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => ProfileCubit()..loadUser(),
-      child: BlocBuilder<ProfileCubit, ProfileState>(
-        builder: (context, state) {
-          final isDark = context.watch<ThemeCubit>().state == ThemeMode.dark;
+    final loc = AppLocalizations.of(context);
+    final isDark = context.watch<ThemeCubit>().state == ThemeMode.dark;
 
-          return Scaffold(
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 600),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.05),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: Scaffold(
+            key: ValueKey(isDark),
             backgroundColor: isDark ? Colors.black : AppColor.primaryColor,
             appBar: AppBar(
               backgroundColor: isDark ? Colors.black : AppColor.primaryColor,
               elevation: 0,
-              title: const Text(
-                "Account Settings",
-                style: TextStyle(
+              title: Text(
+                loc.translate('settings'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               centerTitle: true,
             ),
-            body: switch (state) {
-              ProfileLoading() =>
-              const Center(child: CircularProgressIndicator()),
-              ProfileError(:final message) => Center(
-                  child: Text(message,
-                      style: const TextStyle(color: Colors.red))),
-              ProfileLoaded(:final user) => Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.black : Colors.white,
-                  borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(30)),
-                ),
-                padding: const EdgeInsets.all(20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // --- Profile Box ---
-                      InkWell(
-                        onTap: () {
-                          AppNavigator.push(context, const ProfilePage());
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[900] : Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              if (!isDark)
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.07),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 35,
-                                backgroundColor: Colors.grey[300],
-                                backgroundImage: user.profileImageUrl != null
-                                    ? NetworkImage(user.profileImageUrl!)
-                                    : null,
-                                child: user.profileImageUrl == null
-                                    ? Text(
-                                  user.userName[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black54,
-                                  ),
-                                )
-                                    : null,
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      user.userName,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark
-                                            ? Colors.white
-                                            : Colors.black,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      user.email,
-                                      style: TextStyle(
-                                        color: isDark
-                                            ? Colors.grey[400]
-                                            : Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                size: 18,
-                                color: isDark
-                                    ? Colors.white70
-                                    : Colors.grey,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+            body: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black : Colors.white,
+                borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // 🪄 Profile Box
+                    ProfileBox(isDark: isDark),
 
-                      const SizedBox(height: 25),
+                    const SizedBox(height: 25),
 
-                      // --- Quick Actions ---
-                      GridView.count(
+                    _animatedSection(
+                      child: GridView.count(
                         shrinkWrap: true,
                         crossAxisCount: 3,
                         crossAxisSpacing: 12,
@@ -141,96 +72,108 @@ class AccountSettingsPage extends StatelessWidget {
                         children: [
                           _buildCard(
                             icon: Icons.favorite_border,
-                            title: "Favorites",
+                            title: loc.translate('favorites'),
                             color: Colors.pinkAccent,
                             onTap: () {},
                             isDark: isDark,
                           ),
                           _buildCard(
                             icon: Icons.history,
-                            title: "History",
+                            title: loc.translate('history'),
                             color: Colors.blueAccent,
                             onTap: () {},
                             isDark: isDark,
                           ),
                           _buildCard(
                             icon: Icons.account_balance_wallet,
-                            title: "Wallet",
+                            title: loc.translate('wallet'),
                             color: Colors.green,
                             onTap: () {},
                             isDark: isDark,
                           ),
                         ],
                       ),
+                    ),
 
-                      const SizedBox(height: 30),
+                    const SizedBox(height: 30),
+                    _buildSectionTitle(loc.translate('account'), isDark),
+                    _buildFullWidthButton(
+                      icon: Icons.settings,
+                      title: loc.translate('settings'),
+                      color: Colors.blueGrey,
+                      onTap: () {},
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFullWidthButton(
+                      icon: Icons.support_agent,
+                      title: loc.translate('contact_us'),
+                      color: Colors.teal,
+                      onTap: () {},
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionTitle(loc.translate('preferences'), isDark),
+                    _buildFullWidthButton(
+                      icon: Icons.dark_mode,
+                      title: isDark
+                          ? (loc.translate('light_mode'))
+                          : (loc.translate('dark_mode')),
+                      color: Colors.indigo,
+                      onTap: () =>
+                          context.read<ThemeCubit>().toggleTheme(),
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFullWidthButton(
+                      icon: Icons.language,
+                      title: loc.translate('toggle_language'),
+                      color: Colors.deepPurple,
+                      onTap: () {
+                        context.read<LocalizationCubit>().toggleLanguage();
+                      },
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 16),
 
-                      // --- Account Section ---
-                      _buildSectionTitle("Account", isDark),
-                      _buildFullWidthButton(
-                        icon: Icons.settings,
-                        title: "Settings",
-                        color: Colors.blueGrey,
-                        onTap: () {},
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildFullWidthButton(
-                        icon: Icons.support_agent,
-                        title: "Contact Us",
-                        color: Colors.teal,
-                        onTap: () {},
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // --- Preferences Section ---
-                      _buildSectionTitle("Preferences", isDark),
-                      _buildFullWidthButton(
-                        icon: Icons.dark_mode,
-                        title: isDark ? "Light Mode" : "Dark Mode",
-                        color: Colors.indigo,
-                        onTap: () => context.read<ThemeCubit>().toggleTheme(),
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildFullWidthButton(
-                        icon: Icons.language,
-                        title: "Change Language",
-                        color: Colors.deepPurple,
-                        onTap: () {},
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // --- Account Actions Section ---
-                      _buildSectionTitle("Account Actions", isDark),
-                      _buildFullWidthButton(
-                        icon: Icons.logout,
-                        title: "Logout",
-                        color: Colors.redAccent,
-                        onTap: () async {
-                          await AuthLocalDataSourceImpl().clearUser();
-                          AppNavigator.pushAndRemove(
-                            context, const RoleSelectionPage(),
-                          );
-                        },
-
-                        isDark: isDark,
-                      ),
-                    ],
-                  ),
+                    _buildSectionTitle(loc.translate('account_actions'), isDark),
+                    _buildFullWidthButton(
+                      icon: Icons.logout,
+                      title: loc.translate('logout'),
+                      color: Colors.redAccent,
+                      onTap: () async {
+                        await AuthLocalDataSourceImpl().clearUser();
+                        AppNavigator.pushAndRemove(
+                            context, const RoleSelectionPage());
+                      },
+                      isDark: isDark,
+                    ),
+                  ],
                 ),
               ),
-              _ => const SizedBox.shrink(),
-            },
-          );
-        },
+            ),
+          ),
+        );
+
+
+  }
+
+  // Helper for animations
+  static Widget _animatedSection({required Widget child}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * 20),
+          child: child,
+        ),
       ),
     );
   }
 
-  // --- Helper Widgets ---
   static Widget _buildSectionTitle(String title, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 4),
