@@ -1,13 +1,8 @@
-import 'package:equatable/equatable.dart';
 
 /// Base class for all failures in the app
-abstract class Failure extends Equatable {
+abstract class Failure {
   final String message;
-
   const Failure(this.message);
-
-  @override
-  List<Object?> get props => [message];
 }
 
 /// Server-related failures (e.g. API, Firebase)
@@ -29,3 +24,7 @@ class NetworkFailure extends Failure {
 class ValidationFailure extends Failure {
   const ValidationFailure([super.message = 'Invalid Input']);
 }
+
+
+
+

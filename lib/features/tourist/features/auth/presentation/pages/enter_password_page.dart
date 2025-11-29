@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart'; // ✅ أضفت GoRouter
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
-import '../../../../../../core/localization/app_localizations.dart'; // ✅ أضف الترجمة
-import '../../../home/presentation/pages/home_layout.dart';
+import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/router/app_router.dart'; // ✅ أضفت AppRouter
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
-import 'forgot_password_page.dart';
 
 class EnterPasswordPage extends StatefulWidget {
   final String email;
@@ -58,7 +58,7 @@ class _EnterPasswordPageState extends State<EnterPasswordPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final loc = AppLocalizations.of(context)!; // ✅ الترجمة
+    final loc = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0A0A0A) : AppColor.primaryColor,
@@ -74,11 +74,8 @@ class _EnterPasswordPageState extends State<EnterPasswordPage>
                 ),
               );
             } else if (state is AuthAuthenticated) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const HomeLayout()),
-                    (route) => false,
-              );
+              // ✅ استخدم GoRouter بدل Navigator
+              context.go(AppRouter.home);
             }
           },
           builder: (context, state) {
@@ -121,7 +118,7 @@ class _EnterPasswordPageState extends State<EnterPasswordPage>
                             children: [
                               Text(
                                 loc.translate("enter_password_title") ??
-                                    "Enter Your Password", // ✅
+                                    "Enter Your Password",
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: isDark
@@ -155,10 +152,11 @@ class _EnterPasswordPageState extends State<EnterPasswordPage>
                                       duration:
                                       const Duration(milliseconds: 250),
                                       transitionBuilder:
-                                          (child, animation) => ScaleTransition(
-                                        scale: animation,
-                                        child: child,
-                                      ),
+                                          (child, animation) =>
+                                          ScaleTransition(
+                                            scale: animation,
+                                            child: child,
+                                          ),
                                       child: Icon(
                                         isObscured
                                             ? Icons.visibility_rounded
@@ -232,7 +230,7 @@ class _EnterPasswordPageState extends State<EnterPasswordPage>
                                 )
                                     : Text(
                                   loc.translate("login_button") ??
-                                      "Login", // ✅
+                                      "Login",
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -245,17 +243,12 @@ class _EnterPasswordPageState extends State<EnterPasswordPage>
                                 onPressed: state is AuthLoading
                                     ? null
                                     : () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                      const ForgotPasswordPage(),
-                                    ),
-                                  );
+                                  context.go(
+                                      '${AppRouter.login}/${AppRouter.forgotPassword}');
                                 },
                                 child: Text(
                                   loc.translate("forgot_password") ??
-                                      "Forgot Password?", // ✅
+                                      "Forgot Password?",
                                   style: TextStyle(
                                     color: AppColor.primaryColor,
                                     fontSize: 16,

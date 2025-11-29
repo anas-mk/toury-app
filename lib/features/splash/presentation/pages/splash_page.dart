@@ -1,11 +1,9 @@
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:toury/features/tourist/features/auth/presentation/pages/role_selection_page.dart';
-import 'package:toury/features/tourist/features/home/presentation/pages/home_layout.dart';
-import 'package:toury/features/tourist/features/auth/data/models/user_model.dart';
-import 'package:toury/core/theme/app_color.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../tourist/features/auth/presentation/cubit/auth_cubit.dart';
+import '../../../tourist/features/auth/presentation/cubit/auth_state.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -14,11 +12,11 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage>
-    with SingleTickerProviderStateMixin {
+class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -26,48 +24,45 @@ class _SplashPageState extends State<SplashPage>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 1500),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOutBack,
-      ),
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
-    _navigateAfterSplash();
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+
+    _controller.forward();
+
+    // Start navigation after animation
+    _startNavigation();
   }
 
-  Future<void> _navigateAfterSplash() async {
-    await Future.delayed(const Duration(seconds: 3));
-    final user = await _getCurrentUser();
+  void _startNavigation() async {
+    // Wait for splash animation (2 seconds)
+    await Future.delayed(const Duration(seconds: 2));
 
-    if (!mounted) return;
+    if (!mounted || _hasNavigated) return;
 
-    Navigator.of(context).pushReplacement(PageRouteBuilder(
-      transitionDuration: const Duration(milliseconds: 900),
-      pageBuilder: (_, animation, __) => FadeTransition(
-        opacity: animation,
-        child: user != null ? const HomeLayout() : const RoleSelectionPage(),
-      ),
-    ));
+    // Check auth state
+    final authState = context.read<AuthCubit>().state;
+
+    _navigateBasedOnAuth(authState);
   }
 
-  Future<UserModel?> _getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString('user');
-    if (userJson == null) return null;
-    try {
-      final Map<String, dynamic> data = jsonDecode(userJson);
-      return UserModel.fromJson(data);
-    } catch (_) {
-      return null;
+  void _navigateBasedOnAuth(AuthState state) {
+    if (_hasNavigated) return;
+    _hasNavigated = true;
+
+    if (state is AuthAuthenticated) {
+      // ✅ User is logged in → go to home
+      context.go(AppRouter.home);
+    } else {
+      // ✅ User is not logged in → go to role selection
+      context.go(AppRouter.roleSelection);
     }
   }
 
@@ -79,46 +74,71 @@ class _SplashPageState extends State<SplashPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    final Color bg1 =
-    isDark ? Colors.black : AppColor.primaryColor;
-    final Color bg2 =
-    isDark ? Colors.grey.shade900 : AppColor.primaryColor.withOpacity(0.8);
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final animatedColor1 =
-        Color.lerp(bg1, bg2, _controller.value)!;
-        final animatedColor2 =
-        Color.lerp(bg2, bg1, _controller.value)!;
-
-        return Scaffold(
-          backgroundColor: animatedColor1,
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [animatedColor1, animatedColor2],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Center(
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Image.asset(
+    return BlocListener<AuthCubit, AuthState>(
+      listener: (context, state) {
+        // Listen for auth changes after initial load
+        if (!_hasNavigated) {
+          _navigateBasedOnAuth(state);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0A0A0A) : theme.primaryColor,
+        body: Center(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo with error handling
+                  Image.asset(
                     'assets/logo/logo.png',
-                    height: 180,
+                    height: 200,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.travel_explore,
+                        size: 120,
+                        color: isDark ? Colors.white : Colors.blue,
+                      );
+                    },
                   ),
-                ),
+                  const SizedBox(height: 30),
+
+                  // App Name
+                  Text(
+                    'Toury',
+                    style: theme.textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Text(
+                    'Your Travel Companion',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.white70,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 50),
+
+                  // Loading Indicator
+                  const CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

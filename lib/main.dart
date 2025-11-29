@@ -21,7 +21,10 @@ void main() async {
         BlocProvider(create: (_) => ThemeCubit(isDark: isDark)),
         BlocProvider(create: (_) => LocalizationCubit()),
         BlocProvider(create: (_) => BottomNavCubit()),
-        BlocProvider(create: (_) => di.sl<AuthCubit>()),
+        BlocProvider(
+          create: (_) => di.sl<AuthCubit>()
+            ..checkAuthStatus(),
+        ),
       ],
       child: const MyApp(),
     ),

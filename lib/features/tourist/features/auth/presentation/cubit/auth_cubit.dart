@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/usecases/check_email_usecas.dart';
 import '../../domain/usecases/register_usecase.dart';
 import '../../domain/usecases/verify_google_code_usecase.dart';
@@ -26,41 +24,55 @@ class AuthCubit extends Cubit<AuthState> {
     required this.authRepository,
   }) : super(AuthInitial());
 
+  // ✅ Added: Check for cached user on app start
+  Future<void> checkAuthStatus() async {
+    emit(AuthLoading());
+
+    final result = await authRepository.getCachedUser();
+
+    result.fold(
+          (failure) => emit(AuthUnauthenticated()),
+          (user) {
+        if (user != null) {
+          emit(AuthAuthenticated(user));
+        } else {
+          emit(AuthUnauthenticated());
+        }
+      },
+    );
+  }
+
   // ---------------- CHECK EMAIL ----------------
   Future<void> checkEmail(String email) async {
     emit(AuthLoading());
 
     final result = await checkEmailUseCase(email);
 
-    result.fold((failure) => emit(AuthError(failure.message)), (data) {
-      if (data['action'] == 'go_to_password_page') {
-        emit(AuthEmailExists(email));
-      } else if (data['action'] == 'go_to_register_page') {
-        emit(AuthError('Email not found. Please register first.'));
-      } else {
-        emit(AuthError(data['message'] ?? 'Unknown error occurred'));
-      }
-    });
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (data) {
+        if (data['action'] == 'go_to_password_page') {
+          emit(AuthEmailExists(email));
+        } else if (data['action'] == 'go_to_register_page') {
+          emit(AuthError('Email not found. Please register first.'));
+        } else {
+          emit(AuthError(data['message'] ?? 'Unknown error occurred'));
+        }
+      },
+    );
   }
 
   // ---------------- VERIFY PASSWORD ----------------
   Future<void> verifyPassword(String email, String password) async {
     emit(AuthLoading());
+
     final result = await verifyPasswordUseCase(email, password);
 
     result.fold(
           (failure) => emit(AuthError(failure.message)),
-          (user) async {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user', jsonEncode(user));
-
-        emit(AuthAuthenticated(user));
-      },
+          (user) => emit(AuthAuthenticated(user)), // ✅ Removed manual caching
     );
   }
-
-
-
 
   // ---------------- REGISTER ----------------
   Future<void> register({
@@ -74,6 +86,8 @@ class AuthCubit extends Cubit<AuthState> {
   }) async {
     emit(AuthLoading());
 
+
+
     final result = await registerUseCase(
       email: email,
       userName: userName,
@@ -85,8 +99,8 @@ class AuthCubit extends Cubit<AuthState> {
     );
 
     result.fold(
-      (failure) => emit(AuthError(failure.message)),
-      (user) => emit(AuthAuthenticated(user)),
+          (failure) => emit(AuthError(failure.message)),
+          (user) => emit(AuthAuthenticated(user)),
     );
   }
 
@@ -96,25 +110,27 @@ class AuthCubit extends Cubit<AuthState> {
 
     final result = await googleLoginUseCase(email);
 
-    result.fold((failure) => emit(AuthError(failure.message)), (data) {
-      final message = data['message'] ?? '';
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (data) {
+        final message = data['message'] ?? '';
+        final action = data['action'] ?? '';
 
-      if (data['action'] == 'login_success') {
-        // Success login
-      } else if (data['action'] == 'need_registration') {
-        emit(AuthGoogleRegistrationNeeded(email));
-      } else if (data['action'] == 'code_sent' ||
-          message.contains('Verification code sent')) {
-        emit(AuthGoogleVerificationNeeded(
-          email,
-          message,
-        ));
-      } else {
-        emit(AuthError(message.isNotEmpty ? message : 'Google registration failed'));
-      }
-    });
+        if (action == 'login_success') {
+          // User already exists and logged in successfully
+          emit(AuthMessage(message, action));
+        } else if (action == 'need_registration') {
+          emit(AuthGoogleRegistrationNeeded(email));
+        } else if (action == 'code_sent' || message.contains('Verification code sent')) {
+          emit(AuthGoogleVerificationNeeded(email, message));
+        } else {
+          emit(AuthError(message.isNotEmpty ? message : 'Google login failed'));
+        }
+      },
+    );
   }
 
+  // ---------------- VERIFY GOOGLE CODE ----------------
   Future<void> verifyGoogleCode({
     required String email,
     required String code,
@@ -128,8 +144,24 @@ class AuthCubit extends Cubit<AuthState> {
 
     result.fold(
           (failure) => emit(AuthError(failure.message)),
-          (user) => emit(AuthAuthenticated(user)),
+          (user) => emit(AuthAuthenticated(user)), // ✅ Caching handled in repository
     );
   }
 
+  // ✅ Added: Logout method
+  Future<void> logout() async {
+    emit(AuthLoading());
+
+    final result = await authRepository.logout();
+
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (_) => emit(AuthUnauthenticated()),
+    );
+  }
+
+  // ✅ Added: Reset to initial state
+  void resetState() {
+    emit(AuthInitial());
+  }
 }

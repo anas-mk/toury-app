@@ -62,5 +62,11 @@
   "google_sign_in_cancelled": "Google sign-in cancelled",
   "google_sign_in_not_configured": "Google Sign-In not configured. Please configure Google Console with your SHA-1 fingerprint.",
   "english": "English",
-  "arabic": "Arabic"
+  "arabic": "Arabic",
+  "logout_confirmation": "Are you sure you want to logout?",
+  "cancel": "Cancel",
+  "retry": "Retry",
+  "feature_coming_soon": "Feature coming soon!",
+  "edit_profile_not_implemented": "Edit profile not implemented yet",
+  "continueText": "Continue"
 }

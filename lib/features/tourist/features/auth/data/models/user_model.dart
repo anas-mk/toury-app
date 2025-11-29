@@ -1,6 +1,10 @@
 import '../../domain/entities/user_entity.dart';
 
 class UserModel extends UserEntity {
+
+  static const String defaultProfileImage =
+      'https://i.pinimg.com/736x/e8/7a/b0/e87ab0a15b2b65662020e614f7e05ef1.jpg';
+
   const UserModel({
     required super.id,
     required super.email,
@@ -18,8 +22,8 @@ class UserModel extends UserEntity {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] ?? '',
-      email: json['email'] ?? 'User not founded',
-      userName: json['userName'] ?? 'User not founded',
+      email: json['email'] ?? '',
+      userName: json['userName'] ?? '',
       phoneNumber: json['phoneNumber'] ?? '',
       gender: json['gender'] ?? '',
       birthDate: json['birthDate'] != null && json['birthDate'] != ''
@@ -29,8 +33,7 @@ class UserModel extends UserEntity {
       isVerified: json['isVerified'] ?? false,
       type: json['type'] ?? '',
       token: json['token'],
-      profileImageUrl: json['profileImageUrl'] ??
-          'https://i.pinimg.com/736x/e8/7a/b0/e87ab0a15b2b65662020e614f7e05ef1.jpg',
+      profileImageUrl: json['profileImageUrl'] ?? defaultProfileImage,
     );
   }
 
@@ -47,4 +50,33 @@ class UserModel extends UserEntity {
     'token': token,
     'profileImageUrl': profileImageUrl,
   };
+
+  //  Added copyWith method for easier updates
+  UserModel copyWith({
+    dynamic id,
+    String? email,
+    String? userName,
+    String? phoneNumber,
+    String? gender,
+    DateTime? birthDate,
+    String? country,
+    bool? isVerified,
+    String? type,
+    String? token,
+    String? profileImageUrl,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      userName: userName ?? this.userName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      gender: gender ?? this.gender,
+      birthDate: birthDate ?? this.birthDate,
+      country: country ?? this.country,
+      isVerified: isVerified ?? this.isVerified,
+      type: type ?? this.type,
+      token: token ?? this.token,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+    );
+  }
 }

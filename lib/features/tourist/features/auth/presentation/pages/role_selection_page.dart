@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../core/localization/app_localizations.dart';
-import '../../../../../../core/router/app_navigator.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/CustomCard.dart';
 import '../../../../../../core/widgets/custom_button.dart';
-import 'login_page.dart';
 
 class RoleSelectionPage extends StatefulWidget {
   const RoleSelectionPage({super.key});
@@ -144,7 +144,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
         color: Colors.white,
       ),
       onPressed: () {
-        AppNavigator.push(context, const LoginPage());
+        context.push(AppRouter.login);
       },
     );
   }
@@ -154,7 +154,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
 
     return OutlinedButton.icon(
       onPressed: () {
-        AppNavigator.push(context, const LoginPage());
+        context.push(AppRouter.login);
       },
       label: Text(
         loc.translate("guide"),

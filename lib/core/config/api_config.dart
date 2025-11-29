@@ -1,20 +1,29 @@
 class ApiConfig {
-  //API base URL
-  //http://tourestaapi.runasp.net/api/Auth/register
-  static const String baseUrl = 'http://tourestaapi.runasp.net/api/';
+  // ✅ API base URL (without trailing slash for cleaner URLs)
+  static const String baseUrl = 'http://tourestaapi.runasp.net/api';
 
-  // Auth endpoints
-  static const String loginEndpoint = 'Auth/check-email';
-  static const String verifyPassword = 'Auth/verify-password';
-  static const String registerEndpoint = 'Auth/register';
+  // ========== Auth Endpoints (relative paths) ==========
 
-  static const String googleLogin = 'Auth/google-login';
-  static const String googleVerifyCode = 'Auth/verify-code';
-  static const String googleRegister = 'Auth/google-register';
+  // Login & Registration
+  static const String loginEndpoint = '/Auth/check-email';
+  static const String verifyPassword = '/Auth/verify-password';
+  static const String registerEndpoint = '/Auth/register';
 
+  // Google Authentication
+  static const String googleLogin = '/Auth/google-login';
+  static const String googleVerifyCode = '/Auth/verify-code';
+  static const String googleRegister = '/Auth/google-register';
+
+  // Password Reset
+  static const String forgotPassword = '/Auth/forgot-password';
+  static const String resetPassword = '/Auth/reset-password';
+  // static const String verifyResetCode = '/Auth/verify-reset-code';
+
+  // ========== Configuration ==========
 
   // Request timeout duration in seconds
-  static const int timeoutDuration = 30;
+  static const int connectTimeout = 30000; // 30 seconds in milliseconds
+  static const int receiveTimeout = 30000; // 30 seconds in milliseconds
 
   // Headers
   static const Map<String, String> defaultHeaders = {
@@ -22,5 +31,11 @@ class ApiConfig {
     'Accept': 'application/json',
   };
 
-
+  // ✅ Helper method to create authenticated headers
+  static Map<String, String> getAuthHeaders(String token) {
+    return {
+      ...defaultHeaders,
+      'Authorization': 'Bearer $token',
+    };
+  }
 }

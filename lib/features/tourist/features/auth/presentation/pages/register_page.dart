@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
-import '../../../../../../core/localization/app_localizations.dart'; // ✅ الترجمة
+import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
-import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -44,7 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final loc = AppLocalizations.of(context)!; // ✅ استخدم الترجمة
+    final loc = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: isDark
@@ -68,11 +69,13 @@ class _RegisterPageState extends State<RegisterPage> {
                       "Registration successful ✅"),
                 ),
               );
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                    (route) => false,
-              );
+              // ✅ الحل: استخدم context.go مع delay بسيط للتأكد من تحديث الـ auth state
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) {
+
+                  context.go(AppRouter.login);
+                }
+              });
             }
           },
           builder: (context, state) {
@@ -193,8 +196,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             _buildBirthDateField(isDark, loc),
                             const SizedBox(height: 16),
                             CustomTextField(
-                              hintText:
-                              loc.translate("country") ?? "Country",
+                              hintText: loc.translate("country") ?? "Country",
                               controller: countryController,
                               prefixIcon: Icons.location_on_outlined,
                               validator: (v) => v == null || v.isEmpty
@@ -208,6 +210,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ? null
                                   : () {
                                 if (_formKey.currentState!.validate()) {
+                                  // ✅ التحقق من Birth Date
                                   if (selectedBirthDate == null) {
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(
@@ -217,25 +220,30 @@ class _RegisterPageState extends State<RegisterPage> {
                                               "select_birth_date") ??
                                               'Please select your birth date',
                                         ),
-                                        backgroundColor:
-                                        Colors.redAccent,
+                                        backgroundColor: Colors.redAccent,
                                       ),
                                     );
                                     return;
                                   }
+
+                                  // ✅ طباعة البيانات للـ debug
+                                  print('=== Registration Data ===');
+                                  print('Email: ${emailController.text.trim()}');
+                                  print('Username: ${userNameController.text.trim()}');
+                                  print('Phone: ${phoneNumberController.text.trim()}');
+                                  print('Gender: $selectedGender');
+                                  print('Birth Date: $selectedBirthDate');
+                                  print('Country: ${countryController.text.trim()}');
+                                  print('========================');
+
                                   context.read<AuthCubit>().register(
                                     email: emailController.text.trim(),
-                                    userName: userNameController.text
-                                        .trim(),
-                                    password:
-                                    passwordController.text.trim(),
-                                    phoneNumber: phoneNumberController
-                                        .text
-                                        .trim(),
+                                    userName: userNameController.text.trim(),
+                                    password: passwordController.text.trim(),
+                                    phoneNumber: phoneNumberController.text.trim(),
                                     gender: selectedGender,
                                     birthDate: selectedBirthDate!,
-                                    country: countryController.text
-                                        .trim(),
+                                    country: countryController.text.trim(),
                                   );
                                 }
                               },
@@ -280,12 +288,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                                 TextButton(
                                   onPressed: () {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const LoginPage(),
-                                      ),
-                                    );
+                                    context.go(AppRouter.login);
                                   },
                                   child: Text(
                                     loc.translate("login") ?? "Login",
@@ -337,6 +340,7 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
       ],
       onChanged: (val) => setState(() => selectedGender = val ?? 'Male'),
+      validator: (v) => v == null ? loc.translate("field_required") ?? 'This field is required' : null,
     );
   }
 

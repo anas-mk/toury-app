@@ -15,10 +15,7 @@ abstract class AuthRemoteDataSource {
     required DateTime birthDate,
     required String country,
   });
-
-  // Google Authentication
   Future<Map<String, dynamic>> googleLogin(String email);
-
   Future<UserModel> verifyGoogleCode({
     required String email,
     required String code,
@@ -34,11 +31,15 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<Map<String, dynamic>> checkEmail(String email) async {
     try {
+      print('🔍 Checking email: $email');
+
+      // ✅ Dio will automatically use baseUrl + endpoint
       final response = await dio.post(
         ApiConfig.loginEndpoint,
         data: {"email": email},
-        options: Options(headers: ApiConfig.defaultHeaders),
       );
+
+      print('✅ Response received: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = response.data is String
@@ -59,19 +60,27 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception('Check email failed: ${response.statusCode}');
       }
     } on DioException catch (e) {
+      print('❌ DioException in checkEmail: ${e.message}');
+      print('❌ Response: ${e.response?.data}');
       throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in checkEmail: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
 
-
+  // ---------------- VERIFY PASSWORD ----------------
   @override
   Future<UserModel> verifyPassword(String email, String password) async {
     try {
+      print('🔐 Verifying password for: $email');
+
       final response = await dio.post(
         ApiConfig.verifyPassword,
         data: {"email": email, "password": password},
-        options: Options(headers: ApiConfig.defaultHeaders),
       );
+
+      print('✅ Password verification response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = response.data is String
@@ -100,7 +109,11 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception('Login failed: ${response.statusMessage}');
       }
     } on DioException catch (e) {
+      print('❌ DioException in verifyPassword: ${e.message}');
       throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in verifyPassword: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
 
@@ -116,6 +129,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String country,
   }) async {
     try {
+      print('📝 Registering user: $email');
+
       final response = await dio.post(
         ApiConfig.registerEndpoint,
         data: {
@@ -127,8 +142,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           "birthDate": birthDate.toIso8601String(),
           "country": country,
         },
-        options: Options(headers: ApiConfig.defaultHeaders),
       );
+
+      print('✅ Registration response: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> responseData = response.data is String
@@ -156,20 +172,26 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception('Register failed: ${response.statusMessage}');
       }
     } on DioException catch (e) {
+      print('❌ DioException in register: ${e.message}');
       throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in register: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
-
 
   // ---------------- GOOGLE LOGIN ----------------
   @override
   Future<Map<String, dynamic>> googleLogin(String email) async {
     try {
+      print('🔐 Google login for: $email');
+
       final response = await dio.post(
         ApiConfig.googleLogin,
         data: {"email": email},
-        options: Options(headers: ApiConfig.defaultHeaders),
       );
+
+      print('✅ Google login response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = response.data is String
@@ -178,13 +200,17 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         return {
           'message': data['message'] ?? 'Google login successful',
           'action': data['action'] ?? 'login_success',
-          'user': data['user'], // Include user data if present
+          'user': data['user'],
         };
       } else {
         throw Exception('Google login failed');
       }
     } on DioException catch (e) {
+      print('❌ DioException in googleLogin: ${e.message}');
       throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in googleLogin: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
 
@@ -195,11 +221,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String code,
   }) async {
     try {
+      print('🔐 Verifying Google code for: $email');
+
       final response = await dio.post(
         ApiConfig.googleVerifyCode,
         data: {"email": email, "code": code},
-        options: Options(headers: ApiConfig.defaultHeaders),
       );
+
+      print('✅ Google verification response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = response.data is String
@@ -211,34 +240,54 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception('Google verification failed');
       }
     } on DioException catch (e) {
+      print('❌ DioException in verifyGoogleCode: ${e.message}');
       throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in verifyGoogleCode: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
 
-
   // ---------------- PRIVATE ERROR HANDLER ----------------
   String _handleDioError(DioException e) {
+    print('🔧 Handling Dio error: ${e.type}');
+
     if (e.response != null) {
       final statusCode = e.response?.statusCode;
       final data = e.response?.data;
 
+      print('📊 Status Code: $statusCode');
+      print('📄 Response Data: $data');
+
+      // ✅ Try to extract error message from response
+      String errorMessage = 'Unknown error';
+
+      if (data is Map) {
+        errorMessage = data['message'] ??
+            data['error'] ??
+            data['title'] ??
+            'Request failed';
+      } else if (data is String) {
+        errorMessage = data;
+      }
+
       switch (statusCode) {
         case 400:
-          return 'Bad request. Please check your input.';
+          return errorMessage.isNotEmpty ? errorMessage : 'Bad request. Please check your input.';
         case 401:
-          return 'Invalid credentials. Please try again.';
+          return errorMessage.isNotEmpty ? errorMessage : 'Invalid credentials. Please try again.';
         case 403:
           return 'Access denied. Please contact support.';
         case 404:
           return 'Service not found. Please try again later.';
         case 409:
-          return 'Email already exists. Please use a different email.';
+          return errorMessage.isNotEmpty ? errorMessage : 'Email already exists. Please use a different email.';
         case 422:
           return 'Invalid data provided. Please check your information.';
         case 500:
           return 'Server error. Please try again later.';
         default:
-          return 'Error $statusCode: ${data ?? 'Unknown error'}';
+          return errorMessage.isNotEmpty ? errorMessage : 'Error $statusCode: ${data ?? 'Unknown error'}';
       }
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||

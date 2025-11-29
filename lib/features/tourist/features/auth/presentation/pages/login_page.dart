@@ -2,15 +2,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:toury/features/tourist/features/auth/presentation/pages/google_verify_code_page.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
-import 'enter_password_page.dart';
-import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -49,6 +48,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   void dispose() {
     _animController.dispose();
+    emailController.dispose();
     super.dispose();
   }
 
@@ -134,8 +134,7 @@ class _LoginPageState extends State<LoginPage>
                 l10n.login,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color:
-                  isDarkMode ? Colors.white : AppColor.primaryColor,
+                  color: isDarkMode ? Colors.white : AppColor.primaryColor,
                 ),
               ),
               const SizedBox(height: 24),
@@ -228,16 +227,12 @@ class _LoginPageState extends State<LoginPage>
                     : () => _handleGoogleSignIn(context, l10n),
                 icon: Icon(Icons.g_mobiledata,
                     size: 30,
-                    color: isDarkMode
-                        ? Colors.white
-                        : AppColor.primaryColor),
+                    color: isDarkMode ? Colors.white : AppColor.primaryColor),
                 label: Text(
                   l10n.continueWithGoogle,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode
-                        ? Colors.white
-                        : AppColor.primaryColor,
+                    color: isDarkMode ? Colors.white : AppColor.primaryColor,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
@@ -262,12 +257,7 @@ class _LoginPageState extends State<LoginPage>
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const RegisterPage(),
-                        ),
-                      );
+                      context.go('${AppRouter.login}/${AppRouter.register}');
                     },
                     child: Text(
                       l10n.register,
@@ -292,24 +282,17 @@ class _LoginPageState extends State<LoginPage>
         SnackBar(content: Text(state.message), backgroundColor: Colors.red),
       );
     } else if (state is AuthEmailExists) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EnterPasswordPage(email: state.email),
-        ),
-      );
+      // ✅ استخدم GoRouter للتنقل
+      context.go('${AppRouter.login}/enter-password/${state.email}');
     } else if (state is AuthGoogleRegistrationNeeded) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const RegisterPage()),
-      );
+      // ✅ استخدم GoRouter
+      context.go('${AppRouter.login}/${AppRouter.register}');
     } else if (state is AuthGoogleVerificationNeeded) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => GoogleVerifyCodePage(email: state.email),
-        ),
-      );
+      // ✅ استخدم GoRouter
+      context.go('${AppRouter.login}/verify-google-code/${state.email}');
+    } else if (state is AuthAuthenticated) {
+      // ✅ استخدم GoRouter للذهاب للصفحة الرئيسية
+      context.go(AppRouter.home);
     }
   }
 
@@ -317,20 +300,27 @@ class _LoginPageState extends State<LoginPage>
     try {
       final account = await _googleSignIn.signIn();
       if (account != null && account.email.isNotEmpty) {
-        context.read<AuthCubit>().googleLogin(account.email);
+        if (mounted) {
+          context.read<AuthCubit>().googleLogin(account.email);
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.googleSignInCancelled)),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.googleSignInCancelled)),
+          );
+        }
       }
     } catch (e) {
-      String errorMessage = l10n.googleSignInFailed;
-      if (e.toString().contains('ApiException: 10')) {
-        errorMessage = l10n.googleSignInNotConfigured;
+      if (mounted) {
+        String errorMessage = l10n.googleSignInFailed;
+        if (e.toString().contains('ApiException: 10')) {
+          errorMessage = l10n.googleSignInNotConfigured;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(errorMessage), backgroundColor: Colors.orange),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.orange),
-      );
     }
   }
 }

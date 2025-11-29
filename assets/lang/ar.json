@@ -62,5 +62,11 @@
   "google_sign_in_cancelled": "تم إلغاء تسجيل الدخول مع جوجل",
   "google_sign_in_not_configured": "تسجيل الدخول مع جوجل غير مُعد. من فضلك قم بإعداد Google Console مع بصمة SHA-1 الخاصة بك.",
   "english": "الإنجليزية",
-  "arabic": "العربية"
+  "arabic": "العربية",
+  "logout_confirmation": "هل أنت متأكد من تسجيل الخروج؟",
+  "cancel": "إلغاء",
+  "retry": "إعادة المحاولة",
+  "feature_coming_soon": "هذه الميزة قريباً!",
+  "edit_profile_not_implemented": "تعديل الملف الشخصي غير متاح حالياً",
+  "continueText": "متابعة"
 }

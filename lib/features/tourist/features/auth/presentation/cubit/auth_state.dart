@@ -38,37 +38,12 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
-class AuthPasswordError extends AuthState {
-  final String message;
-  const AuthPasswordError(this.message);
-
-  @override
-  List<Object?> get props => [message];
-}
-
-class AuthPasswordUpdated extends AuthState {
-  const AuthPasswordUpdated();
-}
-
-class AuthPasswordResetSent extends AuthState {
-  final String message;
-  const AuthPasswordResetSent(this.message);
-
-  @override
-  List<Object?> get props => [message];
-}
-
 class AuthGoogleRegistrationNeeded extends AuthState {
   final String email;
   const AuthGoogleRegistrationNeeded(this.email);
 
   @override
   List<Object?> get props => [email];
-}
-
-class AuthSuccess extends AuthState {
-  final String message;
-  const AuthSuccess(this.message);
 }
 
 class AuthGoogleVerificationNeeded extends AuthState {
@@ -80,17 +55,12 @@ class AuthGoogleVerificationNeeded extends AuthState {
   List<Object?> get props => [email, message];
 }
 
-class AuthGoogleSuccess extends AuthState {
-  final String message;
-  const AuthGoogleSuccess(this.message);
-
-  @override
-  List<Object?> get props => [message];
-}
-
 class AuthMessage extends AuthState {
   final String message;
   final String action;
 
-  AuthMessage(this.message, this.action);
+  const AuthMessage(this.message, this.action);
+
+  @override
+  List<Object?> get props => [message, action];
 }

@@ -1,4 +1,6 @@
-class UserEntity {
+import 'package:equatable/equatable.dart';
+
+class UserEntity extends Equatable {
   final dynamic id;
   final String email;
   final String userName;
@@ -24,4 +26,19 @@ class UserEntity {
     this.token,
     this.profileImageUrl,
   });
+
+  @override
+  List<Object?> get props => [
+    id,
+    email,
+    userName,
+    phoneNumber,
+    gender,
+    birthDate,
+    country,
+    isVerified,
+    type,
+    token,
+    profileImageUrl,
+  ];
 }

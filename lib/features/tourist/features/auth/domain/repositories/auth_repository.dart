@@ -5,10 +5,12 @@ import '../entities/user_entity.dart';
 
 abstract class AuthRepository {
   Future<Either<Failure, Map<String, dynamic>>> checkEmail(String email);
+
   Future<Either<Failure, UserEntity>> verifyPassword(
-    String email,
-    String password,
-  );
+      String email,
+      String password,
+      );
+
   Future<Either<Failure, UserEntity>> register({
     required String email,
     required String userName,
@@ -22,9 +24,12 @@ abstract class AuthRepository {
   // Google Authentication
   Future<Either<Failure, Map<String, dynamic>>> googleLogin(String email);
 
-
-  Future<Either<Failure,UserModel>> verifyGoogleCode({
+  Future<Either<Failure, UserModel>> verifyGoogleCode({
     required String email,
     required String code,
   });
+
+  //  Added: Local storage methods
+  Future<Either<Failure, UserEntity?>> getCachedUser();
+  Future<Either<Failure, void>> logout();
 }

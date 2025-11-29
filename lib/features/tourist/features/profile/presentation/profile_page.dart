@@ -1,237 +1,173 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:toury/core/theme/app_color.dart';
-import 'package:toury/core/theme/theme_cubit.dart';
-import 'package:toury/core/localization/app_localizations.dart';
-import '../cubit/profile_cubit/profile_cubit.dart';
-import '../cubit/profile_cubit/profile_state.dart';
+import 'package:toury/features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:toury/features/tourist/features/auth/presentation/cubit/auth_state.dart';
+import 'package:toury/features/tourist/features/auth/presentation/pages/login_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
-    return BlocProvider(
-      create: (_) => ProfileCubit()..loadUser(),
-      child: BlocBuilder<ProfileCubit, ProfileState>(
-        builder: (context, state) {
-          final isDark = context.watch<ThemeCubit>().state == ThemeMode.dark;
-
-          return Scaffold(
-            backgroundColor:
-            isDark ? const Color(0xFF0E0E0E) : const Color(0xFFF9FAFB),
-            body: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 400),
-              child: switch (state) {
-                ProfileLoading() => const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: Colors.blueAccent,
-                  ),
-                ),
-                ProfileError(:final message) => Center(
-                  child: Text(
-                    message,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
-                ProfileLoaded(:final user) => CustomScrollView(
-                  slivers: [
-                    // ---- Header ----
-                    SliverAppBar(
-                      expandedHeight: 310,
-                      pinned: true,
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      flexibleSpace: FlexibleSpaceBar(
-                        background: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColor.primaryColor,
-                                    AppColor.primaryColor.withOpacity(0.7),
-                                    isDark
-                                        ? Colors.black
-                                        : Colors.lightBlueAccent
-                                        .withOpacity(0.4),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                            ),
-                            Positioned.fill(
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                child: Container(
-                                  color: Colors.black.withOpacity(0.1),
-                                ),
-                              ),
-                            ),
-                            Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Padding(
-                                padding:
-                                const EdgeInsets.only(bottom: 25, top: 40),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 60,
-                                      backgroundColor: Colors.white,
-                                      backgroundImage: user.profileImageUrl != null
-                                          ? NetworkImage(user.profileImageUrl!)
-                                          : null,
-                                      child: user.profileImageUrl == null
-                                          ? Text(
-                                        user.userName[0].toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 42,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black54,
-                                        ),
-                                      )
-                                          : null,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      user.userName,
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      actions: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          onPressed: () {},
-                        ),
-                      ],
-                    ),
-
-                    // ---- User information ----
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildInfoTile(
-                              icon: Icons.email_rounded,
-                              label: loc.translate('email'),
-                              value: user.email,
-                              isDark: isDark,
-                            ),
-                            _buildInfoTile(
-                              icon: Icons.phone_rounded,
-                              label: loc.translate('phone_number'),
-                              value: user.phoneNumber,
-                              isDark: isDark,
-                            ),
-                            _buildInfoTile(
-                              icon: Icons.wc_rounded,
-                              label: loc.translate('gender'),
-                              value: user.gender,
-                              isDark: isDark,
-                            ),
-                            _buildInfoTile(
-                              icon: Icons.flag_circle_outlined,
-                              label: loc.translate('country'),
-                              value: user.country,
-                              isDark: isDark,
-                            ),
-                            _buildInfoTile(
-                              icon: Icons.cake_rounded,
-                              label: loc.translate('birth_date'),
-                              value: user.birthDate.toString().split(' ')[0],
-                              isDark: isDark,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                _ => const SizedBox.shrink(),
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  static Widget _buildInfoTile({
+  Widget _buildInfoRow({
     required IconData icon,
     required String label,
     required String value,
-    required bool isDark,
   }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[900] : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          if (!isDark)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-        ],
+    return Row(
+      children: [
+        Icon(icon, color: Colors.blue, size: 24),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
       ),
-      child: Row(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: AppColor.primaryColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            padding: const EdgeInsets.all(10),
-            child: Icon(icon, color: AppColor.primaryColor, size: 24),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white70 : Colors.black54,
+      body: BlocListener<AuthCubit, AuthState>(
+        listener: (context, state) {
+          if (state is AuthUnauthenticated) {
+            // Navigate to login page after logout
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+                  (route) => false,
+            );
+          } else if (state is AuthError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        child: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, state) {
+            if (state is AuthAuthenticated) {
+              return SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      // User Info
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage: state.user.profileImageUrl != null &&
+                            state.user.profileImageUrl!.isNotEmpty
+                            ? NetworkImage(state.user.profileImageUrl!)
+                            : null,
+                        child: state.user.profileImageUrl == null ||
+                            state.user.profileImageUrl!.isEmpty
+                            ? const Icon(Icons.person,
+                            size: 50, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        state.user.userName,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        state.user.email,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // User Details Card
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: [
+                              _buildInfoRow(
+                                icon: Icons.phone,
+                                label: 'Phone Number',
+                                value: state.user.phoneNumber ?? 'Not provided',
+                              ),
+                              const Divider(height: 24),
+                              _buildInfoRow(
+                                icon: Icons.male,
+                                label: 'Gender',
+                                value: state.user.gender ?? 'Not specified',
+                              ),
+                              const Divider(height: 24),
+                              _buildInfoRow(
+                                icon: Icons.cake,
+                                label: 'Birth Date',
+                                value: state.user.birthDate.toString().split(' ')[0] ?? 'Not provided',
+                              ),
+                              const Divider(height: 24),
+                              _buildInfoRow(
+                                icon: Icons.location_on,
+                                label: 'Country',
+                                value: state.user.country ?? 'Not specified',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Profile Options
+                      ListTile(
+                        leading: const Icon(Icons.person),
+                        title: const Text('Edit Profile'),
+                        trailing:
+                        const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          // Navigate to edit profile
+                        },
+                      ),
+
+
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+              );
+            }
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+        ),
       ),
     );
   }
