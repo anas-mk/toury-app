@@ -3,9 +3,9 @@ import 'package:dio/dio.dart';
 import '../../features/tourist/features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/tourist/features/auth/domain/repositories/auth_repository.dart';
 import '../../features/tourist/features/auth/domain/usecases/get_cached_user_usecase.dart';
+import '../../features/tourist/features/auth/domain/usecases/verify_code_usecase.dart';
 import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
 import '../config/api_config.dart';
-
 import '../../features/tourist/features/auth/data/datasources/auth_local_data_source.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/tourist/features/auth/domain/usecases/check_email_usecas.dart';
@@ -33,6 +33,7 @@ Future<void> init() async {
       authRepository: sl(),
       forgotPasswordUseCase: sl(),
       resetPasswordUseCase: sl(),
+      verifyCodeUseCase: sl(),
     ),
   );
 
@@ -45,6 +46,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CheckEmailUseCase(sl()));
   sl.registerLazySingleton(() => VerifyPasswordUseCase(sl()));
   sl.registerLazySingleton(() => RegisterUseCase(sl()));
+  sl.registerLazySingleton(() => VerifyCodeUseCase(sl()));
   sl.registerLazySingleton(() => GoogleLoginUseCase(sl()));
   sl.registerLazySingleton(() => GetCachedUserUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
@@ -102,16 +104,16 @@ Dio _createDio() {
     ),
   );
 
-  // ✅ Add error interceptor for better error handling
+  // Add error interceptor for better error handling
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
-        print('🚀 REQUEST: ${options.method} ${options.uri}');
-        print('📦 DATA: ${options.data}');
+        print('REQUEST: ${options.method} ${options.uri}');
+        print('DATA: ${options.data}');
         return handler.next(options);
       },
       onResponse: (response, handler) {
-        print('✅ RESPONSE [${response.statusCode}]: ${response.data}');
+        print('RESPONSE [${response.statusCode}]: ${response.data}');
         return handler.next(response);
       },
       onError: (error, handler) {

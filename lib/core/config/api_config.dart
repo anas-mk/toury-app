@@ -1,5 +1,5 @@
 class ApiConfig {
-  // ✅ API base URL (without trailing slash for cleaner URLs)
+  // API base URL (without trailing slash for cleaner URLs)
   
   static const String baseUrl = 'http://tourestaapi.runasp.net/api';
 
@@ -9,7 +9,7 @@ class ApiConfig {
   static const String loginEndpoint = '/Auth/check-email';
   static const String verifyPassword = '/Auth/verify-password';
   static const String registerEndpoint = '/Auth/register';
-  static const String VerifyCode = '/Auth/verify-code';
+  static const String verifyCode = '/Auth/verify-code';
   // Google Authentication
 
   static const String googleLogin = '/Auth/google-login';
@@ -37,7 +37,7 @@ class ApiConfig {
     'Accept': 'application/json',
   };
 
-  // ✅ Helper method to create authenticated headers
+  // Helper method to create authenticated headers
   static Map<String, String> getAuthHeaders(String token) {
     return {
       ...defaultHeaders,

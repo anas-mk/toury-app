@@ -282,16 +282,16 @@ class _LoginPageState extends State<LoginPage>
         SnackBar(content: Text(state.message), backgroundColor: Colors.red),
       );
     } else if (state is AuthEmailExists) {
-      // ✅ استخدم GoRouter للتنقل
+
       context.go('${AppRouter.login}/enter-password/${state.email}');
     } else if (state is AuthGoogleRegistrationNeeded) {
-      // ✅ استخدم GoRouter
+
       context.go('${AppRouter.login}/${AppRouter.register}');
     } else if (state is AuthGoogleVerificationNeeded) {
-      // ✅ استخدم GoRouter
+
       context.go('${AppRouter.login}/verify-google-code/${state.email}');
     } else if (state is AuthAuthenticated) {
-      // ✅ استخدم GoRouter للذهاب للصفحة الرئيسية
+
       context.go(AppRouter.home);
     }
   }

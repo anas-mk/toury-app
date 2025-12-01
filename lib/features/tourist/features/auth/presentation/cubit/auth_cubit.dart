@@ -5,6 +5,7 @@ import '../../domain/usecases/verify_password_usecase.dart';
 import '../../domain/usecases/google_login_usecase.dart';
 import '../../domain/usecases/forgot_password_usecase.dart';
 import '../../domain/usecases/reset_password_usecase.dart';
+import '../../domain/usecases/verify_code_usecase.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_state.dart';
 
@@ -15,6 +16,7 @@ class AuthCubit extends Cubit<AuthState> {
   final GoogleLoginUseCase googleLoginUseCase;
   final ForgotPasswordUseCase forgotPasswordUseCase;
   final ResetPasswordUseCase resetPasswordUseCase;
+  final VerifyCodeUseCase verifyCodeUseCase;
   final AuthRepository authRepository;
 
   AuthCubit({
@@ -24,6 +26,7 @@ class AuthCubit extends Cubit<AuthState> {
     required this.googleLoginUseCase,
     required this.forgotPasswordUseCase,
     required this.resetPasswordUseCase,
+    required this.verifyCodeUseCase,
     required this.authRepository,
   }) : super(AuthInitial());
 
@@ -100,8 +103,62 @@ class AuthCubit extends Cubit<AuthState> {
     );
 
     result.fold(
+          (failure) {
+        final errorMessage = failure.message
+            .replaceAll('Exception: ', '')
+            .replaceAll('exception: ', '');
+
+        print('🔍 Cubit received failure: $errorMessage');
+
+        if (errorMessage.contains('VERIFICATION_NEEDED:')) {
+          final parts = errorMessage.split(':');
+          final emailFromError = parts.length > 1 ? parts[1] : email;
+          final message = parts.length > 2 ? parts.sublist(2).join(':') : 'Please verify your email';
+
+          print('✅ Emitting verification needed state');
+          print('📧 Email: $emailFromError');
+          print('💬 Message: $message');
+
+          emit(AuthRegistrationVerificationNeeded(
+            email: emailFromError,
+            message: message,
+          ));
+        } else {
+          print('❌ Emitting error state: $errorMessage');
+          emit(AuthError(errorMessage));
+        }
+      },
+          (user) {
+        print('✅ Registration successful, emitting authenticated');
+        emit(AuthAuthenticated(user));
+      },
+    );
+  }
+
+  // ---------------- VERIFY REGISTRATION CODE ----------------
+  Future<void> verifyRegistrationCode({
+    required String email,
+    required String code,
+  }) async {
+    emit(AuthLoading());
+
+    final result = await verifyCodeUseCase(
+      email: email,
+      code: code,
+    );
+
+    result.fold(
           (failure) => emit(AuthError(failure.message)),
-          (user) => emit(AuthAuthenticated(user)),
+          (data) {
+        // ✅ After successful verification, navigate to login or get user data
+        final token = data['token'];
+        final message = data['message'] ?? 'Verification successful';
+
+        emit(AuthVerificationSuccess(
+          token: token,
+          message: message,
+        ));
+      },
     );
   }
 

@@ -16,12 +16,17 @@ abstract class AuthRemoteDataSource {
     required String country,
   });
   Future<Map<String, dynamic>> googleLogin(String email);
-
   Future<Map<String, dynamic>> forgotPassword(String email);
   Future<Map<String, dynamic>> resetPassword({
     required String email,
     required String code,
     required String newPassword,
+  });
+
+  // Verify Registration Code
+  Future<Map<String, dynamic>> verifyRegistrationCode({
+    required String email,
+    required String code,
   });
 }
 
@@ -98,7 +103,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           throw Exception('Invalid response format: user not found');
         }
 
-        // Inject token into user model
         final userJson = {
           ...userData,
           'token': responseData['token'],
@@ -119,6 +123,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
   }
 
+  // ---------------- REGISTER ----------------
   // ---------------- REGISTER ----------------
   @override
   Future<UserModel> register({
@@ -147,12 +152,27 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       print('✅ Registration response: ${response.statusCode}');
+      print('📦 Registration data: ${response.data}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> responseData = response.data is String
             ? Map<String, dynamic>.from(jsonDecode(response.data))
             : Map<String, dynamic>.from(response.data);
 
+        // ✅ Check the response structure
+        final message = responseData['message'] ?? '';
+        final action = responseData['action'] ?? '';
+
+        // ✅ If verification is needed (action = "enter_verification_code")
+        if (action == 'enter_verification_code' ||
+            message.toLowerCase().contains('verification code') ||
+            message.toLowerCase().contains('code sent')) {
+
+          print('✅ Verification needed - throwing special exception');
+          throw Exception('VERIFICATION_NEEDED:$email:$message');
+        }
+
+        // ✅ If registration is complete and returns user data
         final userDataRaw = responseData['data']?['user'];
         final token = responseData['data']?['token'];
 
@@ -178,6 +198,52 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception(_handleDioError(e));
     } catch (e) {
       print('❌ Unknown error in register: $e');
+      // ✅ Make sure to re-throw VERIFICATION_NEEDED exceptions
+      if (e.toString().contains('VERIFICATION_NEEDED:')) {
+        rethrow;
+      }
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  // ---------------- VERIFY REGISTRATION CODE ----------------
+  @override
+  Future<Map<String, dynamic>> verifyRegistrationCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      print('🔍 Verifying registration code for: $email');
+
+      final response = await dio.post(
+        ApiConfig.verifyCode,
+        data: {
+          "email": email,
+          "code": code,
+        },
+      );
+
+      print('✅ Verification response: ${response.statusCode}');
+      print('📦 Verification data: ${response.data}');
+
+      if (response.statusCode == 200) {
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
+
+        return {
+          'success': true,
+          'token': data['token'],
+          'message': data['message'] ?? 'Verification successful',
+        };
+      } else {
+        throw Exception('Verification failed');
+      }
+    } on DioException catch (e) {
+      print('❌ DioException in verifyRegistrationCode: ${e.message}');
+      throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in verifyRegistrationCode: $e');
       throw Exception('Unexpected error: $e');
     }
   }
@@ -215,7 +281,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception('Unexpected error: $e');
     }
   }
-
 
   // ---------------- FORGOT PASSWORD ----------------
   @override

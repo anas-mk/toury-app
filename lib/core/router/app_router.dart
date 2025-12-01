@@ -7,17 +7,20 @@ import '../../features/tourist/features/auth/presentation/pages/enter_password_p
 import '../../features/tourist/features/auth/presentation/pages/role_selection_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/forgot_password_page.dart'; // ✅ Updated import
 import '../../features/tourist/features/auth/presentation/pages/reset_password_page.dart'; // ✅ New import
+import '../../features/tourist/features/auth/presentation/pages/verify_code_page.dart';
 import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
 import '../../features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
 import '../../features/tourist/features/profile/presentation/page/profile_page.dart';
 
-// Placeholder page
+// Placeholder page for Google
 class GoogleVerifyCodePage extends StatelessWidget {
   final String email;
   const GoogleVerifyCodePage({super.key, required this.email});
   @override
   Widget build(BuildContext context) => Scaffold(body: Center(child: Text('Google Verify Code Page for $email (Placeholder)')));
 }
+
+
 
 class AppRouter {
   // ----------------------------------------
@@ -28,9 +31,10 @@ class AppRouter {
   static const String home = '/home';
   static const String login = '/login';
   static const String register = 'register';
+  static const String verifyCode = '/verify-code'; // ✨ Added this route constant
   static const String enterPassword = 'enter-password/:email';
   static const String forgotPassword = 'forgot-password';
-  static const String resetPassword = 'reset-password'; // ✅ New route
+  static const String resetPassword = 'reset-password';
   static const String googleVerifyCode = 'verify-google-code/:email';
   static const String accountSettings = 'account-settings';
   static const String profile = 'profile';
@@ -64,6 +68,16 @@ class AppRouter {
         builder: (context, state) => const RoleSelectionPage(),
       ),
 
+      // 1b. Verify Code - New Top Level Route
+      GoRoute(
+        path: verifyCode,
+        name: 'verify-code', // Added name
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return VerifyCodePage(email: email);
+        },
+      ),
+
       // 2. Login Flow Group
       GoRoute(
         path: login,
@@ -86,9 +100,8 @@ class AppRouter {
           GoRoute(
             path: forgotPassword,
             name: 'forgot-password',
-            builder: (context, state) => const ForgotPasswordPage(), // ✅ Real page now
+            builder: (context, state) => const ForgotPasswordPage(),
             routes: [
-              // ✅ Nested route for reset password
               GoRoute(
                 path: resetPassword,
                 name: 'reset-password',
@@ -141,11 +154,11 @@ class AppRouter {
           children: [
             const Icon(Icons.error, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            Text('خطأ: الصفحة غير موجودة: ${state.uri}'),
+            Text('GO TO START PAGE${state.uri}'),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => context.go(splash),
-              child: const Text('الذهاب إلى البداية'),
+              child: const Text('GO TO START'),
             ),
           ],
         ),

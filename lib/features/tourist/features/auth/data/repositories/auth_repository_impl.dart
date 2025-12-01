@@ -58,8 +58,31 @@ class AuthRepositoryImpl implements AuthRepository {
         birthDate: birthDate,
         country: country,
       );
+      // Don't cache user yet if verification is needed
       await localDataSource.cacheUser(user);
       return Right(user);
+    } catch (e) {
+      final errorMessage = e.toString();
+      // Check if this is a verification needed exception
+      if (errorMessage.contains('VERIFICATION_NEEDED:')) {
+        // Pass through as a special failure
+        return Left(ServerFailure(errorMessage));
+      }
+      return Left(ServerFailure(_cleanErrorMessage(errorMessage)));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> verifyRegistrationCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final result = await remoteDataSource.verifyRegistrationCode(
+        email: email,
+        code: code,
+      );
+      return Right(result);
     } catch (e) {
       return Left(ServerFailure(_cleanErrorMessage(e.toString())));
     }

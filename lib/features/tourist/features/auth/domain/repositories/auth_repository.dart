@@ -37,4 +37,9 @@ abstract class AuthRepository {
   // Local storage methods
   Future<Either<Failure, UserEntity?>> getCachedUser();
   Future<Either<Failure, void>> logout();
+
+  Future<Either<Failure, Map<String, dynamic>>> verifyRegistrationCode({
+    required String email,
+    required String code
+  });
 }

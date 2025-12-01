@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/CustomCard.dart';
+import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 
 class RoleSelectionPage extends StatefulWidget {

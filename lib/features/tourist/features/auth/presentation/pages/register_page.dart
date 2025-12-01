@@ -62,6 +62,23 @@ class _RegisterPageState extends State<RegisterPage> {
                   backgroundColor: Colors.redAccent,
                 ),
               );
+            } else if (state is AuthRegistrationVerificationNeeded) {
+              // ✅ Navigate to verification page
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.blue,
+                ),
+              );
+
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) {
+                  // Navigate to verify code page with email
+                  context.go(
+                    '${AppRouter.verifyCode}?email=${Uri.encodeComponent(state.email)}',
+                  );
+                }
+              });
             } else if (state is AuthAuthenticated) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -69,10 +86,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       "Registration successful ✅"),
                 ),
               );
-              // ✅ الحل: استخدم context.go مع delay بسيط للتأكد من تحديث الـ auth state
+
               Future.delayed(const Duration(milliseconds: 100), () {
                 if (mounted) {
-
                   context.go(AppRouter.login);
                 }
               });

@@ -65,7 +65,7 @@ class AuthMessage extends AuthState {
   List<Object?> get props => [message, action];
 }
 
-// ✅ Forgot Password States
+// Forgot Password States
 class AuthForgotPasswordSent extends AuthState {
   final String message;
   final String email;
@@ -79,7 +79,7 @@ class AuthForgotPasswordSent extends AuthState {
   List<Object?> get props => [message, email];
 }
 
-// ✅ Reset Password States
+// Reset Password States
 class AuthPasswordResetSuccess extends AuthState {
   final String message;
 
@@ -87,4 +87,32 @@ class AuthPasswordResetSuccess extends AuthState {
 
   @override
   List<Object?> get props => [message];
+}
+
+// Registration Verification Needed State
+class AuthRegistrationVerificationNeeded extends AuthState {
+  final String email;
+  final String message;
+
+  const AuthRegistrationVerificationNeeded({
+    required this.email,
+    required this.message,
+  });
+
+  @override
+  List<Object?> get props => [email, message];
+}
+
+//Verification Success State (before getting full user data)
+class AuthVerificationSuccess extends AuthState {
+  final String token;
+  final String message;
+
+  const AuthVerificationSuccess({
+    required this.token,
+    required this.message,
+  });
+
+  @override
+  List<Object?> get props => [token, message];
 }
