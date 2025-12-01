@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
+import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
-import 'login_page.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -42,9 +42,19 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   backgroundColor: Colors.redAccent,
                 ),
               );
+            } else if (state is AuthForgotPasswordSent) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              // Navigate to reset password page with email as extra parameter
+              context.push(
+                '${AppRouter.login}/${AppRouter.forgotPassword}/${AppRouter.resetPassword}',
+                extra: state.email,
+              );
             }
-            // ✅ Removed AuthPasswordResetSent as it doesn't exist
-            // TODO: Implement forgot password API and add proper state
           },
           builder: (context, state) {
             return Center(
@@ -89,7 +99,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Enter your email address and we\'ll send you a link to reset your password.',
+                              'Enter your email address and we\'ll send you a code to reset your password.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 15,
@@ -138,16 +148,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               onPressed: state is AuthLoading
                                   ? null
                                   : () {
-                                // ✅ Fixed: Added validation and logic
                                 if (_formKey.currentState!.validate()) {
-                                  // TODO: Implement forgot password API call
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Forgot password feature is not implemented yet. Please contact support.',
-                                      ),
-                                      backgroundColor: Colors.orange,
-                                    ),
+                                  context.read<AuthCubit>().forgotPassword(
+                                    emailController.text.trim(),
                                   );
                                 }
                               },
@@ -169,7 +172,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 ),
                               )
                                   : const Text(
-                                'Send Reset Link',
+                                'Send Reset Code',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -183,12 +186,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               onPressed: state is AuthLoading
                                   ? null
                                   : () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const LoginPage(),
-                                  ),
-                                );
+                                context.go(AppRouter.login);
                               },
                               child: Text(
                                 'Back to Login',

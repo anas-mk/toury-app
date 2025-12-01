@@ -16,9 +16,12 @@ abstract class AuthRemoteDataSource {
     required String country,
   });
   Future<Map<String, dynamic>> googleLogin(String email);
-  Future<UserModel> verifyGoogleCode({
+
+  Future<Map<String, dynamic>> forgotPassword(String email);
+  Future<Map<String, dynamic>> resetPassword({
     required String email,
     required String code,
+    required String newPassword,
   });
 }
 
@@ -33,7 +36,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       print('🔍 Checking email: $email');
 
-      // ✅ Dio will automatically use baseUrl + endpoint
       final response = await dio.post(
         ApiConfig.loginEndpoint,
         data: {"email": email},
@@ -73,7 +75,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<UserModel> verifyPassword(String email, String password) async {
     try {
-      print('🔐 Verifying password for: $email');
+      print('🔍 Verifying password for: $email');
 
       final response = await dio.post(
         ApiConfig.verifyPassword,
@@ -87,19 +89,19 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
             ? Map<String, dynamic>.from(jsonDecode(response.data))
             : Map<String, dynamic>.from(response.data);
 
-        final Map<String, dynamic>? data =
-        responseData['data'] != null ? Map<String, dynamic>.from(responseData['data']) : null;
-
         final Map<String, dynamic>? userData =
-        data?['user'] != null ? Map<String, dynamic>.from(data!['user']) : null;
+        responseData['user'] != null
+            ? Map<String, dynamic>.from(responseData['user'])
+            : null;
 
         if (userData == null) {
           throw Exception('Invalid response format: user not found');
         }
 
+        // Inject token into user model
         final userJson = {
           ...userData,
-          'token': data?['token'] ?? responseData['token'],
+          'token': responseData['token'],
         };
 
         return UserModel.fromJson(userJson);
@@ -129,7 +131,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String country,
   }) async {
     try {
-      print('📝 Registering user: $email');
+      print('🔍 Registering user: $email');
 
       final response = await dio.post(
         ApiConfig.registerEndpoint,
@@ -184,7 +186,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<Map<String, dynamic>> googleLogin(String email) async {
     try {
-      print('🔐 Google login for: $email');
+      print('🔍 Google login for: $email');
 
       final response = await dio.post(
         ApiConfig.googleLogin,
@@ -214,36 +216,79 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
   }
 
-  // ---------------- GOOGLE VERIFY CODE ----------------
+
+  // ---------------- FORGOT PASSWORD ----------------
   @override
-  Future<UserModel> verifyGoogleCode({
-    required String email,
-    required String code,
-  }) async {
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
-      print('🔐 Verifying Google code for: $email');
+      print('🔍 Sending reset code to: $email');
 
       final response = await dio.post(
-        ApiConfig.googleVerifyCode,
-        data: {"email": email, "code": code},
+        ApiConfig.forgotPassword,
+        data: {"email": email},
       );
 
-      print('✅ Google verification response: ${response.statusCode}');
+      print('✅ Forgot password response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = response.data is String
             ? jsonDecode(response.data)
             : response.data;
 
-        return UserModel.fromJson(data['user']);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Reset code sent to email',
+        };
       } else {
-        throw Exception('Google verification failed');
+        throw Exception('Failed to send reset code');
       }
     } on DioException catch (e) {
-      print('❌ DioException in verifyGoogleCode: ${e.message}');
+      print('❌ DioException in forgotPassword: ${e.message}');
       throw Exception(_handleDioError(e));
     } catch (e) {
-      print('❌ Unknown error in verifyGoogleCode: $e');
+      print('❌ Unknown error in forgotPassword: $e');
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  // ---------------- RESET PASSWORD ----------------
+  @override
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      print('🔍 Resetting password for: $email');
+
+      final response = await dio.post(
+        ApiConfig.resetPassword,
+        data: {
+          "email": email,
+          "code": code,
+          "newPassword": newPassword,
+        },
+      );
+
+      print('✅ Reset password response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
+
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Password reset successfully',
+        };
+      } else {
+        throw Exception('Failed to reset password');
+      }
+    } on DioException catch (e) {
+      print('❌ DioException in resetPassword: ${e.message}');
+      throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in resetPassword: $e');
       throw Exception('Unexpected error: $e');
     }
   }
@@ -259,7 +304,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       print('📊 Status Code: $statusCode');
       print('📄 Response Data: $data');
 
-      // ✅ Try to extract error message from response
       String errorMessage = 'Unknown error';
 
       if (data is Map) {

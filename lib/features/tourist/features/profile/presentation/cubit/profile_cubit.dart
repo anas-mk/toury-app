@@ -1,8 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:toury/features/tourist/features/profile/cubit/profile_cubit/profile_state.dart';
+import 'package:toury/features/tourist/features/profile/presentation/cubit/profile_state.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
 
-// Use AuthRepository instead of SharedPreferences directly
 class ProfileCubit extends Cubit<ProfileState> {
   final AuthRepository authRepository;
 

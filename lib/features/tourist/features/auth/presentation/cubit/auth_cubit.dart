@@ -1,9 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/usecases/check_email_usecas.dart';
 import '../../domain/usecases/register_usecase.dart';
-import '../../domain/usecases/verify_google_code_usecase.dart';
 import '../../domain/usecases/verify_password_usecase.dart';
 import '../../domain/usecases/google_login_usecase.dart';
+import '../../domain/usecases/forgot_password_usecase.dart';
+import '../../domain/usecases/reset_password_usecase.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_state.dart';
 
@@ -12,7 +13,8 @@ class AuthCubit extends Cubit<AuthState> {
   final VerifyPasswordUseCase verifyPasswordUseCase;
   final RegisterUseCase registerUseCase;
   final GoogleLoginUseCase googleLoginUseCase;
-  final VerifyGoogleCodeUseCase verifyGoogleCodeUseCase;
+  final ForgotPasswordUseCase forgotPasswordUseCase;
+  final ResetPasswordUseCase resetPasswordUseCase;
   final AuthRepository authRepository;
 
   AuthCubit({
@@ -20,11 +22,12 @@ class AuthCubit extends Cubit<AuthState> {
     required this.verifyPasswordUseCase,
     required this.registerUseCase,
     required this.googleLoginUseCase,
-    required this.verifyGoogleCodeUseCase,
+    required this.forgotPasswordUseCase,
+    required this.resetPasswordUseCase,
     required this.authRepository,
   }) : super(AuthInitial());
 
-  // ✅ Added: Check for cached user on app start
+  /// Check for cached user on app start
   Future<void> checkAuthStatus() async {
     emit(AuthLoading());
 
@@ -70,7 +73,7 @@ class AuthCubit extends Cubit<AuthState> {
 
     result.fold(
           (failure) => emit(AuthError(failure.message)),
-          (user) => emit(AuthAuthenticated(user)), // ✅ Removed manual caching
+          (user) => emit(AuthAuthenticated(user)),
     );
   }
 
@@ -85,8 +88,6 @@ class AuthCubit extends Cubit<AuthState> {
     required String country,
   }) async {
     emit(AuthLoading());
-
-
 
     final result = await registerUseCase(
       email: email,
@@ -117,11 +118,11 @@ class AuthCubit extends Cubit<AuthState> {
         final action = data['action'] ?? '';
 
         if (action == 'login_success') {
-          // User already exists and logged in successfully
           emit(AuthMessage(message, action));
         } else if (action == 'need_registration') {
           emit(AuthGoogleRegistrationNeeded(email));
-        } else if (action == 'code_sent' || message.contains('Verification code sent')) {
+        } else if (action == 'code_sent' ||
+            message.contains('Verification code sent')) {
           emit(AuthGoogleVerificationNeeded(email, message));
         } else {
           emit(AuthError(message.isNotEmpty ? message : 'Google login failed'));
@@ -130,25 +131,44 @@ class AuthCubit extends Cubit<AuthState> {
     );
   }
 
-  // ---------------- VERIFY GOOGLE CODE ----------------
-  Future<void> verifyGoogleCode({
+  // ---------------- FORGOT PASSWORD ----------------
+  Future<void> forgotPassword(String email) async {
+    emit(AuthLoading());
+
+    final result = await forgotPasswordUseCase(email);
+
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (data) => emit(AuthForgotPasswordSent(
+        message: data['message'] ?? 'Reset code sent to your email',
+        email: email,
+      )),
+    );
+  }
+
+  // ---------------- RESET PASSWORD ----------------
+  Future<void> resetPassword({
     required String email,
     required String code,
+    required String newPassword,
   }) async {
     emit(AuthLoading());
 
-    final result = await verifyGoogleCodeUseCase(
+    final result = await resetPasswordUseCase(
       email: email,
       code: code,
+      newPassword: newPassword,
     );
 
     result.fold(
           (failure) => emit(AuthError(failure.message)),
-          (user) => emit(AuthAuthenticated(user)), // ✅ Caching handled in repository
+          (data) => emit(AuthPasswordResetSuccess(
+        data['message'] ?? 'Password reset successfully',
+      )),
     );
   }
 
-  // ✅ Added: Logout method
+  // ---------------- LOGOUT ----------------
   Future<void> logout() async {
     emit(AuthLoading());
 
@@ -160,7 +180,7 @@ class AuthCubit extends Cubit<AuthState> {
     );
   }
 
-  // ✅ Added: Reset to initial state
+  // ---------------- RESET STATE ----------------
   void resetState() {
     emit(AuthInitial());
   }

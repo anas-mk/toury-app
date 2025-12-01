@@ -99,12 +99,12 @@ class _GoogleVerifyCodePageState extends State<GoogleVerifyCodePage> {
                     onPressed: state is AuthLoading
                         ? null
                         : () {
-                            if (_formKey.currentState!.validate()) {
-                              context.read<AuthCubit>().verifyGoogleCode(
-                                email: widget.email,
-                                code: codeController.text.trim(),
-                              );
-                            }
+                            // if (_formKey.currentState!.validate()) {
+                            //   context.read<AuthCubit>().verifyGoogleCode(
+                            //     email: widget.email,
+                            //     code: codeController.text.trim(),
+                            //   );
+                            // }
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,

@@ -64,3 +64,27 @@ class AuthMessage extends AuthState {
   @override
   List<Object?> get props => [message, action];
 }
+
+// ✅ Forgot Password States
+class AuthForgotPasswordSent extends AuthState {
+  final String message;
+  final String email;
+
+  const AuthForgotPasswordSent({
+    required this.message,
+    required this.email,
+  });
+
+  @override
+  List<Object?> get props => [message, email];
+}
+
+// ✅ Reset Password States
+class AuthPasswordResetSuccess extends AuthState {
+  final String message;
+
+  const AuthPasswordResetSuccess(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}

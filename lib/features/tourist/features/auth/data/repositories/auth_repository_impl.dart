@@ -4,7 +4,6 @@ import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_data_source.dart';
 import '../datasources/auth_remote_data_source.dart';
-import '../models/user_model.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
@@ -32,7 +31,6 @@ class AuthRepositoryImpl implements AuthRepository {
       ) async {
     try {
       final user = await remoteDataSource.verifyPassword(email, password);
-      // Cache user after successful login
       await localDataSource.cacheUser(user);
       return Right(user);
     } catch (e) {
@@ -60,7 +58,6 @@ class AuthRepositoryImpl implements AuthRepository {
         birthDate: birthDate,
         country: country,
       );
-      // Cache user after successful registration
       await localDataSource.cacheUser(user);
       return Right(user);
     } catch (e) {
@@ -80,25 +77,39 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
+
+  // ✅ Forgot Password
   @override
-  Future<Either<Failure, UserModel>> verifyGoogleCode({
-    required String email,
-    required String code,
-  }) async {
+  Future<Either<Failure, Map<String, dynamic>>> forgotPassword(
+      String email,
+      ) async {
     try {
-      final user = await remoteDataSource.verifyGoogleCode(
-        email: email,
-        code: code,
-      );
-      // ✅ Cache user after successful Google verification
-      await localDataSource.cacheUser(user);
-      return Right(user);
+      final result = await remoteDataSource.forgotPassword(email);
+      return Right(result);
     } catch (e) {
       return Left(ServerFailure(_cleanErrorMessage(e.toString())));
     }
   }
 
-  // ✅ Added: Get cached user
+  // ✅ Reset Password
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final result = await remoteDataSource.resetPassword(
+        email: email,
+        code: code,
+        newPassword: newPassword,
+      );
+      return Right(result);
+    } catch (e) {
+      return Left(ServerFailure(_cleanErrorMessage(e.toString())));
+    }
+  }
+
   @override
   Future<Either<Failure, UserEntity?>> getCachedUser() async {
     try {
@@ -109,7 +120,6 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  // ✅ Added: Logout method
   @override
   Future<Either<Failure, void>> logout() async {
     try {
@@ -120,7 +130,6 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  // ✅ Added: Helper method to clean error messages
   String _cleanErrorMessage(String message) {
     return message.replaceAll('Exception: ', '');
   }

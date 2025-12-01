@@ -91,49 +91,16 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
             opacity: _fadeAnimation,
             child: ScaleTransition(
               scale: _scaleAnimation,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo with error handling
-                  Image.asset(
-                    'assets/logo/logo.png',
-                    height: 200,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.travel_explore,
-                        size: 120,
-                        color: isDark ? Colors.white : Colors.blue,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 30),
-
-                  // App Name
-                  Text(
-                    'Toury',
-                    style: theme.textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  Text(
-                    'Your Travel Companion',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white70,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 50),
-
-                  // Loading Indicator
-                  const CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ),
-                ],
+              child: Image.asset(
+                'assets/logo/logo.png',
+                height: 200,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.travel_explore,
+                    size: 120,
+                    color: isDark ? Colors.white : Colors.blue,
+                  );
+                },
               ),
             ),
           ),

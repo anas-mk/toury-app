@@ -23,7 +23,7 @@ void main() async {
         BlocProvider(create: (_) => BottomNavCubit()),
         BlocProvider(
           create: (_) => di.sl<AuthCubit>()
-            ..checkAuthStatus(),
+            // ..checkAuthStatus(),
         ),
       ],
       child: const MyApp(),

@@ -1,20 +1,21 @@
 import 'package:dartz/dartz.dart';
 import '../../../../../../core/errors/failures.dart';
-import '../../data/models/user_model.dart';
 import '../repositories/auth_repository.dart';
 
-class VerifyGoogleCodeUseCase {
+class ResetPasswordUseCase {
   final AuthRepository repository;
 
-  VerifyGoogleCodeUseCase(this.repository);
+  ResetPasswordUseCase(this.repository);
 
-  Future<Either<Failure, UserModel>> call({
+  Future<Either<Failure, Map<String, dynamic>>> call({
     required String email,
     required String code,
+    required String newPassword,
   }) async {
-    return await repository.verifyGoogleCode(
+    return await repository.resetPassword(
       email: email,
       code: code,
+      newPassword: newPassword,
     );
   }
 }

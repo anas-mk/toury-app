@@ -24,12 +24,17 @@ abstract class AuthRepository {
   // Google Authentication
   Future<Either<Failure, Map<String, dynamic>>> googleLogin(String email);
 
-  Future<Either<Failure, UserModel>> verifyGoogleCode({
+
+  // ✅ Forgot Password & Reset Password
+  Future<Either<Failure, Map<String, dynamic>>> forgotPassword(String email);
+
+  Future<Either<Failure, Map<String, dynamic>>> resetPassword({
     required String email,
     required String code,
+    required String newPassword,
   });
 
-  //  Added: Local storage methods
+  // Local storage methods
   Future<Either<Failure, UserEntity?>> getCachedUser();
   Future<Either<Failure, void>> logout();
 }

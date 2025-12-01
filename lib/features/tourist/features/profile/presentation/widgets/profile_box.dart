@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/di/injection_container.dart' as di;
-import '../../../profile/cubit/profile_cubit/profile_cubit.dart';
-import '../../../profile/cubit/profile_cubit/profile_state.dart';
-import '../../../profile/presentation/profile_page.dart';
+import '../cubit/profile_cubit.dart';
+import '../cubit/profile_state.dart';
+import '../page/profile_page.dart';
 
 class ProfileBox extends StatelessWidget {
   final bool isDark;
@@ -15,20 +15,41 @@ class ProfileBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIXED: Use dependency injection
     return BlocProvider(
       create: (_) => di.sl<ProfileCubit>()..loadUser(),
       child: BlocBuilder<ProfileCubit, ProfileState>(
         builder: (context, state) {
           if (state is ProfileLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[900] : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
           } else if (state is ProfileError) {
-            return Center(
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[900] : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 40,
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     state.message,
                     style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   ElevatedButton(
@@ -58,7 +79,6 @@ class ProfileBox extends StatelessWidget {
               },
               child: InkWell(
                 onTap: () {
-                  // ✅ FIXED: Navigate with BlocProvider
                   Navigator.of(context).push(
                     PageRouteBuilder(
                       transitionDuration: const Duration(milliseconds: 600),
@@ -72,7 +92,6 @@ class ProfileBox extends StatelessWidget {
                           child: ScaleTransition(
                             scale: Tween<double>(begin: 0.98, end: 1.0)
                                 .animate(curvedAnimation),
-                            // ✅ Wrap ProfilePage with BlocProvider
                             child: BlocProvider(
                               create: (_) => di.sl<ProfileCubit>()..loadUser(),
                               child: const ProfilePage(),
@@ -107,12 +126,16 @@ class ProfileBox extends StatelessWidget {
                         child: CircleAvatar(
                           radius: 35,
                           backgroundColor: Colors.grey[300],
-                          backgroundImage: user.profileImageUrl != null
+                          backgroundImage: user.profileImageUrl != null &&
+                              user.profileImageUrl!.isNotEmpty
                               ? NetworkImage(user.profileImageUrl!)
                               : null,
-                          child: user.profileImageUrl == null
+                          child: user.profileImageUrl == null ||
+                              user.profileImageUrl!.isEmpty
                               ? Text(
-                            user.userName[0].toUpperCase(),
+                            user.userName.isNotEmpty
+                                ? user.userName[0].toUpperCase()
+                                : '?',
                             style: const TextStyle(
                               fontSize: 26,
                               fontWeight: FontWeight.bold,
@@ -141,6 +164,7 @@ class ProfileBox extends StatelessWidget {
                               style: TextStyle(
                                 color: isDark ? Colors.grey[400] : Colors.grey,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -155,9 +179,19 @@ class ProfileBox extends StatelessWidget {
                 ),
               ),
             );
-          } else {
-            return const SizedBox.shrink();
           }
+
+          // Initial or other states
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[900] : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         },
       ),
     );

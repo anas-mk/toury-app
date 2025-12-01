@@ -5,17 +5,13 @@ import '../../features/tourist/features/auth/presentation/pages/login_page.dart'
 import '../../features/tourist/features/auth/presentation/pages/register_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/enter_password_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/role_selection_page.dart';
+import '../../features/tourist/features/auth/presentation/pages/forgot_password_page.dart'; // ✅ Updated import
+import '../../features/tourist/features/auth/presentation/pages/reset_password_page.dart'; // ✅ New import
 import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
-import '../../features/tourist/features/home/presentation/pages/accounts_settings_page.dart';
-import '../../features/tourist/features/profile/presentation/profile_page.dart';
+import '../../features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
+import '../../features/tourist/features/profile/presentation/page/profile_page.dart';
 
-// Placeholder pages
-class ForgotPasswordPage extends StatelessWidget {
-  const ForgotPasswordPage({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('Forgot Password Page (Placeholder)')));
-}
-
+// Placeholder page
 class GoogleVerifyCodePage extends StatelessWidget {
   final String email;
   const GoogleVerifyCodePage({super.key, required this.email});
@@ -34,13 +30,14 @@ class AppRouter {
   static const String register = 'register';
   static const String enterPassword = 'enter-password/:email';
   static const String forgotPassword = 'forgot-password';
+  static const String resetPassword = 'reset-password'; // ✅ New route
   static const String googleVerifyCode = 'verify-google-code/:email';
   static const String accountSettings = 'account-settings';
   static const String profile = 'profile';
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
-    debugLogDiagnostics: true, // ✅ للمساعدة في debugging
+    debugLogDiagnostics: true,
 
     // ----------------------------------------
     // Redirection Logic - Simple Version
@@ -48,11 +45,8 @@ class AppRouter {
     redirect: (context, state) {
       final isGoingToSplash = state.uri.toString() == splash;
 
-      // ✅ Let splash page handle the navigation logic
-      // This prevents redirect loops
       if (isGoingToSplash) return null;
 
-      // Allow all other routes
       return null;
     },
 
@@ -92,7 +86,19 @@ class AppRouter {
           GoRoute(
             path: forgotPassword,
             name: 'forgot-password',
-            builder: (context, state) => const ForgotPasswordPage(),
+            builder: (context, state) => const ForgotPasswordPage(), // ✅ Real page now
+            routes: [
+              // ✅ Nested route for reset password
+              GoRoute(
+                path: resetPassword,
+                name: 'reset-password',
+                builder: (context, state) {
+                  // Get email from extra parameter
+                  final email = state.extra as String? ?? '';
+                  return ResetPasswordPage(email: email);
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: googleVerifyCode,
