@@ -37,6 +37,10 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
     _controller.forward();
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthCubit>().checkAuthStatus();
+    });
+
     // Start navigation after animation
     _startNavigation();
   }
@@ -47,10 +51,16 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
     if (!mounted || _hasNavigated) return;
 
-    // Check auth state
     final authState = context.read<AuthCubit>().state;
 
-    _navigateBasedOnAuth(authState);
+    if (authState is AuthInitial || authState is AuthLoading) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted || _hasNavigated) return;
+      final finalState = context.read<AuthCubit>().state;
+      _navigateBasedOnAuth(finalState);
+    } else {
+      _navigateBasedOnAuth(authState);
+    }
   }
 
   void _navigateBasedOnAuth(AuthState state) {
@@ -79,8 +89,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
-        // Listen for auth changes after initial load
-        if (!_hasNavigated) {
+        if (!_hasNavigated && state is! AuthLoading && state is! AuthInitial) {
           _navigateBasedOnAuth(state);
         }
       },

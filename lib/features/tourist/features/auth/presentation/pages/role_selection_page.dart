@@ -164,7 +164,6 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
           color: isDarkMode ? Colors.white : AppColor.primaryColor,
         ),
       ),
-      icon: const Icon(Icons.map_outlined, size: 20),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 55),
         side: BorderSide(
