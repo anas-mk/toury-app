@@ -1,5 +1,5 @@
+import 'dart:io';
 import 'package:dartz/dartz.dart';
-import 'package:toury/features/tourist/features/auth/data/models/user_model.dart';
 import '../../../../../../core/errors/failures.dart';
 import '../entities/user_entity.dart';
 
@@ -21,12 +21,23 @@ abstract class AuthRepository {
     required String country,
   });
 
+  // Update Profile with Profile Image
+  Future<Either<Failure, UserEntity>> updateProfile({
+    required String userName,
+    required String userId,
+    required String phoneNumber,
+    required String gender,
+    required DateTime birthDate,
+    required String country,
+    File? profileImage,
+  });
+
   // Google Authentication
   Future<Either<Failure, Map<String, dynamic>>> googleLogin(String email);
 
-
-  // ✅ Forgot Password & Reset Password
+  // Forgot Password & Reset Password
   Future<Either<Failure, Map<String, dynamic>>> forgotPassword(String email);
+  Future<Either<Failure, Map<String, dynamic>>> resendVerificationCode(String email);
 
   Future<Either<Failure, Map<String, dynamic>>> resetPassword({
     required String email,

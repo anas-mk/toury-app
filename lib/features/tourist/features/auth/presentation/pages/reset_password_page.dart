@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:async';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../../../../../core/router/app_router.dart';
@@ -23,12 +24,45 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   bool isPasswordObscured = true;
   bool isConfirmPasswordObscured = true;
 
+  // ✅ Resend code timer
+  int resendTimer = 0;
+  Timer? _timer;
+  bool canResend = true;
+
   @override
   void dispose() {
     codeController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    _timer?.cancel();
     super.dispose();
+  }
+
+  // ✅ Start resend timer
+  void startResendTimer() {
+    setState(() {
+      resendTimer = 60; // 60 seconds
+      canResend = false;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (resendTimer > 0) {
+          resendTimer--;
+        } else {
+          canResend = true;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  // ✅ Resend password reset code
+  void resendCode() {
+    if (canResend) {
+      context.read<AuthCubit>().resendVerificationCode(widget.email);
+      startResendTimer();
+    }
   }
 
   @override
@@ -58,6 +92,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
               );
               // Navigate to login page
               context.go(AppRouter.login);
+            } else if (state is AuthResendCodeSuccess) {
+              // ✅ Show success message when code is resent
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
             }
           },
           builder: (context, state) {
@@ -145,7 +188,29 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 8),
+
+                            // ✅ Resend Code Button with Timer
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: (state is AuthLoading || !canResend)
+                                    ? null
+                                    : resendCode,
+                                child: Text(
+                                  canResend
+                                      ? 'Resend Code'
+                                      : 'Resend in ${resendTimer}s',
+                                  style: TextStyle(
+                                    color: (state is AuthLoading || !canResend)
+                                        ? Colors.grey
+                                        : AppColor.primaryColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
 
                             // New Password Field
                             TextFormField(

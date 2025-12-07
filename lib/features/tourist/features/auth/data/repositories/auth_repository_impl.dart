@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dartz/dartz.dart';
 import '../../../../../../core/errors/failures.dart';
 import '../../domain/entities/user_entity.dart';
@@ -13,6 +14,45 @@ class AuthRepositoryImpl implements AuthRepository {
     required this.remoteDataSource,
     required this.localDataSource,
   });
+
+  // ✅ Update Profile with Profile Image
+  @override
+  Future<Either<Failure, UserEntity>> updateProfile({
+    required String userName,
+    required String? userId,
+    required String phoneNumber,
+    required String gender,
+    required DateTime birthDate,
+    required String country,
+    File? profileImage,
+  }) async {
+    try {
+      // Get current user to retrieve token
+      final cachedUser = await localDataSource.getCurrentUser();
+
+      if (cachedUser == null || cachedUser.token == null) {
+        return Left(CacheFailure('No user logged in'));
+      }
+
+      final updatedUser = await remoteDataSource.updateProfile(
+        token: cachedUser.token!,
+        userId: cachedUser.userId,
+        userName: userName,
+        phoneNumber: phoneNumber,
+        gender: gender,
+        birthDate: birthDate,
+        country: country,
+        profileImage: profileImage,
+      );
+
+      // Cache the updated user
+      await localDataSource.cacheUser(updatedUser);
+
+      return Right(updatedUser);
+    } catch (e) {
+      return Left(ServerFailure(_cleanErrorMessage(e.toString())));
+    }
+  }
 
   @override
   Future<Either<Failure, Map<String, dynamic>>> checkEmail(String email) async {
@@ -58,14 +98,11 @@ class AuthRepositoryImpl implements AuthRepository {
         birthDate: birthDate,
         country: country,
       );
-      // Don't cache user yet if verification is needed
       await localDataSource.cacheUser(user);
       return Right(user);
     } catch (e) {
       final errorMessage = e.toString();
-      // Check if this is a verification needed exception
       if (errorMessage.contains('VERIFICATION_NEEDED:')) {
-        // Pass through as a special failure
         return Left(ServerFailure(errorMessage));
       }
       return Left(ServerFailure(_cleanErrorMessage(errorMessage)));
@@ -100,8 +137,6 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-
-  // ✅ Forgot Password
   @override
   Future<Either<Failure, Map<String, dynamic>>> forgotPassword(
       String email,
@@ -114,7 +149,6 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  // ✅ Reset Password
   @override
   Future<Either<Failure, Map<String, dynamic>>> resetPassword({
     required String email,
@@ -127,6 +161,17 @@ class AuthRepositoryImpl implements AuthRepository {
         code: code,
         newPassword: newPassword,
       );
+      return Right(result);
+    } catch (e) {
+      return Left(ServerFailure(_cleanErrorMessage(e.toString())));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> resendVerificationCode(
+      String email) async {
+    try {
+      final result = await remoteDataSource.resendVerificationCode(email);
       return Right(result);
     } catch (e) {
       return Left(ServerFailure(_cleanErrorMessage(e.toString())));

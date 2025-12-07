@@ -45,82 +45,72 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final loc = AppLocalizations.of(context);
-
-    final gradientColors = isDarkMode
-        ? [const Color(0xFF0A0A0A), const Color(0xFF1A1A1A)]
-        : [AppColor.primaryColor, const Color(0xFF4C84FF)];
-
-    final textColor = isDarkMode ? Colors.white70 : Colors.white;
+    final textColor = isDark ? Colors.white70 : Colors.white;
 
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0E0E0E)
+          : AppColor.primaryColor.withOpacity(0.95),
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-                  child: FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: ScaleTransition(
-                      scale: _scaleAnimation,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Logo
-                          Image.asset(
-                            'assets/logo/logo.png',
-                            height: 180,
-                          ),
-                          const SizedBox(height: 30),
+          return SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Logo
+                        Image.asset(
+                          'assets/logo/logo.png',
+                          height: 180,
+                        ),
+                        const SizedBox(height: 30),
 
-                          // Card
-                          CustomCard(
-                          backgroundColor: isDarkMode
-                                ? Colors.grey[900]
-                                : Colors.white.withOpacity(0.95),
-                            child: Column(
-                              children: [
-                                Text(
-                                  loc.translate("continue_as"),
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDarkMode
-                                        ? Colors.white
-                                        : AppColor.primaryColor,
-                                  ),
+                        // Card
+                        CustomCard(
+                        backgroundColor: isDark
+                              ? Colors.grey[900]
+                              : Colors.white.withOpacity(0.95),
+                          child: Column(
+                            children: [
+                              Text(
+                                loc.translate("continue_as"),
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColor.primaryColor,
                                 ),
-                                const SizedBox(height: 30),
-                                _buildTouristButton(context,loc),
-                                const SizedBox(height: 20),
-                                _buildGuideButton(context,loc),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 30),
+                              _buildTouristButton(context,loc),
+                              const SizedBox(height: 20),
+                              _buildGuideButton(context,loc),
+                            ],
                           ),
-                          const SizedBox(height: 40),
+                        ),
+                        const SizedBox(height: 40),
 
-                          // Footer
-                          Text(
-                            loc.translate("select_role"),
-                            style: TextStyle(
-                              color: textColor.withOpacity(0.9),
-                              fontSize: 14,
-                            ),
+                        // Footer
+                        Text(
+                          loc.translate("select_role"),
+                          style: TextStyle(
+                            color: textColor.withOpacity(0.9),
+                            fontSize: 14,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -116,3 +116,14 @@ class AuthVerificationSuccess extends AuthState {
   @override
   List<Object?> get props => [token, message];
 }
+
+
+
+class AuthResendCodeSuccess extends AuthState {
+  final String message;
+
+  const AuthResendCodeSuccess(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}

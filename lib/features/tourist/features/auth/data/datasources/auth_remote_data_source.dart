@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:toury/core/config/api_config.dart';
 import '../models/user_model.dart';
@@ -14,6 +15,17 @@ abstract class AuthRemoteDataSource {
     required String gender,
     required DateTime birthDate,
     required String country,
+  });
+  Future<Map<String, dynamic>> resendVerificationCode(String email);
+  Future<UserModel> updateProfile({
+    required String token,
+    required String? userId,
+    required String userName,
+    required String phoneNumber,
+    required String gender,
+    required DateTime birthDate,
+    required String country,
+    File? profileImage,
   });
   Future<Map<String, dynamic>> googleLogin(String email);
   Future<Map<String, dynamic>> forgotPassword(String email);
@@ -124,7 +136,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   // ---------------- REGISTER ----------------
-  // ---------------- REGISTER ----------------
   @override
   Future<UserModel> register({
     required String email,
@@ -159,11 +170,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
             ? Map<String, dynamic>.from(jsonDecode(response.data))
             : Map<String, dynamic>.from(response.data);
 
-        // ✅ Check the response structure
         final message = responseData['message'] ?? '';
         final action = responseData['action'] ?? '';
 
-        // ✅ If verification is needed (action = "enter_verification_code")
         if (action == 'enter_verification_code' ||
             message.toLowerCase().contains('verification code') ||
             message.toLowerCase().contains('code sent')) {
@@ -172,7 +181,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           throw Exception('VERIFICATION_NEEDED:$email:$message');
         }
 
-        // ✅ If registration is complete and returns user data
         final userDataRaw = responseData['data']?['user'];
         final token = responseData['data']?['token'];
 
@@ -198,7 +206,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception(_handleDioError(e));
     } catch (e) {
       print('❌ Unknown error in register: $e');
-      // ✅ Make sure to re-throw VERIFICATION_NEEDED exceptions
       if (e.toString().contains('VERIFICATION_NEEDED:')) {
         rethrow;
       }
@@ -244,6 +251,62 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception(_handleDioError(e));
     } catch (e) {
       print('❌ Unknown error in verifyRegistrationCode: $e');
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  // Resend Verification Code
+  @override
+  Future<Map<String, dynamic>> resendVerificationCode(String email) async {
+    try {
+      print('🔄 Resending verification code to: $email');
+
+      final response = await dio.post(
+        ApiConfig.resendVerifyCode,
+        data: {"email": email},
+      );
+
+      print('✅ Resend verification response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
+
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Verification code sent successfully',
+        };
+      } else {
+        throw Exception('Failed to resend verification code');
+      }
+    } on DioException catch (e) {
+      print('❌ DioException in resendVerificationCode: ${e.message}');
+      print('❌ Response data: ${e.response?.data}');
+
+      if (e.response?.statusCode == 400) {
+        final data = e.response?.data;
+        String errorMessage = 'Failed to resend verification code';
+
+        if (data is Map && data['message'] != null) {
+          errorMessage = data['message'];
+        } else if (data is String) {
+          try {
+            final decodedData = jsonDecode(data);
+            if (decodedData['message'] != null) {
+              errorMessage = decodedData['message'];
+            }
+          } catch (_) {
+            errorMessage = data;
+          }
+        }
+
+        throw Exception(errorMessage);
+      }
+
+      throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in resendVerificationCode: $e');
       throw Exception('Unexpected error: $e');
     }
   }
@@ -354,6 +417,91 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception(_handleDioError(e));
     } catch (e) {
       print('❌ Unknown error in resetPassword: $e');
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  // ---------------- UPDATE PROFILE ----------------
+  @override
+  Future<UserModel> updateProfile({
+    required String token,
+    required String? userId,
+    required String userName,
+    required String phoneNumber,
+    required String gender,
+    required DateTime birthDate,
+    required String country,
+    File? profileImage,
+  }) async {
+    try {
+      print('🔄 Updating profile');
+
+      FormData formData;
+
+      if (profileImage != null) {
+        // ✅ If there's an image, use multipart/form-data
+        formData = FormData.fromMap({
+          "userName": userName,
+          "userId": userId,
+          "phoneNumber": phoneNumber,
+          "gender": gender,
+          "birthDate": birthDate.toIso8601String(),
+          "country": country,
+          "profileImage": await MultipartFile.fromFile(
+            profileImage.path,
+            filename: profileImage.path.split('/').last,
+          ),
+        });
+      } else {
+        // ✅ If no image, send JSON
+        formData = FormData.fromMap({
+          "userName": userName,
+          "userId": userId,
+          "phoneNumber": phoneNumber,
+          "gender": gender,
+          "birthDate": birthDate.toIso8601String(),
+          "country": country,
+        });
+      }
+
+      final response = await dio.put(
+        ApiConfig.updateProfile,
+        data: formData,
+        options: Options(
+          headers: ApiConfig.getAuthHeaders(token),
+        ),
+      );
+
+      print('✅ Profile update response: ${response.statusCode}');
+      print('📦 Update data: ${response.data}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = response.data is String
+            ? Map<String, dynamic>.from(jsonDecode(response.data))
+            : Map<String, dynamic>.from(response.data);
+
+        final userDataRaw = responseData['data'] ?? responseData['user'];
+
+        if (userDataRaw == null) {
+          throw Exception('Invalid response format: user not found');
+        }
+
+        final Map<String, dynamic> userData = Map<String, dynamic>.from(userDataRaw);
+
+        final userJson = {
+          ...userData,
+          'token': token,
+        };
+
+        return UserModel.fromJson(userJson);
+      } else {
+        throw Exception('Profile update failed: ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      print('❌ DioException in updateProfile: ${e.message}');
+      throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in updateProfile: $e');
       throw Exception('Unexpected error: $e');
     }
   }

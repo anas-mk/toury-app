@@ -115,15 +115,6 @@ class _LoginPageState extends State<LoginPage>
                                 color: theme.colorScheme.onSecondary,
                               ),
                             ),
-                            const SizedBox(height: AppTheme.spaceSM),
-                            Text(
-                              'Welcome back! Please login to continue',
-                              style: AppTheme.bodyMedium.copyWith(
-                                color: theme.colorScheme.onSecondary
-                                    .withOpacity(0.6),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
                             const SizedBox(height: AppTheme.space2XL),
 
                             // Login Form Card

@@ -3,7 +3,9 @@ import 'package:dio/dio.dart';
 import '../../features/tourist/features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/tourist/features/auth/domain/repositories/auth_repository.dart';
 import '../../features/tourist/features/auth/domain/usecases/get_cached_user_usecase.dart';
+import '../../features/tourist/features/auth/domain/usecases/resend_verification_code_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/verify_code_usecase.dart';
+import '../../features/tourist/features/profile/domain/usecases/update_profile_usecase.dart';
 import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
 import '../config/api_config.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_local_data_source.dart';
@@ -13,7 +15,6 @@ import '../../features/tourist/features/auth/domain/usecases/google_login_usecas
 import '../../features/tourist/features/auth/domain/usecases/logout_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/register_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/verify_password_usecase.dart';
-
 import '../../features/tourist/features/auth/domain/usecases/forgot_password_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
@@ -34,13 +35,13 @@ Future<void> init() async {
       forgotPasswordUseCase: sl(),
       resetPasswordUseCase: sl(),
       verifyCodeUseCase: sl(),
-    ),
+       resendVerificationCodeUseCase: sl(),
+        ),
   );
 
   sl.registerFactory(
         () => ProfileCubit(sl<AuthRepository>()),
   );
-
 
   // Use Cases
   sl.registerLazySingleton(() => CheckEmailUseCase(sl()));
@@ -50,10 +51,10 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GoogleLoginUseCase(sl()));
   sl.registerLazySingleton(() => GetCachedUserUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
-
   sl.registerLazySingleton(() => ForgotPasswordUseCase(sl()));
   sl.registerLazySingleton(() => ResetPasswordUseCase(sl()));
-
+  sl.registerLazySingleton(() => UpdateProfileUseCase(sl()));
+  sl.registerLazySingleton(() => ResendVerificationCodeUseCase(sl()));
 
   sl.registerLazySingleton<AuthRepository>(
         () => AuthRepositoryImpl(
@@ -61,7 +62,6 @@ Future<void> init() async {
       localDataSource: sl(),
     ),
   );
-
 
   // Data Sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
@@ -80,14 +80,12 @@ Future<void> init() async {
 Dio _createDio() {
   final dio = Dio();
 
-  // Base options
   dio.options = BaseOptions(
     baseUrl: ApiConfig.baseUrl,
     connectTimeout: Duration(milliseconds: ApiConfig.connectTimeout),
     receiveTimeout: Duration(milliseconds: ApiConfig.receiveTimeout),
     headers: ApiConfig.defaultHeaders,
     validateStatus: (status) {
-      // Accept all status codes to handle them manually
       return status != null && status < 500;
     },
   );
@@ -104,7 +102,6 @@ Dio _createDio() {
     ),
   );
 
-  // Add error interceptor for better error handling
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {

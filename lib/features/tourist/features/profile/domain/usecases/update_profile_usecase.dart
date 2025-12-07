@@ -12,6 +12,7 @@ class UpdateProfileUseCase {
 
   Future<Either<Failure, UserEntity>> call({
     required String userName,
+    required String userId,
     required String phoneNumber,
     required String gender,
     required DateTime birthDate,
@@ -19,6 +20,7 @@ class UpdateProfileUseCase {
   }) async {
     return await repository.updateProfile(
       userName: userName,
+      userId: userId,
       phoneNumber: phoneNumber,
       gender: gender,
       birthDate: birthDate,

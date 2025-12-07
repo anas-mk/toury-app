@@ -10,15 +10,16 @@ class ApiConfig {
   static const String verifyPassword = '/Auth/verify-password';
   static const String registerEndpoint = '/Auth/register';
   static const String verifyCode = '/Auth/verify-code';
-  // Google Authentication
+  static const String resendVerifyCode = '/Auth/resend-verification-code';
 
+  // Google Authentication
   static const String googleLogin = '/Auth/google-login';
   static const String googleRegister = '/Auth/google-register';
 
   // Password Reset
   static const String forgotPassword = '/Auth/forgot-password';
   static const String resetPassword = '/Auth/reset-password';
-  // static const String verifyResetCode = '/Auth/verify-reset-code';
+  
 
 
   // Update Profile

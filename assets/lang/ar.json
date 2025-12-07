@@ -55,9 +55,9 @@
   "passwords_dont_match": "كلمات المرور غير متطابقة",
   "field_required": "هذا الحقل مطلوب",
   "select_birth_date": "من فضلك اختر تاريخ ميلادك",
-  "login_success": "تم تسجيل الدخول بنجاح ✅",
-  "register_success": "تم إنشاء الحساب بنجاح ✅",
-  "verification_success": "تم التحقق بنجاح ✅",
+  "login_success": "تم تسجيل الدخول بنجاح",
+  "register_success": "تم إنشاء الحساب بنجاح ",
+  "verification_success": "تم التحقق بنجاح ",
   "google_sign_in_failed": "فشل تسجيل الدخول مع جوجل",
   "google_sign_in_cancelled": "تم إلغاء تسجيل الدخول مع جوجل",
   "google_sign_in_not_configured": "تسجيل الدخول مع جوجل غير مُعد. من فضلك قم بإعداد Google Console مع بصمة SHA-1 الخاصة بك.",
@@ -68,5 +68,19 @@
   "retry": "إعادة المحاولة",
   "feature_coming_soon": "هذه الميزة قريباً!",
   "edit_profile_not_implemented": "تعديل الملف الشخصي غير متاح حالياً",
-  "continueText": "متابعة"
+  "continueText": "متابعة",
+
+  "reset_password": "إعادة تعيين كلمة المرور",
+  "reset_password_subtitle": "أدخل الرمز المرسل إلى",
+  "code_must_be_4_digits": "يجب أن يكون الرمز 4 أرقام على الأقل",
+  "resend_in": "إعادة الإرسال بعد",
+  "back_to_login": "العودة لتسجيل الدخول",
+  "forgot_password_subtitle": "أدخل بريدك الإلكتروني وسنرسل لك رمزاً لإعادة تعيين كلمة المرور.",
+  "send_reset_code": "إرسال رمز إعادة التعيين",
+  "edit_profile": "تعديل الملف الشخصي",
+  "tap_to_change_photo": "اضغط لتغيير الصورة",
+  "other": "أخرى",
+  "select_gender": "من فضلك اختر جنسك",
+  "save_changes": "حفظ التغييرات",
+  "profile_update_success": "تم تحديث الملف الشخصي بنجاح"
 }

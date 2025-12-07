@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/usecases/check_email_usecas.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../domain/usecases/resend_verification_code_usecase.dart';
 import '../../domain/usecases/verify_password_usecase.dart';
 import '../../domain/usecases/google_login_usecase.dart';
 import '../../domain/usecases/forgot_password_usecase.dart';
@@ -19,6 +20,8 @@ class AuthCubit extends Cubit<AuthState> {
   final VerifyCodeUseCase verifyCodeUseCase;
   final AuthRepository authRepository;
 
+  final ResendVerificationCodeUseCase resendVerificationCodeUseCase;
+
   AuthCubit({
     required this.checkEmailUseCase,
     required this.verifyPasswordUseCase,
@@ -27,6 +30,7 @@ class AuthCubit extends Cubit<AuthState> {
     required this.forgotPasswordUseCase,
     required this.resetPasswordUseCase,
     required this.verifyCodeUseCase,
+    required this.resendVerificationCodeUseCase,
     required this.authRepository,
   }) : super(AuthInitial());
 
@@ -161,6 +165,21 @@ class AuthCubit extends Cubit<AuthState> {
       },
     );
   }
+
+  // ---------------- RESEND VERIFICATION CODE ----------------
+  Future<void> resendVerificationCode(String email) async {
+    final result = await resendVerificationCodeUseCase(email);
+
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (data) {
+        // Don't change state, just show success via listener
+        emit(AuthResendCodeSuccess(data['message'] ?? 'Code sent successfully'));
+      },
+    );
+  }
+
+
 
   // ---------------- GOOGLE LOGIN ----------------
   Future<void> googleLogin(String email) async {

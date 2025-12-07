@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:async';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../../../../../core/localization/app_localizations.dart';
@@ -24,10 +25,43 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
   final _codeController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  // ✅ Resend code timer
+  int resendTimer = 0;
+  Timer? _timer;
+  bool canResend = true;
+
   @override
   void dispose() {
     _codeController.dispose();
+    _timer?.cancel();
     super.dispose();
+  }
+
+  // ✅ Start resend timer
+  void startResendTimer() {
+    setState(() {
+      resendTimer = 60; // 60 seconds
+      canResend = false;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (resendTimer > 0) {
+          resendTimer--;
+        } else {
+          canResend = true;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  // ✅ Resend verification code
+  void resendCode() {
+    if (canResend) {
+      context.read<AuthCubit>().resendVerificationCode(widget.email);
+      startResendTimer();
+    }
   }
 
   @override
@@ -59,12 +93,21 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                 ),
               );
 
-              // ✅ Navigate to home page after successful verification
+              // Navigate to home page after successful verification
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted) {
-                  context.go(AppRouter.home);
+                  context.go(AppRouter.login);
                 }
               });
+            } else if (state is AuthResendCodeSuccess) {
+              // Show success message when code is resent
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
             }
           },
           builder: (context, state) {
@@ -130,6 +173,7 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                               controller: _codeController,
                               keyboardType: TextInputType.number,
                               textAlign: TextAlign.center,
+                              enabled: state is! AuthLoading,
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -203,22 +247,20 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                               ),
                             ),
                             const SizedBox(height: 16),
+
+                            // Updated Resend Code Button with Timer
                             TextButton(
-                              onPressed: () {
-                                // TODO: Resend code functionality
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      loc.translate("code_resent") ??
-                                          'Verification code resent',
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed: (state is AuthLoading || !canResend)
+                                  ? null
+                                  : resendCode,
                               child: Text(
-                                loc.translate("resend_code") ?? "Resend Code",
+                                canResend
+                                    ? (loc.translate("resend_code") ?? "Resend Code")
+                                    : 'Resend in ${resendTimer}s',
                                 style: TextStyle(
-                                  color: AppColor.primaryColor,
+                                  color: (state is AuthLoading || !canResend)
+                                      ? Colors.grey
+                                      : AppColor.primaryColor,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
