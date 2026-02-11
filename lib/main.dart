@@ -7,6 +7,9 @@ import 'core/theme/theme_cubit.dart';
 import 'core/localization/cubit/localization_cubit.dart';
 import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/tourist/features/home/presentation/cubit/bottom_nav_cubit.dart';
+import 'features/tourist/features/maps/presentation/cubit/map_cubit.dart';
+import 'features/tourist/features/maps/presentation/cubit/search_location_cubit.dart';
+import 'features/tourist/features/maps/presentation/cubit/trip_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,9 +25,12 @@ void main() async {
         BlocProvider(create: (_) => LocalizationCubit()),
         BlocProvider(create: (_) => BottomNavCubit()),
         BlocProvider(
-          create: (_) => di.sl<AuthCubit>()
-            // ..checkAuthStatus(),
+            create: (_) => di.sl<AuthCubit>()
+          // ..checkAuthStatus(),
         ),
+        BlocProvider(create: (_) => di.sl<MapCubit>()),
+        BlocProvider(create: (_) => di.sl<SearchLocationCubit>()),
+        BlocProvider(create: (_) => di.sl<TripCubit>()),
       ],
       child: const MyApp(),
     ),

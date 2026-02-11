@@ -1,9 +1,9 @@
 // import 'package:flutter_test/flutter_test.dart';
 // import 'package:dartz/dartz.dart';
 // import 'package:toury/core/errors/failures.dart';
-// import 'package:toury/features/tourist/features/auth/domain/usecases/google_login_usecase.dart';
-// import 'package:toury/features/tourist/features/auth/domain/repositories/auth_repository.dart';
-// import 'package:toury/features/tourist/features/auth/domain/usecases/verify_google_code_usecase.dart';
+// import 'package:toury/features/tourist/features/auth/data/usecases/google_login_usecase.dart';
+// import 'package:toury/features/tourist/features/auth/data/repositories/auth_repository.dart';
+// import 'package:toury/features/tourist/features/auth/data/usecases/verify_google_code_usecase.dart';
 //
 // class MockAuthRepository extends Mock implements AuthRepository {}
 //

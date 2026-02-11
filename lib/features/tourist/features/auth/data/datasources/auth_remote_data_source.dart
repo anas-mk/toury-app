@@ -66,7 +66,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
             : Map<String, dynamic>.from(response.data);
 
         final Map<String, dynamic>? userData =
-        data['data'] != null ? Map<String, dynamic>.from(data['data']) : null;
+        data['domain'] != null ? Map<String, dynamic>.from(data['domain']) : null;
 
         return {
           'success': data['success'] ?? false,
@@ -163,7 +163,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       print('✅ Registration response: ${response.statusCode}');
-      print('📦 Registration data: ${response.data}');
+      print('📦 Registration domain: ${response.data}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> responseData = response.data is String
@@ -181,8 +181,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           throw Exception('VERIFICATION_NEEDED:$email:$message');
         }
 
-        final userDataRaw = responseData['data']?['user'];
-        final token = responseData['data']?['token'];
+        final userDataRaw = responseData['domain']?['user'];
+        final token = responseData['domain']?['token'];
 
         if (userDataRaw == null) {
           throw Exception('Invalid response format: user not found');
@@ -231,7 +231,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       print('✅ Verification response: ${response.statusCode}');
-      print('📦 Verification data: ${response.data}');
+      print('📦 Verification domain: ${response.data}');
 
       if (response.statusCode == 200) {
         final data = response.data is String
@@ -282,7 +282,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
     } on DioException catch (e) {
       print('❌ DioException in resendVerificationCode: ${e.message}');
-      print('❌ Response data: ${e.response?.data}');
+      print('❌ Response domain: ${e.response?.data}');
 
       if (e.response?.statusCode == 400) {
         final data = e.response?.data;
@@ -439,7 +439,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       FormData formData;
 
       if (profileImage != null) {
-        // ✅ If there's an image, use multipart/form-data
+        // ✅ If there's an image, use multipart/form-domain
         formData = FormData.fromMap({
           "userName": userName,
           "userId": userId,
@@ -473,14 +473,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       print('✅ Profile update response: ${response.statusCode}');
-      print('📦 Update data: ${response.data}');
+      print('📦 Update domain: ${response.data}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = response.data is String
             ? Map<String, dynamic>.from(jsonDecode(response.data))
             : Map<String, dynamic>.from(response.data);
 
-        final userDataRaw = responseData['data'] ?? responseData['user'];
+        final userDataRaw = responseData['domain'] ?? responseData['user'];
 
         if (userDataRaw == null) {
           throw Exception('Invalid response format: user not found');
@@ -540,7 +540,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         case 409:
           return errorMessage.isNotEmpty ? errorMessage : 'Email already exists. Please use a different email.';
         case 422:
-          return 'Invalid data provided. Please check your information.';
+          return 'Invalid domain provided. Please check your information.';
         case 500:
           return 'Server error. Please try again later.';
         default:

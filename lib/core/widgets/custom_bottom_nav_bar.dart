@@ -35,8 +35,8 @@ class CustomBottomNavBar extends StatelessWidget {
           label: loc.translate('home'),
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.search_outlined),
-          activeIcon: Icon(Icons.search),
+          icon: Icon(Icons.explore_rounded),
+          activeIcon: Icon(Icons.explore_rounded),
           label: loc.translate('explore'),
         ),
         BottomNavigationBarItem(

@@ -154,7 +154,7 @@ class AuthCubit extends Cubit<AuthState> {
     result.fold(
           (failure) => emit(AuthError(failure.message)),
           (data) {
-        // ✅ After successful verification, navigate to login or get user data
+        // ✅ After successful verification, navigate to login or get user domain
         final token = data['token'];
         final message = data['message'] ?? 'Verification successful';
 

@@ -1,10 +1,29 @@
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
+
+// ============================================================
+// Auth Feature Imports
+// ============================================================
 import '../../features/tourist/features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/tourist/features/auth/domain/repositories/auth_repository.dart';
 import '../../features/tourist/features/auth/domain/usecases/get_cached_user_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/resend_verification_code_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/verify_code_usecase.dart';
+import '../../features/tourist/features/maps/data/datasources/location_data_source.dart';
+import '../../features/tourist/features/maps/data/datasources/location_data_source_impl.dart';
+import '../../features/tourist/features/maps/data/datasources/routing_data_source.dart';
+import '../../features/tourist/features/maps/data/datasources/routing_data_source_impl.dart';
+import '../../features/tourist/features/maps/data/repositories/location_repository_impl.dart';
+import '../../features/tourist/features/maps/data/repositories/routing_repository_impl.dart';
+import '../../features/tourist/features/maps/domain/repositories/location_repository.dart';
+import '../../features/tourist/features/maps/domain/repositories/routing_repository.dart';
+import '../../features/tourist/features/maps/domain/usecases/get_current_location.dart';
+import '../../features/tourist/features/maps/domain/usecases/get_route.dart';
+import '../../features/tourist/features/maps/domain/usecases/search_locations.dart';
+import '../../features/tourist/features/maps/presentation/cubit/map_cubit.dart';
+import '../../features/tourist/features/maps/presentation/cubit/search_location_cubit.dart';
+import '../../features/tourist/features/maps/presentation/cubit/trip_cubit.dart';
 import '../../features/tourist/features/profile/domain/usecases/update_profile_usecase.dart';
 import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
 import '../config/api_config.dart';
@@ -19,12 +38,16 @@ import '../../features/tourist/features/auth/domain/usecases/forgot_password_use
 import '../../features/tourist/features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
 
+
+
 final sl = GetIt.instance;
 
 Future<void> init() async {
-  // ========== Features - Auth ==========
+  // ============================================================
+  // Features - Auth
+  // ============================================================
 
-  // Cubit
+  // Cubits
   sl.registerFactory(
         () => AuthCubit(
       checkEmailUseCase: sl(),
@@ -35,8 +58,8 @@ Future<void> init() async {
       forgotPasswordUseCase: sl(),
       resetPasswordUseCase: sl(),
       verifyCodeUseCase: sl(),
-       resendVerificationCodeUseCase: sl(),
-        ),
+      resendVerificationCodeUseCase: sl(),
+    ),
   );
 
   sl.registerFactory(
@@ -56,6 +79,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => UpdateProfileUseCase(sl()));
   sl.registerLazySingleton(() => ResendVerificationCodeUseCase(sl()));
 
+  // Repository
   sl.registerLazySingleton<AuthRepository>(
         () => AuthRepositoryImpl(
       remoteDataSource: sl(),
@@ -72,10 +96,67 @@ Future<void> init() async {
         () => AuthLocalDataSourceImpl(),
   );
 
-  // ========== Core ==========
+  // ============================================================
+  // Features - Google Maps
+  // ============================================================
 
+  // Cubits
+  sl.registerFactory(
+        () => MapCubit(
+      getCurrentLocation: sl(),
+      getRoute: sl(),
+    ),
+  );
+
+  sl.registerFactory(
+        () => SearchLocationCubit(
+      searchLocations: sl(),
+    ),
+  );
+
+  sl.registerFactory(
+        () => TripCubit(
+      locationRepository: sl(),
+    ),
+  );
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetCurrentLocation(sl()));
+  sl.registerLazySingleton(() => SearchLocations(sl()));
+  sl.registerLazySingleton(() => GetRoute(sl()));
+
+  // Repositories
+  sl.registerLazySingleton<LocationRepository>(
+        () => LocationRepositoryImpl(dataSource: sl()),
+  );
+
+  sl.registerLazySingleton<RoutingRepository>(
+        () => RoutingRepositoryImpl(dataSource: sl()),
+  );
+
+  // Data Sources
+  sl.registerLazySingleton<LocationDataSource>(
+        () => LocationDataSourceImpl(client: sl()),
+  );
+
+  sl.registerLazySingleton<RoutingDataSource>(
+        () => RoutingDataSourceImpl(client: sl()),
+  );
+
+  // ============================================================
+  // Core - External Dependencies
+  // ============================================================
+
+  // Dio (للـ Auth API calls)
   sl.registerLazySingleton(() => _createDio());
+
+  // HTTP Client (للـ Maps API calls)
+  sl.registerLazySingleton(() => http.Client());
 }
+
+// ============================================================
+// Helper Functions
+// ============================================================
 
 Dio _createDio() {
   final dio = Dio();

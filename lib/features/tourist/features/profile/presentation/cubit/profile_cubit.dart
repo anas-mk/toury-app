@@ -20,7 +20,7 @@ class ProfileCubit extends Cubit<ProfileState> {
           if (user != null) {
             emit(ProfileLoaded(user));
           } else {
-            emit(const ProfileError("No user data found"));
+            emit(const ProfileError("No user domain found"));
           }
         },
       );

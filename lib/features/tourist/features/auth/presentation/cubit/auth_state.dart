@@ -103,7 +103,7 @@ class AuthRegistrationVerificationNeeded extends AuthState {
   List<Object?> get props => [email, message];
 }
 
-//Verification Success State (before getting full user data)
+//Verification Success State (before getting full user domain)
 class AuthVerificationSuccess extends AuthState {
   final String token;
   final String message;
