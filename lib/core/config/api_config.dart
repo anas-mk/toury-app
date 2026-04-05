@@ -1,7 +1,7 @@
 class ApiConfig {
   // API base URL (without trailing slash for cleaner URLs)
   
-  static const String baseUrl = 'http://tourestaapi.runasp.net/api';
+  static const String baseUrl = 'https://tourestaapi.runasp.net/api';
 
   // ========== Auth Endpoints (relative paths) ==========
 

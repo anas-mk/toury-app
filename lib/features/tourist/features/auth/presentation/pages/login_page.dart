@@ -1,4 +1,3 @@
-// lib/features/auth/presentation/pages/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -103,7 +102,7 @@ class _LoginPageState extends State<LoginPage>
                               tag: 'app-logo',
                               child: Image.asset(
                                 'assets/logo/logo.png',
-                                height: 140,
+                                height: 200,
                               ),
                             ),
                             const SizedBox(height: AppTheme.spaceSM),
@@ -253,8 +252,6 @@ class _LoginPageState extends State<LoginPage>
       context.go('${AppRouter.login}/${AppRouter.register}');
     } else if (state is AuthGoogleVerificationNeeded) {
       context.go('${AppRouter.login}/verify-google-code/${state.email}');
-    } else if (state is AuthAuthenticated) {
-      context.go(AppRouter.home);
     }
   }
 }

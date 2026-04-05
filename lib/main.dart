@@ -25,8 +25,8 @@ void main() async {
         BlocProvider(create: (_) => LocalizationCubit()),
         BlocProvider(create: (_) => BottomNavCubit()),
         BlocProvider(
-            create: (_) => di.sl<AuthCubit>()
-          // ..checkAuthStatus(),
+          create: (_) => di.sl<AuthCubit>()
+            ..checkAuthStatus(),
         ),
         BlocProvider(create: (_) => di.sl<MapCubit>()),
         BlocProvider(create: (_) => di.sl<SearchLocationCubit>()),

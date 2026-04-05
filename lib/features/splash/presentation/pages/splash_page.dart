@@ -17,6 +17,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   bool _hasNavigated = false;
+  bool _minimumTimeElapsed = false;
 
   @override
   void initState() {
@@ -37,41 +38,36 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
     _controller.forward();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthCubit>().checkAuthStatus();
-    });
-
-    // Start navigation after animation
-    _startNavigation();
+    _ensureMinimumDisplayTime();
   }
 
-  void _startNavigation() async {
-    // Wait for splash animation (2 seconds)
+  void _ensureMinimumDisplayTime() async {
     await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
 
-    if (!mounted || _hasNavigated) return;
+    setState(() {
+      _minimumTimeElapsed = true;
+    });
+
+    _tryNavigate();
+  }
+
+  void _tryNavigate() {
+    if (!_minimumTimeElapsed || _hasNavigated) return;
 
     final authState = context.read<AuthCubit>().state;
-
-    if (authState is AuthInitial || authState is AuthLoading) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted || _hasNavigated) return;
-      final finalState = context.read<AuthCubit>().state;
-      _navigateBasedOnAuth(finalState);
-    } else {
-      _navigateBasedOnAuth(authState);
-    }
+    _navigateBasedOnAuth(authState);
   }
 
   void _navigateBasedOnAuth(AuthState state) {
-    if (_hasNavigated) return;
+    if (_hasNavigated || !_minimumTimeElapsed) return;
     _hasNavigated = true;
 
+    print('✅ Navigating from splash - State: ${state.runtimeType}');
+
     if (state is AuthAuthenticated) {
-      // ✅ User is logged in → go to home
       context.go(AppRouter.home);
     } else {
-      // ✅ User is not logged in → go to role selection
       context.go(AppRouter.roleSelection);
     }
   }
@@ -89,8 +85,9 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
-        if (!_hasNavigated && state is! AuthLoading && state is! AuthInitial) {
-          _navigateBasedOnAuth(state);
+        print('🔔 Auth state changed: ${state.runtimeType}');
+        if (state is! AuthLoading && state is! AuthInitial) {
+          _tryNavigate();
         }
       },
       child: Scaffold(
@@ -102,12 +99,14 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
               scale: _scaleAnimation,
               child: Image.asset(
                 'assets/logo/logo.png',
-                height: 200,
+                height: 230,
+                width: 230,
+                fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(
                     Icons.travel_explore,
                     size: 120,
-                    color: isDark ? Colors.white : Colors.blue,
+                    color: isDark ? Colors.white : Colors.white,
                   );
                 },
               ),
