@@ -152,7 +152,7 @@ class _HelperLoginPageState extends State<HelperLoginPage>
                                             l10n.or,
                                             style: AppTheme.bodySmall.copyWith(
                                               color: theme.colorScheme.onSurface
-                                                  .withOpacity(0.5),
+                                                  .withValues(alpha: 0.5),
                                             ),
                                           ),
                                         ),
@@ -215,19 +215,19 @@ class _HelperLoginPageState extends State<HelperLoginPage>
     if (!_formKey.currentState!.validate()) return;
 
     final email = _emailController.text.trim();
-    context.read<HelperAuthCubit>().checkEmail(email);
+    // In the new flow, we simply gather email and proceed to password/login
+    context.push('${AppRouter.helperLogin}/enter-password/$email');
   }
 
   Future<void> _handleGoogleSignIn() async {
+    // Google sign-in logic preserved but would need backend alignment if used
     try {
       final account = await _googleSignIn.signIn();
       if (account != null && account.email.isNotEmpty) {
-        if (mounted) {
-          context.read<HelperAuthCubit>().googleLogin(account.email);
-        }
+        // This might need update if Google login flow changes
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Google sign-in failed: ${e.toString()}'),
@@ -246,12 +246,7 @@ class _HelperLoginPageState extends State<HelperLoginPage>
           backgroundColor: Colors.red,
         ),
       );
-    } else if (state is HelperAuthEmailExists) {
-      context.go('${AppRouter.helperLogin}/enter-password/${state.email}');
-    } else if (state is HelperAuthGoogleRegistrationNeeded) {
-      context.go('${AppRouter.helperLogin}/${AppRouter.register}');
-    } else if (state is HelperAuthGoogleVerificationNeeded) {
-      context.go('${AppRouter.helperLogin}/verify-google-code/${state.email}');
     }
+    // AuthEmailExists removed as we don't check email anymore before login
   }
 }

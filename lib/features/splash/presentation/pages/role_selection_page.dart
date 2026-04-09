@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/localization/app_localizations.dart';
-import '../../../../../../core/router/app_router.dart';
-import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/custom_card.dart';
-import '../../../../../../core/widgets/custom_button.dart';
+import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/app_color.dart';
+import '../../../../core/widgets/custom_card.dart';
+import '../../../../core/widgets/custom_button.dart';
 
 class RoleSelectionPage extends StatefulWidget {
   const RoleSelectionPage({super.key});
@@ -134,7 +134,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
         color: Colors.white,
       ),
       onPressed: () {
-        context.push(AppRouter.login);
+        context.push(AppRouter.login, extra: 'from_role_selection');
       },
     );
   }
@@ -144,7 +144,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
 
     return OutlinedButton.icon(
       onPressed: () {
-        context.push(AppRouter.helperLogin);
+        context.push(AppRouter.helperLogin, extra: 'from_role_selection');
       },
       label: Text(
         loc.translate("helper"),

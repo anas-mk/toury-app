@@ -59,7 +59,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
   // ✅ Resend verification code
   void resendCode() {
     if (canResend) {
-      context.read<HelperAuthCubit>().resendVerificationCode(widget.email);
+      context.read<HelperAuthCubit>().resendLoginOtp(widget.email);
       startResendTimer();
     }
   }
@@ -73,7 +73,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0E0E0E)
-          : AppColor.primaryColor.withOpacity(0.95),
+          : AppColor.primaryColor.withValues(alpha: 0.95),
       appBar: const BasicAppBar(),
       body: SafeArea(
         child: BlocConsumer<HelperAuthCubit, HelperAuthState>(
@@ -85,21 +85,21 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
                   backgroundColor: Colors.redAccent,
                 ),
               );
-            } else if (state is HelperAuthVerificationSuccess) {
+            } else if (state is HelperAuthAuthenticated) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.message),
+                const SnackBar(
+                  content: Text('Login successful!'),
                   backgroundColor: Colors.green,
                 ),
               );
 
-              // Navigate to home page after successful verification
+              // Navigate to home page after successful login
               Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
+                if (context.mounted) {
                   context.go(AppRouter.helperHome);
                 }
               });
-            } else if (state is HelperAuthResendCodeSuccess) {
+            } else if (state is HelperAuthResendSuccess) {
               // Show success message when code is resent
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -159,7 +159,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
                             ? []
                             : [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 6),
                           ),
@@ -215,7 +215,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
                                   ? null
                                   : () {
                                 if (_formKey.currentState!.validate()) {
-                                  context.read<HelperAuthCubit>().verifyRegistrationCode(
+                                  context.read<HelperAuthCubit>().verifyLoginOtp(
                                     email: widget.email,
                                     code: _codeController.text.trim(),
                                   );

@@ -24,6 +24,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
   final _formKey2 = GlobalKey<FormState>();
   final _formKey3 = GlobalKey<FormState>();
   final _formKey4 = GlobalKey<FormState>();
+  final _formKey5 = GlobalKey<FormState>();
 
   final _emailController = TextEditingController();
   final _userNameController = TextEditingController();
@@ -37,7 +38,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     context.read<HelperAuthCubit>().initRegistrationData();
   }
 
@@ -94,9 +95,13 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
         _showError('Please upload all required licenses');
         return;
       }
+    } else if (data.currentStep == 4) {
+      if (data.hasCar) {
+        // Basic validation for car fields if needed
+      }
     }
 
-    if (data.currentStep < 3) {
+    if (data.currentStep < 4) {
       final nextStep = data.currentStep + 1;
       _updateData(data.copyWith(currentStep: nextStep));
       _tabController.animateTo(nextStep);
@@ -138,21 +143,32 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0E0E0E) : AppColor.primaryColor.withOpacity(0.95),
+      backgroundColor: isDark ? const Color(0xFF0E0E0E) : AppColor.primaryColor.withValues(alpha: 0.95),
       appBar: const BasicAppBar(),
       body: SafeArea(
         child: BlocConsumer<HelperAuthCubit, HelperAuthState>(
           listener: (context, state) {
             if (state is HelperAuthError) {
               _showError(state.message);
-            } else if (state is HelperAuthRegistrationVerificationNeeded) {
-              context.push('${AppRouter.helperLogin}/helper-register-verify-otp?email=${Uri.encodeComponent(state.email)}');
+            } else if (state is HelperAuthEmailVerificationRequired) {
+              context.push('${AppRouter.helperLogin}/${AppRouter.helperRegisterVerifyOtp}?email=${Uri.encodeComponent(state.email)}');
+            } else if (state is HelperAuthRegistrationSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(state.message), backgroundColor: Colors.green),
+              );
+              
+              if (state.action == 'start_onboarding') {
+                context.go(AppRouter.helperHome); 
+              } else if (state.helper != null || state.action == 'go_to_helper_dashboard') {
+                context.go(AppRouter.helperHome);
+              }
             }
           },
           builder: (context, state) {
             final data = (state is HelperAuthRegisterProgress)
                 ? state.data
                 : const HelperRegistrationData();
+            final isLoading = state is HelperAuthLoading;
 
             return Center(
               child: SingleChildScrollView(
@@ -169,7 +185,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Complete 4 steps to create your account",
+                      "Complete 5 steps to create your account",
                       style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
                     ),
                     const SizedBox(height: 24),
@@ -182,7 +198,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
                             ? []
                             : [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 10,
                                   offset: const Offset(0, 6),
                                 ),
@@ -201,7 +217,8 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
                                 _buildStep1(isDark, loc, data),
                                 _buildStep2(isDark, loc, data),
                                 _buildStep3(isDark, loc, data),
-                                _buildStep4(isDark, loc, data, state is HelperAuthLoading),
+                                _buildStep4(isDark, loc, data, isLoading),
+                                _buildStep5(isDark, loc, data, isLoading),
                               ],
                             ),
                           ),
@@ -364,6 +381,14 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
           child: Column(
             children: [
               DocumentPickerWidget(
+                title: 'Profile Image',
+                subtitle: 'A professional profile photo',
+                file: data.profileImage,
+                onPickPressed: () => _pickDocument((f) => _updateData(data.copyWith(profileImage: f))),
+                onRemovePressed: () => _updateData(data.copyWith(profileImage: null)),
+              ),
+              const SizedBox(height: 16),
+              DocumentPickerWidget(
                 title: 'Selfie Image',
                 subtitle: 'Clear front-facing photo',
                 file: data.selfieImage,
@@ -464,9 +489,57 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
     );
   }
 
+  Widget _buildStep5(bool isDark, AppLocalizations loc, HelperRegistrationData data, bool isLoading) {
+    // Car Details
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Form(
+        key: _formKey5,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                title: const Text('Do you have a car?'),
+                value: data.hasCar,
+                onChanged: (val) => _updateData(data.copyWith(hasCar: val)),
+                activeColor: AppColor.primaryColor,
+              ),
+              if (data.hasCar) ...[
+                const SizedBox(height: 16),
+                _buildCarDetailsField('Car Brand', data.carBrand, (v) => _updateData(data.copyWith(carBrand: v))),
+                const SizedBox(height: 12),
+                _buildCarDetailsField('Car Model', data.carModel, (v) => _updateData(data.copyWith(carModel: v))),
+                const SizedBox(height: 12),
+                _buildCarDetailsField('Car Color', data.carColor, (v) => _updateData(data.copyWith(carColor: v))),
+                const SizedBox(height: 12),
+                _buildCarDetailsField('License Plate', data.carLicensePlate, (v) => _updateData(data.copyWith(carLicensePlate: v))),
+                const SizedBox(height: 12),
+                _buildCarDetailsField('Energy Type (e.g. Gas, Electric)', data.carEnergyType, (v) => _updateData(data.copyWith(carEnergyType: v))),
+                const SizedBox(height: 12),
+                _buildCarDetailsField('Car Type (e.g. SUV, Sedan)', data.carType, (v) => _updateData(data.copyWith(carType: v))),
+              ],
+              const SizedBox(height: 24),
+              _buildNavigationButtons(true, isLoading),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCarDetailsField(String label, String value, Function(String) onChanged) {
+    return CustomTextField(
+      hintText: label,
+      onChanged: onChanged,
+      prefixIcon: Icons.directions_car_filled_outlined,
+      validator: (v) => v!.isEmpty ? 'Required' : null,
+    );
+  }
+
   Widget _buildGenderField(bool isDark, HelperRegistrationData data) {
     return DropdownButtonFormField<String>(
-      value: data.gender,
+      initialValue: data.gender,
       decoration: InputDecoration(
         labelText: 'Gender',
         prefixIcon: Icon(Icons.person_2_outlined, color: isDark ? Colors.white70 : Colors.grey[700]),

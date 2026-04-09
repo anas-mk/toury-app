@@ -29,7 +29,7 @@ void main() async {
           create: (_) => di.sl<AuthCubit>()
             ..checkAuthStatus(),
         ),
-        BlocProvider(create: (_) => HelperAuthCubit()),
+        BlocProvider(create: (_) => di.sl<HelperAuthCubit>()),
         BlocProvider(create: (_) => di.sl<MapCubit>()),
         BlocProvider(create: (_) => di.sl<SearchLocationCubit>()),
         BlocProvider(create: (_) => di.sl<TripCubit>()),

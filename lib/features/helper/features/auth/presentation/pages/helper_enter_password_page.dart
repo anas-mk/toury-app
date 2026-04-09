@@ -73,9 +73,11 @@ class _HelperEnterPasswordPageState extends State<HelperEnterPasswordPage>
                   backgroundColor: Colors.redAccent,
                 ),
               );
+            } else if (state is HelperAuthLoginOtpRequired) {
+              // Navigate to Verify OTP page
+              context.push('${AppRouter.helperLogin}/${AppRouter.helperVerifyCode.replaceAll(':email', state.email)}');
             } else if (state is HelperAuthAuthenticated) {
-              // ✅ استخدم GoRouter بدل Navigator
-              context.go(AppRouter.helperLogin + '/helper-verify-code/' + widget.email);
+              context.go(AppRouter.helperHome);
             }
           },
           builder: (context, state) {
@@ -107,7 +109,7 @@ class _HelperEnterPasswordPageState extends State<HelperEnterPasswordPage>
                             boxShadow: [
                               if (!isDark)
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
+                                  color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 10,
                                   offset: const Offset(0, 6),
                                 ),
@@ -205,9 +207,9 @@ class _HelperEnterPasswordPageState extends State<HelperEnterPasswordPage>
                                   }
                                   context
                                       .read<HelperAuthCubit>()
-                                      .verifyPassword(
-                                    widget.email,
-                                    password,
+                                      .login(
+                                    email: widget.email,
+                                    password: password,
                                   );
                                 },
                                 style: ElevatedButton.styleFrom(

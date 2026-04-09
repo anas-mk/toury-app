@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
-import '../../../tourist/features/auth/presentation/cubit/auth_cubit.dart';
-import '../../../tourist/features/auth/presentation/cubit/auth_state.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../helper/features/auth/data/datasources/helper_local_data_source.dart';
+import 'package:go_router/go_router.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -16,7 +15,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  bool _hasNavigated = false;
+  bool _isNavigated = false;
   bool _minimumTimeElapsed = false;
 
   @override
@@ -37,7 +36,6 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     );
 
     _controller.forward();
-
     _ensureMinimumDisplayTime();
   }
 
@@ -49,26 +47,37 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
       _minimumTimeElapsed = true;
     });
 
-    _tryNavigate();
+    _checkAuthState();
   }
 
-  void _tryNavigate() {
-    if (!_minimumTimeElapsed || _hasNavigated) return;
+  Future<void> _checkAuthState() async {
+    if (!_minimumTimeElapsed || _isNavigated) return;
 
-    final authState = context.read<AuthCubit>().state;
-    _navigateBasedOnAuth(authState);
-  }
+    final localDataSource = sl<HelperLocalDataSource>();
+    final helper = await localDataSource.getCurrentHelper();
+    
+    // Debug Logs
+    print('--- 🌊 SPLASH AUTH AUDIT ---');
+    print('Token: ${helper?.token ?? "NULL"}');
+    print('Helper Data: ${helper?.fullName ?? "NULL"} (ID: ${helper?.helperId ?? "N/A"})');
+    print('Approval Status: ${helper?.isApproved ?? "N/A"}');
+    print('Active Status: ${helper?.isActive ?? "N/A"}');
 
-  void _navigateBasedOnAuth(AuthState state) {
-    if (_hasNavigated || !_minimumTimeElapsed) return;
-    _hasNavigated = true;
+    String targetRoute = AppRouter.roleSelection;
 
-    print('✅ Navigating from splash - State: ${state.runtimeType}');
-
-    if (state is AuthAuthenticated) {
-      context.go(AppRouter.home);
+    if (helper == null || helper.token == null || helper.token!.isEmpty) {
+      targetRoute = AppRouter.roleSelection;
     } else {
-      context.go(AppRouter.roleSelection);
+      // Priority Routing Logic
+      targetRoute = AppRouter.helperHome;
+    }
+
+    print('Final Selected Route: $targetRoute');
+    print('---------------------------');
+
+    if (mounted && !_isNavigated) {
+      _isNavigated = true;
+      context.go(targetRoute);
     }
   }
 
@@ -83,33 +92,25 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return BlocListener<AuthCubit, AuthState>(
-      listener: (context, state) {
-        print('🔔 Auth state changed: ${state.runtimeType}');
-        if (state is! AuthLoading && state is! AuthInitial) {
-          _tryNavigate();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0A0A0A) : theme.primaryColor,
-        body: Center(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: Image.asset(
-                'assets/logo/logo.png',
-                height: 230,
-                width: 230,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.travel_explore,
-                    size: 120,
-                    color: isDark ? Colors.white : Colors.white,
-                  );
-                },
-              ),
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0A0A0A) : theme.primaryColor,
+      body: Center(
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Image.asset(
+              'assets/logo/logo.png',
+              height: 230,
+              width: 230,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.travel_explore,
+                  size: 120,
+                  color: Colors.white,
+                );
+              },
             ),
           ),
         ),

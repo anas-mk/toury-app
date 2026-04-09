@@ -1,6 +1,8 @@
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
+import '../../core/network/auth_interceptor.dart';
+import '../config/api_config.dart';
 
 // ============================================================
 // Auth Feature Imports
@@ -26,7 +28,6 @@ import '../../features/tourist/features/maps/presentation/cubit/search_location_
 import '../../features/tourist/features/maps/presentation/cubit/trip_cubit.dart';
 import '../../features/tourist/features/profile/domain/usecases/update_profile_usecase.dart';
 import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
-import '../config/api_config.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_local_data_source.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/tourist/features/auth/domain/usecases/check_email_usecas.dart';
@@ -38,7 +39,23 @@ import '../../features/tourist/features/auth/domain/usecases/forgot_password_use
 import '../../features/tourist/features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
 
-
+// ============================================================
+// Helper Auth Feature Imports
+// ============================================================
+import '../../features/helper/features/auth/data/datasources/helper_auth_remote_data_source.dart';
+import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
+import '../../features/helper/features/auth/data/repositories/helper_auth_repository_impl.dart';
+import '../../features/helper/features/auth/domain/repositories/helper_auth_repository.dart';
+import '../../features/helper/features/auth/domain/usecases/register_helper_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/helper_login_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/verify_helper_login_otp_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/verify_helper_email_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/resend_helper_login_otp_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/resend_helper_code_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/forgot_helper_password_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/reset_helper_password_usecase.dart';
+import '../../features/helper/features/auth/domain/usecases/helper_logout_usecase.dart';
+import '../../features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -97,6 +114,53 @@ Future<void> init() async {
   );
 
   // ============================================================
+  // Features - Helper Auth
+  // ============================================================
+
+  // Cubit
+  sl.registerFactory(
+    () => HelperAuthCubit(
+      registerHelperUseCase: sl(),
+      helperLoginUseCase: sl(),
+      verifyHelperLoginOtpUseCase: sl(),
+      verifyHelperEmailUseCase: sl(),
+      resendHelperLoginOtpUseCase: sl(),
+      resendHelperCodeUseCase: sl(),
+      forgotHelperPasswordUseCase: sl(),
+      resetHelperPasswordUseCase: sl(),
+      helperLogoutUseCase: sl(),
+    ),
+  );
+
+  // Use Cases
+  sl.registerLazySingleton(() => RegisterHelperUseCase(sl()));
+  sl.registerLazySingleton(() => HelperLoginUseCase(sl()));
+  sl.registerLazySingleton(() => VerifyHelperLoginOtpUseCase(sl()));
+  sl.registerLazySingleton(() => VerifyHelperEmailUseCase(sl()));
+  sl.registerLazySingleton(() => ResendHelperLoginOtpUseCase(sl()));
+  sl.registerLazySingleton(() => ResendHelperCodeUseCase(sl()));
+  sl.registerLazySingleton(() => ForgotHelperPasswordUseCase(sl()));
+  sl.registerLazySingleton(() => ResetHelperPasswordUseCase(sl()));
+  sl.registerLazySingleton(() => HelperLogoutUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperAuthRepository>(
+    () => HelperAuthRepositoryImpl(
+      remoteDataSource: sl(),
+      localDataSource: sl(),
+    ),
+  );
+
+  // Data Sources
+  sl.registerLazySingleton<HelperAuthRemoteDataSource>(
+    () => HelperAuthRemoteDataSourceImpl(sl()),
+  );
+
+  sl.registerLazySingleton<HelperLocalDataSource>(
+    () => HelperLocalDataSourceImpl(),
+  );
+
+  // ============================================================
   // Features - Google Maps
   // ============================================================
 
@@ -147,10 +211,10 @@ Future<void> init() async {
   // Core - External Dependencies
   // ============================================================
 
-  // Dio (للـ Auth API calls)
+  // Dio (🌐 Auth API calls)
   sl.registerLazySingleton(() => _createDio());
 
-  // HTTP Client (للـ Maps API calls)
+  // HTTP Client (🌐 Maps API calls)
   sl.registerLazySingleton(() => http.Client());
 }
 
@@ -170,6 +234,8 @@ Dio _createDio() {
       return status != null && status < 500;
     },
   );
+
+  dio.interceptors.add(AuthInterceptor());
 
   dio.interceptors.add(
     LogInterceptor(

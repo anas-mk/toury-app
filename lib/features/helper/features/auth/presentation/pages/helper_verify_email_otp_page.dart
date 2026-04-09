@@ -58,7 +58,7 @@ class _HelperVerifyEmailOtpPageState extends State<HelperVerifyEmailOtpPage> {
 
   void resendCode() {
     if (canResend) {
-      context.read<HelperAuthCubit>().resendVerificationCode(widget.email);
+      context.read<HelperAuthCubit>().resendRegistrationCode(widget.email);
       startResendTimer();
     }
   }
@@ -70,7 +70,7 @@ class _HelperVerifyEmailOtpPageState extends State<HelperVerifyEmailOtpPage> {
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0E0E0E) : AppColor.primaryColor.withOpacity(0.95),
+      backgroundColor: isDark ? const Color(0xFF0E0E0E) : AppColor.primaryColor.withValues(alpha: 0.95),
       appBar: const BasicAppBar(),
       body: SafeArea(
         child: BlocConsumer<HelperAuthCubit, HelperAuthState>(
@@ -79,23 +79,19 @@ class _HelperVerifyEmailOtpPageState extends State<HelperVerifyEmailOtpPage> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(state.message), backgroundColor: Colors.redAccent),
               );
-            } else if (state is HelperAuthVerificationSuccess) {
+            } else if (state is HelperAuthRegistrationSuccess) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Email successfully verified!"), backgroundColor: Colors.green),
+                SnackBar(content: Text(state.message), backgroundColor: Colors.green),
               );
 
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
-                  // Reset stack to role selection, then push login to preserve back navigation
-                  context.go(AppRouter.roleSelection);
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    if (mounted) {
-                      context.push(AppRouter.helperLogin);
-                    }
-                  });
-                }
-              });
-            } else if (state is HelperAuthResendCodeSuccess) {
+              if (state.action == 'start_onboarding') {
+                context.go(AppRouter.helperHome); 
+              } else if (state.helper != null || state.action == 'go_to_helper_dashboard') {
+                context.go(AppRouter.helperHome);
+              } else {
+                context.go(AppRouter.helperLogin);
+              }
+            } else if (state is HelperAuthResendSuccess) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(state.message),
@@ -147,7 +143,7 @@ class _HelperVerifyEmailOtpPageState extends State<HelperVerifyEmailOtpPage> {
                             ? []
                             : [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 10,
                                   offset: const Offset(0, 6),
                                 ),
@@ -191,7 +187,7 @@ class _HelperVerifyEmailOtpPageState extends State<HelperVerifyEmailOtpPage> {
                                   ? null
                                   : () {
                                       if (_formKey.currentState!.validate()) {
-                                        context.read<HelperAuthCubit>().verifyRegistrationCode(
+                                        context.read<HelperAuthCubit>().verifyEmail(
                                               email: widget.email,
                                               code: _codeController.text.trim(),
                                             );
@@ -232,12 +228,14 @@ class _HelperVerifyEmailOtpPageState extends State<HelperVerifyEmailOtpPage> {
                     const SizedBox(height: 24),
                     TextButton(
                       onPressed: () {
-                        context.go(AppRouter.roleSelection);
-                        Future.delayed(const Duration(milliseconds: 100), () {
-                          if (mounted) {
-                            context.push(AppRouter.helperLogin);
-                          }
-                        });
+                        if (context.mounted) {
+                          context.go(AppRouter.roleSelection);
+                          Future.delayed(const Duration(milliseconds: 100), () {
+                            if (context.mounted) {
+                              context.push(AppRouter.helperLogin);
+                            }
+                          });
+                        }
                       },
                       child: Text(
                         loc.translate("back_to_login") ?? "Back to Login",

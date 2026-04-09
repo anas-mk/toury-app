@@ -1,10 +1,13 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../di/injection_container.dart';
+import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/login_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/register_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/enter_password_page.dart';
-import '../../features/tourist/features/auth/presentation/pages/role_selection_page.dart';
+import '../../features/splash/presentation/pages/role_selection_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/forgot_password_page.dart'; // ✅ Updated import
 import '../../features/tourist/features/auth/presentation/pages/reset_password_page.dart'; // ✅ New import
 import '../../features/tourist/features/auth/presentation/pages/verify_code_page.dart';
@@ -21,11 +24,39 @@ import '../../features/helper/features/auth/presentation/pages/helper_verify_ema
 import '../../features/helper/features/home/presentation/pages/helper_home_page.dart';
 
 // Placeholder page for Google
+// Placeholder pages for specialized authentication states
 class GoogleVerifyCodePage extends StatelessWidget {
   final String email;
   const GoogleVerifyCodePage({super.key, required this.email});
   @override
   Widget build(BuildContext context) => Scaffold(body: Center(child: Text('Google Verify Code Page for $email (Placeholder)')));
+}
+
+class HelperOnboardingPage extends StatelessWidget {
+  const HelperOnboardingPage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Helper Onboarding')),
+    body: const Center(child: Text('Onboarding Status: Incomplete\nComplete your profile settings.')),
+  );
+}
+
+class WaitingApprovalPage extends StatelessWidget {
+  const WaitingApprovalPage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Account Pending')),
+    body: const Center(child: Text('Your account is waiting for admin approval.\nWe will notify you soon.')),
+  );
+}
+
+class AccountInactivePage extends StatelessWidget {
+  const AccountInactivePage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Account Inactive')),
+    body: const Center(child: Text('Your account has been deactivated.\nPlease contact support.')),
+  );
 }
 
 
@@ -50,19 +81,85 @@ class AppRouter {
   // Helper Routes
   static const String helperLogin = '/helper-login';
   static const String helperHome = '/helper-home';
+  static const String helperRegister = 'helper-register';
+  static const String helperEnterPassword = 'enter-password/:email';
+  static const String helperVerifyCode = 'helper-verify-code/:email';
+  static const String helperRegisterVerifyOtp = 'helper-register-verify-otp';
+  
+  // Status Routes
+  static const String helperOnboarding = '/helper-onboarding';
+  static const String waitingApproval = '/waiting-approval';
+  static const String accountInactive = '/account-inactive';
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
     debugLogDiagnostics: true,
 
     // ----------------------------------------
-    // Redirection Logic - Simple Version
+    // Redirection Logic - Auth Guard
     // ----------------------------------------
-    redirect: (context, state) {
-      final isGoingToSplash = state.uri.toString() == splash;
-
+    redirect: (context, state) async {
+      final matchedPath = state.matchedLocation;
+      final isGoingToSplash = matchedPath == splash;
       if (isGoingToSplash) return null;
 
+      final localDataSource = sl<HelperLocalDataSource>();
+      final helper = await localDataSource.getCurrentHelper();
+      final isAuthenticated = helper != null && helper.token != null && helper.token!.isNotEmpty;
+
+      // Debug Logs as requested
+      print('--- 🧭 ROUTER AUDIT ---');
+      print('Current Route: $matchedPath');
+      print('Token Status: ${isAuthenticated ? "AUTHENTICATED" : "NOT AUTHENTICATED"}');
+
+      // Define public routes (accessible without login)
+      final publicRoutes = [
+        splash,
+        roleSelection,
+        login,
+        helperLogin,
+        register,
+        '/helper-register',
+        forgotPassword,
+        resetPassword,
+        verifyCode,
+      ];
+
+      // Routes that should NOT be accessible if already logged in
+      final authRoutes = [
+        roleSelection,
+        login,
+        helperLogin,
+      ];
+
+      final isPublic = publicRoutes.any((path) => matchedPath.startsWith(path));
+      final isAuthRoute = authRoutes.contains(matchedPath);
+
+      // 🚨 Case: Unauthenticated user
+      if (!isAuthenticated) {
+        // Block direct access to login/helper-login unless coming from role-selection
+        final isLoginRoute = matchedPath == login || matchedPath == helperLogin;
+        final hasRoleSelectionFlag = state.extra == 'from_role_selection';
+
+        if (isLoginRoute && !hasRoleSelectionFlag) {
+          print('Decision: Blocked direct access to login. Redirecting to Role Selection.');
+          return roleSelection;
+        }
+
+        if (!isPublic) {
+          print('Decision: Unauthorized access. Redirecting to Role Selection.');
+          return roleSelection;
+        }
+      }
+
+      // 🚨 Case: Authenticated user
+      if (isAuthenticated && isAuthRoute) {
+        print('Decision: user is authenticated. Redirecting away from Auth routes to Home.');
+        return helperHome;
+      }
+
+      print('Decision: Allowed (null)');
+      print('-----------------------');
       return null;
     },
 
@@ -164,7 +261,7 @@ class AppRouter {
         builder: (context, state) => const HelperLoginPage(),
         routes: [
           GoRoute(
-            path: enterPassword,
+            path: helperEnterPassword,
             name: 'helper-enter-password',
             builder: (context, state) {
               final email = state.pathParameters['email']!;
@@ -172,7 +269,7 @@ class AppRouter {
             },
           ),
           GoRoute(
-            path: 'helper-verify-code/:email',
+            path: helperVerifyCode,
             name: 'helper-verify-code',
             builder: (context, state) {
               final email = state.pathParameters['email']!;
@@ -180,12 +277,12 @@ class AppRouter {
             },
           ),
           GoRoute(
-            path: 'helper-register',
+            path: helperRegister,
             name: 'helper-register',
             builder: (context, state) => const HelperRegisterPage(),
           ),
           GoRoute(
-            path: 'helper-register-verify-otp',
+            path: helperRegisterVerifyOtp,
             name: 'helper-register-verify-otp',
             builder: (context, state) {
               final email = state.uri.queryParameters['email'] ?? 'mock@example.com';
@@ -200,6 +297,23 @@ class AppRouter {
         path: helperHome,
         name: 'helper-home',
         builder: (context, state) => const HelperHomePage(),
+      ),
+
+      // 6. Helper Status Routes
+      GoRoute(
+        path: helperOnboarding,
+        name: 'helper-onboarding',
+        builder: (context, state) => const HelperOnboardingPage(),
+      ),
+      GoRoute(
+        path: waitingApproval,
+        name: 'waiting-approval',
+        builder: (context, state) => const WaitingApprovalPage(),
+      ),
+      GoRoute(
+        path: accountInactive,
+        name: 'account-inactive',
+        builder: (context, state) => const AccountInactivePage(),
       ),
     ],
 

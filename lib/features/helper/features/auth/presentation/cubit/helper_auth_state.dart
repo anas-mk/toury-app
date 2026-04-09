@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../domain/entities/helper_entity.dart';
 
 class HelperRegistrationData extends Equatable {
   final int currentStep;
@@ -10,12 +11,21 @@ class HelperRegistrationData extends Equatable {
   final String gender;
   final DateTime? birthDate;
 
+  final XFile? profileImage;
   final XFile? selfieImage;
   final XFile? nationalIdFront;
   final XFile? nationalIdBack;
 
   final XFile? criminalRecordFile;
   final XFile? drugTestFile;
+
+  final bool hasCar;
+  final String carBrand;
+  final String carModel;
+  final String carColor;
+  final String carLicensePlate;
+  final String carEnergyType;
+  final String carType;
 
   final XFile? carLicenseFront;
   final XFile? carLicenseBack;
@@ -29,11 +39,19 @@ class HelperRegistrationData extends Equatable {
     this.phoneNumber = '',
     this.gender = 'Male',
     this.birthDate,
+    this.profileImage,
     this.selfieImage,
     this.nationalIdFront,
     this.nationalIdBack,
     this.criminalRecordFile,
     this.drugTestFile,
+    this.hasCar = false,
+    this.carBrand = '',
+    this.carModel = '',
+    this.carColor = '',
+    this.carLicensePlate = '',
+    this.carEnergyType = '',
+    this.carType = '',
     this.carLicenseFront,
     this.carLicenseBack,
     this.personalLicense,
@@ -47,11 +65,19 @@ class HelperRegistrationData extends Equatable {
     String? phoneNumber,
     String? gender,
     DateTime? birthDate,
+    XFile? profileImage,
     XFile? selfieImage,
     XFile? nationalIdFront,
     XFile? nationalIdBack,
     XFile? criminalRecordFile,
     XFile? drugTestFile,
+    bool? hasCar,
+    String? carBrand,
+    String? carModel,
+    String? carColor,
+    String? carLicensePlate,
+    String? carEnergyType,
+    String? carType,
     XFile? carLicenseFront,
     XFile? carLicenseBack,
     XFile? personalLicense,
@@ -64,11 +90,19 @@ class HelperRegistrationData extends Equatable {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       gender: gender ?? this.gender,
       birthDate: birthDate ?? this.birthDate,
+      profileImage: profileImage ?? this.profileImage,
       selfieImage: selfieImage ?? this.selfieImage,
       nationalIdFront: nationalIdFront ?? this.nationalIdFront,
       nationalIdBack: nationalIdBack ?? this.nationalIdBack,
       criminalRecordFile: criminalRecordFile ?? this.criminalRecordFile,
       drugTestFile: drugTestFile ?? this.drugTestFile,
+      hasCar: hasCar ?? this.hasCar,
+      carBrand: carBrand ?? this.carBrand,
+      carModel: carModel ?? this.carModel,
+      carColor: carColor ?? this.carColor,
+      carLicensePlate: carLicensePlate ?? this.carLicensePlate,
+      carEnergyType: carEnergyType ?? this.carEnergyType,
+      carType: carType ?? this.carType,
       carLicenseFront: carLicenseFront ?? this.carLicenseFront,
       carLicenseBack: carLicenseBack ?? this.carLicenseBack,
       personalLicense: personalLicense ?? this.personalLicense,
@@ -78,8 +112,9 @@ class HelperRegistrationData extends Equatable {
   @override
   List<Object?> get props => [
         currentStep, fullName, email, password, phoneNumber, gender, birthDate,
-        selfieImage?.path, nationalIdFront?.path, nationalIdBack?.path,
+        profileImage?.path, selfieImage?.path, nationalIdFront?.path, nationalIdBack?.path,
         criminalRecordFile?.path, drugTestFile?.path,
+        hasCar, carBrand, carModel, carColor, carLicensePlate, carEnergyType, carType,
         carLicenseFront?.path, carLicenseBack?.path, personalLicense?.path,
       ];
 }
@@ -103,16 +138,12 @@ class HelperAuthRegisterProgress extends HelperAuthState {
 
 class HelperAuthLoading extends HelperAuthState {}
 
-class HelperAuthEmailExists extends HelperAuthState {
-  final String email;
-  const HelperAuthEmailExists(this.email);
+class HelperAuthAuthenticated extends HelperAuthState {
+  final HelperEntity helper;
+  const HelperAuthAuthenticated(this.helper);
 
   @override
-  List<Object?> get props => [email];
-}
-
-class HelperAuthAuthenticated extends HelperAuthState {
-  const HelperAuthAuthenticated();
+  List<Object?> get props => [helper];
 }
 
 class HelperAuthUnauthenticated extends HelperAuthState {}
@@ -125,34 +156,50 @@ class HelperAuthError extends HelperAuthState {
   List<Object?> get props => [message];
 }
 
-class HelperAuthGoogleRegistrationNeeded extends HelperAuthState {
-  final String email;
-  const HelperAuthGoogleRegistrationNeeded(this.email);
-
-  @override
-  List<Object?> get props => [email];
-}
-
-class HelperAuthGoogleVerificationNeeded extends HelperAuthState {
+// Login States
+class HelperAuthLoginOtpRequired extends HelperAuthState {
   final String email;
   final String message;
-  const HelperAuthGoogleVerificationNeeded(this.email, this.message);
+
+  const HelperAuthLoginOtpRequired({
+    required this.email,
+    required this.message,
+  });
 
   @override
   List<Object?> get props => [email, message];
 }
 
-class HelperAuthMessage extends HelperAuthState {
+// Registration States
+class HelperAuthEmailVerificationRequired extends HelperAuthState {
+  final String email;
   final String message;
-  final String action;
 
-  const HelperAuthMessage(this.message, this.action);
+  const HelperAuthEmailVerificationRequired({
+    required this.email,
+    required this.message,
+  });
 
   @override
-  List<Object?> get props => [message, action];
+  List<Object?> get props => [email, message];
 }
 
-// Forgot Password States
+class HelperAuthRegistrationSuccess extends HelperAuthState {
+  final String message;
+  final HelperEntity? helper; // Optional auto-login info
+  final String? action;
+
+  const HelperAuthRegistrationSuccess({
+    required this.message,
+    this.helper,
+    this.action,
+  });
+
+  @override
+  List<Object?> get props => [message, helper, action];
+}
+
+// Forgot/Reset Password
 class HelperAuthForgotPasswordSent extends HelperAuthState {
   final String message;
   final String email;
@@ -166,46 +213,18 @@ class HelperAuthForgotPasswordSent extends HelperAuthState {
   List<Object?> get props => [message, email];
 }
 
-// Reset Password States
 class HelperAuthPasswordResetSuccess extends HelperAuthState {
   final String message;
-
   const HelperAuthPasswordResetSuccess(this.message);
 
   @override
   List<Object?> get props => [message];
 }
 
-class HelperAuthRegistrationVerificationNeeded extends HelperAuthState {
-  final String email;
+// Success Signals
+class HelperAuthResendSuccess extends HelperAuthState {
   final String message;
-
-  const HelperAuthRegistrationVerificationNeeded({
-    required this.email,
-    required this.message,
-  });
-
-  @override
-  List<Object?> get props => [email, message];
-}
-
-class HelperAuthVerificationSuccess extends HelperAuthState {
-  final String token;
-  final String message;
-
-  const HelperAuthVerificationSuccess({
-    required this.token,
-    required this.message,
-  });
-
-  @override
-  List<Object?> get props => [token, message];
-}
-
-class HelperAuthResendCodeSuccess extends HelperAuthState {
-  final String message;
-
-  const HelperAuthResendCodeSuccess(this.message);
+  const HelperAuthResendSuccess(this.message);
 
   @override
   List<Object?> get props => [message];
