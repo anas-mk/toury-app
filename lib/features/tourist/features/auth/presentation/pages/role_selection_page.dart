@@ -96,7 +96,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
                               const SizedBox(height: 30),
                               _buildTouristButton(context,loc),
                               const SizedBox(height: 20),
-                              _buildGuideButton(context,loc),
+                              _buildHelperButton(context,loc),
                             ],
                           ),
                         ),
@@ -139,15 +139,15 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
     );
   }
 
-  Widget _buildGuideButton(BuildContext context,AppLocalizations loc) {
+  Widget _buildHelperButton(BuildContext context,AppLocalizations loc) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return OutlinedButton.icon(
       onPressed: () {
-        context.push(AppRouter.login);
+        context.push(AppRouter.helperLogin);
       },
       label: Text(
-        loc.translate("guide"),
+        loc.translate("helper"),
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,

@@ -12,6 +12,14 @@ import '../../features/tourist/features/home/presentation/pages/home_layout.dart
 import '../../features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
 import '../../features/tourist/features/profile/presentation/page/profile_page.dart';
 
+// Helper imports
+import '../../features/helper/features/auth/presentation/pages/helper_login_page.dart';
+import '../../features/helper/features/auth/presentation/pages/helper_enter_password_page.dart';
+import '../../features/helper/features/auth/presentation/pages/verify_login_otp_page.dart';
+import '../../features/helper/features/auth/presentation/pages/helper_register_page.dart';
+import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
+import '../../features/helper/features/home/presentation/pages/helper_home_page.dart';
+
 // Placeholder page for Google
 class GoogleVerifyCodePage extends StatelessWidget {
   final String email;
@@ -38,6 +46,10 @@ class AppRouter {
   static const String googleVerifyCode = 'verify-google-code/:email';
   static const String accountSettings = 'account-settings';
   static const String profile = 'profile';
+
+  // Helper Routes
+  static const String helperLogin = '/helper-login';
+  static const String helperHome = '/helper-home';
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
@@ -143,6 +155,51 @@ class AppRouter {
             ],
           ),
         ],
+      ),
+
+      // 4. Helper Authentication Logic
+      GoRoute(
+        path: helperLogin,
+        name: 'helper-login',
+        builder: (context, state) => const HelperLoginPage(),
+        routes: [
+          GoRoute(
+            path: enterPassword,
+            name: 'helper-enter-password',
+            builder: (context, state) {
+              final email = state.pathParameters['email']!;
+              return HelperEnterPasswordPage(email: email);
+            },
+          ),
+          GoRoute(
+            path: 'helper-verify-code/:email',
+            name: 'helper-verify-code',
+            builder: (context, state) {
+              final email = state.pathParameters['email']!;
+              return VerifyLoginOtpPage(email: email);
+            },
+          ),
+          GoRoute(
+            path: 'helper-register',
+            name: 'helper-register',
+            builder: (context, state) => const HelperRegisterPage(),
+          ),
+          GoRoute(
+            path: 'helper-register-verify-otp',
+            name: 'helper-register-verify-otp',
+            builder: (context, state) {
+              final email = state.uri.queryParameters['email'] ?? 'mock@example.com';
+              return HelperVerifyEmailOtpPage(email: email);
+            },
+          ),
+        ],
+      ),
+
+      // 5. Helper Home
+      GoRoute(
+        path: helperHome,
+        name: 'helper-home',
+        builder: (context, state) => const HelperHomePage(),
       ),
     ],
 

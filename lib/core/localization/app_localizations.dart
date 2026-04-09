@@ -131,7 +131,7 @@ class AppLocalizations {
   // ========== Role Selection ==========
   String get continueAs => translate('continue_as');
   String get tourist => translate('tourist');
-  String get guide => translate('guide');
+  String get guide => translate('helper');
   String get selectRole => translate('select_role');
 
   // ========== App ==========
