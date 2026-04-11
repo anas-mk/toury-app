@@ -1,7 +1,9 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../di/injection_container.dart';
+import '../../features/helper/features/home/presentation/cubit/exams_cubit.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/login_page.dart';
@@ -22,6 +24,10 @@ import '../../features/helper/features/auth/presentation/pages/verify_login_otp_
 import '../../features/helper/features/auth/presentation/pages/helper_register_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
 import '../../features/helper/features/home/presentation/pages/helper_home_page.dart';
+import '../../features/helper/features/home/presentation/pages/home_page.dart';
+import '../../features/helper/features/home/presentation/pages/pre_interview_screen.dart';
+import '../../features/helper/features/home/presentation/pages/interview_screen.dart';
+import '../../features/helper/features/home/presentation/pages/interview_pending_screen.dart';
 
 // Placeholder page for Google
 // Placeholder pages for specialized authentication states
@@ -90,6 +96,9 @@ class AppRouter {
   static const String helperOnboarding = '/helper-onboarding';
   static const String waitingApproval = '/waiting-approval';
   static const String accountInactive = '/account-inactive';
+  static const String interviewScreen = '/interview-screen';
+  static const String preInterview = '/pre-interview';
+  static const String interviewPending = '/interview-pending';
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
@@ -296,7 +305,7 @@ class AppRouter {
       GoRoute(
         path: helperHome,
         name: 'helper-home',
-        builder: (context, state) => const HelperHomePage(),
+        builder: (context, state) => const HomePage(),
       ),
 
       // 6. Helper Status Routes
@@ -314,6 +323,34 @@ class AppRouter {
         path: accountInactive,
         name: 'account-inactive',
         builder: (context, state) => const AccountInactivePage(),
+      ),
+      GoRoute(
+        path: preInterview,
+        name: 'pre-interview',
+        builder: (context, state) {
+          // Always resolve from singleton — never pass cubit via extra
+          return BlocProvider.value(
+            value: sl<ExamsCubit>(),
+            child: const PreInterviewScreen(),
+          );
+        },
+      ),
+      GoRoute(
+        path: interviewScreen,
+        name: 'interview-screen',
+        builder: (context, state) {
+          // Always resolve from singleton — never pass cubit via extra
+          final cubit = sl<ExamsCubit>();
+          return BlocProvider.value(
+            value: cubit,
+            child: InterviewScreen(interviewId: cubit.state.interview?.id ?? ''),
+          );
+        },
+      ),
+      GoRoute(
+        path: interviewPending,
+        name: 'interview-pending',
+        builder: (context, state) => const InterviewPendingScreen(),
       ),
     ],
 

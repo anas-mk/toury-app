@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/network/auth_interceptor.dart';
 import '../config/api_config.dart';
 
@@ -56,6 +57,15 @@ import '../../features/helper/features/auth/domain/usecases/forgot_helper_passwo
 import '../../features/helper/features/auth/domain/usecases/reset_helper_password_usecase.dart';
 import '../../features/helper/features/auth/domain/usecases/helper_logout_usecase.dart';
 import '../../features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
+import '../../features/helper/features/language_interview/data/datasources/interview_remote_data_source.dart';
+import '../../features/helper/features/language_interview/data/repositories/interview_repository_impl.dart';
+import '../../features/helper/features/language_interview/domain/repositories/interview_repository.dart';
+import '../../features/helper/features/language_interview/domain/usecases/get_languages_usecase.dart';
+import '../../features/helper/features/language_interview/domain/usecases/start_interview_usecase.dart';
+import '../../features/helper/features/language_interview/domain/usecases/get_interview_usecase.dart';
+import '../../features/helper/features/language_interview/domain/usecases/submit_answer_usecase.dart';
+import '../../features/helper/features/language_interview/domain/usecases/submit_interview_usecase.dart';
+import '../../features/helper/features/home/presentation/cubit/exams_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -208,6 +218,40 @@ Future<void> init() async {
   );
 
   // ============================================================
+  // Features - Language Interview
+  // ============================================================
+
+  // Cubit
+  sl.registerLazySingleton(
+    () => ExamsCubit(
+      getLanguagesUseCase: sl(),
+      startInterviewUseCase: sl(),
+      getInterviewUseCase: sl(),
+      submitAnswerUseCase: sl(),
+      submitInterviewUseCase: sl(),
+      repository: sl(),
+      sharedPreferences: sl(),
+    ),
+  );
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetLanguagesUseCase(sl()));
+  sl.registerLazySingleton(() => StartInterviewUseCase(sl()));
+  sl.registerLazySingleton(() => GetInterviewUseCase(sl()));
+  sl.registerLazySingleton(() => SubmitAnswerUseCase(sl()));
+  sl.registerLazySingleton(() => SubmitInterviewUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<InterviewRepository>(
+    () => InterviewRepositoryImpl(sl()),
+  );
+
+  // Data Sources
+  sl.registerLazySingleton<InterviewRemoteDataSource>(
+    () => InterviewRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
   // Core - External Dependencies
   // ============================================================
 
@@ -216,6 +260,10 @@ Future<void> init() async {
 
   // HTTP Client (🌐 Maps API calls)
   sl.registerLazySingleton(() => http.Client());
+
+  // SharedPreferences
+  final sharedPreferences = await SharedPreferences.getInstance();
+  sl.registerLazySingleton(() => sharedPreferences);
 }
 
 // ============================================================

@@ -33,6 +33,13 @@ class ApiConfig {
   static const String helperForgotPassword = '/helper/auth/forgot-password';
   static const String helperResetPassword = '/helper/auth/reset-password';
 
+  // ========== Language Interview Endpoints ==========
+  static const String getLanguages = '/helper/languages';
+  static String startInterview(String code) => '/helper/languages/$code/start-interview';
+  static String getInterview(String id) => '/helper/interviews/$id';
+  static String submitAnswer(String id) => '/helper/interviews/$id/answer';
+  static String submitInterview(String id) => '/helper/interviews/$id/submit';
+
 
 
   // Update Profile
