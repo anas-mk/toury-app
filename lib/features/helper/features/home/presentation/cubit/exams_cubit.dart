@@ -69,16 +69,21 @@ class ExamsCubit extends Cubit<ExamsState> {
 
   Future<void> getLanguages() async {
     _refreshToken();
-    emit(state.copyWith(status: ExamsStatus.loading));
+    emit(state.copyWith(status: ExamsStatus.interviewLoading));
     final result = await getLanguagesUseCase(NoParams(), cancelToken: _cancelToken);
     result.fold(
-      (failure) => emit(state.copyWith(status: ExamsStatus.error, errorMessage: failure.message)),
+      (failure) => emit(state.copyWith(status: ExamsStatus.interviewError, errorMessage: failure.message)),
       (languages) {
         emit(state.copyWith(status: ExamsStatus.languagesLoaded, languages: languages));
 
         // │ POST-SUBMIT LOCK: If the interview is locked, treat backend state as
         // │ READ-ONLY. Never auto-resume from activeInterviewId after submission.
+        // │ lock user into Under Review.
         if (state.isInterviewLocked) {
+          final isCompletelyLocked = languages.every((l) => !l.canStartInterview);
+          if (isCompletelyLocked && state.status != ExamsStatus.interviewUnderReview) {
+             emit(state.copyWith(status: ExamsStatus.interviewUnderReview));
+          }
           return;
         }
 
@@ -106,7 +111,7 @@ class ExamsCubit extends Cubit<ExamsState> {
         if (lang.activeInterviewId != null) {
           await loadInterview(lang.activeInterviewId!);
         } else {
-          emit(state.copyWith(status: ExamsStatus.error, errorMessage: failure.message));
+          emit(state.copyWith(status: ExamsStatus.interviewError, errorMessage: failure.message));
         }
       },
       (interview) async {
@@ -125,10 +130,10 @@ class ExamsCubit extends Cubit<ExamsState> {
     if (state.isInterviewLocked) return;
 
     _refreshToken();
-    emit(state.copyWith(status: ExamsStatus.loading));
+    emit(state.copyWith(status: ExamsStatus.interviewLoading));
     final result = await getInterviewUseCase(id, cancelToken: _cancelToken);
     result.fold(
-      (failure) => emit(state.copyWith(status: ExamsStatus.error, errorMessage: failure.message)),
+      (failure) => emit(state.copyWith(status: ExamsStatus.interviewError, errorMessage: failure.message)),
       (interview) {
         emit(state.copyWith(
           status: ExamsStatus.interviewLoaded,
@@ -198,7 +203,7 @@ class ExamsCubit extends Cubit<ExamsState> {
 
     final fileSizeInBytes = await videoFile.length();
     if (fileSizeInBytes > 50 * 1024 * 1024) {
-      emit(state.copyWith(status: ExamsStatus.error, errorMessage: 'File size exceeds 50MB limit'));
+      emit(state.copyWith(status: ExamsStatus.interviewError, errorMessage: 'File size exceeds 50MB limit'));
       return;
     }
 
@@ -206,14 +211,14 @@ class ExamsCubit extends Cubit<ExamsState> {
     final canSubmit = await _canSubmitAnswer(state.interview!.id);
     if (!canSubmit) {
       emit(state.copyWith(
-        status: ExamsStatus.error,
+        status: ExamsStatus.interviewError,
         errorMessage: 'Submission blocked: This interview has already been reviewed or closed by admin.',
       ));
       return;
     }
 
     _refreshToken();
-    emit(state.copyWith(status: ExamsStatus.answerSubmitting));
+    emit(state.copyWith(status: ExamsStatus.interviewInProgress));
 
     final result = await submitAnswerUseCase(
       SubmitAnswerParams(
@@ -227,7 +232,7 @@ class ExamsCubit extends Cubit<ExamsState> {
     result.fold(
       (failure) {
         _isSubmitting = false;
-        emit(state.copyWith(status: ExamsStatus.error, errorMessage: failure.message));
+        emit(state.copyWith(status: ExamsStatus.interviewError, errorMessage: failure.message));
       },
       (_) async {
         _isSubmitting = false;
@@ -245,9 +250,11 @@ class ExamsCubit extends Cubit<ExamsState> {
         final isLastQuestion = qIndex == state.interview!.totalQuestions - 1;
 
         if (isLastQuestion) {
-          emit(state.copyWith(status: ExamsStatus.success, interview: updatedInterview));
+          emit(state.copyWith(status: ExamsStatus.interviewInProgress, interview: updatedInterview));
+          // CRITICAL FIX: Trigger finalization instead of stopping
+          await finalizeInterview();
         } else {
-          emit(state.copyWith(status: ExamsStatus.success, interview: updatedInterview));
+          emit(state.copyWith(status: ExamsStatus.interviewInProgress, interview: updatedInterview));
           nextQuestion();
         }
       },
@@ -279,7 +286,7 @@ class ExamsCubit extends Cubit<ExamsState> {
     result.fold(
       (failure) {
         _isSubmitting = false;
-        emit(state.copyWith(status: ExamsStatus.error, errorMessage: failure.message));
+        emit(state.copyWith(status: ExamsStatus.interviewError, errorMessage: failure.message));
       },
       (_) async {
         _isSubmitting = false;
@@ -289,10 +296,14 @@ class ExamsCubit extends Cubit<ExamsState> {
         // │ This prevents any navigation or camera re-init during the success
         // │ window between this emit and the UI's reaction.
         emit(state.copyWith(
-          status: ExamsStatus.success,
+          status: ExamsStatus.interviewSubmitted,
           interview: null,
           isInterviewLocked: true,  // ← GLOBAL POST-SUBMIT LOCK
         ));
+        
+        // Brief transition to Under Review
+        await Future.delayed(const Duration(milliseconds: 500));
+        emit(state.copyWith(status: ExamsStatus.interviewUnderReview));
 
         await getLanguages();
       },

@@ -11,6 +11,7 @@ import '../../../../../../core/services/camera_service.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
+import 'interview_under_review_page.dart';
 
 class InterviewScreen extends StatefulWidget {
   final String interviewId;
@@ -161,10 +162,12 @@ class _InterviewScreenState extends State<InterviewScreen> {
         if (!mounted) return;
         if (state.isNavigating) return;
 
-        if (state.status == ExamsStatus.success && state.interview == null) {
+        if (state.status == ExamsStatus.interviewUnderReview) {
           context.read<ExamsCubit>().setNavigating(true);
-          context.pushReplacement(AppRouter.interviewPending);
-        } else if (state.status == ExamsStatus.error && state.errorMessage != null) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const InterviewUnderReviewPage()),
+          );
+        } else if (state.status == ExamsStatus.interviewError && state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.redAccent),
           );
@@ -329,34 +332,24 @@ class _InterviewScreenState extends State<InterviewScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (state.status == ExamsStatus.answerSubmitting) {
-      return const Center(
+    if (state.status == ExamsStatus.interviewInProgress || 
+        state.status == ExamsStatus.interviewSubmitting || 
+        state.status == ExamsStatus.interviewUnderReview) {
+      return Center(
         child: Column(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 8),
-            Text('Saving your answer...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 8),
+            Text(state.status == ExamsStatus.interviewSubmitting 
+                ? 'Finalizing interview...' 
+                : 'Saving your answer...'),
           ],
         ),
       );
     }
 
-    if (state.status == ExamsStatus.success &&
-        state.interview?.answeredCount == state.interview?.totalQuestions) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => context.read<ExamsCubit>().finalizeInterview(),
-          icon: const Icon(Icons.send_rounded),
-          label: const Text('Complete Interview'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            minimumSize: const Size(double.infinity, 56),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
-          ),
-        ),
-      );
-    }
+    // The "Complete Interview" button has been removed as per strict 
+    // constraints: automation triggers `finalizeInterview()` automatically. 
 
     if (state.status == ExamsStatus.reviewing) {
       return Row(

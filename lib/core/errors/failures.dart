@@ -49,6 +49,11 @@ class UnauthorizedFailure extends Failure {
   const UnauthorizedFailure([super.message = 'Unauthorized Access']);
 }
 
+/// Forbidden Failure - 403 Forbidden
+class ForbiddenFailure extends Failure {
+  const ForbiddenFailure([super.message = 'Access Forbidden']);
+}
+
 /// Timeout Failure - انتهى وقت الطلب
 class TimeoutFailure extends Failure {
   const TimeoutFailure([super.message = 'Request Timeout']);

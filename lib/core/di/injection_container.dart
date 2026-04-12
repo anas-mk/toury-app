@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
@@ -6,7 +7,7 @@ import '../../core/network/auth_interceptor.dart';
 import '../config/api_config.dart';
 
 // ============================================================
-// Auth Feature Imports
+// Tourist Auth Feature Imports
 // ============================================================
 import '../../features/tourist/features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/tourist/features/auth/domain/repositories/auth_repository.dart';
@@ -66,6 +67,25 @@ import '../../features/helper/features/language_interview/domain/usecases/get_in
 import '../../features/helper/features/language_interview/domain/usecases/submit_answer_usecase.dart';
 import '../../features/helper/features/language_interview/domain/usecases/submit_interview_usecase.dart';
 import '../../features/helper/features/home/presentation/cubit/exams_cubit.dart';
+
+// ============================================================
+// Helper Profile Feature Imports
+// ============================================================
+import '../../features/helper/features/profile/data/datasources/profile_remote_data_source.dart';
+import '../../features/helper/features/profile/data/repositories/profile_repository_impl.dart';
+import '../../features/helper/features/profile/domain/repositories/profile_repository.dart';
+import '../../features/helper/features/profile/domain/usecases/get_profile_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/get_status_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/check_eligibility_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/update_basic_info_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/upload_profile_image_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/upload_selfie_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/upload_documents_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/add_car_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/delete_car_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/add_certificate_usecase.dart';
+import '../../features/helper/features/profile/domain/usecases/delete_certificate_usecase.dart';
+import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart' as helper_profile;
 
 final sl = GetIt.instance;
 
@@ -252,16 +272,60 @@ Future<void> init() async {
   );
 
   // ============================================================
+  // Features - Helper Profile
+  // ============================================================
+
+  // Cubit — factory so each screen gets a fresh instance with its own state.
+  sl.registerFactory(
+    () => helper_profile.ProfileCubit(
+      getProfileUseCase: sl(),
+      getStatusUseCase: sl(),
+      checkEligibilityUseCase: sl(),
+      updateBasicInfoUseCase: sl(),
+      uploadProfileImageUseCase: sl(),
+      uploadSelfieUseCase: sl(),
+      uploadDocumentsUseCase: sl(),
+      addCarUseCase: sl(),
+      deleteCarUseCase: sl(),
+      addCertificateUseCase: sl(),
+      deleteCertificateUseCase: sl(),
+    ),
+  );
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetProfileUseCase(sl()));
+  sl.registerLazySingleton(() => GetStatusUseCase(sl()));
+  sl.registerLazySingleton(() => CheckEligibilityUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateBasicInfoUseCase(sl()));
+  sl.registerLazySingleton(() => UploadProfileImageUseCase(sl()));
+  sl.registerLazySingleton(() => UploadSelfieUseCase(sl()));
+  sl.registerLazySingleton(() => UploadDocumentsUseCase(sl()));
+  sl.registerLazySingleton(() => AddCarUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteCarUseCase(sl()));
+  sl.registerLazySingleton(() => AddCertificateUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteCertificateUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<ProfileRepository>(
+    () => ProfileRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Data Source
+  sl.registerLazySingleton<ProfileRemoteDataSource>(
+    () => ProfileRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
   // Core - External Dependencies
   // ============================================================
 
-  // Dio (🌐 Auth API calls)
+  // 1️⃣  Dio — shared singleton used by ALL remote data sources.
   sl.registerLazySingleton(() => _createDio());
 
-  // HTTP Client (🌐 Maps API calls)
+  // 2️⃣  HTTP Client — used by Maps API (non-Dio).
   sl.registerLazySingleton(() => http.Client());
 
-  // SharedPreferences
+  // 3️⃣  SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
 }
@@ -283,41 +347,23 @@ Dio _createDio() {
     },
   );
 
+  // ── 401 / 403 global handler + token attachment ──────────────────────────
   dio.interceptors.add(AuthInterceptor());
 
-  dio.interceptors.add(
-    LogInterceptor(
-      request: true,
-      requestHeader: true,
-      requestBody: true,
-      responseHeader: false,
-      responseBody: true,
-      error: true,
-      logPrint: (obj) => print('🌐 DIO LOG: $obj'),
-    ),
-  );
-
-  dio.interceptors.add(
-    InterceptorsWrapper(
-      onRequest: (options, handler) {
-        print('REQUEST: ${options.method} ${options.uri}');
-        print('DATA: ${options.data}');
-        return handler.next(options);
-      },
-      onResponse: (response, handler) {
-        print('RESPONSE [${response.statusCode}]: ${response.data}');
-        return handler.next(response);
-      },
-      onError: (error, handler) {
-        print('❌ ERROR [${error.response?.statusCode}]: ${error.message}');
-        print('🔗 URL: ${error.requestOptions.uri}');
-        if (error.response?.data != null) {
-          print('📄 ERROR DATA: ${error.response?.data}');
-        }
-        return handler.next(error);
-      },
-    ),
-  );
+  // ── Debug-only request/response logger ───────────────────────────────────
+  if (kDebugMode) {
+    dio.interceptors.add(
+      LogInterceptor(
+        request: true,
+        requestHeader: true,
+        requestBody: true,
+        responseHeader: false,
+        responseBody: true,
+        error: true,
+        logPrint: (obj) => print('🌐 DIO: $obj'), // ignore: avoid_print
+      ),
+    );
+  }
 
   return dio;
 }

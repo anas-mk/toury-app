@@ -27,3 +27,18 @@ class CacheException extends AppException {
 class NetworkException extends AppException {
   NetworkException(super.message);
 }
+
+/// Unauthorized Exception - 401 Unauthorized
+class UnauthorizedException extends AppException {
+  UnauthorizedException([super.message = 'Unauthorized']);
+}
+
+/// Forbidden Exception - 403 Forbidden
+class ForbiddenException extends AppException {
+  ForbiddenException([super.message = 'Forbidden']);
+}
+
+/// Validation Exception - 400 Bad Request
+class ValidationException extends AppException {
+  ValidationException(super.message);
+}

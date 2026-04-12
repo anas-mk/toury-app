@@ -4,8 +4,8 @@ import '../../../language_interview/data/models/interview_model.dart';
 import '../../../language_interview/data/models/language_model.dart';
 
 enum ExamsStatus {
-  initial,
-  loading,
+  interviewInitial,
+  interviewLoading,
   languagesLoaded,
   startInterviewLoading,
   interviewStarted,
@@ -13,10 +13,11 @@ enum ExamsStatus {
   preInterview,
   recording,
   reviewing,
-  answerSubmitting,
+  interviewInProgress,
   interviewSubmitting,
-  success,
-  error,
+  interviewSubmitted,
+  interviewUnderReview,
+  interviewError,
 }
 
 class ExamsState extends Equatable {
@@ -40,7 +41,7 @@ class ExamsState extends Equatable {
   final bool isInterviewLocked;
 
   const ExamsState({
-    this.status = ExamsStatus.initial,
+    this.status = ExamsStatus.interviewInitial,
     this.languages = const [],
     this.interview,
     this.errorMessage,

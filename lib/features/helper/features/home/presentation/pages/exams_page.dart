@@ -33,7 +33,7 @@ class _ExamsPageView extends StatelessWidget {
           previous.status != current.status || 
           previous.interview != current.interview,
       listener: (context, state) {
-        if (state.status == ExamsStatus.error && state.errorMessage != null) {
+        if (state.status == ExamsStatus.interviewError && state.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(state.errorMessage!),
@@ -72,7 +72,7 @@ class _ExamsPageView extends StatelessWidget {
         ),
         body: BlocBuilder<ExamsCubit, ExamsState>(
           builder: (context, state) {
-            if (state.status == ExamsStatus.loading && state.languages.isEmpty) {
+            if (state.status == ExamsStatus.interviewLoading && state.languages.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
 
