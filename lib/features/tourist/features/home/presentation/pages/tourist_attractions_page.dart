@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/app_network_image.dart';
 
 class TouristAttractionsPage extends StatefulWidget {
   const TouristAttractionsPage({super.key});
@@ -102,8 +104,8 @@ class _TouristAttractionsPageState extends State<TouristAttractionsPage>
                     // Pattern Overlay
                     Opacity(
                       opacity: 0.5,
-                      child: Image.network(
-                        'https://i.pinimg.com/736x/41/5f/04/415f04410fc5f1cbb5b5769ee8fd7f00.jpg',
+                      child: AppNetworkImage(
+                        imageUrl: 'https://i.pinimg.com/736x/41/5f/04/415f04410fc5f1cbb5b5769ee8fd7f00.jpg',
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -357,36 +359,11 @@ class _TouristAttractionsPageState extends State<TouristAttractionsPage>
                     const BorderRadius.vertical(top: Radius.circular(16)),
                     child: Stack(
                       children: [
-                        Image.network(
-                          imageUrl,
+                        AppNetworkImage(
+                          imageUrl: imageUrl,
                           height: 120,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 120,
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColor.primaryColor,
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 120,
-                              color: Colors.grey.shade300,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            );
-                          },
                         ),
                         // Gradient Overlay
                         Container(
@@ -679,8 +656,8 @@ class _TouristAttractionsPageState extends State<TouristAttractionsPage>
               const SizedBox(height: 24),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  imageUrl,
+                child: AppNetworkImage(
+                  imageUrl: imageUrl,
                   height: 200,
                   fit: BoxFit.cover,
                 ),

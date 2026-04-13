@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../features/helper/features/profile/presentation/cubit/profile_cubit.dart';
-import '../../../../../../features/helper/features/profile/presentation/cubit/profile_state.dart';
-import '../../../profile/presentation/widgets/car/car_management_card.dart';
-import '../../../profile/presentation/widgets/certificates/certificates_list.dart';
-import '../../../profile/presentation/widgets/documents/documents_checklist.dart';
-import '../../../profile/presentation/widgets/eligibility/eligibility_alert.dart';
-import '../../../profile/presentation/widgets/header/helper_profile_header.dart';
-import '../../../profile/presentation/widgets/images/image_management_card.dart';
-import '../../../profile/presentation/widgets/onboarding/onboarding_progress_card.dart';
-import '../../../profile/presentation/widgets/profile_info/profile_info_form.dart';
-import '../../../profile/presentation/widgets/status/profile_status_card.dart';
+import '../cubit/profile_cubit.dart';
+import '../cubit/profile_state.dart';
+import '../widgets/car/car_management_card.dart';
+import '../widgets/certificates/certificates_list.dart';
+import '../widgets/documents/documents_checklist.dart';
+import '../widgets/eligibility/eligibility_alert.dart';
+import '../widgets/header/helper_profile_header.dart';
+import '../widgets/images/image_management_card.dart';
+import '../widgets/onboarding/onboarding_progress_card.dart';
+import '../widgets/profile_info/profile_info_form.dart';
+import '../widgets/status/profile_status_card.dart';
 
 
 

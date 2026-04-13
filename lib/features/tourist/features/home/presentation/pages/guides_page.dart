@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/app_network_image.dart';
 
 class GuidesPage extends StatefulWidget {
   const GuidesPage({super.key});
@@ -247,26 +248,11 @@ class _GuidesPageState extends State<GuidesPage> {
                           padding: const EdgeInsets.all(3),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(14),
-                            child: Image.network(
-                              image,
+                            child: AppNetworkImage(
+                              imageUrl: image,
                               width: 90,
                               height: 90,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 90,
-                                  height: 90,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Icon(
-                                    Icons.person,
-                                    color: Colors.grey.shade400,
-                                    size: 40,
-                                  ),
-                                );
-                              },
                             ),
                           ),
                         ),

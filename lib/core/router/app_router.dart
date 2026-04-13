@@ -1,9 +1,11 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
+import '../../features/helper/features/language_interview/presentation/pages/interview_pending_screen.dart';
+import '../../features/helper/features/language_interview/presentation/pages/interview_screen.dart';
+import '../../features/helper/features/language_interview/presentation/pages/pre_interview_screen.dart';
 import '../di/injection_container.dart';
-import '../../features/helper/features/home/presentation/cubit/exams_cubit.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
 import '../../features/tourist/features/auth/presentation/pages/login_page.dart';
@@ -23,11 +25,7 @@ import '../../features/helper/features/auth/presentation/pages/helper_enter_pass
 import '../../features/helper/features/auth/presentation/pages/verify_login_otp_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_register_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
-import '../../features/helper/features/home/presentation/pages/helper_home_page.dart';
 import '../../features/helper/features/home/presentation/pages/home_page.dart';
-import '../../features/helper/features/home/presentation/pages/pre_interview_screen.dart';
-import '../../features/helper/features/home/presentation/pages/interview_screen.dart';
-import '../../features/helper/features/home/presentation/pages/interview_pending_screen.dart';
 
 // Placeholder page for Google
 // Placeholder pages for specialized authentication states
