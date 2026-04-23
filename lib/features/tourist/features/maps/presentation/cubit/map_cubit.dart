@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/usecase/usecase.dart';
 import '../../domain/entities/location.dart';
 import '../../domain/usecases/get_current_location.dart';
+import '../../../../../../core/entities/location_entity.dart';
 import '../../domain/usecases/get_route.dart';
 import 'map_state.dart';
 
@@ -11,6 +12,7 @@ class MapCubit extends Cubit<MapState> {
   final GetRoute getRoute;
 
   Location? _currentLocation;
+  LocationEntity? _selectedLocation;
 
   MapCubit({
     required this.getCurrentLocation,
@@ -64,4 +66,22 @@ class MapCubit extends Cubit<MapState> {
 
   /// الحصول على الموقع الحالي (للاستخدام الداخلي)
   Location? get currentLocation => _currentLocation;
+
+  /// Select a location on the map
+  void selectLocation(double lat, double lng) {
+    _selectedLocation = LocationEntity(lat: lat, lng: lng, address: 'Selected Location');
+    emit(LocationSelected(_selectedLocation!));
+  }
+
+  /// Update the address of the selected location
+  void updateAddress(String address) {
+    if (_selectedLocation != null) {
+      _selectedLocation = LocationEntity(
+        lat: _selectedLocation!.lat,
+        lng: _selectedLocation!.lng,
+        address: address,
+      );
+      emit(LocationSelected(_selectedLocation!));
+    }
+  }
 }

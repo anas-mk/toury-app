@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/location.dart';
 import '../../domain/entities/route_info.dart';
+import '../../../../../../core/entities/location_entity.dart';
 
 /// Map State - حالات الخريطة
 abstract class MapState extends Equatable {
@@ -16,6 +17,16 @@ class MapInitial extends MapState {}
 
 /// Loading - جاري التحميل
 class MapLoading extends MapState {}
+
+/// Location Selected via tap for Booking Feature
+class LocationSelected extends MapState {
+  final LocationEntity location;
+
+  const LocationSelected(this.location);
+
+  @override
+  List<Object?> get props => [location];
+}
 
 /// تم تحميل الموقع الحالي
 class LocationLoaded extends MapState {

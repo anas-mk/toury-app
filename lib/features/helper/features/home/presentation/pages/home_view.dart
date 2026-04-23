@@ -3,6 +3,8 @@ import '../../../../../../core/theme/app_theme.dart';
 import '../widgets/home_stat_card.dart';
 import '../widgets/quick_action_button.dart';
 import '../widgets/primary_action_card.dart';
+import '../../../../../../core/router/app_router.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -108,27 +110,27 @@ class HomeView extends StatelessWidget {
             childAspectRatio: 1.1,
             children: [
               QuickActionButton(
-                icon: Icons.assignment_rounded,
-                label: 'View Exams',
-                onTap: () {},
+                icon: Icons.notifications_active_rounded,
+                label: 'Requests',
+                onTap: () => context.push(AppRouter.helperRequests),
                 color: theme.colorScheme.primary,
               ),
               QuickActionButton(
-                icon: Icons.bar_chart_rounded,
-                label: 'My Results',
-                onTap: () {},
+                icon: Icons.calendar_month_rounded,
+                label: 'Upcoming',
+                onTap: () => context.push(AppRouter.helperUpcoming),
                 color: Colors.purpleAccent,
               ),
               QuickActionButton(
-                icon: Icons.psychology_rounded,
-                label: 'Practice Mode',
-                onTap: () {},
+                icon: Icons.directions_run_rounded,
+                label: 'Active Trip',
+                onTap: () => context.push(AppRouter.helperActive),
                 color: Colors.orangeAccent,
               ),
               QuickActionButton(
-                icon: Icons.settings_rounded,
-                label: 'Settings',
-                onTap: () {},
+                icon: Icons.history_rounded,
+                label: 'History',
+                onTap: () => context.push(AppRouter.helperHistory),
                 color: Colors.blueGrey,
               ),
             ],

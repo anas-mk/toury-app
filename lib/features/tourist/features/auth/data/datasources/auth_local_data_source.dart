@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../../../core/services/auth_service.dart';
 import '../models/user_model.dart';
 
 abstract class AuthLocalDataSource {
@@ -9,10 +10,18 @@ abstract class AuthLocalDataSource {
 }
 
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
+  final AuthService authService;
+
+  AuthLocalDataSourceImpl(this.authService);
+
   @override
   Future<void> cacheUser(UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', jsonEncode(user.toJson()));
+    if (user.token != null) {
+      await authService.saveToken(user.token!);
+    }
+    await authService.saveRole('tourist');
   }
 
   @override
@@ -28,5 +37,6 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   Future<void> clearUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user');
+    await authService.clearAuth();
   }
 }

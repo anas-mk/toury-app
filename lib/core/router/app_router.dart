@@ -27,6 +27,24 @@ import '../../features/helper/features/auth/presentation/pages/helper_register_p
 import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
 import '../../features/helper/features/home/presentation/pages/home_page.dart';
 
+import 'dart:async';
+import '../../features/helper/features/helper_bookings/presentation/bloc/booking_cubit.dart';
+import '../../features/helper/features/helper_bookings/presentation/bloc/booking_state.dart';
+
+/// Helper class to make GoRouter react to Stream changes (Bloc/Cubit streams)
+class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _subscription;
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
 // Placeholder page for Google
 // Placeholder pages for specialized authentication states
 class GoogleVerifyCodePage extends StatelessWidget {
@@ -81,6 +99,19 @@ class AppRouter {
   static const String googleVerifyCode = 'verify-google-code/:email';
   static const String accountSettings = 'account-settings';
   static const String profile = 'profile';
+
+  // Trip Routes
+  static const String helperIncoming = '/helper-incoming';
+  static const String helperTrip = '/helper-trip';
+  static const String helperRating = '/helper-rating';
+
+  // Home Sub-Routes
+  static const String helperRequests = '/helper-requests';
+  static const String helperUpcoming = '/helper-upcoming';
+  static const String helperHistory = '/helper-history';
+  static const String helperActive = '/helper-active';
+  static const String helperChat = '/helper-chat';
+  static const String helperLocation = '/helper-location';
 
   // Helper Routes
   static const String helperLogin = '/helper-login';
@@ -163,6 +194,31 @@ class AppRouter {
       if (isAuthenticated && isAuthRoute) {
         print('Decision: user is authenticated. Redirecting away from Auth routes to Home.');
         return helperHome;
+      }
+
+      // 🚨 Trip / Booking Guard
+      if (isAuthenticated && sl.isRegistered<BookingCubit>()) {
+        final bookingState = sl<BookingCubit>().state;
+        
+        String? tripTarget;
+        if (bookingState is BookingIncomingRequest) {
+          tripTarget = helperIncoming;
+        } else if (bookingState is BookingNavigatingToPickup ||
+                 bookingState is BookingArrived ||
+                 bookingState is BookingTripStarted ||
+                 bookingState is BookingTripInProgress ||
+                 bookingState is BookingTripEnding) {
+          tripTarget = helperTrip;
+        } else if (bookingState is BookingCompleted) {
+          tripTarget = helperRating;
+        } else if (matchedPath == helperIncoming || matchedPath == helperTrip || matchedPath == helperRating) {
+           tripTarget = helperHome;
+        }
+        
+        if (tripTarget != null && matchedPath != tripTarget) {
+          print('Decision: Active Trip Guard. Redirecting to $tripTarget.');
+          return tripTarget;
+        }
       }
 
       print('Decision: Allowed (null)');
@@ -304,6 +360,55 @@ class AppRouter {
         path: helperHome,
         name: 'helper-home',
         builder: (context, state) => const HomePage(),
+      ),
+
+      // 5b. Helper Trip Flow
+      GoRoute(
+        path: helperIncoming,
+        name: 'helper-incoming',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Incoming Booking Request'))),
+      ),
+      GoRoute(
+        path: helperTrip,
+        name: 'helper-trip',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Active Trip / Tracking'))),
+      ),
+      GoRoute(
+        path: helperRating,
+        name: 'helper-rating',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Rating Screen'))),
+      ),
+
+      // 5c. Home Sub-Routes
+      GoRoute(
+        path: helperRequests,
+        name: 'helper-requests',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Requests'))),
+      ),
+      GoRoute(
+        path: helperUpcoming,
+        name: 'helper-upcoming',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Upcoming'))),
+      ),
+      GoRoute(
+        path: helperHistory,
+        name: 'helper-history',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper History'))),
+      ),
+      GoRoute(
+        path: helperActive,
+        name: 'helper-active',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Active'))),
+      ),
+      GoRoute(
+        path: helperChat,
+        name: 'helper-chat',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Chat'))),
+      ),
+      GoRoute(
+        path: helperLocation,
+        name: 'helper-location',
+        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Location'))),
       ),
 
       // 6. Helper Status Routes

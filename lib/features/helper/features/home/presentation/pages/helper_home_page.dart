@@ -1,92 +1,99 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_color.dart';
+import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/helper_bookings_cubit.dart';
+import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/helper_bookings_state.dart';
 import '../../../../../../core/router/app_router.dart';
-import '../../../auth/presentation/cubit/helper_auth_cubit.dart';
-import '../../../auth/presentation/cubit/helper_auth_state.dart';
+import '../widgets/active_trip_card.dart';
+import '../widgets/helper_status_header.dart';
+import '../widgets/history_shortcut_card.dart';
+import '../widgets/requests_preview_section.dart';
+import '../widgets/upcoming_trips_section.dart';
 
-class HelperHomePage extends StatelessWidget {
+class HelperHomePage extends StatefulWidget {
   const HelperHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  State<HelperHomePage> createState() => _HelperHomePageState();
+}
 
-    return BlocConsumer<HelperAuthCubit, HelperAuthState>(
-      listener: (context, state) {
-        if (state is HelperAuthUnauthenticated) {
-          context.go(AppRouter.roleSelection);
-        } else if (state is HelperAuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message), backgroundColor: Colors.redAccent),
-          );
-        }
-      },
-      builder: (context, state) {
-        return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF0E0E0E) : Colors.grey[50],
-          appBar: AppBar(
-            title: const Text('Helper Home'),
-            backgroundColor: isDark ? Colors.grey[900] : AppColor.primaryColor,
-            foregroundColor: Colors.white,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout_rounded),
-                onPressed: () => _showLogoutDialog(context),
-              ),
-            ],
-          ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (state is HelperAuthLoading)
-                  const CircularProgressIndicator()
-                else ...[
-                  const Icon(Icons.dashboard_customize_outlined, size: 64, color: AppColor.primaryColor),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Welcome to Helper Home!',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your professional dashboard',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
+class _HelperHomePageState extends State<HelperHomePage> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<HelperBookingsCubit>().loadAllBookings();
   }
 
-  Future<void> _showLogoutDialog(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Logout'),
-          ),
-        ],
+  Future<void> _onRefresh() async {
+    await context.read<HelperBookingsCubit>().loadAllBookings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: BlocConsumer<HelperBookingsCubit, HelperBookingsState>(
+          listener: (context, state) {
+            if (state.errorMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
+              );
+            }
+          },
+          builder: (context, state) {
+            if (state.isLoading && state.requests.isEmpty && state.upcoming.isEmpty && state.active == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                  sliver: SliverToBoxAdapter(
+                    child: HelperStatusHeader(
+                      name: 'Professional Helper', // Should come from profile cubit ideally
+                      isBusy: state.active != null,
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      ActiveTripCard(
+                        activeTrip: state.active,
+                        isActionLoading: state.actionLoadingId == state.active?.id,
+                        onEndTrip: () => context.read<HelperBookingsCubit>().endTrip(state.active!.id),
+                      ),
+                      const SizedBox(height: 24),
+                      RequestsPreviewSection(
+                        requests: state.requests,
+                        actionLoadingId: state.actionLoadingId,
+                        onAccept: (id) => context.read<HelperBookingsCubit>().acceptBooking(id),
+                        onViewAll: () => context.push(AppRouter.helperRequests),
+                      ),
+                      const SizedBox(height: 24),
+                      UpcomingTripsSection(
+                        upcoming: state.upcoming,
+                        actionLoadingId: state.actionLoadingId,
+                        onStart: (id) => context.read<HelperBookingsCubit>().startTrip(id),
+                        onViewAll: () => context.push(AppRouter.helperUpcoming),
+                      ),
+                      const SizedBox(height: 24),
+                      HistoryShortcutCard(
+                        onTap: () => context.push(AppRouter.helperHistory),
+                      ),
+                      const SizedBox(height: 40),
+                    ]),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
-
-    if (confirm == true && context.mounted) {
-      context.read<HelperAuthCubit>().logout();
-    }
   }
 }

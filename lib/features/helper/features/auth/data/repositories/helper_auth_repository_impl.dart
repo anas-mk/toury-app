@@ -6,9 +6,7 @@ import '../../domain/repositories/helper_auth_repository.dart';
 import '../../domain/usecases/register_helper_usecase.dart';
 import '../datasources/helper_auth_remote_data_source.dart';
 import '../datasources/helper_local_data_source.dart';
-import '../models/helper_model.dart';
 import '../models/helper_login_response_model.dart';
-import '../../domain/entities/helper_entity.dart';
 
 class HelperAuthRepositoryImpl implements HelperAuthRepository {
   final HelperAuthRemoteDataSource remoteDataSource;

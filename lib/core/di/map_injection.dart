@@ -15,6 +15,11 @@ import '../../features/tourist/features/maps/presentation/cubit/map_cubit.dart';
 import '../../features/tourist/features/maps/presentation/cubit/search_location_cubit.dart';
 import '../../features/tourist/features/maps/presentation/cubit/trip_cubit.dart';
 
+import '../../features/tourist/features/user_booking/data/datasources/user_booking_service.dart';
+import '../../features/tourist/features/user_booking/data/datasources/user_booking_service_impl.dart';
+import '../../features/tourist/features/user_booking/data/repositories/user_booking_repository_impl.dart';
+import '../../features/tourist/features/user_booking/domain/repositories/user_booking_repository.dart';
+
 final sl = GetIt.instance;
 
 /// تسجيل جميع الـ Dependencies
@@ -64,6 +69,17 @@ Future<void> initMapDependencies() async {
 
   sl.registerLazySingleton<RoutingDataSource>(
         () => RoutingDataSourceImpl(client: sl()),
+  );
+
+  // ============================================================
+  // Features - Tourist User Booking
+  // ============================================================
+  sl.registerLazySingleton<UserBookingRepository>(
+        () => UserBookingRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  sl.registerLazySingleton<UserBookingService>(
+        () => UserBookingServiceImpl(dio: sl()),
   );
 
   // ============================================================

@@ -1,8 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-
 import '../errors/exceptions.dart';
+import '../di/injection_container.dart';
+import '../services/auth_service.dart';
 
 /// [AuthInterceptor]
 ///
@@ -98,26 +97,14 @@ class AuthInterceptor extends Interceptor {
 
   // ── Private Helpers ──────────────────────────────────────────────────────────
 
-  /// Resolves the bearer token from SharedPreferences.
-  /// Helper token takes priority over tourist token.
+  /// Resolves the bearer token from AuthService.
   Future<String?> _resolveToken() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final helperJson = prefs.getString('helper');
-    if (helperJson != null) {
-      final data = jsonDecode(helperJson) as Map<String, dynamic>;
-      final token = data['token'] as String?;
-      if (token != null && token.isNotEmpty) return token;
+    try {
+      final authService = sl<AuthService>();
+      return authService.getToken();
+    } catch (_) {
+      return null;
     }
-
-    final userJson = prefs.getString('user');
-    if (userJson != null) {
-      final data = jsonDecode(userJson) as Map<String, dynamic>;
-      final token = data['token'] as String?;
-      if (token != null && token.isNotEmpty) return token;
-    }
-
-    return null;
   }
 
   /// Safely extracts a human-readable message from the response body.

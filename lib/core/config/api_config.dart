@@ -110,6 +110,21 @@ class ApiConfig {
       '/helper/profile/certificates/$id';
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // TOURIST — User Bookings Endpoints
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  static const String searchScheduledHelpers = '/user/bookings/scheduled/search';
+  static const String searchInstantHelpers   = '/user/bookings/instant/search';
+  static String getHelperProfile(String helperId) => '/user/bookings/helpers/$helperId/profile';
+  static const String createScheduledBooking = '/user/bookings/scheduled';
+  static const String createInstantBooking   = '/user/bookings/instant';
+  static String getBookingDetails(String bookingId) => '/user/bookings/$bookingId';
+  static const String getMyBookings          = '/user/bookings';
+  static String cancelBooking(String bookingId) => '/user/bookings/$bookingId/cancel';
+  static String getAlternatives(String bookingId) => '/user/bookings/$bookingId/alternatives';
+  static String getBookingStatus(String bookingId) => '/user/bookings/$bookingId/status';
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // HELPER — Language Interview Endpoints
   // ══════════════════════════════════════════════════════════════════════════════
 
@@ -123,4 +138,16 @@ class ApiConfig {
   static String submitAnswer(String id) => '/helper/interviews/$id/answer';
 
   static String submitInterview(String id) => '/helper/interviews/$id/submit';
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // HELPER — Service Areas Endpoints
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  /// GET /api/helper/service-areas — fetch all service areas.
+  /// POST /api/helper/service-areas — create a new service area.
+  static const String helperServiceAreas = '/helper/service-areas';
+
+  /// PUT /api/helper/service-areas/{id} — update a service area.
+  /// DELETE /api/helper/service-areas/{id} — remove a service area.
+  static String helperServiceAreaById(String id) => '/helper/service-areas/$id';
 }

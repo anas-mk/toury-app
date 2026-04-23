@@ -42,3 +42,8 @@ class ForbiddenException extends AppException {
 class ValidationException extends AppException {
   ValidationException(super.message);
 }
+
+/// Timeout Exception - Connection Timeout
+class TimeoutException extends AppException {
+  TimeoutException([super.message = 'Connection Timeout']);
+}

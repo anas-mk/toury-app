@@ -4,7 +4,6 @@ import '../../../../../../core/errors/exceptions.dart';
 import '../models/helper_login_response_model.dart';
 import '../models/helper_auth_response_model.dart';
 import '../../domain/usecases/register_helper_usecase.dart';
-import '../models/helper_model.dart';
 
 abstract class HelperAuthRemoteDataSource {
   Future<HelperAuthResponseModel> registerHelper(HelperRegisterParams params);

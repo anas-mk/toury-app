@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../language_interview/presentation/pages/exams_page.dart';
-import 'home_view.dart';
+import 'helper_home_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 
 class HomeNavigationPage extends StatefulWidget {
@@ -15,7 +16,7 @@ class _HomeNavigationPageState extends State<HomeNavigationPage> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = const [
-    HomeView(),
+    HelperHomePage(),
     ExamsPage(),
     ProfilePage(),
   ];

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/di/injection_container.dart';
-import '../../../helper/features/auth/data/datasources/helper_local_data_source.dart';
+import '../../../../core/services/auth_service.dart';
 import 'package:go_router/go_router.dart';
 
 class SplashPage extends StatefulWidget {
@@ -53,23 +53,25 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   Future<void> _checkAuthState() async {
     if (!_minimumTimeElapsed || _isNavigated) return;
 
-    final localDataSource = sl<HelperLocalDataSource>();
-    final helper = await localDataSource.getCurrentHelper();
+    final authService = sl<AuthService>();
+    final token = authService.getToken();
+    final role = authService.getRole();
     
     // Debug Logs
     print('--- 🌊 SPLASH AUTH AUDIT ---');
-    print('Token: ${helper?.token ?? "NULL"}');
-    print('Helper Data: ${helper?.fullName ?? "NULL"} (ID: ${helper?.helperId ?? "N/A"})');
-    print('Approval Status: ${helper?.isApproved ?? "N/A"}');
-    print('Active Status: ${helper?.isActive ?? "N/A"}');
+    print('Token: ${token ?? "NULL"}');
+    print('Role: ${role ?? "NULL"}');
 
     String targetRoute = AppRouter.roleSelection;
 
-    if (helper == null || helper.token == null || helper.token!.isEmpty) {
+    if (token == null || token.isEmpty) {
       targetRoute = AppRouter.roleSelection;
     } else {
-      // Priority Routing Logic
-      targetRoute = AppRouter.helperHome;
+      if (role == 'helper') {
+        targetRoute = AppRouter.helperHome;
+      } else if (role == 'tourist') {
+        targetRoute = AppRouter.home;
+      }
     }
 
     print('Final Selected Route: $targetRoute');
