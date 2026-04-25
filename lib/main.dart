@@ -8,10 +8,6 @@ import 'core/localization/cubit/localization_cubit.dart';
 import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
 import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/tourist/features/home/presentation/cubit/bottom_nav_cubit.dart';
-import 'features/tourist/features/maps/presentation/cubit/map_cubit.dart';
-import 'features/tourist/features/maps/presentation/cubit/search_location_cubit.dart';
-import 'features/tourist/features/maps/presentation/cubit/trip_cubit.dart';
-import 'features/helper/features/helper_bookings/presentation/cubit/helper_bookings_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,10 +27,6 @@ void main() async {
             ..checkAuthStatus(),
         ),
         BlocProvider(create: (_) => di.sl<HelperAuthCubit>()),
-        BlocProvider(create: (_) => di.sl<MapCubit>()),
-        BlocProvider(create: (_) => di.sl<SearchLocationCubit>()),
-        BlocProvider(create: (_) => di.sl<TripCubit>()),
-        BlocProvider(create: (_) => di.sl<HelperBookingsCubit>()),
       ],
       child: const MyApp(),
     ),

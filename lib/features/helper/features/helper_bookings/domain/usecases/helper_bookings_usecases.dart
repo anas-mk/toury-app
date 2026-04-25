@@ -1,46 +1,89 @@
-import 'package:dartz/dartz.dart';
-import '../../../../../../core/errors/failures.dart';
-import '../entities/helper_booking_entity.dart';
+import '../entities/helper_booking_entities.dart';
+import '../entities/helper_earnings_entities.dart';
 import '../repositories/helper_bookings_repository.dart';
 
-class GetRequestsUseCase {
+class GetHelperDashboardUseCase {
   final HelperBookingsRepository repository;
-  GetRequestsUseCase(this.repository);
-  Future<Either<Failure, List<HelperBookingEntity>>> call() => repository.getRequests();
+  const GetHelperDashboardUseCase(this.repository);
+  Future<HelperDashboard> call() => repository.getDashboard();
+}
+
+class UpdateAvailabilityUseCase {
+  final HelperBookingsRepository repository;
+  const UpdateAvailabilityUseCase(this.repository);
+  Future<void> call(AvailabilityStatus status) => repository.updateAvailability(status);
+}
+
+class GetIncomingRequestsUseCase {
+  final HelperBookingsRepository repository;
+  const GetIncomingRequestsUseCase(this.repository);
+  Future<List<HelperBooking>> call() => repository.getRequests();
+}
+
+class GetRequestDetailsUseCase {
+  final HelperBookingsRepository repository;
+  const GetRequestDetailsUseCase(this.repository);
+  Future<HelperBooking> call(String bookingId) => repository.getRequestDetails(bookingId);
 }
 
 class AcceptBookingUseCase {
   final HelperBookingsRepository repository;
-  AcceptBookingUseCase(this.repository);
-  Future<Either<Failure, Unit>> call(String bookingId) => repository.acceptBooking(bookingId);
+  const AcceptBookingUseCase(this.repository);
+  Future<HelperBooking> call(String bookingId) => repository.acceptRequest(bookingId);
+}
+
+class DeclineBookingUseCase {
+  final HelperBookingsRepository repository;
+  const DeclineBookingUseCase(this.repository);
+  Future<void> call(String bookingId, {String? reason}) =>
+      repository.declineRequest(bookingId, reason: reason);
 }
 
 class GetUpcomingBookingsUseCase {
   final HelperBookingsRepository repository;
-  GetUpcomingBookingsUseCase(this.repository);
-  Future<Either<Failure, List<HelperBookingEntity>>> call() => repository.getUpcomingBookings();
-}
-
-class StartTripUseCase {
-  final HelperBookingsRepository repository;
-  StartTripUseCase(this.repository);
-  Future<Either<Failure, Unit>> call(String bookingId) => repository.startTrip(bookingId);
-}
-
-class EndTripUseCase {
-  final HelperBookingsRepository repository;
-  EndTripUseCase(this.repository);
-  Future<Either<Failure, Unit>> call(String bookingId) => repository.endTrip(bookingId);
+  const GetUpcomingBookingsUseCase(this.repository);
+  Future<List<HelperBooking>> call() => repository.getUpcomingBookings();
 }
 
 class GetActiveBookingUseCase {
   final HelperBookingsRepository repository;
-  GetActiveBookingUseCase(this.repository);
-  Future<Either<Failure, HelperBookingEntity?>> call() => repository.getActiveBooking();
+  const GetActiveBookingUseCase(this.repository);
+  Future<HelperBooking?> call() => repository.getActiveBooking();
 }
 
-class GetHistoryUseCase {
+class StartTripUseCase {
   final HelperBookingsRepository repository;
-  GetHistoryUseCase(this.repository);
-  Future<Either<Failure, List<HelperBookingEntity>>> call() => repository.getHistory();
+  const StartTripUseCase(this.repository);
+  Future<void> call(String bookingId) => repository.startTrip(bookingId);
+}
+
+class EndTripUseCase {
+  final HelperBookingsRepository repository;
+  const EndTripUseCase(this.repository);
+  Future<double> call(String bookingId) => repository.endTrip(bookingId);
+}
+
+class GetHelperHistoryUseCase {
+  final HelperBookingsRepository repository;
+  const GetHelperHistoryUseCase(this.repository);
+  Future<List<HelperBooking>> call({
+    String? status,
+    DateTime? from,
+    DateTime? to,
+    int page = 1,
+    int pageSize = 20,
+  }) =>
+      repository.getHistory(status: status, from: from, to: to, page: page, pageSize: pageSize);
+}
+
+class GetEarningsUseCase {
+  final HelperBookingsRepository repository;
+  const GetEarningsUseCase(this.repository);
+  Future<HelperEarnings> call() => repository.getEarnings();
+}
+
+class GetHelperBookingDetailsUseCase {
+  final HelperBookingsRepository repository;
+  const GetHelperBookingDetailsUseCase(this.repository);
+  Future<HelperBooking> call(String bookingId) => repository.getBookingDetails(bookingId);
 }

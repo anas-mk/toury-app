@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../../language_interview/presentation/pages/exams_page.dart';
 import 'helper_home_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
@@ -57,7 +56,7 @@ class _HomeNavigationPageState extends State<HomeNavigationPage> {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),

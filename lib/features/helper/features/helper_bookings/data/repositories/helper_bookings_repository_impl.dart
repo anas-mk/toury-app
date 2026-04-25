@@ -1,81 +1,61 @@
-import 'package:dartz/dartz.dart';
-import '../../../../../../core/errors/failures.dart';
-import '../../domain/entities/helper_booking_entity.dart';
+import '../../domain/entities/helper_booking_entities.dart';
+import '../../domain/entities/helper_earnings_entities.dart';
 import '../../domain/repositories/helper_bookings_repository.dart';
-import '../datasources/helper_bookings_service.dart';
+import '../datasources/helper_bookings_remote_data_source.dart';
 
 class HelperBookingsRepositoryImpl implements HelperBookingsRepository {
-  final HelperBookingsService service;
-
-  HelperBookingsRepositoryImpl(this.service);
-
-  @override
-  Future<Either<Failure, List<HelperBookingEntity>>> getRequests() async {
-    try {
-      final result = await service.getRequests();
-      return Right(result);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  final HelperBookingsRemoteDataSource remoteDataSource;
+  const HelperBookingsRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, Unit>> acceptBooking(String bookingId) async {
-    try {
-      await service.acceptBooking(bookingId);
-      return const Right(unit);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  Future<HelperDashboard> getDashboard() => remoteDataSource.getDashboard();
 
   @override
-  Future<Either<Failure, List<HelperBookingEntity>>> getUpcomingBookings() async {
-    try {
-      final result = await service.getUpcomingBookings();
-      return Right(result);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  Future<void> updateAvailability(AvailabilityStatus status) =>
+      remoteDataSource.updateAvailability(status.toJson());
 
   @override
-  Future<Either<Failure, Unit>> startTrip(String bookingId) async {
-    try {
-      await service.startTrip(bookingId);
-      return const Right(unit);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  Future<List<HelperBooking>> getRequests() => remoteDataSource.getRequests();
 
   @override
-  Future<Either<Failure, Unit>> endTrip(String bookingId) async {
-    try {
-      await service.endTrip(bookingId);
-      return const Right(unit);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  Future<HelperBooking> getRequestDetails(String bookingId) =>
+      remoteDataSource.getRequestDetails(bookingId);
 
   @override
-  Future<Either<Failure, HelperBookingEntity?>> getActiveBooking() async {
-    try {
-      final result = await service.getActiveBooking();
-      return Right(result);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  Future<HelperBooking> acceptRequest(String bookingId) =>
+      remoteDataSource.acceptRequest(bookingId);
 
   @override
-  Future<Either<Failure, List<HelperBookingEntity>>> getHistory() async {
-    try {
-      final result = await service.getHistory();
-      return Right(result);
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
-  }
+  Future<void> declineRequest(String bookingId, {String? reason}) =>
+      remoteDataSource.declineRequest(bookingId, reason: reason);
+
+  @override
+  Future<List<HelperBooking>> getUpcomingBookings() =>
+      remoteDataSource.getUpcomingBookings();
+
+  @override
+  Future<HelperBooking?> getActiveBooking() => remoteDataSource.getActiveBooking();
+
+  @override
+  Future<void> startTrip(String bookingId) => remoteDataSource.startTrip(bookingId);
+
+  @override
+  Future<double> endTrip(String bookingId) => remoteDataSource.endTrip(bookingId);
+
+  @override
+  Future<List<HelperBooking>> getHistory({
+    String? status,
+    DateTime? from,
+    DateTime? to,
+    int page = 1,
+    int pageSize = 20,
+  }) =>
+      remoteDataSource.getHistory(status: status, from: from, to: to, page: page, pageSize: pageSize);
+
+  @override
+  Future<HelperEarnings> getEarnings() => remoteDataSource.getEarnings();
+
+  @override
+  Future<HelperBooking> getBookingDetails(String bookingId) =>
+      remoteDataSource.getBookingDetails(bookingId);
 }

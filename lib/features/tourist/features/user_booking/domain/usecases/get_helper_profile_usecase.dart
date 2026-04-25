@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 import '../../../../../../core/errors/failures.dart';
-import '../entities/helper_entity.dart';
+import '../entities/helper_booking_entity.dart';
 import '../repositories/user_booking_repository.dart';
 
 class GetHelperProfileUseCase {
@@ -8,7 +8,7 @@ class GetHelperProfileUseCase {
 
   GetHelperProfileUseCase(this.repository);
 
-  Future<Either<Failure, HelperEntity>> call(String helperId) {
-    return repository.getHelperProfile(helperId);
+  Future<Either<Failure, HelperBookingEntity>> call(String helperId) async {
+    return await repository.getHelperProfile(helperId);
   }
 }

@@ -47,3 +47,8 @@ class ValidationException extends AppException {
 class TimeoutException extends AppException {
   TimeoutException([super.message = 'Connection Timeout']);
 }
+
+/// Not Found Exception - 404
+class NotFoundException extends AppException {
+  NotFoundException([super.message = 'Not Found']);
+}

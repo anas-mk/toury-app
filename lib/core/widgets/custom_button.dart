@@ -130,6 +130,9 @@ class CustomButton extends StatelessWidget {
         ),
       ),
       padding: WidgetStateProperty.all(_getPadding()),
+      minimumSize: WidgetStateProperty.all(
+        Size(isFullWidth ? double.infinity : 0, 0),
+      ),
       elevation: WidgetStateProperty.resolveWith<double>((states) {
         if (variant == ButtonVariant.text) return 0;
         if (states.contains(WidgetState.pressed)) return 0;

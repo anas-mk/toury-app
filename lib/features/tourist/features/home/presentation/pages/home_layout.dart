@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:toury/features/tourist/features/home/presentation/pages/tourist_home_page.dart';
 import 'package:toury/features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
 import 'package:toury/features/tourist/features/home/presentation/pages/explore_page.dart';
 import '../../../../../../core/widgets/custom_bottom_nav_bar.dart';
-import '../../../maps/presentation/pages/home_page.dart';
 import '../cubit/bottom_nav_cubit.dart';
 import '../cubit/bottom_nav_state.dart';
 
@@ -14,7 +14,7 @@ class HomeLayout extends StatelessWidget {
   Widget build(BuildContext context) {
 
     final pages = const [
-      HomePage(),
+      TouristHomePage(),
       ExplorePage(),
       AccountSettingsPage(),
     ];

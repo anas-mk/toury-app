@@ -6,6 +6,8 @@ class BasicAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Color? iconColor;
   final TextStyle? titleStyle;
   final bool showBackButton;
+  final List<Widget>? actions;
+  final PreferredSizeWidget? bottom;
 
   const BasicAppBar({
     super.key,
@@ -14,6 +16,8 @@ class BasicAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.iconColor,
     this.titleStyle,
     this.showBackButton = true,
+    this.actions,
+    this.bottom,
   });
 
   @override
@@ -37,6 +41,8 @@ class BasicAppBar extends StatelessWidget implements PreferredSizeWidget {
       shadowColor:
       isDark ? Colors.transparent : Colors.black.withOpacity(0.1),
       centerTitle: appBarTheme.centerTitle ?? true,
+      actions: actions,
+      bottom: bottom,
       leading: showBackButton
           ? IconButton(
         icon: Icon(Icons.arrow_back_ios_new_rounded, color: icColor),
@@ -58,5 +64,7 @@ class BasicAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => Size.fromHeight(
+    kToolbarHeight + (bottom?.preferredSize.height ?? 0.0),
+  );
 }

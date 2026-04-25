@@ -1,12 +1,10 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/network/auth_interceptor.dart';
 import '../../core/services/auth_service.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
-import '../config/api_config.dart';
 
 // ============================================================
 // Tourist Auth Feature Imports
@@ -16,20 +14,6 @@ import '../../features/tourist/features/auth/domain/repositories/auth_repository
 import '../../features/tourist/features/auth/domain/usecases/get_cached_user_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/resend_verification_code_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/verify_code_usecase.dart';
-import '../../features/tourist/features/maps/data/datasources/location_data_source.dart';
-import '../../features/tourist/features/maps/data/datasources/location_data_source_impl.dart';
-import '../../features/tourist/features/maps/data/datasources/routing_data_source.dart';
-import '../../features/tourist/features/maps/data/datasources/routing_data_source_impl.dart';
-import '../../features/tourist/features/maps/data/repositories/location_repository_impl.dart';
-import '../../features/tourist/features/maps/data/repositories/routing_repository_impl.dart';
-import '../../features/tourist/features/maps/domain/repositories/location_repository.dart';
-import '../../features/tourist/features/maps/domain/repositories/routing_repository.dart';
-import '../../features/tourist/features/maps/domain/usecases/get_current_location.dart';
-import '../../features/tourist/features/maps/domain/usecases/get_route.dart';
-import '../../features/tourist/features/maps/domain/usecases/search_locations.dart';
-import '../../features/tourist/features/maps/presentation/cubit/map_cubit.dart';
-import '../../features/tourist/features/maps/presentation/cubit/search_location_cubit.dart';
-import '../../features/tourist/features/maps/presentation/cubit/trip_cubit.dart';
 import '../../features/tourist/features/profile/domain/usecases/update_profile_usecase.dart';
 import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_local_data_source.dart';
@@ -43,41 +27,11 @@ import '../../features/tourist/features/auth/domain/usecases/forgot_password_use
 import '../../features/tourist/features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
 
-// ============================================================
-// Tourist User Booking Feature Imports
-// ============================================================
-import '../../features/tourist/features/user_booking/data/datasources/user_booking_service.dart';
-import '../../features/tourist/features/user_booking/data/datasources/user_booking_service_impl.dart';
-import '../../features/tourist/features/user_booking/data/repositories/user_booking_repository_impl.dart';
-import '../../features/tourist/features/user_booking/domain/repositories/user_booking_repository.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/cancel_booking_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/create_instant_booking_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/create_scheduled_booking_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_alternatives_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_booking_details_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_booking_status_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_helper_profile_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_my_bookings_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/search_instant_helpers_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/search_scheduled_helpers_usecase.dart';
-import '../../features/tourist/features/user_booking/presentation/cubit/search_helpers_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubit/helpers_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubit/booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubit/my_bookings_cubit.dart';
 
 // ============================================================
 // Helper Auth Feature Imports
 // ============================================================
 import '../../features/helper/features/auth/data/datasources/helper_auth_remote_data_source.dart';
-import '../../features/tourist/features/user_booking/presentation/cubit/chat_cubit.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_chat_info_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_messages_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/send_message_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/mark_as_read_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/repositories/chat_repository.dart';
-import '../../features/tourist/features/user_booking/data/repositories/chat_repository_impl.dart';
-import '../../features/tourist/features/user_booking/data/datasources/chat_service.dart';
-import '../../features/tourist/features/user_booking/data/datasources/chat_service_impl.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/helper/features/auth/data/repositories/helper_auth_repository_impl.dart';
 import '../../features/helper/features/auth/domain/repositories/helper_auth_repository.dart';
@@ -89,24 +43,6 @@ import '../../features/helper/features/auth/domain/usecases/resend_helper_login_
 import '../../features/helper/features/auth/domain/usecases/resend_helper_code_usecase.dart';
 import '../../features/helper/features/auth/domain/usecases/forgot_helper_password_usecase.dart';
 import '../../features/helper/features/auth/domain/usecases/reset_helper_password_usecase.dart';
-import '../../features/helper/features/helper_bookings/presentation/cubit/helper_bookings_cubit.dart';
-import '../../features/helper/features/helper_bookings/domain/usecases/helper_bookings_usecases.dart';
-import '../../features/helper/features/helper_bookings/domain/repositories/helper_bookings_repository.dart';
-import '../../features/helper/features/helper_bookings/data/repositories/helper_bookings_repository_impl.dart';
-import '../../features/helper/features/helper_bookings/data/datasources/helper_bookings_service.dart';
-import '../../features/helper/features/helper_bookings/data/datasources/helper_bookings_service_impl.dart';
-import '../../features/helper/features/ratings/presentation/cubit/helper_ratings_cubit.dart';
-import '../../features/helper/features/ratings/domain/usecases/rating_usecases.dart';
-import '../../features/helper/features/ratings/data/repositories/helper_ratings_repository_impl.dart';
-import '../../features/helper/features/ratings/data/datasources/helper_ratings_service.dart';
-import '../../features/helper/features/location/presentation/cubit/helper_location_cubit.dart';
-import '../../features/helper/features/location/domain/usecases/location_usecases.dart';
-import '../../features/helper/features/location/data/repositories/helper_location_repository_impl.dart';
-import '../../features/helper/features/location/data/datasources/helper_location_service.dart';
-import '../../features/helper/features/chat/presentation/cubit/helper_chat_cubit.dart';
-import '../../features/helper/features/chat/domain/usecases/helper_chat_usecases.dart';
-import '../../features/helper/features/chat/data/repositories/helper_chat_repository_impl.dart';
-import '../../features/helper/features/chat/data/datasources/helper_chat_service.dart';
 import '../../features/helper/features/auth/domain/usecases/helper_logout_usecase.dart';
 import '../../features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
 import '../../features/helper/features/language_interview/data/datasources/interview_remote_data_source.dart';
@@ -136,14 +72,77 @@ import '../../features/helper/features/profile/domain/usecases/delete_car_usecas
 import '../../features/helper/features/profile/domain/usecases/add_certificate_usecase.dart';
 import '../../features/helper/features/profile/domain/usecases/delete_certificate_usecase.dart';
 import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart' as helper_profile;
-import '../../features/helper/features/service_areas/data/datasources/service_areas_remote_data_source.dart';
-import '../../features/helper/features/service_areas/data/repositories/service_areas_repository_impl.dart';
-import '../../features/helper/features/service_areas/domain/repositories/service_areas_repository.dart';
-import '../../features/helper/features/service_areas/domain/usecases/create_service_area_usecase.dart';
-import '../../features/helper/features/service_areas/domain/usecases/delete_service_area_usecase.dart';
-import '../../features/helper/features/service_areas/domain/usecases/get_service_areas_usecase.dart';
-import '../../features/helper/features/service_areas/domain/usecases/update_service_area_usecase.dart';
-import '../../features/helper/features/service_areas/presentation/cubit/helper_service_areas_cubit.dart';
+import '../../features/tourist/features/user_booking/data/datasources/user_booking_remote_data_source.dart';
+import '../../features/tourist/features/user_booking/data/repositories/user_booking_repository_impl.dart';
+import '../../features/tourist/features/user_booking/domain/repositories/user_booking_repository.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/booking_actions_usecase.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/create_booking_usecase.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/get_booking_details_usecase.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/get_helper_profile_usecase.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/get_my_bookings_usecase.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/search_helpers_usecase.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/scheduled_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_details_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/cancel_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/alternatives_cubit.dart';
+
+// ============================================================
+// Helper Bookings Feature Imports
+// ============================================================
+import '../../features/helper/features/helper_bookings/data/datasources/helper_bookings_remote_data_source.dart';
+import '../../features/helper/features/helper_bookings/data/repositories/helper_bookings_repository_impl.dart';
+import '../../features/helper/features/helper_bookings/domain/repositories/helper_bookings_repository.dart';
+import '../../features/helper/features/helper_bookings/domain/usecases/helper_bookings_usecases.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
+
+// ============================================================
+// Helper Location Feature Imports
+// ============================================================
+import '../../features/helper/features/helper_location/data/datasources/helper_location_remote_data_source.dart';
+import '../../features/helper/features/helper_location/data/repositories/helper_location_repository_impl.dart';
+import '../../features/helper/features/helper_location/data/services/helper_location_signalr_service.dart';
+import '../../features/helper/features/helper_location/data/services/helper_location_tracker.dart';
+import '../../features/helper/features/helper_location/domain/repositories/helper_location_repository.dart';
+import '../../features/helper/features/helper_location/domain/usecases/helper_location_usecases.dart';
+import '../../features/helper/features/helper_location/presentation/cubit/helper_location_cubit.dart';
+import '../../features/helper/features/helper_location/presentation/cubit/location_status_cubits.dart';
+
+// ============================================================
+// Helper Service Areas Feature Imports
+// ============================================================
+import '../../features/helper/features/helper_service_areas/data/datasources/service_areas_remote_data_source.dart';
+import '../../features/helper/features/helper_service_areas/data/repositories/service_areas_repository_impl.dart';
+import '../../features/helper/features/helper_service_areas/domain/repositories/service_areas_repository.dart';
+import '../../features/helper/features/helper_service_areas/domain/usecases/service_area_usecases.dart';
+import '../../features/helper/features/helper_service_areas/presentation/cubit/service_areas_cubit.dart';
+
+import '../../features/helper/features/helper_invoices/data/datasources/helper_invoices_remote_data_source.dart';
+import '../../features/helper/features/helper_invoices/data/repositories/helper_invoices_repository_impl.dart';
+import '../../features/helper/features/helper_invoices/domain/repositories/helper_invoices_repository.dart';
+import '../../features/helper/features/helper_invoices/domain/usecases/invoice_usecases.dart';
+import '../../features/helper/features/helper_invoices/presentation/cubit/helper_invoices_cubit.dart';
+import '../../features/helper/features/helper_ratings/data/datasources/helper_ratings_remote_data_source.dart';
+import '../../features/helper/features/helper_ratings/data/repositories/helper_ratings_repository_impl.dart';
+import '../../features/helper/features/helper_ratings/domain/repositories/helper_ratings_repository.dart';
+import '../../features/helper/features/helper_ratings/domain/usecases/helper_rating_usecases.dart';
+import '../../features/helper/features/helper_ratings/presentation/cubit/helper_ratings_cubits.dart';
+import '../../features/helper/features/helper_chat/data/datasources/helper_chat_remote_data_source.dart';
+import '../../features/helper/features/helper_chat/data/repositories/helper_chat_repository_impl.dart';
+import '../../features/helper/features/helper_chat/data/services/helper_chat_signalr_service.dart';
+import '../../features/helper/features/helper_chat/domain/repositories/helper_chat_repository.dart';
+import '../../features/helper/features/helper_chat/domain/usecases/helper_chat_usecases.dart';
+import '../../features/helper/features/helper_chat/presentation/cubit/helper_chat_cubit.dart';
+import '../../features/helper/features/helper_reports/data/repositories/helper_reports_repository_impl.dart';
+import '../../features/helper/features/helper_reports/data/services/helper_reports_signalr_service.dart';
+import '../../features/helper/features/helper_reports/domain/repositories/helper_reports_repository.dart';
+import '../../features/helper/features/helper_reports/presentation/cubit/helper_reports_cubit.dart';
+import '../../features/helper/features/helper_sos/data/services/helper_sos_service.dart';
+import '../../features/helper/features/helper_sos/presentation/cubit/helper_sos_cubit.dart';
+import '../config/api_config.dart';
 
 final sl = GetIt.instance;
 
@@ -202,122 +201,10 @@ Future<void> init() async {
   );
 
   // ============================================================
-  // Features - Tourist User Booking
-  // ============================================================
-
-  // Cubits
-  sl.registerFactory(
-    () => SearchHelpersCubit(
-      searchScheduled: sl(),
-      searchInstant: sl(),
-      mapCubit: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-    () => HelpersCubit(
-      getProfile: sl(),
-      getAlternativesUseCase: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-    () => BookingCubit(
-      createScheduled: sl(),
-      createInstant: sl(),
-      getDetails: sl(),
-      cancelUseCase: sl(),
-      getStatusUseCase: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-    () => MyBookingsCubit(
-      getMyBookings: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-    () => ChatCubit(
-      getChatInfoUseCase: sl(),
-      getMessagesUseCase: sl(),
-      sendMessageUseCase: sl(),
-      markAsReadUseCase: sl(),
-    ),
-  );
-
-  // Data Sources (Service)
-  sl.registerLazySingleton<UserBookingService>(
-        () => UserBookingServiceImpl(dio: sl()),
-  );
-
-  sl.registerLazySingleton<ChatService>(
-    () => ChatServiceImpl(sl()),
-  );
-
-  // Repository
-  sl.registerLazySingleton<UserBookingRepository>(
-        () => UserBookingRepositoryImpl(
-      remoteDataSource: sl(),
-    ),
-  );
-
-  sl.registerLazySingleton<ChatRepository>(
-    () => ChatRepositoryImpl(sl()),
-  );
-
-  // Use Cases
-  sl.registerLazySingleton(() => SearchScheduledHelpersUseCase(sl()));
-  sl.registerLazySingleton(() => SearchInstantHelpersUseCase(sl()));
-  sl.registerLazySingleton(() => GetHelperProfileUseCase(sl()));
-  sl.registerLazySingleton(() => CreateScheduledBookingUseCase(sl()));
-  sl.registerLazySingleton(() => CreateInstantBookingUseCase(sl()));
-  sl.registerLazySingleton(() => GetMyBookingsUseCase(sl()));
-  sl.registerLazySingleton(() => CancelBookingUseCase(sl()));
-  sl.registerLazySingleton(() => GetBookingDetailsUseCase(sl()));
-  sl.registerLazySingleton(() => GetAlternativesUseCase(sl()));
-  sl.registerLazySingleton(() => GetBookingStatusUseCase(sl()));
-
-  // Chat Use Cases
-  sl.registerLazySingleton(() => GetChatInfoUseCase(sl()));
-  sl.registerLazySingleton(() => GetMessagesUseCase(sl()));
-  sl.registerLazySingleton(() => SendMessageUseCase(sl()));
-  sl.registerLazySingleton(() => MarkAsReadUseCase(sl()));
-
-  // ============================================================
   // Features - Helper Auth
   // ============================================================
 
   // Cubit
-  sl.registerFactory(
-    () => HelperRatingsCubit(
-      submitRatingUseCase: sl(),
-      getStatusUseCase: sl(),
-      getReceivedUseCase: sl(),
-      getSummaryUseCase: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-    () => HelperLocationCubit(
-      sendLocationUseCase: sl(),
-      getStatusUseCase: sl(),
-      getEligibilityUseCase: sl(),
-      connectUseCase: sl(),
-      disconnectUseCase: sl(),
-      connectionStateUseCase: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-    () => HelperChatCubit(
-      getChatInfoUseCase: sl(),
-      getMessagesUseCase: sl(),
-      sendMessageUseCase: sl(),
-      markAsReadUseCase: sl(),
-    ),
-  );
-
   sl.registerFactory(
     () => HelperAuthCubit(
       registerHelperUseCase: sl(),
@@ -332,44 +219,8 @@ Future<void> init() async {
     ),
   );
 
-  sl.registerFactory(
-    () => HelperBookingsCubit(
-      getRequestsUseCase: sl(),
-      acceptBookingUseCase: sl(),
-      getUpcomingBookingsUseCase: sl(),
-      startTripUseCase: sl(),
-      endTripUseCase: sl(),
-      getActiveBookingUseCase: sl(),
-      getHistoryUseCase: sl(),
-    ),
-  );
 
   // Use Cases
-  sl.registerLazySingleton(() => GetRequestsUseCase(sl()));
-  sl.registerLazySingleton(() => AcceptBookingUseCase(sl()));
-  sl.registerLazySingleton(() => GetUpcomingBookingsUseCase(sl()));
-  sl.registerLazySingleton(() => StartTripUseCase(sl()));
-  sl.registerLazySingleton(() => EndTripUseCase(sl()));
-  sl.registerLazySingleton(() => GetActiveBookingUseCase(sl()));
-  sl.registerLazySingleton(() => GetHistoryUseCase(sl()));
-
-  sl.registerLazySingleton(() => GetHelperChatInfoUseCase(sl()));
-  sl.registerLazySingleton(() => GetHelperMessagesUseCase(sl()));
-  sl.registerLazySingleton(() => SendHelperMessageUseCase(sl()));
-  sl.registerLazySingleton(() => MarkHelperMessagesReadUseCase(sl()));
-
-  sl.registerLazySingleton(() => SendLocationUseCase(sl()));
-  sl.registerLazySingleton(() => GetLocationStatusUseCase(sl()));
-  sl.registerLazySingleton(() => GetInstantEligibilityUseCase(sl()));
-  sl.registerLazySingleton(() => ConnectLocationHubUseCase(sl()));
-  sl.registerLazySingleton(() => DisconnectLocationHubUseCase(sl()));
-  sl.registerLazySingleton(() => GetLocationConnectionStateUseCase(sl()));
-
-  sl.registerLazySingleton(() => SubmitUserRatingUseCase(sl()));
-  sl.registerLazySingleton(() => GetBookingRatingStatusUseCase(sl()));
-  sl.registerLazySingleton(() => GetReceivedRatingsUseCase(sl()));
-  sl.registerLazySingleton(() => GetRatingsSummaryUseCase(sl()));
-
   sl.registerLazySingleton(() => RegisterHelperUseCase(sl()));
   sl.registerLazySingleton(() => HelperLoginUseCase(sl()));
   sl.registerLazySingleton(() => VerifyHelperLoginOtpUseCase(sl()));
@@ -381,22 +232,6 @@ Future<void> init() async {
   sl.registerLazySingleton(() => HelperLogoutUseCase(sl()));
 
   // Repository
-  sl.registerLazySingleton<HelperBookingsRepository>(
-    () => HelperBookingsRepositoryImpl(sl()),
-  );
-
-  sl.registerLazySingleton<HelperChatRepository>(
-    () => HelperChatRepositoryImpl(sl()),
-  );
-
-  sl.registerLazySingleton<HelperLocationRepository>(
-    () => HelperLocationRepositoryImpl(sl()),
-  );
-
-  sl.registerLazySingleton<HelperRatingsRepository>(
-    () => HelperRatingsRepositoryImpl(sl()),
-  );
-
   sl.registerLazySingleton<HelperAuthRepository>(
     () => HelperAuthRepositoryImpl(
       remoteDataSource: sl(),
@@ -405,22 +240,6 @@ Future<void> init() async {
   );
 
   // Data Sources
-  sl.registerLazySingleton<HelperBookingsService>(
-    () => HelperBookingsServiceImpl(sl()),
-  );
-
-  sl.registerLazySingleton<HelperChatService>(
-    () => HelperChatServiceImpl(sl()),
-  );
-
-  sl.registerLazySingleton<HelperLocationService>(
-    () => HelperLocationServiceImpl(dio: sl(), authService: sl()),
-  );
-
-  sl.registerLazySingleton<HelperRatingsService>(
-    () => HelperRatingsServiceImpl(sl()),
-  );
-
   sl.registerLazySingleton<HelperAuthRemoteDataSource>(
     () => HelperAuthRemoteDataSourceImpl(sl()),
   );
@@ -429,52 +248,6 @@ Future<void> init() async {
     () => HelperLocalDataSourceImpl(sl()),
   );
 
-  // ============================================================
-  // Features - Google Maps
-  // ============================================================
-
-  // Cubits
-  sl.registerFactory(
-        () => MapCubit(
-      getCurrentLocation: sl(),
-      getRoute: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-        () => SearchLocationCubit(
-      searchLocations: sl(),
-    ),
-  );
-
-  sl.registerFactory(
-        () => TripCubit(
-      locationRepository: sl(),
-    ),
-  );
-
-  // Use Cases
-  sl.registerLazySingleton(() => GetCurrentLocation(sl()));
-  sl.registerLazySingleton(() => SearchLocations(sl()));
-  sl.registerLazySingleton(() => GetRoute(sl()));
-
-  // Repositories
-  sl.registerLazySingleton<LocationRepository>(
-        () => LocationRepositoryImpl(dataSource: sl()),
-  );
-
-  sl.registerLazySingleton<RoutingRepository>(
-        () => RoutingRepositoryImpl(dataSource: sl()),
-  );
-
-  // Data Sources
-  sl.registerLazySingleton<LocationDataSource>(
-        () => LocationDataSourceImpl(client: sl()),
-  );
-
-  sl.registerLazySingleton<RoutingDataSource>(
-        () => RoutingDataSourceImpl(client: sl()),
-  );
 
   // ============================================================
   // Features - Language Interview
@@ -555,18 +328,157 @@ Future<void> init() async {
   );
 
   // ============================================================
+  // Features - User Booking
+  // ============================================================
+
+  // Cubits
+  sl.registerFactory(() => SearchHelpersCubit(
+    searchScheduledHelpersUseCase: sl(),
+    searchInstantHelpersUseCase: sl(),
+  ));
+  sl.registerFactory(() => InstantBookingCubit(
+    createInstantBookingUseCase: sl(),
+    getBookingStatusUseCase: sl(),
+  ));
+  sl.registerFactory(() => ScheduledBookingCubit(
+    createScheduledBookingUseCase: sl(),
+  ));
+  sl.registerFactory(() => BookingDetailsCubit(
+    getBookingDetailsUseCase: sl(),
+    getHelperProfileUseCase: sl(),
+  ));
+  sl.registerFactory(() => BookingStatusCubit(
+    getBookingStatusUseCase: sl(),
+    getMyBookingsUseCase: sl(),
+  ));
+  sl.registerFactory(() => MyBookingsCubit(
+    getMyBookingsUseCase: sl(),
+  ));
+  sl.registerFactory(() => CancelBookingCubit(
+    cancelBookingUseCase: sl(),
+  ));
+  sl.registerFactory(() => AlternativesCubit(
+    getAlternativesUseCase: sl(),
+  ));
+
+  // Use Cases
+  sl.registerLazySingleton(() => SearchScheduledHelpersUseCase(sl()));
+  sl.registerLazySingleton(() => SearchInstantHelpersUseCase(sl()));
+  sl.registerLazySingleton(() => GetHelperProfileUseCase(sl()));
+  sl.registerLazySingleton(() => CreateScheduledBookingUseCase(sl()));
+  sl.registerLazySingleton(() => CreateInstantBookingUseCase(sl()));
+  sl.registerLazySingleton(() => GetBookingDetailsUseCase(sl()));
+  sl.registerLazySingleton(() => GetMyBookingsUseCase(sl()));
+  sl.registerLazySingleton(() => CancelBookingUseCase(sl()));
+  sl.registerLazySingleton(() => GetAlternativesUseCase(sl()));
+  sl.registerLazySingleton(() => GetBookingStatusUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<UserBookingRepository>(
+    () => UserBookingRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Data Source
+  sl.registerLazySingleton<UserBookingRemoteDataSource>(
+    () => UserBookingRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
+  // Features - Helper Bookings
+  // ============================================================
+
+  // Cubits — factory so each screen gets a fresh instance
+  sl.registerFactory(() => HelperDashboardCubit(sl()));
+  sl.registerFactory(() => HelperAvailabilityCubit(sl()));
+  sl.registerFactory(() => IncomingRequestsCubit(sl()));
+  sl.registerFactory(() => RequestDetailsCubit(sl()));
+  sl.registerFactory(() => AcceptBookingCubit(sl()));
+  sl.registerFactory(() => DeclineBookingCubit(sl()));
+  sl.registerFactory(() => UpcomingBookingsCubit(sl()));
+  sl.registerFactory(() => ActiveBookingCubit(sl()));
+  sl.registerFactory(() => StartTripCubit(sl()));
+  sl.registerFactory(() => EndTripCubit(sl()));
+  sl.registerFactory(() => HelperHistoryCubit(sl()));
+  sl.registerFactory(() => EarningsCubit(sl()));
+  sl.registerFactory(() => HelperBookingDetailsCubit(sl()));
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetHelperDashboardUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateAvailabilityUseCase(sl()));
+  sl.registerLazySingleton(() => GetIncomingRequestsUseCase(sl()));
+  sl.registerLazySingleton(() => GetRequestDetailsUseCase(sl()));
+  sl.registerLazySingleton(() => AcceptBookingUseCase(sl()));
+  sl.registerLazySingleton(() => DeclineBookingUseCase(sl()));
+  sl.registerLazySingleton(() => GetUpcomingBookingsUseCase(sl()));
+  sl.registerLazySingleton(() => GetActiveBookingUseCase(sl()));
+  sl.registerLazySingleton(() => StartTripUseCase(sl()));
+  sl.registerLazySingleton(() => EndTripUseCase(sl()));
+  sl.registerLazySingleton(() => GetHelperHistoryUseCase(sl()));
+  sl.registerLazySingleton(() => GetEarningsUseCase(sl()));
+  sl.registerLazySingleton(() => GetHelperBookingDetailsUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperBookingsRepository>(
+    () => HelperBookingsRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Data Source
+  sl.registerLazySingleton<HelperBookingsRemoteDataSource>(
+    () => HelperBookingsRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
+  // Features - Helper Location
+  // ============================================================
+
+  // Cubits
+  sl.registerLazySingleton(() => HelperLocationCubit(
+    tracker: sl(),
+    connectUseCase: sl(),
+    disconnectUseCase: sl(),
+    streamUseCase: sl(),
+    updateUseCase: sl(),
+    signalRStateStream: sl<HelperLocationRepository>().signalRStateStream.cast<SignalRConnectionState>(),
+  ));
+  sl.registerLazySingleton(() => LocationStatusCubit(getStatusUseCase: sl()));
+  sl.registerLazySingleton(() => EligibilityCubit(getEligibilityUseCase: sl()));
+
+  // Use Cases
+  sl.registerLazySingleton(() => UpdateLocationUseCase(sl()));
+  sl.registerLazySingleton(() => GetLocationStatusUseCase(sl()));
+  sl.registerLazySingleton(() => GetInstantEligibilityUseCase(sl()));
+  sl.registerLazySingleton(() => StreamLocationUseCase(sl()));
+  sl.registerLazySingleton(() => ConnectSignalRUseCase(sl()));
+  sl.registerLazySingleton(() => DisconnectSignalRUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperLocationRepository>(
+    () => HelperLocationRepositoryImpl(
+      remoteDataSource: sl(),
+      signalRService: sl(),
+    ),
+  );
+
+  // Services
+  sl.registerLazySingleton(() => HelperLocationSignalRService());
+  sl.registerLazySingleton(() => HelperLocationTracker());
+
+  // Data Source
+  sl.registerLazySingleton<HelperLocationRemoteDataSource>(
+    () => HelperLocationRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
   // Features - Helper Service Areas
   // ============================================================
 
-  // Cubit
-  sl.registerFactory(
-    () => HelperServiceAreasCubit(
-      getServiceAreasUseCase: sl(),
-      createServiceAreaUseCase: sl(),
-      updateServiceAreaUseCase: sl(),
-      deleteServiceAreaUseCase: sl(),
-    ),
-  );
+  // Cubits
+  sl.registerFactory(() => ServiceAreasCubit(
+    getAreasUseCase: sl(),
+    createAreaUseCase: sl(),
+    updateAreaUseCase: sl(),
+    deleteAreaUseCase: sl(),
+  ));
 
   // Use Cases
   sl.registerLazySingleton(() => GetServiceAreasUseCase(sl()));
@@ -585,14 +497,140 @@ Future<void> init() async {
   );
 
   // ============================================================
+  // Features - Helper Invoices
+  // ============================================================
+
+  // Cubit (factory — each page gets its own isolated state)
+  sl.registerFactory(() => HelperInvoicesCubit(
+    getInvoicesUseCase: sl(),
+    getDetailUseCase: sl(),
+    getByBookingUseCase: sl(),
+    getSummaryUseCase: sl(),
+    getHtmlUseCase: sl(),
+  ));
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetInvoicesUseCase(sl()));
+  sl.registerLazySingleton(() => GetInvoiceDetailUseCase(sl()));
+  sl.registerLazySingleton(() => GetInvoiceByBookingUseCase(sl()));
+  sl.registerLazySingleton(() => GetInvoiceSummaryUseCase(sl()));
+  sl.registerLazySingleton(() => GetInvoiceHtmlUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperInvoicesRepository>(
+    () => HelperInvoicesRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Data Source
+  sl.registerLazySingleton<HelperInvoicesRemoteDataSource>(
+    () => HelperInvoicesRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
+  // Features - Helper Ratings
+  // ============================================================
+
+  // Cubits
+  sl.registerFactory(() => HelperRatingsCubit(
+    getReceivedRatingsUseCase: sl(),
+    getRatingsSummaryUseCase: sl(),
+  ));
+  sl.registerFactory(() => RateUserCubit(rateUserUseCase: sl()));
+  sl.registerFactory(() => BookingRatingStateCubit(getBookingRatingStateUseCase: sl()));
+
+  // Use Cases
+  sl.registerLazySingleton(() => RateUserUseCase(sl()));
+  sl.registerLazySingleton(() => GetBookingRatingStateUseCase(sl()));
+  sl.registerLazySingleton(() => GetReceivedRatingsUseCase(sl()));
+  sl.registerLazySingleton(() => GetRatingsSummaryUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperRatingsRepository>(
+    () => HelperRatingsRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Data Source
+  sl.registerLazySingleton<HelperRatingsRemoteDataSource>(
+    () => HelperRatingsRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
+  // Features - Helper Chat
+  // ============================================================
+
+  // Cubits
+  sl.registerFactory(() => HelperChatCubit(
+    getConversationUseCase: sl(),
+    getMessagesUseCase: sl(),
+    sendMessageUseCase: sl(),
+    markReadUseCase: sl(),
+    connectChatUseCase: sl(),
+    signalRService: sl(),
+  ));
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetConversationUseCase(sl()));
+  sl.registerLazySingleton(() => GetMessagesUseCase(sl()));
+  sl.registerLazySingleton(() => SendMessageUseCase(sl()));
+  sl.registerLazySingleton(() => MarkReadUseCase(sl()));
+  sl.registerLazySingleton(() => ConnectChatUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperChatRepository>(
+    () => HelperChatRepositoryImpl(
+      remoteDataSource: sl(),
+      signalRService: sl(),
+    ),
+  );
+
+  // Services
+  sl.registerLazySingleton(() => HelperChatSignalRService());
+
+  // Data Source
+  sl.registerLazySingleton<HelperChatRemoteDataSource>(
+    () => HelperChatRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
+  // Features - Helper Reports
+  // ============================================================
+
+  // Cubits
+  sl.registerFactory(() => HelperReportsCubit(
+    getCachedReportsUseCase: sl(),
+    syncReportsUseCase: sl(),
+    resolutionStream: sl<HelperReportsRepository>().resolutionEvents,
+  ));
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetCachedReportsUseCase(sl()));
+  sl.registerLazySingleton(() => SyncReportsUseCase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<HelperReportsRepository>(
+    () => HelperReportsRepositoryImpl(signalRService: sl()),
+  );
+
+  // Services
+  sl.registerLazySingleton(() => HelperReportsSignalRService(null)); // Placeholder connection
+
+  // ============================================================
+  // Features - Helper SOS
+  // ============================================================
+
+  // Cubits
+  sl.registerFactory(() => HelperSosCubit(sosService: sl()));
+
+  // Services
+  sl.registerLazySingleton(() => HelperSosService());
+
+  // ============================================================
   // Core - External Dependencies
   // ============================================================
 
   // 1️⃣  Dio — shared singleton used by ALL remote data sources.
   sl.registerLazySingleton(() => _createDio());
 
-  // 2️⃣  HTTP Client — used by Maps API (non-Dio).
-  sl.registerLazySingleton(() => http.Client());
 
   // 3️⃣  SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();

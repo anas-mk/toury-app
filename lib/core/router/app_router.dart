@@ -1,6 +1,14 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../features/helper/features/helper_location/presentation/pages/helper_location_page.dart';
+import '../../features/helper/features/helper_location/presentation/pages/eligibility_debug_page.dart';
+import '../../features/helper/features/helper_service_areas/presentation/pages/service_areas_page.dart';
+import '../../features/helper/features/helper_service_areas/presentation/pages/add_edit_service_area_page.dart';
+import '../../features/helper/features/helper_service_areas/domain/entities/service_area_entities.dart';
+import '../../features/helper/features/helper_invoices/presentation/pages/invoices_page.dart';
+import '../../features/helper/features/helper_invoices/presentation/pages/invoice_detail_page.dart';
+import '../../features/helper/features/helper_invoices/presentation/pages/invoice_view_page.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 import '../../features/helper/features/language_interview/presentation/pages/interview_pending_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/interview_screen.dart';
@@ -18,6 +26,17 @@ import '../../features/tourist/features/auth/presentation/pages/verify_code_page
 import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
 import '../../features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
 import '../../features/tourist/features/profile/presentation/page/profile_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/booking_home_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled_search_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/instant_search_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/helper_profile_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/booking_confirm_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/waiting_helper_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/booking_details_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/my_bookings_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/reassignment_page.dart';
+import '../../features/tourist/features/user_booking/domain/entities/helper_booking_entity.dart';
+import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
 
 // Helper imports
 import '../../features/helper/features/auth/presentation/pages/helper_login_page.dart';
@@ -27,9 +46,17 @@ import '../../features/helper/features/auth/presentation/pages/helper_register_p
 import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
 import '../../features/helper/features/home/presentation/pages/home_page.dart';
 
+// Helper Bookings imports
+import '../../features/helper/features/helper_bookings/presentation/pages/helper_dashboard_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/incoming_requests_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/request_details_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/upcoming_bookings_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/helper_history_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/earnings_page.dart';
+
 import 'dart:async';
-import '../../features/helper/features/helper_bookings/presentation/bloc/booking_cubit.dart';
-import '../../features/helper/features/helper_bookings/presentation/bloc/booking_state.dart';
 
 /// Helper class to make GoRouter react to Stream changes (Bloc/Cubit streams)
 class GoRouterRefreshStream extends ChangeNotifier {
@@ -83,6 +110,8 @@ class AccountInactivePage extends StatelessWidget {
 
 
 
+
+
 class AppRouter {
   // ----------------------------------------
   // Routes
@@ -99,19 +128,16 @@ class AppRouter {
   static const String googleVerifyCode = 'verify-google-code/:email';
   static const String accountSettings = 'account-settings';
   static const String profile = 'profile';
+  static const String bookingHome = '/booking-home';
+  static const String scheduledSearch = '/scheduled-search';
+  static const String instantSearch = '/instant-search';
+  static const String helperProfile = '/helper-profile/:id';
+  static const String bookingConfirm = '/booking-confirm';
+  static const String waitingHelper = '/waiting-helper/:id';
+  static const String bookingDetails = '/booking-details/:id';
+  static const String myBookings = '/my-bookings';
+  static const String reassignment = '/reassignment/:id';
 
-  // Trip Routes
-  static const String helperIncoming = '/helper-incoming';
-  static const String helperTrip = '/helper-trip';
-  static const String helperRating = '/helper-rating';
-
-  // Home Sub-Routes
-  static const String helperRequests = '/helper-requests';
-  static const String helperUpcoming = '/helper-upcoming';
-  static const String helperHistory = '/helper-history';
-  static const String helperActive = '/helper-active';
-  static const String helperChat = '/helper-chat';
-  static const String helperLocation = '/helper-location';
 
   // Helper Routes
   static const String helperLogin = '/helper-login';
@@ -120,7 +146,7 @@ class AppRouter {
   static const String helperEnterPassword = 'enter-password/:email';
   static const String helperVerifyCode = 'helper-verify-code/:email';
   static const String helperRegisterVerifyOtp = 'helper-register-verify-otp';
-  
+
   // Status Routes
   static const String helperOnboarding = '/helper-onboarding';
   static const String waitingApproval = '/waiting-approval';
@@ -128,6 +154,24 @@ class AppRouter {
   static const String interviewScreen = '/interview-screen';
   static const String preInterview = '/pre-interview';
   static const String interviewPending = '/interview-pending';
+
+  // Helper Booking Routes
+  static const String helperDashboard       = '/helper-dashboard';
+  static const String helperRequests        = '/helper-requests';
+  static const String helperRequestDetails  = '/helper-request-details/:id';
+  static const String helperUpcoming        = '/helper-upcoming';
+  static const String helperActiveBooking   = '/helper-active-booking';
+  static const String helperBookingDetails  = '/helper-booking-details/:id';
+  static const String helperHistory         = '/helper-history';
+  static const String helperEarnings        = '/helper-earnings';
+  static const String helperLocation         = '/helper-location';
+  static const String helperEligibilityDebug = '/helper-eligibility-debug';
+  static const String helperServiceAreas     = '/helper-service-areas';
+  static const String helperAddServiceArea   = '/helper-add-service-area';
+  static const String helperEditServiceArea  = '/helper-edit-service-area';
+  static const String helperInvoices         = '/helper-invoices';
+  static const String helperInvoiceDetail    = '/helper-invoice-detail/:id';
+  static const String helperInvoiceView      = '/helper-invoice-view/:id';
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
@@ -144,11 +188,6 @@ class AppRouter {
       final localDataSource = sl<HelperLocalDataSource>();
       final helper = await localDataSource.getCurrentHelper();
       final isAuthenticated = helper != null && helper.token != null && helper.token!.isNotEmpty;
-
-      // Debug Logs as requested
-      print('--- 🧭 ROUTER AUDIT ---');
-      print('Current Route: $matchedPath');
-      print('Token Status: ${isAuthenticated ? "AUTHENTICATED" : "NOT AUTHENTICATED"}');
 
       // Define public routes (accessible without login)
       final publicRoutes = [
@@ -173,56 +212,26 @@ class AppRouter {
       final isPublic = publicRoutes.any((path) => matchedPath.startsWith(path));
       final isAuthRoute = authRoutes.contains(matchedPath);
 
-      // 🚨 Case: Unauthenticated user
+      // Case: Unauthenticated user
       if (!isAuthenticated) {
         // Block direct access to login/helper-login unless coming from role-selection
         final isLoginRoute = matchedPath == login || matchedPath == helperLogin;
         final hasRoleSelectionFlag = state.extra == 'from_role_selection';
 
         if (isLoginRoute && !hasRoleSelectionFlag) {
-          print('Decision: Blocked direct access to login. Redirecting to Role Selection.');
           return roleSelection;
         }
 
         if (!isPublic) {
-          print('Decision: Unauthorized access. Redirecting to Role Selection.');
           return roleSelection;
         }
       }
 
-      // 🚨 Case: Authenticated user
+      // Case: Authenticated user
       if (isAuthenticated && isAuthRoute) {
-        print('Decision: user is authenticated. Redirecting away from Auth routes to Home.');
         return helperHome;
       }
 
-      // 🚨 Trip / Booking Guard
-      if (isAuthenticated && sl.isRegistered<BookingCubit>()) {
-        final bookingState = sl<BookingCubit>().state;
-        
-        String? tripTarget;
-        if (bookingState is BookingIncomingRequest) {
-          tripTarget = helperIncoming;
-        } else if (bookingState is BookingNavigatingToPickup ||
-                 bookingState is BookingArrived ||
-                 bookingState is BookingTripStarted ||
-                 bookingState is BookingTripInProgress ||
-                 bookingState is BookingTripEnding) {
-          tripTarget = helperTrip;
-        } else if (bookingState is BookingCompleted) {
-          tripTarget = helperRating;
-        } else if (matchedPath == helperIncoming || matchedPath == helperTrip || matchedPath == helperRating) {
-           tripTarget = helperHome;
-        }
-        
-        if (tripTarget != null && matchedPath != tripTarget) {
-          print('Decision: Active Trip Guard. Redirecting to $tripTarget.');
-          return tripTarget;
-        }
-      }
-
-      print('Decision: Allowed (null)');
-      print('-----------------------');
       return null;
     },
 
@@ -362,54 +371,90 @@ class AppRouter {
         builder: (context, state) => const HomePage(),
       ),
 
-      // 5b. Helper Trip Flow
+      // 8. Helper Booking Routes
       GoRoute(
-        path: helperIncoming,
-        name: 'helper-incoming',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Incoming Booking Request'))),
+        path: helperDashboard,
+        name: 'helper-dashboard',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const HelperDashboardPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
       ),
-      GoRoute(
-        path: helperTrip,
-        name: 'helper-trip',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Active Trip / Tracking'))),
-      ),
-      GoRoute(
-        path: helperRating,
-        name: 'helper-rating',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Rating Screen'))),
-      ),
-
-      // 5c. Home Sub-Routes
       GoRoute(
         path: helperRequests,
         name: 'helper-requests',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Requests'))),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const IncomingRequestsPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: helperRequestDetails,
+        name: 'helper-request-details',
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: RequestDetailsPage(bookingId: id),
+            transitionsBuilder: _slideUp,
+          );
+        },
       ),
       GoRoute(
         path: helperUpcoming,
         name: 'helper-upcoming',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Upcoming'))),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const UpcomingBookingsPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: helperActiveBooking,
+        name: 'helper-active-booking',
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id'] ?? (state.extra as String? ?? '');
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: ActiveBookingPage(bookingId: id),
+            transitionsBuilder: _slideUp,
+          );
+        },
+      ),
+      GoRoute(
+        path: helperBookingDetails,
+        name: 'helper-booking-details',
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: HelperBookingDetailsPage(bookingId: id),
+            transitionsBuilder: _fadeSlide,
+          );
+        },
       ),
       GoRoute(
         path: helperHistory,
         name: 'helper-history',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper History'))),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const HelperHistoryPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
       ),
       GoRoute(
-        path: helperActive,
-        name: 'helper-active',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Active'))),
+        path: helperEarnings,
+        name: 'helper-earnings',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const EarningsPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
       ),
-      GoRoute(
-        path: helperChat,
-        name: 'helper-chat',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Chat'))),
-      ),
-      GoRoute(
-        path: helperLocation,
-        name: 'helper-location',
-        builder: (context, state) => const Scaffold(body: Center(child: Text('Helper Location'))),
-      ),
+
+
 
       // 6. Helper Status Routes
       GoRoute(
@@ -455,25 +500,233 @@ class AppRouter {
         name: 'interview-pending',
         builder: (context, state) => const InterviewPendingScreen(),
       ),
+
+      // 7. User Booking Routes
+      GoRoute(
+        path: bookingHome,
+        name: 'booking-home',
+        builder: (context, state) => const BookingHomePage(),
+      ),
+      GoRoute(
+        path: scheduledSearch,
+        name: 'scheduled-search',
+        builder: (context, state) {
+          final destination = state.extra as String?;
+          return ScheduledSearchPage(initialDestination: destination);
+        },
+      ),
+      GoRoute(
+        path: instantSearch,
+        name: 'instant-search',
+        builder: (context, state) {
+          final helper = state.extra as HelperBookingEntity?;
+          return InstantSearchPage(preSelectedHelper: helper);
+        },
+      ),
+      GoRoute(
+        path: helperProfile,
+        name: 'helper-profile',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return HelperProfilePage(
+            helperId: id,
+            initialHelper: extra?['helper'] as HelperBookingEntity?,
+            searchParams: extra?['searchParams'],
+            isInstant: extra?['isInstant'] ?? false,
+          );
+        },
+      ),
+      GoRoute(
+        path: bookingConfirm,
+        name: 'booking-confirm',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return BookingConfirmPage(
+            helper: extra['helper'] as HelperBookingEntity,
+            searchParams: extra['searchParams'],
+            isInstant: extra['isInstant'] ?? false,
+          );
+        },
+      ),
+      GoRoute(
+        path: waitingHelper,
+        name: 'waiting-helper',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra as Map<String, dynamic>;
+          return WaitingHelperPage(
+            bookingId: id,
+            booking: extra['booking'] as BookingDetailEntity,
+          );
+        },
+      ),
+      GoRoute(
+        path: bookingDetails,
+        name: 'booking-details',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return BookingDetailsPage(
+            bookingId: id,
+            initialBooking: extra?['booking'] as BookingDetailEntity?,
+          );
+        },
+      ),
+      GoRoute(
+        path: myBookings,
+        name: 'my-bookings',
+        builder: (context, state) => const MyBookingsPage(),
+      ),
+
+      // ── Helper Location ──────────────────────────────────────────────────
+      GoRoute(
+        path: helperLocation,
+        name: 'helper-location',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const HelperLocationPage(),
+          transitionsBuilder: _slideUp,
+        ),
+      ),
+      GoRoute(
+        path: helperEligibilityDebug,
+        name: 'helper-eligibility-debug',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const EligibilityDebugPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+
+      // ── Helper Service Areas ─────────────────────────────────────────────
+      GoRoute(
+        path: helperServiceAreas,
+        name: 'helper-service-areas',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const ServiceAreasPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: helperAddServiceArea,
+        name: 'helper-add-service-area',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const AddEditServiceAreaPage(),
+          transitionsBuilder: _slideUp,
+        ),
+      ),
+      GoRoute(
+        path: helperEditServiceArea,
+        name: 'helper-edit-service-area',
+        pageBuilder: (context, state) {
+          final area = state.extra as ServiceAreaEntity;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: AddEditServiceAreaPage(existing: area),
+            transitionsBuilder: _slideUp,
+          );
+        },
+      ),
+      // ── Helper Invoices ─────────────────────────────────────────────
+      GoRoute(
+        path: helperInvoices,
+        name: 'helper-invoices',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const InvoicesPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: helperInvoiceDetail,
+        name: 'helper-invoice-detail',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: InvoiceDetailPage(invoiceId: state.pathParameters['id']!),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: helperInvoiceView,
+        name: 'helper-invoice-view',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: InvoiceViewPage(invoiceId: state.pathParameters['id']!),
+          transitionsBuilder: _slideUp,
+        ),
+      ),
+      GoRoute(
+        path: reassignment,
+        name: 'reassignment',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra as Map<String, dynamic>;
+          return ReassignmentPage(
+            bookingId: id,
+            booking: extra['booking'] as BookingDetailEntity,
+          );
+        },
+      ),
     ],
 
     // 4. Custom 404 Error Page
     errorBuilder: (context, state) => Scaffold(
+      backgroundColor: const Color(0xFF0A0E1A),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error, size: 64, color: Colors.red),
+            const Icon(Icons.error_outline, size: 64, color: Color(0xFFFF6B6B)),
             const SizedBox(height: 16),
-            Text('GO TO START PAGE${state.uri}'),
-            const SizedBox(height: 16),
+            const Text('Page not found', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(state.uri.toString(), style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go(splash),
-              child: const Text('GO TO START'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+              child: const Text('Go to Start'),
             ),
           ],
         ),
       ),
     ),
   );
+
+  // ── Transition helpers ───────────────────────────────────────────────────
+
+  static Widget _fadeSlide(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0.04, 0), end: Offset.zero)
+            .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+        child: child,
+      ),
+    );
+  }
+
+  static Widget _slideUp(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return SlideTransition(
+      position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
+          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+      child: FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child: child,
+      ),
+    );
+  }
 }
