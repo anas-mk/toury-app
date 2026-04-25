@@ -8,6 +8,7 @@ class PaymentEntity extends Equatable {
   final String method;
   final String status;
   final String? paymentUrl;
+  final String? phase; // Deposit | Remaining | Full
   final DateTime? initiatedAt;
   final DateTime? completedAt;
 
@@ -19,6 +20,7 @@ class PaymentEntity extends Equatable {
     required this.method,
     required this.status,
     this.paymentUrl,
+    this.phase,
     this.initiatedAt,
     this.completedAt,
   });
@@ -32,6 +34,7 @@ class PaymentEntity extends Equatable {
         method,
         status,
         paymentUrl,
+        phase,
         initiatedAt,
         completedAt,
       ];

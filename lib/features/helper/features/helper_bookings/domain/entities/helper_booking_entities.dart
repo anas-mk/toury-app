@@ -1,18 +1,47 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 
-enum AvailabilityStatus {
+enum HelperAvailabilityState {
   availableNow,
   scheduledOnly,
   busy,
   offline;
 
-  String toJson() => name;
-  static AvailabilityStatus fromJson(String json) => 
-      AvailabilityStatus.values.firstWhere((e) => e.name == json, orElse: () => AvailabilityStatus.offline);
+  /// Maps Flutter enum values to the exact strings the backend expects.
+  String get toApiValue {
+    switch (this) {
+      case HelperAvailabilityState.availableNow:
+        return 'AvailableNow';
+      case HelperAvailabilityState.scheduledOnly:
+        return 'ScheduledOnly';
+      case HelperAvailabilityState.offline:
+        return 'Offline';
+      case HelperAvailabilityState.busy:
+        return 'Busy';
+    }
+  }
+
+  /// Parses backend response values case-insensitively.
+  static HelperAvailabilityState fromApiValue(String status) {
+    switch (status.toLowerCase()) {
+      case 'availablenow':
+      case 'online':
+        return HelperAvailabilityState.availableNow;
+      case 'scheduledonly':
+        return HelperAvailabilityState.scheduledOnly;
+      case 'busy':
+        return HelperAvailabilityState.busy;
+      case 'offline':
+        return HelperAvailabilityState.offline;
+      default:
+        debugPrint('[Availability][STATE] Unknown value received: $status');
+        return HelperAvailabilityState.offline;
+    }
+  }
 }
 
 class HelperDashboard extends Equatable {
-  final AvailabilityStatus availabilityState;
+  final HelperAvailabilityState availabilityState;
   final double todayEarnings;
   final int pendingRequestsCount;
   final int upcomingTripsCount;
@@ -33,6 +62,30 @@ class HelperDashboard extends Equatable {
     required this.acceptanceRate,
     this.activeTrip,
   });
+
+  HelperDashboard copyWith({
+    HelperAvailabilityState? availabilityState,
+    double? todayEarnings,
+    int? pendingRequestsCount,
+    int? upcomingTripsCount,
+    int? completedTripsTotal,
+    double? rating,
+    int? ratingCount,
+    double? acceptanceRate,
+    HelperBooking? activeTrip,
+  }) {
+    return HelperDashboard(
+      availabilityState: availabilityState ?? this.availabilityState,
+      todayEarnings: todayEarnings ?? this.todayEarnings,
+      pendingRequestsCount: pendingRequestsCount ?? this.pendingRequestsCount,
+      upcomingTripsCount: upcomingTripsCount ?? this.upcomingTripsCount,
+      completedTripsTotal: completedTripsTotal ?? this.completedTripsTotal,
+      rating: rating ?? this.rating,
+      ratingCount: ratingCount ?? this.ratingCount,
+      acceptanceRate: acceptanceRate ?? this.acceptanceRate,
+      activeTrip: activeTrip ?? this.activeTrip,
+    );
+  }
 
   @override
   List<Object?> get props => [

@@ -22,11 +22,21 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   final _cityCtrl = TextEditingController();
   final _areaNameCtrl = TextEditingController();
 
-  double _lat = 25.2048;
-  double _lng = 55.2708;
-  double _radiusKm = 50;
+  double _lat = 0;
+  double _lng = 0;
+  double _radiusKm = 10;
   bool _isPrimary = false;
   bool _locationPicked = false;
+
+  static const _radiusOptions = [5, 10, 15, 20];
+  // Well-known city coordinates
+  static const _cityCoords = {
+    'cairo': (lat: 30.0444, lng: 31.2357),
+    'alexandria': (lat: 31.2001, lng: 29.9187),
+    'dubai': (lat: 25.2048, lng: 55.2708),
+    'riyadh': (lat: 24.7136, lng: 46.6753),
+    '10th of ramadan': (lat: 30.3065, lng: 31.7420),
+  };
 
   bool get _isEditing => widget.existing != null;
 
@@ -40,18 +50,32 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
       _areaNameCtrl.text = e.areaName ?? '';
       _lat = e.latitude;
       _lng = e.longitude;
-      _radiusKm = e.radiusKm;
+      _radiusKm = _radiusOptions.contains(e.radiusKm.round()) ? e.radiusKm : 10;
       _isPrimary = e.isPrimary;
       _locationPicked = true;
     }
+    _cityCtrl.addListener(_onCityChanged);
   }
 
   @override
   void dispose() {
+    _cityCtrl.removeListener(_onCityChanged);
     _countryCtrl.dispose();
     _cityCtrl.dispose();
     _areaNameCtrl.dispose();
     super.dispose();
+  }
+
+  void _onCityChanged() {
+    final city = _cityCtrl.text.trim().toLowerCase();
+    final coords = _cityCoords[city];
+    if (coords != null) {
+      setState(() {
+        _lat = coords.lat;
+        _lng = coords.lng;
+        _locationPicked = true;
+      });
+    }
   }
 
   Future<void> _pickOnMap() async {
@@ -74,6 +98,16 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
 
   void _submit(BuildContext context) {
     if (!_formKey.currentState!.validate()) return;
+
+    if (!_locationPicked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please pick a location on the map or enter a recognised city name'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     final entity = ServiceAreaEntity(
       id: widget.existing?.id ?? '',
@@ -213,55 +247,50 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                 ),
                 const SizedBox(height: 28),
 
-                // ── Radius Slider ──────────────────────────────────────────────────
+                // ── Radius Selector ───────────────────────────────────────────────────
                 _FormLabel('Coverage Radius'),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1F3C),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.white.withOpacity(0.07)),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('1 km', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  child: Row(
+                    children: _radiusOptions.map((km) {
+                      final selected = _radiusKm == km.toDouble();
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _radiusKm = km.toDouble()),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6C63FF).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
+                              color: selected
+                                  ? const Color(0xFF6C63FF)
+                                  : Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selected
+                                    ? const Color(0xFF6C63FF)
+                                    : Colors.white12,
+                              ),
                             ),
                             child: Text(
-                              '${_radiusKm.round()} km',
-                              style: const TextStyle(
-                                  color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 16),
+                              '$km km',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: selected ? Colors.white : Colors.white54,
+                                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                          Text('500 km', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          activeTrackColor: const Color(0xFF6C63FF),
-                          inactiveTrackColor: Colors.white12,
-                          thumbColor: Colors.white,
-                          overlayColor: const Color(0xFF6C63FF).withOpacity(0.2),
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
                         ),
-                        child: Slider(
-                          value: _radiusKm,
-                          min: 1,
-                          max: 500,
-                          divisions: 499,
-                          onChanged: (v) => setState(() => _radiusKm = v),
-                        ),
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
                 ),
                 const SizedBox(height: 24),

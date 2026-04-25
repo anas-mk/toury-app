@@ -3,50 +3,145 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/usecases/booking_actions_usecase.dart';
 import '../../domain/usecases/get_my_bookings_usecase.dart';
+import '../../domain/usecases/get_booking_details_usecase.dart';
 import '../../domain/entities/booking_detail_entity.dart';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 
 part 'booking_status_state.dart';
 
 class BookingStatusCubit extends Cubit<BookingStatusState> {
   final GetBookingStatusUseCase getBookingStatusUseCase;
   final GetMyBookingsUseCase getMyBookingsUseCase;
+  final GetBookingDetailsUseCase getBookingDetailsUseCase;
+  final BookingTrackingHubService hubService;
+  
   Timer? _timer;
+  StreamSubscription? _hubSubscription;
+  String? _activeBookingId;
 
   BookingStatusCubit({
     required this.getBookingStatusUseCase,
     required this.getMyBookingsUseCase,
-  }) : super(BookingStatusInitial());
+    required this.getBookingDetailsUseCase,
+    required this.hubService,
+  }) : super(BookingStatusInitial()) {
+    _setupHubListener();
+  }
+
+  void _setupHubListener() {
+    _hubSubscription?.cancel();
+    _hubSubscription = hubService.statusStream.listen((event) {
+      final String? bId = event['bookingId'];
+      final String? newStatus = event['newStatus'];
+      
+      // If the event is for the booking we are currently tracking, or if we aren't tracking any (and it might be a new relevant one)
+      if (bId != null && (bId == _activeBookingId || _activeBookingId == null)) {
+        if (newStatus != null) {
+          _refreshActiveBooking(bId);
+        }
+      }
+    });
+  }
+
+  Future<void> _refreshActiveBooking(String bookingId) async {
+    final result = await getBookingDetailsUseCase(bookingId);
+    result.fold(
+      (failure) => emit(BookingStatusError(failure.message)),
+      (booking) {
+        _activeBookingId = booking.id;
+        _emitStateForStatus(booking);
+      },
+    );
+  }
+
+  void _emitStateForStatus(BookingDetailEntity booking) {
+    final status = booking.status;
+
+    if (status == BookingStatus.inProgress || status == BookingStatus.acceptedByHelper || status == BookingStatus.confirmedPaid) {
+      emit(BookingActiveFound(booking));
+    } else if (status == BookingStatus.confirmedAwaitingPayment) {
+      emit(BookingAwaitingPayment(booking));
+    } else if (status == BookingStatus.completed) {
+      emit(BookingAwaitingRating(booking));
+    } else if (_isTerminalStatus(status)) {
+      _activeBookingId = null;
+      emit(BookingStatusInitial());
+      stopPolling();
+    } else {
+      emit(BookingStatusUpdated(status.name));
+    }
+  }
+
+  bool _isTerminalStatus(BookingStatus status) {
+    return const [
+      BookingStatus.completed,
+      BookingStatus.cancelledByUser,
+      BookingStatus.cancelledByHelper,
+      BookingStatus.cancelledBySystem,
+      BookingStatus.expired,
+      BookingStatus.declined,
+    ].contains(status);
+  }
 
   void startPolling(String bookingId) {
+    _activeBookingId = bookingId;
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-      final result = await getBookingStatusUseCase(bookingId);
+    _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      final result = await getBookingDetailsUseCase(bookingId);
       result.fold(
-        (failure) => emit(BookingStatusError(failure.message)),
-        (status) {
-          emit(BookingStatusUpdated(status));
-          if (_shouldStopPolling(status)) {
-            stopPolling();
-          }
-        },
+        (failure) => null, // Keep current state on poll error
+        (booking) => _emitStateForStatus(booking),
       );
     });
   }
 
   void startPollingForActive() async {
     _timer?.cancel();
-    // First, check for any in-progress booking
-    final result = await getMyBookingsUseCase(status: 'InProgress', pageSize: 1);
-    result.fold(
+    // 1. Check for InProgress
+    final inProgress = await getMyBookingsUseCase(status: 'InProgress', pageSize: 1);
+    inProgress.fold(
       (failure) => emit(BookingStatusError(failure.message)),
       (response) {
         if (response.items.isNotEmpty) {
-          final activeBooking = response.items.first;
-          emit(BookingActiveFound(activeBooking));
-          // Start polling for this specific booking
-          startPolling(activeBooking.id);
+          final booking = response.items.first;
+          _activeBookingId = booking.id;
+          emit(BookingActiveFound(booking));
+          startPolling(booking.id);
         } else {
-          // Check for awaiting payment
+          _checkForAcceptedByHelper();
+        }
+      },
+    );
+  }
+
+  void _checkForAcceptedByHelper() async {
+    final result = await getMyBookingsUseCase(status: 'AcceptedByHelper', pageSize: 1);
+    result.fold(
+      (failure) => _checkForConfirmedPaid(),
+      (response) {
+        if (response.items.isNotEmpty) {
+          final booking = response.items.first;
+          _activeBookingId = booking.id;
+          emit(BookingActiveFound(booking));
+          startPolling(booking.id);
+        } else {
+          _checkForConfirmedPaid();
+        }
+      },
+    );
+  }
+
+  void _checkForConfirmedPaid() async {
+    final result = await getMyBookingsUseCase(status: 'ConfirmedPaid', pageSize: 1);
+    result.fold(
+      (failure) => _checkForAwaitingPayment(),
+      (response) {
+        if (response.items.isNotEmpty) {
+          final booking = response.items.first;
+          _activeBookingId = booking.id;
+          emit(BookingActiveFound(booking));
+          startPolling(booking.id);
+        } else {
           _checkForAwaitingPayment();
         }
       },
@@ -59,10 +154,10 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
       (failure) => emit(BookingStatusInitial()),
       (response) {
         if (response.items.isNotEmpty) {
-          final activeBooking = response.items.first;
-          emit(BookingAwaitingPayment(activeBooking));
-          // Start polling for this specific booking to see when payment is done
-          startPolling(activeBooking.id);
+          final booking = response.items.first;
+          _activeBookingId = booking.id;
+          emit(BookingAwaitingPayment(booking));
+          startPolling(booking.id);
         } else {
           _checkForAwaitingRating();
         }
@@ -76,10 +171,9 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
       (failure) => emit(BookingStatusInitial()),
       (response) {
         if (response.items.isNotEmpty) {
-          final completedBooking = response.items.first;
-          // In a real app, we would check if it's already rated via the API
-          // For now, if it's completed and we are in the home page, we show the banner
-          emit(BookingAwaitingRating(completedBooking));
+          final booking = response.items.first;
+          // Note: Ideally check if already rated here via a usecase
+          emit(BookingAwaitingRating(booking));
         } else {
           emit(BookingStatusInitial());
         }
@@ -87,19 +181,16 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
     );
   }
 
-  bool _shouldStopPolling(String status) {
-    final s = status.toLowerCase();
-    return s == 'completed' || s == 'cancelled' || s == 'expired' || s == 'declined' || s == 'inprogress';
-  }
-
   void stopPolling() {
     _timer?.cancel();
     _timer = null;
+    _activeBookingId = null;
   }
 
   @override
   Future<void> close() {
     _timer?.cancel();
+    _hubSubscription?.cancel();
     return super.close();
   }
 }

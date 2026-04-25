@@ -5,40 +5,54 @@ class HelperBookingEntity extends Equatable {
   final String name;
   final String? profileImageUrl;
   final double rating;
-  final int tripsCount;
+  final int completedTrips;
   final String? bio;
-  final List<String> languages;
+  final List<String> languages; // For search list
+  final List<LanguageEntity>? detailedLanguages; // For profile
   final List<String>? certificates;
   final CarEntity? car;
-  final String responseSpeed;
+  final double? hourlyRate;
+  final double? estimatedPrice;
   final double acceptanceRate;
   final int age;
   final String gender;
-  final String experience;
-  final List<String> serviceAreas;
+  final int experienceYears;
+  final List<ServiceAreaEntity> serviceAreas;
   final double? latitude;
   final double? longitude;
-  final bool isAvailable;
+  final String? availabilityStatus;
+  final bool canAcceptInstant;
+  final bool canAcceptScheduled;
+  final List<String>? suitabilityReasons;
+  final int? matchScore;
+  final double? distanceKm;
 
   const HelperBookingEntity({
     required this.id,
     required this.name,
     this.profileImageUrl,
     required this.rating,
-    required this.tripsCount,
+    required this.completedTrips,
     this.bio,
     required this.languages,
+    this.detailedLanguages,
     this.certificates,
     this.car,
-    required this.responseSpeed,
+    this.hourlyRate,
+    this.estimatedPrice,
     required this.acceptanceRate,
     required this.age,
     required this.gender,
-    required this.experience,
+    required this.experienceYears,
     required this.serviceAreas,
     this.latitude,
     this.longitude,
-    this.isAvailable = true,
+    this.availabilityStatus,
+    this.canAcceptInstant = false,
+    this.canAcceptScheduled = false,
+    this.suitabilityReasons,
+    this.matchScore,
+    this.distanceKm,
   });
 
   @override
@@ -47,36 +61,85 @@ class HelperBookingEntity extends Equatable {
         name,
         profileImageUrl,
         rating,
-        tripsCount,
+        completedTrips,
         bio,
         languages,
+        detailedLanguages,
         certificates,
         car,
-        responseSpeed,
+        hourlyRate,
+        estimatedPrice,
         acceptanceRate,
         age,
         gender,
-        experience,
+        experienceYears,
         serviceAreas,
         latitude,
         longitude,
-        isAvailable,
+        availabilityStatus,
+        canAcceptInstant,
+        canAcceptScheduled,
+        suitabilityReasons,
+        matchScore,
+        distanceKm,
       ];
 }
 
-class CarEntity extends Equatable {
-  final String model;
-  final String color;
-  final String plateNumber;
-  final int year;
+class LanguageEntity extends Equatable {
+  final String code;
+  final String name;
+  final String level;
+  final bool isVerified;
 
-  const CarEntity({
-    required this.model,
-    required this.color,
-    required this.plateNumber,
-    required this.year,
+  const LanguageEntity({
+    required this.code,
+    required this.name,
+    required this.level,
+    required this.isVerified,
   });
 
   @override
-  List<Object?> get props => [model, color, plateNumber, year];
+  List<Object?> get props => [code, name, level, isVerified];
+}
+
+class ServiceAreaEntity extends Equatable {
+  final String city;
+  final String? areaName;
+  final double latitude;
+  final double longitude;
+  final double radiusKm;
+  final bool isPrimary;
+
+  const ServiceAreaEntity({
+    required this.city,
+    this.areaName,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusKm,
+    required this.isPrimary,
+  });
+
+  @override
+  List<Object?> get props => [city, areaName, latitude, longitude, radiusKm, isPrimary];
+}
+
+class CarEntity extends Equatable {
+  final String brand;
+  final String model;
+  final String color;
+  final String? type;
+  final String? plateNumber;
+  final int? year;
+
+  const CarEntity({
+    required this.brand,
+    required this.model,
+    required this.color,
+    this.type,
+    this.plateNumber,
+    this.year,
+  });
+
+  @override
+  List<Object?> get props => [brand, model, color, type, plateNumber, year];
 }

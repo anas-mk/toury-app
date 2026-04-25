@@ -6,7 +6,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_button.dart';
-import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../domain/entities/search_params.dart';
 import '../cubits/search_helpers_cubit.dart';
@@ -40,6 +39,12 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
   }
 
   void _performSearch() {
+    if (_destinationController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a destination city')),
+      );
+      return;
+    }
     setState(() => _showResults = true);
     context.read<SearchHelpersCubit>().searchScheduled(ScheduledSearchParams(
       destinationCity: _destinationController.text,
@@ -54,147 +59,145 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-        body: Stack(
-          children: [
-            // 1. Map Background
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _center,
-                initialZoom: 13,
+      body: Stack(
+        children: [
+          // 1. Map Background
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(initialCenter: _center, initialZoom: 13),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.toury.app',
               ),
+              MarkerLayer(
+                markers: [
+                  Marker(point: _center, child: const Icon(Icons.location_on, color: Colors.black, size: 45)),
+                ],
+              ),
+            ],
+          ),
+
+          // 2. Safe Area UI
+          SafeArea(
+            child: Column(
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.toury.app',
+                // Top Search Panel
+                Container(
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.1), blurRadius: 20, offset: const Offset(0, 10))],
+                  ),
+                  child: Column(
+                    children: [
+                      // Header with Back Button
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 8, right: 16),
+                        child: Row(
+                          children: [
+                            IconButton(icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black), onPressed: () => context.pop()),
+                            Text('Plan your trip', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                          ],
+                        ),
+                      ),
+                      // Inputs
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            CustomTextField(
+                              controller: _destinationController,
+                              hintText: 'Where to?',
+                              prefixIcon: Icons.search,
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(child: _buildPickerTile(Icons.calendar_today, DateFormat('MMM dd').format(_selectedDate), _pickDate, isDark)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _buildPickerTile(Icons.access_time, _selectedTime.format(context), _pickTime, isDark)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: _center,
-                      child: const Icon(Icons.location_on, color: AppColor.primaryColor, size: 45),
-                    ),
-                  ],
-                ),
+                const Spacer(),
+                // Bottom Results / Action
+                _buildBottomUI(isDark),
               ],
             ),
-
-            // 2. Back Button
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 10,
-              left: 20,
-              child: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.black),
-                  onPressed: () => context.pop(),
-                ),
-              ),
-            ),
-
-            // 3. Top Search Card
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 60,
-              left: 20,
-              right: 20,
-              child: CustomCard(
-                variant: CardVariant.glass,
-                padding: const EdgeInsets.all(15),
-                child: Column(
-                  children: [
-                    CustomTextField(
-                      controller: _destinationController,
-                      label: 'Destination',
-                      hintText: 'Where to?',
-                      prefixIcon: Icons.search,
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildPickerTile(
-                            Icons.calendar_month,
-                            DateFormat('MMM dd').format(_selectedDate),
-                            _pickDate,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildPickerTile(
-                            Icons.access_time,
-                            _selectedTime.format(context),
-                            _pickTime,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // 4. Bottom Results / Action
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomUI(),
-            ),
-          ],
-        ),
-      );
-  }
-
-  Widget _buildPickerTile(IconData icon, String text, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black.withOpacity(0.05)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: AppColor.primaryColor),
-            const SizedBox(width: 8),
-            Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomUI() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!_showResults)
-            CustomButton(
-              text: 'Find Available Helpers',
-              onPressed: _performSearch,
-            )
-          else
-            _buildResultsList(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildResultsList() {
+  Widget _buildPickerTile(IconData icon, String text, VoidCallback onTap, bool isDark) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF6F6F6),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: isDark ? Colors.white : Colors.black),
+            const SizedBox(width: 8),
+            Text(text, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Colors.white : Colors.black)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomUI(bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!_showResults)
+            CustomButton(text: 'Search Helpers', onPressed: _performSearch, isFullWidth: true)
+          else
+            _buildResultsList(isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultsList(bool isDark) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Available Helpers', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 15),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Available Helpers', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            GestureDetector(
+              onTap: () => setState(() => _showResults = false),
+              child: const Text('Edit Search', style: TextStyle(color: AppColor.secondaryColor, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
           child: BlocBuilder<SearchHelpersCubit, SearchHelpersState>(
@@ -202,11 +205,12 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
               if (state is SearchHelpersLoading) {
                 return const Center(child: CircularProgressIndicator());
               } else if (state is SearchHelpersLoaded) {
-                if (state.helpers.isEmpty) return const Center(child: Text('No helpers found'));
+                if (state.helpers.isEmpty) return const Center(child: Text('No helpers found in this area.'));
                 return ListView.separated(
                   shrinkWrap: true,
+                  padding: EdgeInsets.zero,
                   itemCount: state.helpers.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  separatorBuilder: (context, index) => Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
                   itemBuilder: (context, index) {
                     final helper = state.helpers[index];
                     return HelperSearchItem(
@@ -227,15 +231,9 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
                   },
                 );
               }
-              return const Text('Search for helpers');
+              return const SizedBox();
             },
           ),
-        ),
-        const SizedBox(height: 10),
-        CustomButton(
-          text: 'Edit Trip Details',
-          variant: ButtonVariant.text,
-          onPressed: () => setState(() => _showResults = false),
         ),
       ],
     );
@@ -252,10 +250,7 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
   }
 
   void _pickTime() async {
-    final time = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime,
-    );
+    final time = await showTimePicker(context: context, initialTime: _selectedTime);
     if (time != null) setState(() => _selectedTime = time);
   }
 }

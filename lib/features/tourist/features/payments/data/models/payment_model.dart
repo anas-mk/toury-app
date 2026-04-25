@@ -9,6 +9,7 @@ class PaymentModel extends PaymentEntity {
     required super.method,
     required super.status,
     super.paymentUrl,
+    super.phase,
     super.initiatedAt,
     super.completedAt,
   });
@@ -22,6 +23,7 @@ class PaymentModel extends PaymentEntity {
       method: json['method'] ?? 'Unknown',
       status: json['status'] ?? 'Pending',
       paymentUrl: json['paymentUrl'],
+      phase: json['phase'],
       initiatedAt: json['initiatedAt'] != null ? DateTime.parse(json['initiatedAt']) : null,
       completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
     );
@@ -36,6 +38,7 @@ class PaymentModel extends PaymentEntity {
       'method': method,
       'status': status,
       'paymentUrl': paymentUrl,
+      'phase': phase,
       'initiatedAt': initiatedAt?.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
     };

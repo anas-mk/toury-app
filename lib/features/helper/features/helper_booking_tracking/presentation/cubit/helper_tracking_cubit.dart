@@ -54,10 +54,10 @@ class HelperTrackingCubit extends Cubit<HelperTrackingState> {
       final token = authService.getToken();
       if (token == null) throw Exception('Unauthorized');
 
-      await hubService.connect(bookingId, token);
+      await hubService.connect(token);
 
       _signalrSubscription?.cancel();
-      _signalrSubscription = hubService.updateStream.listen((update) {
+      _signalrSubscription = hubService.locationStream.listen((update) {
         if (state is HelperTrackingLive) {
           final current = (state as HelperTrackingLive).tracking;
           

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../home/presentation/pages/home_layout.dart';
+import 'package:go_router/go_router.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
+import '../../../../../../core/router/app_router.dart';
 
 class GoogleVerifyCodePage extends StatefulWidget {
   final String email;
@@ -40,11 +41,7 @@ class _GoogleVerifyCodePageState extends State<GoogleVerifyCodePage> {
                 backgroundColor: Colors.green,
               ),
             );
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const HomeLayout()),
-              (route) => false,
-            );
+            context.go(AppRouter.home);
           }
         },
         builder: (context, state) {

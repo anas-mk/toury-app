@@ -4,9 +4,9 @@ import '../../../domain/entities/helper_booking_entities.dart';
 import '../../cubit/helper_bookings_cubits.dart';
 
 class AvailabilityToggleCard extends StatelessWidget {
-  final AvailabilityStatus currentStatus;
+  final HelperAvailabilityState currentStatus;
   final Animation<double> pulseAnimation;
-  final ValueChanged<AvailabilityStatus> onStatusChanged;
+  final ValueChanged<HelperAvailabilityState> onStatusChanged;
 
   const AvailabilityToggleCard({
     super.key,
@@ -17,9 +17,9 @@ class AvailabilityToggleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOnline = currentStatus == AvailabilityStatus.availableNow;
+    final isOnline = currentStatus == HelperAvailabilityState.availableNow;
     
-    return BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityState>(
+    return BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
       builder: (context, availState) {
         final isUpdating = availState is AvailabilityUpdating;
         
@@ -88,7 +88,7 @@ class AvailabilityToggleCard extends StatelessWidget {
                     Switch.adaptive(
                       value: isOnline,
                       onChanged: (val) {
-                        onStatusChanged(val ? AvailabilityStatus.availableNow : AvailabilityStatus.offline);
+                        onStatusChanged(val ? HelperAvailabilityState.availableNow : HelperAvailabilityState.offline);
                       },
                       activeColor: Colors.white,
                       activeTrackColor: Colors.white24,
@@ -102,7 +102,7 @@ class AvailabilityToggleCard extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 child: Row(
-                  children: AvailabilityStatus.values.map((s) {
+                  children: HelperAvailabilityState.values.map((s) {
                     final selected = s == currentStatus;
                     return _StatusChip(
                       status: s,
@@ -150,7 +150,7 @@ class _PulseIndicator extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  final AvailabilityStatus status;
+  final HelperAvailabilityState status;
   final bool isSelected;
   final bool isOnline;
   final VoidCallback? onTap;
@@ -191,12 +191,12 @@ class _StatusChip extends StatelessWidget {
     );
   }
 
-  String _label(AvailabilityStatus s) {
+  String _label(HelperAvailabilityState s) {
     switch (s) {
-      case AvailabilityStatus.availableNow:  return '🟢 Available';
-      case AvailabilityStatus.scheduledOnly: return '📅 Scheduled';
-      case AvailabilityStatus.busy:          return '🔴 Busy';
-      case AvailabilityStatus.offline:       return '⚫ Offline';
+      case HelperAvailabilityState.availableNow:  return '🟢 Online';
+      case HelperAvailabilityState.scheduledOnly: return '📅 Scheduled Only';
+      case HelperAvailabilityState.busy:          return '🔴 Busy';
+      case HelperAvailabilityState.offline:       return '⚫ Offline';
     }
   }
 }

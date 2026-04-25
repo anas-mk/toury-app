@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_color.dart';
@@ -292,14 +293,21 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
                   const Spacer(),
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
+                    height: 56,
+                    child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColor.primaryColor,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      onPressed: () {}, // Chat or Call shortcut
-                      child: const Text('Contact Helper', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      onPressed: () {
+                        context.push(
+                          '/user-chat/${widget.bookingId}?name=Helper&image=',
+                        );
+                      },
+                      label: const Text('Chat with Helper', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],

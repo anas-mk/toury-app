@@ -20,6 +20,20 @@ import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
 
+class MockPOI {
+  final String name;
+  final LatLng location;
+  MockPOI(this.name, this.location);
+}
+
+final List<MockPOI> _mockPOIs = [
+  MockPOI('Cairo Tower', const LatLng(30.0459, 31.2243)),
+  MockPOI('Egyptian Museum', const LatLng(30.0478, 31.2336)),
+  MockPOI('Khan el-Khalili', const LatLng(30.0477, 31.2623)),
+  MockPOI('Pyramids of Giza', const LatLng(29.9792, 31.1342)),
+  MockPOI('Al-Azhar Park', const LatLng(30.0416, 31.2644)),
+];
+
 class TouristHomePage extends StatefulWidget {
   const TouristHomePage({super.key});
 
@@ -31,13 +45,21 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
   final MapController _mapController = MapController();
   final _searchController = TextEditingController();
   LatLng _currentLocation = const LatLng(30.0444, 31.2357); // Cairo default
+  LatLng? _destinationLocation;
+  bool _isSearching = false;
+  List<MockPOI> _filteredPOIs = [];
   bool _isLocationLoaded = false;
   HelperBookingEntity? _selectedHelper;
   final DraggableScrollableController _sheetController = DraggableScrollableController();
+  late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
     _determinePosition();
   }
 
@@ -79,6 +101,30 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
     ));
   }
 
+  void _selectLocation(LatLng location) {
+    setState(() {
+      _destinationLocation = location;
+      _isSearching = false;
+      _searchController.clear();
+    });
+    _mapController.move(location, 14);
+    _fitRouteBounds();
+  }
+
+  void _fitRouteBounds() {
+    if (_destinationLocation == null) return;
+    final bounds = LatLngBounds.fromPoints([_currentLocation, _destinationLocation!]);
+    _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(100)));
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _mapController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -90,19 +136,11 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
           resizeToAvoidBottomInset: false,
           body: Stack(
             children: [
-              // 1. Live Map Background
               _buildMap(),
-
-              // 2. Top Search Bar & Greeting (Glass)
-              _buildTopOverlay(context),
-
-              // 3. Active Booking Banner (Floating)
+              if (!_isSearching) _buildTopOverlay(context),
+              if (_isSearching) _buildActiveSearchOverlay(isDark),
               _buildActiveBookingOverlay(),
-
-              // 4. Floating Action Buttons
               _buildFloatingActions(),
-
-              // 5. Modern Bottom Sheet
               _buildDraggableSheet(context),
             ],
           ),
@@ -121,6 +159,13 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
             height: 80,
             child: _buildUserLocationMarker(),
           ),
+          if (_destinationLocation != null)
+            Marker(
+              point: _destinationLocation!,
+              width: 50,
+              height: 50,
+              child: const Icon(Icons.location_on, color: Colors.black, size: 40),
+            ),
         ];
 
         if (state is SearchHelpersLoaded) {
@@ -143,8 +188,8 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
           options: MapOptions(
             initialCenter: _currentLocation,
             initialZoom: 14,
-            onPositionChanged: (position, hasGesture) {
-              // Debounced fetch could go here
+            onTap: (tapPosition, point) {
+              _selectLocation(point);
             },
           ),
           children: [
@@ -153,6 +198,16 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
               userAgentPackageName: 'com.toury.app',
               tileDisplay: const TileDisplay.fadeIn(),
             ),
+            if (_destinationLocation != null)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: [_currentLocation, _destinationLocation!],
+                    color: Colors.black,
+                    strokeWidth: 4.0,
+                  ),
+                ],
+              ),
             MarkerLayer(markers: markers),
           ],
         );
@@ -200,7 +255,7 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
             color: Colors.white,
             shape: BoxShape.circle,
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 6)],
-            border: Border.all(color: isSelected ? AppColor.primaryColor : (helper.isAvailable ? Colors.green : Colors.grey), width: 2),
+            border: Border.all(color: isSelected ? AppColor.primaryColor : (helper.availabilityStatus == 'AvailableNow' ? Colors.green : Colors.grey), width: 2),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(30),
@@ -222,45 +277,105 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
   }
 
   Widget _buildTopOverlay(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 10,
-      left: 20,
-      right: 20,
-      child: Column(
-        children: [
-          CustomCard(
-            variant: CardVariant.glass,
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-            child: Row(
-              children: [
-                const Icon(Icons.menu, color: AppColor.primaryColor),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => context.push('/scheduled-search'),
-                    child: Text(
-                      'Where to?',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 18, fontWeight: FontWeight.w500),
-                    ),
+      top: MediaQuery.of(context).padding.top + 16,
+      left: 16,
+      right: 16,
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _isSearching = true;
+            _filteredPOIs = _mockPOIs;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: isDark ? Colors.white : Colors.black, size: 24),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  _destinationLocation == null ? 'Where to?' : 'Selected Destination',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black87,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const Icon(Icons.search, color: Colors.grey),
-              ],
-            ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[800] : Colors.grey[100],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.access_time, size: 20, color: isDark ? Colors.white : Colors.black),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildGlassChip(Icons.home, 'Home'),
-                _buildGlassChip(Icons.work, 'Work'),
-                _buildGlassChip(Icons.star, 'Favorites'),
-                _buildGlassChip(Icons.history, 'Recent'),
-              ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveSearchOverlay(bool isDark) {
+    return Positioned.fill(
+      child: Container(
+        color: isDark ? Colors.black.withOpacity(0.9) : Colors.white.withOpacity(0.9),
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, left: 16, right: 16),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (value) {
+                  setState(() {
+                    _filteredPOIs = _mockPOIs
+                        .where((poi) => poi.name.toLowerCase().contains(value.toLowerCase()))
+                        .toList();
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search destinations...',
+                  prefixIcon: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => setState(() => _isSearching = false),
+                  ),
+                  filled: true,
+                  fillColor: isDark ? Colors.grey[900] : Colors.grey[100],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                ),
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: ListView.builder(
+                itemCount: _filteredPOIs.length,
+                itemBuilder: (context, index) {
+                  final poi = _filteredPOIs[index];
+                  return ListTile(
+                    leading: const Icon(Icons.location_on),
+                    title: Text(poi.name),
+                    onTap: () => _selectLocation(poi.location),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -288,45 +403,76 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
       builder: (context, state) {
         if (state is BookingActiveFound) {
           return Positioned(
-            top: MediaQuery.of(context).padding.top + 130,
+            top: MediaQuery.of(context).padding.top + 80,
             left: 20,
             right: 20,
             child: FadeInUp(
-              child: CustomCard(
-                variant: CardVariant.glass,
-                backgroundColor: AppColor.primaryColor.withOpacity(0.85),
-                padding: const EdgeInsets.all(15),
-                onTap: () {
-                  final b = state.booking;
-                  context.push(
-                    '/user-tracking/${b.id}?pickupLat=${b.pickupLatitude ?? 0}&pickupLng=${b.pickupLongitude ?? 0}&destLat=${b.destinationLatitude ?? 0}&destLng=${b.destinationLongitude ?? 0}',
-                  );
-                },
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-                      child: const Icon(Icons.directions_car, color: Colors.white),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColor.primaryColor.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Trip in Progress', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          Text('Helper: ${state.booking.helper?.name ?? "..."}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
-                      onPressed: () => context.push(
-                        '/user-chat/${state.booking.id}?name=${state.booking.helper?.name ?? "Helper"}&image=${state.booking.helper?.profileImageUrl ?? ""}',
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
                   ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColor.primaryColor.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          final b = state.booking;
+                          context.push(
+                            '/user-tracking/${b.id}?pickupLat=${b.pickupLatitude ?? 0}&pickupLng=${b.pickupLongitude ?? 0}&destLat=${b.destinationLatitude ?? 0}&destLng=${b.destinationLongitude ?? 0}',
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            _buildPulsingIcon(Icons.directions_car),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Trip in Progress',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  Text(
+                                    'Helper: ${state.booking.helper?.name ?? "..."}',
+                                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              height: 40,
+                              width: 1,
+                              color: Colors.white.withOpacity(0.2),
+                              margin: const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 24),
+                              onPressed: () => context.push(
+                                '/user-chat/${state.booking.id}?name=${state.booking.helper?.name ?? "Helper"}&image=${state.booking.helper?.profileImageUrl ?? ""}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -513,7 +659,7 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.amber, size: 16),
-                      Text(' ${helper.rating} (${helper.tripsCount} trips)', style: TextStyle(color: Colors.grey[600])),
+                      Text(' ${helper.rating} (${helper.completedTrips} trips)', style: TextStyle(color: Colors.grey[600])),
                     ],
                   ),
                 ],
@@ -562,43 +708,111 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
   }
 
   Widget _buildDefaultSheetContent() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Explore Around You', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 20),
-        _buildQuickAction(Icons.bolt, 'Instant Help', 'Get a helper right now', Colors.amber, () => context.push('/instant-search')),
-        _buildQuickAction(Icons.calendar_month, 'Scheduled Trip', 'Plan for later', Colors.blue, () => context.push('/scheduled-search')),
-        _buildQuickAction(Icons.receipt_long, 'My Invoices', 'View your trip receipts', Colors.green, () => context.push('/user-invoices')),
-        const SizedBox(height: 25),
-        const Text('Recent Trips', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        const SizedBox(height: 15),
-        BlocBuilder<MyBookingsCubit, MyBookingsState>(
-          builder: (context, state) {
-            if (state is MyBookingsLoaded) {
-              return Column(
-                children: state.bookings.take(3).map((b) => _buildRecentBookingItem(b)).toList(),
-              );
-            }
-            return const Center(child: CircularProgressIndicator());
-          },
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Suggestions', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            TextButton(onPressed: () {}, child: const Text('See all')),
+          ],
         ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSuggestionBox(
+                Icons.bolt,
+                'Instant',
+                () => context.push('/instant-search'),
+                isDark,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildSuggestionBox(
+                Icons.calendar_month,
+                'Reserve',
+                () => context.push('/scheduled-search'),
+                isDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+        const Text('Around You', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 16),
+        _buildUberListTile(Icons.person_search, 'Find a Local Helper', 'Available nearby right now', () => context.push('/instant-search')),
+        _buildUberListTile(Icons.star_outline, 'Saved Guides', 'Quickly book your favorites', () {}),
       ],
     );
   }
 
-  Widget _buildQuickAction(IconData icon, String title, String subtitle, Color color, VoidCallback onTap) {
+  Widget _buildSuggestionBox(IconData icon, String title, VoidCallback onTap, bool isDark) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF6F6F6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 32, color: isDark ? Colors.white : Colors.black),
+            const SizedBox(height: 32),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUberListTile(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       onTap: onTap,
       contentPadding: EdgeInsets.zero,
       leading: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-        child: Icon(icon, color: color),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF6F6F6),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 24, color: isDark ? Colors.white : Colors.black),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+      trailing: Icon(Icons.arrow_forward_ios, size: 14, color: isDark ? Colors.white54 : Colors.black54),
+    );
+  }
+
+  Widget _buildPulsingIcon(IconData icon) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: 1.0 + (_pulseController.value * 0.2),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2 + (_pulseController.value * 0.1)),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.1 * _pulseController.value),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white),
+          ),
+        );
+      },
     );
   }
 

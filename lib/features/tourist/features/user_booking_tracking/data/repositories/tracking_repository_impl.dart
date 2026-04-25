@@ -44,6 +44,6 @@ class TrackingRepositoryImpl implements TrackingRepository {
   Stream<TrackingUpdate> listenToTrackingUpdates(String bookingId) {
     // Note: In a real app, we might want to ensure connection is established
     // but the Cubit will handle the connect() call.
-    return hubService.updateStream;
+    return hubService.locationStream;
   }
 }

@@ -321,9 +321,9 @@ class _BottomControlPanel extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityState>(
+                child: BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
                   builder: (context, state) {
-                    final isOnline = state is AvailabilityUpdated && state.status == AvailabilityStatus.availableNow;
+                    final isOnline = state is AvailabilityUpdated && state.status == HelperAvailabilityState.availableNow;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -362,14 +362,14 @@ class _BottomControlPanel extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityState>(
+                child: BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
                   builder: (context, state) {
-                    final isOnline = state is AvailabilityUpdated && state.status == AvailabilityStatus.availableNow;
+                    final isOnline = state is AvailabilityUpdated && state.status == HelperAvailabilityState.availableNow;
                     final isUpdating = state is AvailabilityUpdating;
                     
                     return ElevatedButton.icon(
                       onPressed: isUpdating ? null : () {
-                        final newStatus = isOnline ? AvailabilityStatus.offline : AvailabilityStatus.availableNow;
+                        final newStatus = isOnline ? HelperAvailabilityState.offline : HelperAvailabilityState.availableNow;
                         context.read<HelperAvailabilityCubit>().update(newStatus);
                       },
                       icon: isUpdating 

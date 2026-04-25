@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../core/widgets/basic_app_bar.dart';
-import '../../../../../../core/widgets/custom_card.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/my_bookings_cubit.dart';
 
@@ -22,6 +20,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
 
   final List<String> _tabs = ['All', 'Upcoming', 'Completed', 'Cancelled'];
 
+  final MyBookingsCubit _cubit = sl<MyBookingsCubit>()..getBookings(status: 'All', refresh: true);
+
   @override
   void initState() {
     super.initState();
@@ -33,18 +33,19 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
     final status = _tabs[_tabController.index];
-    context.read<MyBookingsCubit>().getBookings(status: status, refresh: true);
+    _cubit.getBookings(status: status, refresh: true);
   }
 
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       final status = _tabs[_tabController.index];
-      context.read<MyBookingsCubit>().getBookings(status: status);
+      _cubit.getBookings(status: status);
     }
   }
 
   @override
   void dispose() {
+    _cubit.close();
     _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -52,15 +53,22 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => sl<MyBookingsCubit>()..getBookings(status: 'All', refresh: true),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return BlocProvider.value(
+      value: _cubit,
       child: Scaffold(
-        appBar: BasicAppBar(
-          title: 'My Bookings',
-          showBackButton: true,
+        appBar: AppBar(
+          title: const Text('Activity'),
+          elevation: 0,
           bottom: TabBar(
             controller: _tabController,
             isScrollable: true,
+            indicatorColor: isDark ? Colors.white : Colors.black,
+            labelColor: isDark ? Colors.white : Colors.black,
+            unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             tabs: _tabs.map((tab) => Tab(text: tab)).toList(),
           ),
         ),
@@ -76,30 +84,28 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
 
             if (state is MyBookingsLoaded) {
               if (state.bookings.isEmpty) {
-                return _buildEmptyState();
+                return _buildEmptyState(isDark);
               }
 
               return RefreshIndicator(
                 onRefresh: () async {
                   final status = _tabs[_tabController.index];
-                  context.read<MyBookingsCubit>().getBookings(status: status, refresh: true);
+                  _cubit.getBookings(status: status, refresh: true);
                 },
-                child: ListView.separated(
+                child: ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: state.bookings.length + (state.hasNextPage ? 1 : 0),
-                  separatorBuilder: (context, index) => const SizedBox(height: 15),
                   itemBuilder: (context, index) {
                     if (index == state.bookings.length) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()));
                     }
                     final booking = state.bookings[index];
-                    return _buildBookingCard(context, booking);
+                    return _buildBookingItem(context, booking, isDark);
                   },
                 ),
               );
             }
-
             return const SizedBox.shrink();
           },
         ),
@@ -107,105 +113,87 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 20),
-          const Text('No bookings found', style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          const Text('You haven\'t made any bookings yet.', style: TextStyle(color: Colors.grey)),
+          Icon(Icons.directions_car_outlined, size: 80, color: isDark ? Colors.white24 : Colors.black12),
+          const SizedBox(height: 24),
+          const Text('No activity yet', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('You don\'t have any bookings matching this status.', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
         ],
       ),
     );
   }
 
-  Widget _buildBookingCard(BuildContext context, BookingDetailEntity booking) {
-    return CustomCard(
+  Widget _buildBookingItem(BuildContext context, BookingDetailEntity booking, bool isDark) {
+    return InkWell(
       onTap: () => context.push('/booking-details/${booking.id}', extra: {'booking': booking}),
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  _buildTypeBadge(booking.type),
-                  if (booking.paymentStatus != null) ...[
-                    const SizedBox(width: 8),
-                    _buildPaymentBadge(booking.paymentStatus!),
-                  ],
-                ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: isDark ? Colors.grey[800]! : Colors.grey[200]!)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF6F6F6),
+                borderRadius: BorderRadius.circular(12),
               ),
-              _buildStatusText(booking.status),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: AppNetworkImage(
-                  imageUrl: booking.helper?.profileImageUrl ?? '',
-                  width: 50,
-                  height: 50,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      booking.helper?.name ?? 'Waiting for Helper',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${DateFormat('MMM dd, yyyy').format(booking.requestedDate)} • ${booking.destinationCity}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              clipBehavior: Clip.hardEdge,
+              child: booking.helper?.profileImageUrl != null
+                  ? AppNetworkImage(imageUrl: booking.helper!.profileImageUrl!, width: 56, height: 56)
+                  : Icon(Icons.person, color: isDark ? Colors.white54 : Colors.black54),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${booking.totalPrice} ${booking.currency}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    booking.destinationCity.isNotEmpty ? booking.destinationCity : 'Unknown Destination',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('MMM dd, yyyy • h:mm a').format(booking.requestedDate),
+                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStatusText(booking.status),
                 ],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTypeBadge(BookingType type) {
-    final isInstant = type == BookingType.instant;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isInstant ? Colors.amber.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isInstant ? Icons.bolt : Icons.calendar_today, size: 12, color: isInstant ? Colors.amber[800] : Colors.blue),
-          const SizedBox(width: 4),
-          Text(
-            isInstant ? 'Instant' : 'Scheduled',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isInstant ? Colors.amber[800] : Colors.blue),
-          ),
-        ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'EGP ${booking.estimatedPrice}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                if (booking.paymentStatus != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    booking.paymentStatus!.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: booking.paymentStatus?.toLowerCase() == 'paid' ? Colors.green : Colors.orange,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -217,28 +205,21 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
       case BookingStatus.confirmed: color = Colors.green; break;
       case BookingStatus.inProgress: color = Colors.blue; break;
       case BookingStatus.completed: color = Colors.grey; break;
-      case BookingStatus.cancelled:
+      case BookingStatus.cancelledByUser:
+      case BookingStatus.cancelledByHelper:
+      case BookingStatus.cancelledBySystem:
       case BookingStatus.declined: color = Colors.red; break;
       case BookingStatus.confirmedAwaitingPayment: color = Colors.orange; break;
       default: color = Colors.black;
     }
-    return Text(
-      status.name.toUpperCase(),
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
-    );
-  }
-
-  Widget _buildPaymentBadge(String status) {
-    final isPaid = status.toLowerCase() == 'paid';
-    final color = isPaid ? Colors.green : Colors.orange;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        isPaid ? 'PAID' : 'PENDING',
+        status.name.toUpperCase(),
         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
       ),
     );

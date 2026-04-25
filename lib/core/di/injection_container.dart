@@ -406,6 +406,8 @@ Future<void> init() async {
   sl.registerFactory(() => BookingStatusCubit(
     getBookingStatusUseCase: sl(),
     getMyBookingsUseCase: sl(),
+    getBookingDetailsUseCase: sl(),
+    hubService: sl(),
   ));
   sl.registerFactory(() => MyBookingsCubit(
     getMyBookingsUseCase: sl(),
@@ -444,14 +446,14 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits — factory so each screen gets a fresh instance
-  sl.registerFactory(() => HelperDashboardCubit(sl()));
+  sl.registerFactory(() => HelperDashboardCubit(sl(), sl()));
   sl.registerFactory(() => HelperAvailabilityCubit(sl()));
   sl.registerFactory(() => IncomingRequestsCubit(sl()));
   sl.registerFactory(() => RequestDetailsCubit(sl()));
   sl.registerFactory(() => AcceptBookingCubit(sl()));
   sl.registerFactory(() => DeclineBookingCubit(sl()));
   sl.registerFactory(() => UpcomingBookingsCubit(sl()));
-  sl.registerFactory(() => ActiveBookingCubit(sl()));
+  sl.registerFactory(() => ActiveBookingCubit(sl(), sl()));
   sl.registerFactory(() => StartTripCubit(sl()));
   sl.registerFactory(() => EndTripCubit(sl()));
   sl.registerFactory(() => HelperHistoryCubit(sl()));

@@ -125,7 +125,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
           backgroundImage: NetworkImage(widget.helper.profileImageUrl ?? ''),
         ),
         title: Text(widget.helper.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('${widget.helper.rating} ★ • ${widget.helper.tripsCount} trips'),
+        subtitle: Text('${widget.helper.rating} ★ • ${widget.helper.completedTrips} trips'),
       ),
     );
   }

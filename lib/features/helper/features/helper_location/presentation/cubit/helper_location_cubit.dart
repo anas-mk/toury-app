@@ -29,6 +29,8 @@ class HelperLocationTracking extends HelperLocationState {
   List<Object?> get props => [location, connectionState, isUsingFallback];
 }
 
+class HelperLocationPermissionDenied extends HelperLocationState {}
+
 class HelperLocationError extends HelperLocationState {
   final String message;
   const HelperLocationError(this.message);
@@ -51,7 +53,7 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
   // Optimization: Debouncing and thresholding
   DateTime? _lastApiUpdateTime;
   HelperLocation? _lastUpdateLocation;
-  static const Duration _updateThreshold = Duration(seconds: 10);
+  static const Duration _updateThreshold = Duration(seconds: 30);
   static const double _distanceThresholdMeters = 10.0;
 
   HelperLocationCubit({
@@ -87,7 +89,7 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
       await connectUseCase.execute(token);
       if (isClosed) return;
 
-      await tracker.startTracking(intervalSeconds: 10);
+      await tracker.startTracking(intervalSeconds: 30);
       _locationSubscription = tracker.locationStream.listen((location) async {
         if (isClosed) return;
 
@@ -156,6 +158,36 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
   Future<void> reconnect(String token) async {
     if (isClosed) return;
     await connectUseCase.execute(token);
+  }
+
+  /// Full post-login init: request permission → get position → send to API → start 30s tracking.
+  /// Returns true if permission was granted, false if denied.
+  Future<bool> requestPermissionAndInitialize(String token) async {
+    if (isClosed) return false;
+
+    final hasPermission = await tracker.checkPermission();
+    if (!hasPermission) {
+      if (!isClosed) emit(HelperLocationPermissionDenied());
+      return false;
+    }
+
+    // Immediately send current position
+    try {
+      final location = await tracker.getCurrentLocation();
+      await updateUseCase.execute(location);
+      if (!isClosed) {
+        emit(HelperLocationTracking(
+          location: location,
+          connectionState: _currentSignalRState,
+        ));
+      }
+    } catch (_) {
+      // Non-fatal: continue to start continuous tracking
+    }
+
+    // Start 30s continuous tracking (guard inside startTracking prevents duplicates)
+    await startTracking(token);
+    return true;
   }
 
   @override

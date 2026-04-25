@@ -29,7 +29,8 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.post(ApiConfig.searchScheduledHelpers, data: params.toJson());
       if (response.statusCode == 200) {
-        return (response.data as List).map((e) => HelperBookingModel.fromJson(e)).toList();
+        final data = response.data['data'] as List;
+        return data.map((e) => HelperBookingModel.fromJson(e)).toList();
       } else {
         throw ServerException(response.data['message'] ?? 'Search failed');
       }
@@ -43,7 +44,8 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.post(ApiConfig.searchInstantHelpers, data: params.toJson());
       if (response.statusCode == 200) {
-        return (response.data as List).map((e) => HelperBookingModel.fromJson(e)).toList();
+        final data = response.data['data'] as List;
+        return data.map((e) => HelperBookingModel.fromJson(e)).toList();
       } else {
         throw ServerException(response.data['message'] ?? 'Search failed');
       }
@@ -57,7 +59,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.get(ApiConfig.getHelperProfile(helperId));
       if (response.statusCode == 200) {
-        return HelperBookingModel.fromJson(response.data);
+        return HelperBookingModel.fromJson(response.data['data']);
       } else {
         throw ServerException(response.data['message'] ?? 'Failed to load profile');
       }
@@ -71,7 +73,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.post(ApiConfig.createScheduledBooking, data: bookingData);
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return BookingDetailModel.fromJson(response.data);
+        return BookingDetailModel.fromJson(response.data['data']);
       } else {
         throw ServerException(response.data['message'] ?? 'Booking failed');
       }
@@ -85,7 +87,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.post(ApiConfig.createInstantBooking, data: bookingData);
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return BookingDetailModel.fromJson(response.data);
+        return BookingDetailModel.fromJson(response.data['data']);
       } else {
         throw ServerException(response.data['message'] ?? 'Booking failed');
       }
@@ -99,7 +101,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.get(ApiConfig.getBookingDetails(bookingId));
       if (response.statusCode == 200) {
-        return BookingDetailModel.fromJson(response.data);
+        return BookingDetailModel.fromJson(response.data['data']);
       } else {
         throw ServerException(response.data['message'] ?? 'Failed to load booking');
       }
@@ -112,7 +114,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
   Future<PagedResponse<BookingDetailModel>> getMyBookings({int page = 1, int pageSize = 10, String? status}) async {
     try {
       final Map<String, dynamic> queryParams = {
-        'pageNumber': page,
+        'page': page,
         'pageSize': pageSize,
       };
       if (status != null && status != 'All') {
@@ -121,7 +123,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
       final response = await dio.get(ApiConfig.getMyBookings, queryParameters: queryParams);
       if (response.statusCode == 200) {
         return PagedResponse<BookingDetailModel>.fromJson(
-          response.data,
+          response.data['data'],
           (json) => BookingDetailModel.fromJson(json),
         );
       } else {
@@ -149,7 +151,8 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.get(ApiConfig.getAlternatives(bookingId));
       if (response.statusCode == 200) {
-        return (response.data as List).map((e) => HelperBookingModel.fromJson(e)).toList();
+        final data = response.data['data']['alternativeHelpers'] as List;
+        return data.map((e) => HelperBookingModel.fromJson(e)).toList();
       } else {
         throw ServerException(response.data['message'] ?? 'Failed to load alternatives');
       }
@@ -163,7 +166,7 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
     try {
       final response = await dio.get(ApiConfig.getBookingStatus(bookingId));
       if (response.statusCode == 200) {
-        return response.data['status'] ?? 'Unknown';
+        return response.data['data']['status'] ?? 'Unknown';
       } else {
         throw ServerException(response.data['message'] ?? 'Failed to get status');
       }

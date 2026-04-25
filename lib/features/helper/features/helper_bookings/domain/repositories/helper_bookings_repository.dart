@@ -3,7 +3,7 @@ import '../entities/helper_earnings_entities.dart';
 
 abstract class HelperBookingsRepository {
   Future<HelperDashboard> getDashboard();
-  Future<void> updateAvailability(AvailabilityStatus status);
+  Future<void> updateAvailability(HelperAvailabilityState status);
   Future<List<HelperBooking>> getRequests();
   Future<HelperBooking> getRequestDetails(String bookingId);
   Future<HelperBooking> acceptRequest(String bookingId);

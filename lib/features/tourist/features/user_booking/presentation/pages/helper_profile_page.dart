@@ -127,7 +127,7 @@ class HelperProfilePage extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _buildStatItem('Rating', helper.rating.toString(), Icons.star, Colors.amber),
-        _buildStatItem('Trips', helper.tripsCount.toString(), Icons.directions_walk, Colors.blue),
+        _buildStatItem('Trips', helper.completedTrips.toString(), Icons.directions_walk, Colors.blue),
         _buildStatItem('Acceptance', '${helper.acceptanceRate}%', Icons.check_circle, Colors.green),
       ],
     );
@@ -178,7 +178,7 @@ class HelperProfilePage extends StatelessWidget {
         Wrap(
           spacing: 8,
           children: helper.serviceAreas.map((area) => Chip(
-            label: Text(area),
+            label: Text(area.city),
             backgroundColor: Colors.blue[50],
           )).toList(),
         ),
@@ -203,7 +203,7 @@ class HelperProfilePage extends StatelessWidget {
       children: [
         const Text('Experience', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        Text(helper.experience),
+        Text('${helper.experienceYears} Years'),
       ],
     );
   }

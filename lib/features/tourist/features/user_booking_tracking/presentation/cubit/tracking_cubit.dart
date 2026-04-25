@@ -53,7 +53,7 @@ class TrackingCubit extends Cubit<TrackingState> {
     }
 
     try {
-      await hubService.connect(bookingId, token);
+      await hubService.connect(token);
       
       _trackingSubscription?.cancel();
       _trackingSubscription = repository.listenToTrackingUpdates(bookingId).listen((update) {

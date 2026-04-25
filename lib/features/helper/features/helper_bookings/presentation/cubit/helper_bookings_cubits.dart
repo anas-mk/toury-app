@@ -1,8 +1,11 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../../domain/entities/helper_earnings_entities.dart';
 import '../../domain/usecases/helper_bookings_usecases.dart';
+import 'dart:async';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // HELPER DASHBOARD CUBIT
@@ -27,52 +30,104 @@ class HelperDashboardError extends HelperDashboardState {
 
 class HelperDashboardCubit extends Cubit<HelperDashboardState> {
   final GetHelperDashboardUseCase _getDashboard;
-  HelperDashboardCubit(this._getDashboard) : super(const HelperDashboardInitial());
+  final BookingTrackingHubService _hubService;
+  StreamSubscription? _hubSub;
+
+  HelperDashboardCubit(this._getDashboard, this._hubService) : super(const HelperDashboardInitial()) {
+    _listenToHub();
+  }
+
+  void _listenToHub() {
+    _hubSub?.cancel();
+    _hubSub = _hubService.dashboardStream.listen((event) {
+      if (state is HelperDashboardLoaded) {
+        final current = (state as HelperDashboardLoaded).dashboard;
+        final updated = current.copyWith(
+          todayEarnings: (event['todayEarnings'] as num?)?.toDouble(),
+          completedTripsTotal: event['totalTrips'] as int?,
+          rating: (event['rating'] as num?)?.toDouble(),
+          acceptanceRate: (event['acceptanceRate'] as num?)?.toDouble(),
+        );
+        emit(HelperDashboardLoaded(updated));
+      } else {
+        refresh();
+      }
+    });
+  }
 
   Future<void> load() async {
     emit(const HelperDashboardLoading());
     try {
       final dashboard = await _getDashboard();
+      if (isClosed) return;
       emit(HelperDashboardLoaded(dashboard));
     } catch (e) {
+      if (isClosed) return;
       emit(HelperDashboardError(e.toString()));
     }
   }
 
   Future<void> refresh() => load();
+
+  void updateLocalAvailability(HelperAvailabilityState status) {
+    if (state is HelperDashboardLoaded) {
+      final current = (state as HelperDashboardLoaded).dashboard;
+      if (isClosed) return;
+      emit(HelperDashboardLoaded(current.copyWith(availabilityState: status)));
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _hubSub?.cancel();
+    return super.close();
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AVAILABILITY CUBIT
 // ──────────────────────────────────────────────────────────────────────────────
 
-abstract class HelperAvailabilityState extends Equatable {
-  const HelperAvailabilityState();
+abstract class HelperAvailabilityStatus extends Equatable {
+  const HelperAvailabilityStatus();
   @override List<Object?> get props => [];
 }
-class AvailabilityInitial extends HelperAvailabilityState { const AvailabilityInitial(); }
-class AvailabilityUpdating extends HelperAvailabilityState { const AvailabilityUpdating(); }
-class AvailabilityUpdated extends HelperAvailabilityState {
-  final AvailabilityStatus status;
+class AvailabilityInitial extends HelperAvailabilityStatus { const AvailabilityInitial(); }
+class AvailabilityUpdating extends HelperAvailabilityStatus { const AvailabilityUpdating(); }
+class AvailabilityUpdated extends HelperAvailabilityStatus {
+  final HelperAvailabilityState status;
   const AvailabilityUpdated(this.status);
   @override List<Object?> get props => [status];
 }
-class AvailabilityError extends HelperAvailabilityState {
+class AvailabilityError extends HelperAvailabilityStatus {
   final String message;
   const AvailabilityError(this.message);
   @override List<Object?> get props => [message];
 }
 
-class HelperAvailabilityCubit extends Cubit<HelperAvailabilityState> {
+class HelperAvailabilityCubit extends Cubit<HelperAvailabilityStatus> {
   final UpdateAvailabilityUseCase _updateAvailability;
   HelperAvailabilityCubit(this._updateAvailability) : super(const AvailabilityInitial());
 
-  Future<void> update(AvailabilityStatus status) async {
+  Future<void> update(HelperAvailabilityState status) async {
+    debugPrint('[Availability][UI] Tap: ${status.name}');
+    if (state is AvailabilityUpdating) {
+      debugPrint('[Availability][UI] Duplicate ignored');
+      return;
+    }
+    
+    final apiValue = status.toApiValue;
+    debugPrint('[Availability][API] Sending: $apiValue');
     emit(const AvailabilityUpdating());
     try {
       await _updateAvailability(status);
+      if (isClosed) return;
+      debugPrint('[Availability][API] Response: Success -> $apiValue');
+      debugPrint('[Availability][STATE] Final: ${status.name}');
       emit(AvailabilityUpdated(status));
     } catch (e) {
+      if (isClosed) return;
+      debugPrint('[Availability][API] Response: Error -> $e');
       emit(AvailabilityError(e.toString()));
     }
   }
@@ -107,8 +162,10 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
     if (!silent) emit(const IncomingRequestsLoading());
     try {
       final requests = await _getRequests();
+      if (isClosed) return;
       emit(IncomingRequestsLoaded(requests));
     } catch (e) {
+      if (isClosed) return;
       emit(IncomingRequestsError(e.toString()));
     }
   }
@@ -143,8 +200,10 @@ class RequestDetailsCubit extends Cubit<RequestDetailsState> {
     emit(const RequestDetailsLoading());
     try {
       final booking = await _getDetails(bookingId);
+      if (isClosed) return;
       emit(RequestDetailsLoaded(booking));
     } catch (e) {
+      if (isClosed) return;
       emit(RequestDetailsError(e.toString()));
     }
   }
@@ -179,8 +238,10 @@ class AcceptBookingCubit extends Cubit<AcceptBookingState> {
     emit(const AcceptBookingLoading());
     try {
       final booking = await _acceptBooking(bookingId);
+      if (isClosed) return;
       emit(AcceptBookingSuccess(booking));
     } catch (e) {
+      if (isClosed) return;
       emit(AcceptBookingError(e.toString()));
     }
   }
@@ -211,8 +272,10 @@ class DeclineBookingCubit extends Cubit<DeclineBookingState> {
     emit(const DeclineBookingLoading());
     try {
       await _declineBooking(bookingId, reason: reason);
+      if (isClosed) return;
       emit(const DeclineBookingSuccess());
     } catch (e) {
+      if (isClosed) return;
       emit(DeclineBookingError(e.toString()));
     }
   }
@@ -247,8 +310,10 @@ class UpcomingBookingsCubit extends Cubit<UpcomingBookingsState> {
     emit(const UpcomingBookingsLoading());
     try {
       final bookings = await _getUpcoming();
+      if (isClosed) return;
       emit(UpcomingBookingsLoaded(bookings));
     } catch (e) {
+      if (isClosed) return;
       emit(UpcomingBookingsError(e.toString()));
     }
   }
@@ -277,16 +342,37 @@ class ActiveBookingError extends ActiveBookingState {
 
 class ActiveBookingCubit extends Cubit<ActiveBookingState> {
   final GetActiveBookingUseCase _getActive;
-  ActiveBookingCubit(this._getActive) : super(const ActiveBookingInitial());
+  final BookingTrackingHubService _hubService;
+  StreamSubscription? _hubSub;
+
+  ActiveBookingCubit(this._getActive, this._hubService) : super(const ActiveBookingInitial()) {
+    _listenToHub();
+  }
+
+  void _listenToHub() {
+    _hubSub?.cancel();
+    _hubSub = _hubService.statusStream.listen((event) {
+      // Re-fetch active booking on any status change event
+      load(silent: true);
+    });
+  }
 
   Future<void> load({bool silent = false}) async {
     if (!silent) emit(const ActiveBookingLoading());
     try {
       final booking = await _getActive();
+      if (isClosed) return;
       emit(ActiveBookingLoaded(booking));
     } catch (e) {
+      if (isClosed) return;
       emit(ActiveBookingError(e.toString()));
     }
+  }
+
+  @override
+  Future<void> close() {
+    _hubSub?.cancel();
+    return super.close();
   }
 }
 
@@ -315,8 +401,10 @@ class StartTripCubit extends Cubit<StartTripState> {
     emit(const StartTripLoading());
     try {
       await _startTrip(bookingId);
+      if (isClosed) return;
       emit(const StartTripSuccess());
     } catch (e) {
+      if (isClosed) return;
       emit(StartTripError(e.toString()));
     }
   }
@@ -351,8 +439,10 @@ class EndTripCubit extends Cubit<EndTripState> {
     emit(const EndTripLoading());
     try {
       final earnings = await _endTrip(bookingId);
+      if (isClosed) return;
       emit(EndTripSuccess(earnings));
     } catch (e) {
+      if (isClosed) return;
       emit(EndTripError(e.toString()));
     }
   }
@@ -398,8 +488,10 @@ class HelperHistoryCubit extends Cubit<HelperHistoryState> {
     emit(const HelperHistoryLoading());
     try {
       final bookings = await _getHistory(status: _status, from: _from, to: _to, page: _page, pageSize: _pageSize);
+      if (isClosed) return;
       emit(HelperHistoryLoaded(bookings, hasMore: bookings.length == _pageSize));
     } catch (e) {
+      if (isClosed) return;
       emit(HelperHistoryError(e.toString()));
     }
   }
@@ -410,8 +502,10 @@ class HelperHistoryCubit extends Cubit<HelperHistoryState> {
     _page++;
     try {
       final more = await _getHistory(status: _status, from: _from, to: _to, page: _page, pageSize: _pageSize);
+      if (isClosed) return;
       emit(HelperHistoryLoaded([...current.bookings, ...more], hasMore: more.length == _pageSize));
     } catch (_) {
+      if (isClosed) return;
       _page--;
     }
   }
@@ -446,8 +540,10 @@ class EarningsCubit extends Cubit<EarningsState> {
     emit(const EarningsLoading());
     try {
       final earnings = await _getEarnings();
+      if (isClosed) return;
       emit(EarningsLoaded(earnings));
     } catch (e) {
+      if (isClosed) return;
       emit(EarningsError(e.toString()));
     }
   }
@@ -482,8 +578,10 @@ class HelperBookingDetailsCubit extends Cubit<HelperBookingDetailsState> {
     emit(const HelperBookingDetailsLoading());
     try {
       final booking = await _getDetails(bookingId);
+      if (isClosed) return;
       emit(HelperBookingDetailsLoaded(booking));
     } catch (e) {
+      if (isClosed) return;
       emit(HelperBookingDetailsError(e.toString()));
     }
   }

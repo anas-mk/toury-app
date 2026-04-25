@@ -41,6 +41,7 @@ dependencies:
   signalr_netcore: ^1.4.1
   url_launcher: ^6.3.2
   webview_flutter: ^4.13.1
+  google_fonts: ^8.0.2
 
 
 dev_dependencies:

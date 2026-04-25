@@ -11,8 +11,8 @@ class HelperBookingsRepositoryImpl implements HelperBookingsRepository {
   Future<HelperDashboard> getDashboard() => remoteDataSource.getDashboard();
 
   @override
-  Future<void> updateAvailability(AvailabilityStatus status) =>
-      remoteDataSource.updateAvailability(status.toJson());
+  Future<void> updateAvailability(HelperAvailabilityState status) =>
+      remoteDataSource.updateAvailability(status.toApiValue);
 
   @override
   Future<List<HelperBooking>> getRequests() => remoteDataSource.getRequests();

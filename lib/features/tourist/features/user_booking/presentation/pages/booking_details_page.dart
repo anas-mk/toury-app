@@ -85,7 +85,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                 ),
 
                 // 3. Status Action
-                if (booking.status == BookingStatus.pending)
+                if (booking.status == BookingStatus.pendingHelperResponse)
                   Positioned(
                     top: MediaQuery.of(context).padding.top + 10,
                     right: 20,
@@ -109,7 +109,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   }
 
   Widget _buildHeader(BookingDetailEntity booking) {
-    final showMap = booking.status == BookingStatus.inProgress || booking.status == BookingStatus.confirmed;
+    final showMap = booking.status == BookingStatus.inProgress || booking.status == BookingStatus.acceptedByHelper || booking.status == BookingStatus.confirmedPaid;
     
     if (showMap) {
       final helperLoc = LatLng(booking.helper?.latitude ?? 30.0444, booking.helper?.longitude ?? 31.2357);
@@ -233,7 +233,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                 _buildPriceSection(booking),
               ],
               const SizedBox(height: 40),
-              if (booking.status == BookingStatus.inProgress || booking.status == BookingStatus.confirmed)
+              if (booking.status == BookingStatus.inProgress || booking.status == BookingStatus.acceptedByHelper || booking.status == BookingStatus.confirmedPaid)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: CustomButton(
@@ -269,11 +269,14 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     Color color;
     String text;
     switch (status) {
-      case BookingStatus.pending: color = Colors.orange; text = 'Pending'; break;
-      case BookingStatus.confirmed: color = Colors.green; text = 'Confirmed'; break;
+      case BookingStatus.pendingHelperResponse: color = Colors.orange; text = 'Pending'; break;
+      case BookingStatus.acceptedByHelper: color = Colors.green; text = 'Accepted'; break;
+      case BookingStatus.confirmedPaid: color = Colors.green; text = 'Confirmed'; break;
       case BookingStatus.inProgress: color = AppColor.primaryColor; text = 'On Trip'; break;
       case BookingStatus.completed: color = Colors.grey; text = 'Completed'; break;
-      case BookingStatus.cancelled: color = Colors.red; text = 'Cancelled'; break;
+      case BookingStatus.cancelledByUser:
+      case BookingStatus.cancelledByHelper:
+      case BookingStatus.cancelledBySystem: color = Colors.red; text = 'Cancelled'; break;
       case BookingStatus.declined: color = Colors.red; text = 'Declined'; break;
       default: color = Colors.black; text = 'Unknown';
     }
@@ -415,17 +418,17 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _getStatusText(step.status),
+                        _getStatusText(step.newStatus as BookingStatus),
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       Text(
-                        DateFormat('MMM dd, hh:mm a').format(step.timestamp),
+                        DateFormat('MMM dd, hh:mm a').format(step.changedAt),
                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
-                      if (step.description != null)
+                      if (step.reason != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(step.description!, style: const TextStyle(fontSize: 13, height: 1.4)),
+                          child: Text(step.reason!, style: const TextStyle(fontSize: 13, height: 1.4)),
                         ),
                     ],
                   ),
@@ -440,11 +443,14 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
   String _getStatusText(BookingStatus status) {
     switch (status) {
-      case BookingStatus.pending: return 'Request Sent';
-      case BookingStatus.confirmed: return 'Confirmed by Helper';
+      case BookingStatus.pendingHelperResponse: return 'Request Sent';
+      case BookingStatus.acceptedByHelper: return 'Accepted by Helper';
+      case BookingStatus.confirmedPaid: return 'Payment Confirmed';
       case BookingStatus.inProgress: return 'Trip Started';
       case BookingStatus.completed: return 'Trip Completed';
-      case BookingStatus.cancelled: return 'Cancelled';
+      case BookingStatus.cancelledByUser:
+      case BookingStatus.cancelledByHelper:
+      case BookingStatus.cancelledBySystem: return 'Cancelled';
       case BookingStatus.declined: return 'Declined';
       default: return 'Status Updated';
     }
@@ -457,12 +463,12 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildPriceRow('Base Fee', '\$${pb.basePrice}'),
-          _buildPriceRow('Duration Fee', '\$${pb.durationPrice}'),
-          if (pb.carSurcharge > 0) _buildPriceRow('Car Surcharge', '\$${pb.carSurcharge}'),
-          _buildPriceRow('Service Fee', '\$${pb.serviceFee}'),
+          _buildPriceRow('Base Fee', 'EGP ${pb.basePrice}'),
+          _buildPriceRow('Duration Fee', 'EGP ${pb.durationCost}'),
+          if (pb.distanceCost > 0) _buildPriceRow('Distance Fee', 'EGP ${pb.distanceCost}'),
+          _buildPriceRow('Service Fee', 'EGP ${pb.rafiqCommissionAmount}'),
           const Divider(height: 24),
-          _buildPriceRow('Total Amount', '\$${pb.total}', isTotal: true),
+          _buildPriceRow('Total Amount', 'EGP ${pb.subtotal}', isTotal: true),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/errors/exceptions.dart';
 import '../models/helper_booking_models.dart';
@@ -6,7 +7,7 @@ import '../models/helper_earnings_models.dart';
 
 abstract class HelperBookingsRemoteDataSource {
   Future<HelperDashboardModel> getDashboard({CancelToken? cancelToken});
-  Future<void> updateAvailability(String status, {CancelToken? cancelToken});
+  Future<void> updateAvailability(String availabilityState, {CancelToken? cancelToken});
   Future<List<HelperBookingModel>> getRequests({CancelToken? cancelToken});
   Future<HelperBookingModel> getRequestDetails(String id, {CancelToken? cancelToken});
   Future<HelperBookingModel> acceptRequest(String id, {CancelToken? cancelToken});
@@ -73,12 +74,20 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   }
 
   @override
-  Future<void> updateAvailability(String status, {CancelToken? cancelToken}) async {
+  Future<void> updateAvailability(String availabilityState, {CancelToken? cancelToken}) async {
     try {
-      final res = await dio.post(ApiConfig.helperAvailability,
-          data: {'status': status}, cancelToken: cancelToken);
+      debugPrint('🟢 [Availability][API] Sending Payload: {"availabilityState": "$availabilityState"}');
+      final res = await dio.post(
+        ApiConfig.helperAvailability,
+        data: {'availabilityState': availabilityState},
+        cancelToken: cancelToken,
+      );
       _assertOk(res);
+      debugPrint('✅ [Availability][API] Success: $availabilityState');
     } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        throw ServerException('Invalid state change');
+      }
       throw ServerException(_msg(e));
     }
   }

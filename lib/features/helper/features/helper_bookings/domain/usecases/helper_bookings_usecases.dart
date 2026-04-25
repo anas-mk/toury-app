@@ -11,7 +11,7 @@ class GetHelperDashboardUseCase {
 class UpdateAvailabilityUseCase {
   final HelperBookingsRepository repository;
   const UpdateAvailabilityUseCase(this.repository);
-  Future<void> call(AvailabilityStatus status) => repository.updateAvailability(status);
+  Future<void> call(HelperAvailabilityState status) => repository.updateAvailability(status);
 }
 
 class GetIncomingRequestsUseCase {

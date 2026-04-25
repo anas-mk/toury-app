@@ -81,7 +81,7 @@ class HelperDashboardModel extends HelperDashboard {
 
   factory HelperDashboardModel.fromJson(Map<String, dynamic> json) {
     return HelperDashboardModel(
-      availabilityState: AvailabilityStatus.fromJson(json['availabilityState'] ?? 'offline'),
+      availabilityState: HelperAvailabilityState.fromApiValue(json['availabilityState'] ?? 'offline'),
       todayEarnings: (json['todayEarnings'] as num?)?.toDouble() ?? 0.0,
       pendingRequestsCount: json['pendingRequestsCount'] ?? 0,
       upcomingTripsCount: json['upcomingTripsCount'] ?? 0,

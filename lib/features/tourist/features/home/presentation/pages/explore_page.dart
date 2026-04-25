@@ -69,7 +69,7 @@ class _ExplorePageState extends State<ExplorePage>
                     context,
                     Icons.local_taxi_rounded,
                     "Guides",
-                    const [AppColor.accentPink, const Color(0xFFF97316)],
+                    const [Color(0xFFEC4899), Color(0xFFF97316)],
                         () {
                       Navigator.push(
                         context,

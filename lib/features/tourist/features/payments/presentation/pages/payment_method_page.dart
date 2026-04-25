@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_button.dart';
+import '../../domain/entities/payment_entity.dart';
 import '../cubit/payment_cubit.dart';
 
 class PaymentMethodPage extends StatefulWidget {
@@ -18,10 +19,16 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   String _selectedMethod = 'MockCard';
 
   @override
+  void initState() {
+    super.initState();
+    context.read<PaymentCubit>().getLatestPayment(widget.bookingId);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Payment Method'),
+        title: const Text('Payment Method'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black,
@@ -41,20 +48,54 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
               SnackBar(content: Text(state.message), backgroundColor: Colors.red),
             );
           } else if (state is PaymentCreated) {
-            context.pushReplacement('/payment-processing', extra: state.payment);
+            // If payment was already created and is pending, we can still change method or continue
+            // Usually, if it's already created, we might want to just proceed to processing
+            // but for this flow, we let them pick method until they hit 'Continue'
           }
         },
         builder: (context, state) {
+          PaymentEntity? payment;
+          if (state is PaymentCreated) payment = state.payment;
+          if (state is PaymentSuccess) payment = state.payment;
+
+          final phase = payment?.phase ?? 'Full';
+          final amount = payment?.amount ?? 0.0;
+          final currency = payment?.currency ?? 'EGP';
+
+          String titleText = "Pay Full Amount";
+          String buttonText = "Confirm Payment";
+
+          if (phase == 'Deposit') {
+            titleText = "Pay Deposit";
+            buttonText = "Confirm Deposit";
+          } else if (phase == 'Remaining') {
+            titleText = "Pay Remaining Balance";
+            buttonText = "Complete Payment";
+          } else if (phase == 'Full') {
+            titleText = "Pay Full Amount";
+            buttonText = "Confirm Payment";
+          }
+
           return Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'How would you like to pay?',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                Text(
+                  titleText,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Amount: $amount $currency',
+                  style: TextStyle(fontSize: 18, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 30),
+                const Text(
+                  'How would you like to pay?',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 15),
                 _buildMethodOption(
                   title: 'Credit / Debit Card',
                   subtitle: 'Pay securely using mock gateway',
@@ -73,7 +114,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                   const Center(child: CircularProgressIndicator(color: AppColor.primaryColor))
                 else
                   CustomButton(
-                    text: 'Continue',
+                    text: buttonText,
                     onPressed: () {
                       context.read<PaymentCubit>().initiatePayment(widget.bookingId, _selectedMethod);
                     },

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/features/helper/features/helper_location/presentation/cubit/helper_location_cubit.dart';
@@ -15,6 +16,7 @@ import '../../../helper_invoices/presentation/widgets/earnings_preview_card.dart
 import '../../../helper_ratings/presentation/pages/helper_ratings_page.dart';
 import '../../../helper_reports/presentation/cubit/helper_reports_cubit.dart';
 import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
+import 'package:geolocator/geolocator.dart';
 
 // Modularized Dashboard Widgets
 import '../widgets/dashboard/availability_toggle_card.dart';
@@ -35,6 +37,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   late final HelperDashboardCubit _dashCubit;
   late final HelperAvailabilityCubit _availCubit;
   late final ActiveBookingCubit _activeCubit;
+  late final IncomingRequestsCubit _requestsCubit;
   late final HelperLocationCubit _locCubit;
   late final LocationStatusCubit _statusCubit;
   Timer? _refreshTimer;
@@ -47,6 +50,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     _dashCubit = sl<HelperDashboardCubit>();
     _availCubit = sl<HelperAvailabilityCubit>();
     _activeCubit = sl<ActiveBookingCubit>();
+    _requestsCubit = sl<IncomingRequestsCubit>();
     _locCubit = sl<HelperLocationCubit>();
     _statusCubit = sl<LocationStatusCubit>();
     _pulseController = AnimationController(
@@ -67,10 +71,17 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   }
 
   void _startPolling() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _dashCubit.refresh();
-      _activeCubit.load(silent: true);
-      _statusCubit.loadStatus();
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_dashCubit.state is HelperDashboardLoaded) {
+        final currentStatus = (_dashCubit.state as HelperDashboardLoaded).dashboard.availabilityState;
+        if (currentStatus == HelperAvailabilityState.availableNow) {
+          _dashCubit.refresh();
+          _activeCubit.load(silent: true);
+          _requestsCubit.load(silent: true);
+          _statusCubit.loadStatus();
+        }
+      }
     });
   }
 
@@ -81,6 +92,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     _dashCubit.close();
     _availCubit.close();
     _activeCubit.close();
+    _requestsCubit.close();
     _locCubit.close();
     _statusCubit.close();
     super.dispose();
@@ -93,6 +105,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
         BlocProvider.value(value: _dashCubit),
         BlocProvider.value(value: _availCubit),
         BlocProvider.value(value: _activeCubit),
+        BlocProvider.value(value: _requestsCubit),
         BlocProvider.value(value: _locCubit),
         BlocProvider.value(value: _statusCubit),
         BlocProvider(create: (context) => sl<HelperReportsCubit>()..loadReports()),
@@ -100,17 +113,42 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
       ],
       child: MultiBlocListener(
         listeners: [
-          BlocListener<HelperAvailabilityCubit, HelperAvailabilityState>(
+          BlocListener<HelperAvailabilityCubit, HelperAvailabilityStatus>(
             listener: (context, state) {
               if (state is AvailabilityError) {
                 _showSnack(context, state.message, isError: true);
               } else if (state is AvailabilityUpdated) {
+                _dashCubit.updateLocalAvailability(state.status);
                 _dashCubit.refresh();
-                if (state.status == AvailabilityStatus.availableNow) {
+                
+                if (state.status == HelperAvailabilityState.availableNow) {
+                  _startPolling();
                   _startAutoTracking();
-                } else if (state.status == AvailabilityStatus.offline) {
+                  _requestsCubit.load();
+                } else if (state.status == HelperAvailabilityState.offline) {
                   _locCubit.stopTracking();
+                  _refreshTimer?.cancel();
+                } else if (state.status == HelperAvailabilityState.busy) {
+                  _refreshTimer?.cancel();
                 }
+              }
+            },
+          ),
+          // Handle location permission denied from dashboard toggle
+          BlocListener<HelperLocationCubit, HelperLocationState>(
+            listener: (context, state) {
+              if (state is HelperLocationPermissionDenied) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Location permission required to go Online.'),
+                    backgroundColor: Colors.redAccent,
+                    action: SnackBarAction(
+                      label: 'Settings',
+                      textColor: Colors.white,
+                      onPressed: () => Geolocator.openAppSettings(),
+                    ),
+                  ),
+                );
               }
             },
           ),
@@ -207,8 +245,27 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             child: AvailabilityToggleCard(
               currentStatus: dashboard.availabilityState,
               pulseAnimation: _pulseAnimation,
-              onStatusChanged: (s) {
+              onStatusChanged: (s) async {
                 HapticService.medium();
+                if (_availCubit.state is AvailabilityUpdating) return;
+                if (dashboard.availabilityState == s) return;
+                
+                // Block all changes during active trip except going Offline
+                if (dashboard.activeTrip != null && s != HelperAvailabilityState.offline) {
+                  _showSnack(context, 'You cannot change availability during an active trip', isError: true);
+                  debugPrint('[Availability][UI] Blocked: active trip');
+                  return;
+                }
+                
+                if (s == HelperAvailabilityState.availableNow) {
+                  final token = sl<SharedPreferences>().getString('auth_token') ?? '';
+                  final success = await _locCubit.requestPermissionAndInitialize(token);
+                  if (!success) {
+                    _dashCubit.refresh(); // Restore toggle if location fails
+                    return;
+                  }
+                }
+                
                 _availCubit.update(s);
               },
             ),

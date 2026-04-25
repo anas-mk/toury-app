@@ -1,62 +1,70 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:toury/features/tourist/features/home/presentation/pages/tourist_home_page.dart';
-import 'package:toury/features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
-import 'package:toury/features/tourist/features/home/presentation/pages/explore_page.dart';
-import '../../../../../../core/di/injection_container.dart';
-import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
-import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
-import 'package:toury/features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
-import '../../../../../../core/widgets/custom_bottom_nav_bar.dart';
-import '../cubit/bottom_nav_cubit.dart';
-import '../cubit/bottom_nav_state.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeLayout extends StatelessWidget {
-  const HomeLayout({super.key});
+  final StatefulNavigationShell navigationShell;
+
+  const HomeLayout({
+    super.key,
+    required this.navigationShell,
+  });
+
+  void _goBranch(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final pages = [
-      MultiBlocProvider(
-        providers: [
-          BlocProvider(create: (context) => sl<MyBookingsCubit>()..getBookings(pageSize: 5)),
-          BlocProvider(create: (context) => sl<BookingStatusCubit>()..startPollingForActive()),
-          BlocProvider(create: (context) => sl<SearchHelpersCubit>()),
-        ],
-        child: const TouristHomePage(),
-      ),
-      const ExplorePage(),
-      const AccountSettingsPage(),
-    ];
-
-    return BlocBuilder<BottomNavCubit, BottomNavState>(
-      builder: (context, state) {
-        return Scaffold(
-          body: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            transitionBuilder: (child, animation) {
-              final offsetAnimation = Tween<Offset>(
-                begin: const Offset(0.1, 0),
-                end: Offset.zero,
-              ).animate(animation);
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(position: offsetAnimation, child: child),
-              );
-            },
-            child: IndexedStack(
-              key: ValueKey(state.currentIndex),
-              index: state.currentIndex,
-              children: pages,
+    return Scaffold(
+      body: navigationShell,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
             ),
-          ),
-          bottomNavigationBar: CustomBottomNavBar(
-            currentIndex: state.currentIndex,
-            onTap: (index) => context.read<BottomNavCubit>().changeTab(index),
-          ),
-        );
-      },
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: navigationShell.currentIndex,
+          onTap: _goBranch,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: isDark ? Colors.black : Colors.white,
+          selectedItemColor: isDark ? Colors.white : Colors.black,
+          unselectedItemColor: Colors.grey.shade400,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          selectedFontSize: 10,
+          unselectedFontSize: 10,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, height: 1.5),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, height: 1.5),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.home_filled)),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.receipt_long)),
+              label: 'Activity',
+            ),
+            BottomNavigationBarItem(
+              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.account_balance_wallet_outlined)),
+              label: 'Wallet',
+            ),
+            BottomNavigationBarItem(
+              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.person_outline)),
+              label: 'Account',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

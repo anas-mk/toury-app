@@ -50,12 +50,14 @@ class ServiceAreasCubit extends Cubit<ServiceAreasState> {
     emit(ServiceAreasLoading());
     try {
       final areas = await getAreasUseCase.execute();
+      if (isClosed) return;
       if (areas.isEmpty) {
         emit(ServiceAreasEmpty());
       } else {
         emit(ServiceAreasLoaded(areas));
       }
     } catch (e) {
+      if (isClosed) return;
       emit(ServiceAreasError(e.toString()));
     }
   }
@@ -64,9 +66,11 @@ class ServiceAreasCubit extends Cubit<ServiceAreasState> {
     emit(ServiceAreaOperationLoading());
     try {
       await createAreaUseCase.execute(area);
+      if (isClosed) return;
       emit(const ServiceAreaOperationSuccess('Service area added successfully'));
       await loadAreas();
     } catch (e) {
+      if (isClosed) return;
       emit(ServiceAreasError(e.toString()));
     }
   }
@@ -75,9 +79,11 @@ class ServiceAreasCubit extends Cubit<ServiceAreasState> {
     emit(ServiceAreaOperationLoading());
     try {
       await updateAreaUseCase.execute(id, area);
+      if (isClosed) return;
       emit(const ServiceAreaOperationSuccess('Service area updated successfully'));
       await loadAreas();
     } catch (e) {
+      if (isClosed) return;
       emit(ServiceAreasError(e.toString()));
     }
   }
@@ -86,9 +92,11 @@ class ServiceAreasCubit extends Cubit<ServiceAreasState> {
     emit(ServiceAreaOperationLoading());
     try {
       await deleteAreaUseCase.execute(id);
+      if (isClosed) return;
       emit(const ServiceAreaOperationSuccess('Service area removed'));
       await loadAreas();
     } catch (e) {
+      if (isClosed) return;
       emit(ServiceAreasError(e.toString()));
     }
   }
