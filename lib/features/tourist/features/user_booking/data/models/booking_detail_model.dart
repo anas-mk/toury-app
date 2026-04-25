@@ -13,12 +13,15 @@ class BookingDetailModel extends BookingDetailEntity {
     super.pickupLocationName,
     super.pickupLatitude,
     super.pickupLongitude,
+    super.destinationLatitude,
+    super.destinationLongitude,
     super.helper,
     required super.totalPrice,
     required super.currency,
     super.notes,
     required super.chatEnabled,
     required super.timeline,
+    super.paymentStatus,
     super.priceBreakdown,
   });
 
@@ -34,6 +37,8 @@ class BookingDetailModel extends BookingDetailEntity {
       pickupLocationName: json['pickupLocationName'],
       pickupLatitude: (json['pickupLatitude'] ?? 0.0).toDouble(),
       pickupLongitude: (json['pickupLongitude'] ?? 0.0).toDouble(),
+      destinationLatitude: json['destinationLatitude'] != null ? (json['destinationLatitude'] as num).toDouble() : null,
+      destinationLongitude: json['destinationLongitude'] != null ? (json['destinationLongitude'] as num).toDouble() : null,
       helper: json['helper'] != null ? HelperBookingModel.fromJson(json['helper']) : null,
       totalPrice: (json['totalPrice'] ?? 0.0).toDouble(),
       currency: json['currency'] ?? 'USD',
@@ -42,6 +47,7 @@ class BookingDetailModel extends BookingDetailEntity {
       timeline: (json['timeline'] as List? ?? [])
           .map((e) => BookingTimelineStepModel.fromJson(e))
           .toList(),
+      paymentStatus: json['paymentStatus'],
       priceBreakdown: json['priceBreakdown'] != null
           ? PriceBreakdownModel.fromJson(json['priceBreakdown'])
           : null,
@@ -57,6 +63,7 @@ class BookingDetailModel extends BookingDetailEntity {
       case 'cancelled': return BookingStatus.cancelled;
       case 'expired': return BookingStatus.expired;
       case 'declined': return BookingStatus.declined;
+      case 'confirmedawaitingpayment': return BookingStatus.confirmedAwaitingPayment;
       default: return BookingStatus.pending;
     }
   }

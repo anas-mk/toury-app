@@ -35,7 +35,7 @@ class MessageBubble extends StatelessWidget {
           boxShadow: [
             if (isMe)
               BoxShadow(
-                color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                color: const Color(0xFF6C63FF).withOpacity(0.2),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -60,7 +60,7 @@ class MessageBubble extends StatelessWidget {
                 Text(
                   DateFormat('HH:mm').format(message.sentAt),
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: Colors.white.withOpacity(0.5),
                     fontSize: 10,
                   ),
                 ),
@@ -131,7 +131,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
         color: const Color(0xFF0A0E1A),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -149,7 +149,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1F3C),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
               ),
               child: TextField(
                 controller: _controller,

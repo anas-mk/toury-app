@@ -337,7 +337,7 @@ class _HistoryCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF1A1F3C),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: accent.withValues(alpha: 0.15)),
+          border: Border.all(color: accent.withOpacity(0.15)),
         ),
         child: Row(
           children: [
@@ -345,7 +345,7 @@ class _HistoryCard extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.12),
+                color: accent.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(

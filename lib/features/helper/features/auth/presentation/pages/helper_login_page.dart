@@ -152,7 +152,7 @@ class _HelperLoginPageState extends State<HelperLoginPage>
                                             l10n.or,
                                             style: AppTheme.bodySmall.copyWith(
                                               color: theme.colorScheme.onSurface
-                                                  .withValues(alpha: 0.5),
+                                                  .withOpacity(0.5),
                                             ),
                                           ),
                                         ),

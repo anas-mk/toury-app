@@ -132,7 +132,15 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildTypeBadge(booking.type),
+              Row(
+                children: [
+                  _buildTypeBadge(booking.type),
+                  if (booking.paymentStatus != null) ...[
+                    const SizedBox(width: 8),
+                    _buildPaymentBadge(booking.paymentStatus!),
+                  ],
+                ],
+              ),
               _buildStatusText(booking.status),
             ],
           ),
@@ -211,11 +219,28 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
       case BookingStatus.completed: color = Colors.grey; break;
       case BookingStatus.cancelled:
       case BookingStatus.declined: color = Colors.red; break;
+      case BookingStatus.confirmedAwaitingPayment: color = Colors.orange; break;
       default: color = Colors.black;
     }
     return Text(
       status.name.toUpperCase(),
       style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+    );
+  }
+
+  Widget _buildPaymentBadge(String status) {
+    final isPaid = status.toLowerCase() == 'paid';
+    final color = isPaid ? Colors.green : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        isPaid ? 'PAID' : 'PENDING',
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+      ),
     );
   }
 }

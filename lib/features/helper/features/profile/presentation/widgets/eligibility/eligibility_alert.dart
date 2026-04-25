@@ -20,7 +20,7 @@ class EligibilityAlert extends StatelessWidget {
 
     return CustomCard(
       variant: CardVariant.elevated,
-      backgroundColor: Colors.red.withValues(alpha: 0.1),
+      backgroundColor: Colors.red.withOpacity(0.1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

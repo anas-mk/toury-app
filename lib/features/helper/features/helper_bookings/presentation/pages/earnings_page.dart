@@ -134,7 +134,7 @@ class _EarningsPageState extends State<EarningsPage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                color: const Color(0xFFFF6B6B).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.wifi_off_rounded,
@@ -189,7 +189,7 @@ class _HeroCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00C896).withValues(alpha: 0.3),
+            color: const Color(0xFF00C896).withOpacity(0.3),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
@@ -237,7 +237,7 @@ class _PCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1F3C),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,7 +270,7 @@ class _StatsCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withValues(alpha: 0.12),
+              color: const Color(0xFF6C63FF).withOpacity(0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.directions_car_rounded,
@@ -369,7 +369,7 @@ class _TransactionTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF00C896).withValues(alpha: 0.1),
+              color: const Color(0xFF00C896).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.payments_rounded,

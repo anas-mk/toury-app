@@ -115,9 +115,9 @@ class _StatusHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: (isEligible ? const Color(0xFF00C896) : const Color(0xFFFF6B6B)).withValues(alpha: 0.1),
+        color: (isEligible ? const Color(0xFF00C896) : const Color(0xFFFF6B6B)).withOpacity(0.1),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: (isEligible ? const Color(0xFF00C896) : const Color(0xFFFF6B6B)).withValues(alpha: 0.2)),
+        border: Border.all(color: (isEligible ? const Color(0xFF00C896) : const Color(0xFFFF6B6B)).withOpacity(0.2)),
       ),
       child: Row(
         children: [
@@ -141,7 +141,7 @@ class _StatusHeader extends StatelessWidget {
                 ),
                 Text(
                   isEligible ? 'You are visible to travelers.' : 'Travelers cannot see you.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
                 ),
               ],
             ),
@@ -165,7 +165,7 @@ class _WarningCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1F3C),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: (isCritical ? Colors.red : Colors.orange).withValues(alpha: 0.2)),
+        border: Border.all(color: (isCritical ? Colors.red : Colors.orange).withOpacity(0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

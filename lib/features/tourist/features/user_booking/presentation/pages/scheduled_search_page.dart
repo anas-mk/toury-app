@@ -4,7 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
-import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/widgets/custom_card.dart';
@@ -55,9 +54,7 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => sl<SearchHelpersCubit>(),
-      child: Scaffold(
+    return Scaffold(
         body: Stack(
           children: [
             // 1. Map Background
@@ -144,8 +141,7 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildPickerTile(IconData icon, String text, VoidCallback onTap) {

@@ -101,7 +101,7 @@ class _UpcomingBookingsPageState extends State<UpcomingBookingsPage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                color: const Color(0xFFFF6B6B).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child:
@@ -152,10 +152,10 @@ class _UpcomingCard extends StatelessWidget {
           color: const Color(0xFF1A1F3C),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-              color: const Color(0xFF6C63FF).withValues(alpha: 0.18)),
+              color: const Color(0xFF6C63FF).withOpacity(0.18)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.black.withOpacity(0.2),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -173,7 +173,7 @@ class _UpcomingCard extends StatelessWidget {
                       CircleAvatar(
                         radius: 22,
                         backgroundColor:
-                            const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                            const Color(0xFF6C63FF).withOpacity(0.15),
                         child: Text(
                           booking.travelerName.isNotEmpty
                               ? booking.travelerName[0].toUpperCase()
@@ -204,11 +204,11 @@ class _UpcomingCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00C896).withValues(alpha: 0.12),
+                          color: const Color(0xFF00C896).withOpacity(0.12),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                               color: const Color(0xFF00C896)
-                                  .withValues(alpha: 0.3)),
+                                  .withOpacity(0.3)),
                         ),
                         child: Text(
                           '\$${booking.payout.toStringAsFixed(0)}',

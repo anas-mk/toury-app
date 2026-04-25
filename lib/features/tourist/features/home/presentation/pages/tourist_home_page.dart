@@ -12,9 +12,10 @@ import 'package:toury/features/tourist/features/user_booking/domain/entities/sea
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
+import 'package:toury/features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
+import 'package:toury/features/tourist/features/user_ratings/presentation/widgets/rating_bottom_sheet.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
@@ -83,37 +84,30 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(create: (context) => sl<MyBookingsCubit>()..getBookings(pageSize: 5)),
-        BlocProvider(create: (context) => sl<BookingStatusCubit>()..startPollingForActive()),
-        BlocProvider(create: (context) => sl<SearchHelpersCubit>()),
-      ],
-      child: Builder(
-        builder: (context) {
-          return Scaffold(
-            resizeToAvoidBottomInset: false,
-            body: Stack(
-              children: [
-                // 1. Live Map Background
-                _buildMap(),
+    return Builder(
+      builder: (context) {
+        return Scaffold(
+          resizeToAvoidBottomInset: false,
+          body: Stack(
+            children: [
+              // 1. Live Map Background
+              _buildMap(),
 
-                // 2. Top Search Bar & Greeting (Glass)
-                _buildTopOverlay(context),
+              // 2. Top Search Bar & Greeting (Glass)
+              _buildTopOverlay(context),
 
-                // 3. Active Booking Banner (Floating)
-                _buildActiveBookingOverlay(),
+              // 3. Active Booking Banner (Floating)
+              _buildActiveBookingOverlay(),
 
-                // 4. Floating Action Buttons
-                _buildFloatingActions(),
+              // 4. Floating Action Buttons
+              _buildFloatingActions(),
 
-                // 5. Modern Bottom Sheet
-                _buildDraggableSheet(context),
-              ],
-            ),
-          );
-        }
-      ),
+              // 5. Modern Bottom Sheet
+              _buildDraggableSheet(context),
+            ],
+          ),
+        );
+      }
     );
   }
 
@@ -302,7 +296,12 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
                 variant: CardVariant.glass,
                 backgroundColor: AppColor.primaryColor.withOpacity(0.85),
                 padding: const EdgeInsets.all(15),
-                onTap: () => context.push('/booking-details/${state.booking.id}'),
+                onTap: () {
+                  final b = state.booking;
+                  context.push(
+                    '/user-tracking/${b.id}?pickupLat=${b.pickupLatitude ?? 0}&pickupLng=${b.pickupLongitude ?? 0}&destLat=${b.destinationLatitude ?? 0}&destLng=${b.destinationLongitude ?? 0}',
+                  );
+                },
                 child: Row(
                   children: [
                     Container(
@@ -320,6 +319,101 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
                         ],
                       ),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
+                      onPressed: () => context.push(
+                        '/user-chat/${state.booking.id}?name=${state.booking.helper?.name ?? "Helper"}&image=${state.booking.helper?.profileImageUrl ?? ""}',
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (state is BookingAwaitingPayment) {
+          return Positioned(
+            top: MediaQuery.of(context).padding.top + 130,
+            left: 20,
+            right: 20,
+            child: FadeInUp(
+              child: CustomCard(
+                variant: CardVariant.glass,
+                backgroundColor: Colors.orange.shade600.withOpacity(0.9),
+                padding: const EdgeInsets.all(15),
+                onTap: () => context.push('/payment-method/${state.booking.id}'),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+                      child: const Icon(Icons.payment, color: Colors.white),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Payment Required', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          Text('Helper: ${state.booking.helper?.name ?? "..."}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const Text('Pay Now', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 5),
+                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (state is BookingAwaitingRating) {
+          return Positioned(
+            top: MediaQuery.of(context).padding.top + 130,
+            left: 20,
+            right: 20,
+            child: FadeInUp(
+              child: CustomCard(
+                variant: CardVariant.glass,
+                backgroundColor: Colors.green.shade600.withValues(alpha: 0.9),
+                padding: const EdgeInsets.all(15),
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => BlocProvider(
+                      create: (_) => sl<UserRatingsCubit>(),
+                      child: RatingBottomSheet(
+                        bookingId: state.booking.id,
+                        helperName: state.booking.helper?.name ?? 'your helper',
+                      ),
+                    ),
+                  ).then((rated) {
+                    if (rated == true) {
+                      context.read<BookingStatusCubit>().startPollingForActive();
+                    }
+                  });
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+                      child: const Icon(Icons.star, color: Colors.white),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Rate your recent trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          Text('Trip with ${state.booking.helper?.name ?? "..."} is completed', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const Text('Rate Now', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 5),
                     const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
                   ],
                 ),
@@ -475,6 +569,7 @@ class _TouristHomePageState extends State<TouristHomePage> with TickerProviderSt
         const SizedBox(height: 20),
         _buildQuickAction(Icons.bolt, 'Instant Help', 'Get a helper right now', Colors.amber, () => context.push('/instant-search')),
         _buildQuickAction(Icons.calendar_month, 'Scheduled Trip', 'Plan for later', Colors.blue, () => context.push('/scheduled-search')),
+        _buildQuickAction(Icons.receipt_long, 'My Invoices', 'View your trip receipts', Colors.green, () => context.push('/user-invoices')),
         const SizedBox(height: 25),
         const Text('Recent Trips', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         const SizedBox(height: 15),

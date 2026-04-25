@@ -50,21 +50,21 @@ class _EarningsPreviewCardState extends State<EarningsPreviewCard> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF00C896).withValues(alpha: 0.12),
+                    const Color(0xFF00C896).withOpacity(0.12),
                     const Color(0xFF1A1F3C),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFF00C896).withValues(alpha: 0.2)),
+                border: Border.all(color: const Color(0xFF00C896).withOpacity(0.2)),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C896).withValues(alpha: 0.1),
+                      color: const Color(0xFF00C896).withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.account_balance_wallet_rounded,

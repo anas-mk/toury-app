@@ -161,4 +161,50 @@ class ApiConfig {
   // ==========================================================================
   // static const String helperSosPanic = '/helper/sos/panic';
   // static const String helperSosCall  = '/helper/sos/call';
+
+  // ==========================================================================
+  // PAYMENTS Endpoints
+  // ==========================================================================
+  static String initiatePayment(String bookingId) => '/payments/booking/$bookingId/initiate';
+  static String getPayment(String paymentId) => '/payments/$paymentId';
+  static String getLatestPayment(String bookingId) => '/payments/booking/$bookingId/latest';
+  static String mockPaymentComplete(String paymentId) => '/payments/mock/$paymentId/complete';
+
+  // ==========================================================================
+  // INVOICES Endpoints
+  // ==========================================================================
+  static String getInvoices({int page = 1, int pageSize = 20}) => 
+      '/invoices?page=$page&pageSize=$pageSize';
+  static String getInvoiceDetail(String invoiceId) => '/invoices/$invoiceId';
+  static String getInvoiceByBooking(String bookingId) => '/invoices/booking/$bookingId';
+  static String getInvoiceHtml(String invoiceId) => '/invoices/$invoiceId/view';
+
+  // ==========================================================================
+  // RATINGS Endpoints
+  // ==========================================================================
+  static String rateHelper(String bookingId) => '/ratings/booking/$bookingId/helper';
+  static String getBookingRatingState(String bookingId) => '/ratings/booking/$bookingId';
+  static String getHelperRatings(String helperId, {int page = 1, int pageSize = 10}) => 
+      '/ratings/helper/$helperId?page=$page&pageSize=$pageSize';
+  static String getHelperRatingSummary(String helperId) => '/ratings/helper/$helperId/summary';
+  static String getUserRatingSummary(String userId) => '/ratings/user/$userId/summary';
+
+  // ==========================================================================
+  // CHAT Endpoints
+  // ==========================================================================
+  static String getChatConversation(String bookingId) => '/user/bookings/$bookingId/chat';
+  static String getChatMessages(String bookingId, {int page = 1, String? beforeDate}) {
+    String url = '/user/bookings/$bookingId/chat/messages?page=$page';
+    if (beforeDate != null) url += '&beforeDate=$beforeDate';
+    return url;
+  }
+  static String sendChatMessage(String bookingId) => '/user/bookings/$bookingId/chat/messages';
+  static String markChatAsRead(String bookingId) => '/user/bookings/$bookingId/chat/read';
+
+  // ==========================================================================
+  // TRACKING Endpoints
+  // ==========================================================================
+  static const String trackingHubUrl = '/hubs/booking';
+  static String getLatestLocation(String bookingId) => '/booking/$bookingId/tracking/latest';
+  static String getTrackingHistory(String bookingId) => '/booking/$bookingId/tracking/history';
 }

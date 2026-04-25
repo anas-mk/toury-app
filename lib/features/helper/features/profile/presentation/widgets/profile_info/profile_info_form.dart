@@ -51,7 +51,13 @@ class _ProfileInfoFormState extends State<ProfileInfoForm> {
     super.initState();
     _nameController = TextEditingController(text: widget.profile.fullName);
     _phoneController = TextEditingController(text: widget.profile.phoneNumber);
-    _selectedGender = widget.profile.gender.isNotEmpty ? widget.profile.gender : 'MALE';
+    
+    // Normalize gender to match dropdown items (MALE/FEMALE)
+    final normalizedGender = widget.profile.gender.toUpperCase();
+    _selectedGender = (normalizedGender == 'MALE' || normalizedGender == 'FEMALE') 
+        ? normalizedGender 
+        : 'MALE';
+        
     _selectedDate = widget.profile.birthDate;
   }
 

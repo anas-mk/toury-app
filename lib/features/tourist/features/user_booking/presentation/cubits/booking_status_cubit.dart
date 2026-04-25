@@ -46,6 +46,41 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
           // Start polling for this specific booking
           startPolling(activeBooking.id);
         } else {
+          // Check for awaiting payment
+          _checkForAwaitingPayment();
+        }
+      },
+    );
+  }
+
+  void _checkForAwaitingPayment() async {
+    final result = await getMyBookingsUseCase(status: 'ConfirmedAwaitingPayment', pageSize: 1);
+    result.fold(
+      (failure) => emit(BookingStatusInitial()),
+      (response) {
+        if (response.items.isNotEmpty) {
+          final activeBooking = response.items.first;
+          emit(BookingAwaitingPayment(activeBooking));
+          // Start polling for this specific booking to see when payment is done
+          startPolling(activeBooking.id);
+        } else {
+          _checkForAwaitingRating();
+        }
+      },
+    );
+  }
+
+  void _checkForAwaitingRating() async {
+    final result = await getMyBookingsUseCase(status: 'Completed', pageSize: 1);
+    result.fold(
+      (failure) => emit(BookingStatusInitial()),
+      (response) {
+        if (response.items.isNotEmpty) {
+          final completedBooking = response.items.first;
+          // In a real app, we would check if it's already rated via the API
+          // For now, if it's completed and we are in the home page, we show the banner
+          emit(BookingAwaitingRating(completedBooking));
+        } else {
           emit(BookingStatusInitial());
         }
       },
@@ -54,7 +89,7 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
 
   bool _shouldStopPolling(String status) {
     final s = status.toLowerCase();
-    return s == 'completed' || s == 'cancelled' || s == 'expired' || s == 'declined';
+    return s == 'completed' || s == 'cancelled' || s == 'expired' || s == 'declined' || s == 'inprogress';
   }
 
   void stopPolling() {

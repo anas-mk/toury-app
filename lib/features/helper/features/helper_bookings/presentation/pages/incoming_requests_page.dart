@@ -57,9 +57,9 @@ class _IncomingRequestsPageState extends State<IncomingRequestsPage>
                   margin: const EdgeInsets.only(right: 16),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFAB40).withValues(alpha: 0.15),
+                    color: const Color(0xFFFFAB40).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFFAB40).withValues(alpha: 0.3)),
+                    border: Border.all(color: const Color(0xFFFFAB40).withOpacity(0.3)),
                   ),
                   child: Text(
                     '${state.requests.length}',
@@ -123,7 +123,7 @@ class _IncomingRequestsPageState extends State<IncomingRequestsPage>
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                color: const Color(0xFFFF6B6B).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.wifi_off_rounded, color: Color(0xFFFF6B6B), size: 44),
@@ -249,8 +249,8 @@ class _RequestCardState extends State<_RequestCard> {
           boxShadow: [
             BoxShadow(
               color: isUrgent
-                  ? const Color(0xFFFF6B6B).withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.2),
+                  ? const Color(0xFFFF6B6B).withOpacity(0.15)
+                  : Colors.black.withOpacity(0.2),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -322,10 +322,10 @@ class _RequestCardState extends State<_RequestCard> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C896).withValues(alpha: 0.12),
+                      color: const Color(0xFF00C896).withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xFF00C896).withValues(alpha: 0.3)),
+                          color: const Color(0xFF00C896).withOpacity(0.3)),
                     ),
                     child: Text(
                       '\$${widget.booking.payout.toStringAsFixed(0)}',
@@ -496,12 +496,12 @@ class _DeclineSheetState extends State<_DeclineSheet> {
                           horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
                         color: _selected == r
-                            ? const Color(0xFFFF6B6B).withValues(alpha: 0.1)
-                            : Colors.white.withValues(alpha: 0.04),
+                            ? const Color(0xFFFF6B6B).withOpacity(0.1)
+                            : Colors.white.withOpacity(0.04),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: _selected == r
-                              ? const Color(0xFFFF6B6B).withValues(alpha: 0.4)
+                              ? const Color(0xFFFF6B6B).withOpacity(0.4)
                               : Colors.white12,
                         ),
                       ),
@@ -575,7 +575,7 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return CircleAvatar(
       radius: 22,
-      backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.18),
+      backgroundColor: const Color(0xFF6C63FF).withOpacity(0.18),
       child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : '?',
         style: const TextStyle(

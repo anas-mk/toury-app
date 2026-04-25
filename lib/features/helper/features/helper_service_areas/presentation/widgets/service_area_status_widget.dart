@@ -41,8 +41,8 @@ class ServiceAreaStatusWidget extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isEmpty
-                    ? Colors.orange.withValues(alpha: 0.3)
-                    : const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                    ? Colors.orange.withOpacity(0.3)
+                    : const Color(0xFF6C63FF).withOpacity(0.2),
               ),
             ),
             child: Column(
@@ -53,7 +53,7 @@ class ServiceAreaStatusWidget extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: (isEmpty ? Colors.orange : const Color(0xFF6C63FF)).withValues(alpha: 0.1),
+                        color: (isEmpty ? Colors.orange : const Color(0xFF6C63FF)).withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -91,7 +91,7 @@ class ServiceAreaStatusWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.04),
+                      color: Colors.white.withOpacity(0.04),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -120,7 +120,7 @@ class ServiceAreaStatusWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.06),
+                      color: Colors.orange.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Row(

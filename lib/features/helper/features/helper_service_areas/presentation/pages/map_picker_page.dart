@@ -79,9 +79,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1F3C).withValues(alpha: 0.95),
+                      color: const Color(0xFF1A1F3C).withOpacity(0.95),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,7 +120,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 elevation: 8,
-                shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.5),
+                shadowColor: const Color(0xFF6C63FF).withOpacity(0.5),
               ),
             ),
           ),
@@ -143,9 +143,9 @@ class _GlassButton extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C).withValues(alpha: 0.95),
+          color: const Color(0xFF1A1F3C).withOpacity(0.95),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
         child: Center(child: child),
       ),

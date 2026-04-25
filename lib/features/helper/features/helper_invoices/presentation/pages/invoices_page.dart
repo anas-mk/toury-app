@@ -167,7 +167,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
           const Text('Invoices',
               style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
           Text('Your complete financial history',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14)),
+              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14)),
         ],
       ),
     );
@@ -194,13 +194,13 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   _cubit.loadInvoices(statusFilter: f);
                 },
                 backgroundColor: const Color(0xFF1A1F3C),
-                selectedColor: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                selectedColor: const Color(0xFF6C63FF).withOpacity(0.2),
                 labelStyle: TextStyle(
                     color: selected ? const Color(0xFF6C63FF) : Colors.white54, fontSize: 12),
                 side: BorderSide(
                     color: selected
                         ? const Color(0xFF6C63FF)
-                        : Colors.white.withValues(alpha: 0.1)),
+                        : Colors.white.withOpacity(0.1)),
                 checkmarkColor: const Color(0xFF6C63FF),
               ),
             );
@@ -255,7 +255,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
             Container(
               padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C896).withValues(alpha: 0.08),
+                color: const Color(0xFF00C896).withOpacity(0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.receipt_long_rounded, size: 72, color: Color(0xFF00C896)),
@@ -266,7 +266,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
             const SizedBox(height: 12),
             Text('Completed trips will generate invoices here.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 14)),
+                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14)),
           ],
         ),
       ),
@@ -322,10 +322,10 @@ class _SummaryCard extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF6C63FF).withValues(alpha: 0.2)),
+        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+            color: const Color(0xFF6C63FF).withOpacity(0.15),
             blurRadius: 24,
             offset: const Offset(0, 8),
           )
@@ -349,7 +349,7 @@ class _SummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text('${summary.invoiceCount} invoices',
@@ -427,7 +427,7 @@ class _InvoiceCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF1A1F3C),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: Row(
           children: [
@@ -435,7 +435,7 @@ class _InvoiceCard extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: (isPaid ? const Color(0xFF00C896) : Colors.orange).withValues(alpha: 0.1),
+                color: (isPaid ? const Color(0xFF00C896) : Colors.orange).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -453,7 +453,7 @@ class _InvoiceCard extends StatelessWidget {
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 2),
                   Text(invoice.userName,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
+                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
                   const SizedBox(height: 2),
                   Row(
                     children: [
@@ -504,9 +504,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Text(status.toUpperCase(),
           style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),

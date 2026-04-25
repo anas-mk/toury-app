@@ -35,3 +35,21 @@ class BookingActiveFound extends BookingStatusState {
   @override
   List<Object?> get props => [booking];
 }
+
+class BookingAwaitingPayment extends BookingStatusState {
+  final BookingDetailEntity booking;
+
+  const BookingAwaitingPayment(this.booking);
+
+  @override
+  List<Object?> get props => [booking];
+}
+
+class BookingAwaitingRating extends BookingStatusState {
+  final BookingDetailEntity booking;
+
+  const BookingAwaitingRating(this.booking);
+
+  @override
+  List<Object?> get props => [booking];
+}

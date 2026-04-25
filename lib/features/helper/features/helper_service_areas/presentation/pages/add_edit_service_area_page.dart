@@ -137,8 +137,8 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
                         color: _locationPicked
-                            ? const Color(0xFF6C63FF).withValues(alpha: 0.5)
-                            : Colors.white.withValues(alpha: 0.1),
+                            ? const Color(0xFF6C63FF).withOpacity(0.5)
+                            : Colors.white.withOpacity(0.1),
                       ),
                     ),
                     child: Row(
@@ -146,7 +146,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                            color: const Color(0xFF6C63FF).withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -221,18 +221,18 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1F3C),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+                    border: Border.all(color: Colors.white.withOpacity(0.07)),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('1 km', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                          Text('1 km', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                              color: const Color(0xFF6C63FF).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -241,7 +241,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                                   color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 16),
                             ),
                           ),
-                          Text('500 km', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                          Text('500 km', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -250,7 +250,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                           activeTrackColor: const Color(0xFF6C63FF),
                           inactiveTrackColor: Colors.white12,
                           thumbColor: Colors.white,
-                          overlayColor: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                          overlayColor: const Color(0xFF6C63FF).withOpacity(0.2),
                           thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
                         ),
                         child: Slider(
@@ -271,13 +271,13 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: _isPrimary
-                        ? const Color(0xFF6C63FF).withValues(alpha: 0.08)
+                        ? const Color(0xFF6C63FF).withOpacity(0.08)
                         : const Color(0xFF1A1F3C),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: _isPrimary
-                          ? const Color(0xFF6C63FF).withValues(alpha: 0.4)
-                          : Colors.white.withValues(alpha: 0.07),
+                          ? const Color(0xFF6C63FF).withOpacity(0.4)
+                          : Colors.white.withOpacity(0.07),
                     ),
                   ),
                   child: Row(
@@ -314,11 +314,11 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                       onPressed: isLoading ? null : () => _submit(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF6C63FF),
-                        disabledBackgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.4),
+                        disabledBackgroundColor: const Color(0xFF6C63FF).withOpacity(0.4),
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         elevation: 8,
-                        shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.4),
+                        shadowColor: const Color(0xFF6C63FF).withOpacity(0.4),
                       ),
                       child: isLoading
                           ? const SizedBox(
@@ -349,7 +349,7 @@ class _FormLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text,
-        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.w600));
+        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13, fontWeight: FontWeight.w600));
   }
 }
 
@@ -380,11 +380,11 @@ class _PremiumTextField extends StatelessWidget {
         fillColor: const Color(0xFF1A1F3C),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.07)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.07)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

@@ -162,9 +162,9 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00C896).withValues(alpha: 0.08),
+                  color: const Color(0xFF00C896).withOpacity(0.08),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF00C896).withValues(alpha: 0.2)),
+                  border: Border.all(color: const Color(0xFF00C896).withOpacity(0.2)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -199,7 +199,7 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
                 label: const Text('Copy #'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white70,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                  side: BorderSide(color: Colors.white.withOpacity(0.1)),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
@@ -286,7 +286,7 @@ class _GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1F3C),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
       ),
       child: child,
     );
@@ -320,9 +320,9 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Text(status.toUpperCase(),
           style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),

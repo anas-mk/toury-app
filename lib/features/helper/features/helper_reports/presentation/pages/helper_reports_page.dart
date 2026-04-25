@@ -41,7 +41,7 @@ class HelperReportsPage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.assignment_turned_in_outlined, size: 80, color: Colors.white.withValues(alpha: 0.05)),
+          Icon(Icons.assignment_turned_in_outlined, size: 80, color: Colors.white.withOpacity(0.05)),
           const SizedBox(height: 16),
           const Text('No reports found', style: TextStyle(color: Colors.white38, fontSize: 16)),
         ],
@@ -75,8 +75,8 @@ class _ReportCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: report.isResolved 
-              ? const Color(0xFF00C896).withValues(alpha: 0.2) 
-              : const Color(0xFFFFAB40).withValues(alpha: 0.2),
+              ? const Color(0xFF00C896).withOpacity(0.2) 
+              : const Color(0xFFFFAB40).withOpacity(0.2),
         ),
       ),
       child: Column(
@@ -97,16 +97,16 @@ class _ReportCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             report.details,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
           ),
           const SizedBox(height: 16),
           if (report.isResolved && report.resolutionNote != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C896).withValues(alpha: 0.05),
+                color: const Color(0xFF00C896).withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF00C896).withValues(alpha: 0.1)),
+                border: Border.all(color: const Color(0xFF00C896).withOpacity(0.1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,9 +149,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Text(
         isResolved ? 'RESOLVED' : 'PENDING',

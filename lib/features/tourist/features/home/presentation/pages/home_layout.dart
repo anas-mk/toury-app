@@ -3,6 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/features/tourist/features/home/presentation/pages/tourist_home_page.dart';
 import 'package:toury/features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
 import 'package:toury/features/tourist/features/home/presentation/pages/explore_page.dart';
+import '../../../../../../core/di/injection_container.dart';
+import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
+import 'package:toury/features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
 import '../../../../../../core/widgets/custom_bottom_nav_bar.dart';
 import '../cubit/bottom_nav_cubit.dart';
 import '../cubit/bottom_nav_state.dart';
@@ -13,10 +17,17 @@ class HomeLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-    final pages = const [
-      TouristHomePage(),
-      ExplorePage(),
-      AccountSettingsPage(),
+    final pages = [
+      MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (context) => sl<MyBookingsCubit>()..getBookings(pageSize: 5)),
+          BlocProvider(create: (context) => sl<BookingStatusCubit>()..startPollingForActive()),
+          BlocProvider(create: (context) => sl<SearchHelpersCubit>()),
+        ],
+        child: const TouristHomePage(),
+      ),
+      const ExplorePage(),
+      const AccountSettingsPage(),
     ];
 
     return BlocBuilder<BottomNavCubit, BottomNavState>(

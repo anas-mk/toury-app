@@ -91,7 +91,7 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
             Container(
               padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
-                color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                color: const Color(0xFF6C63FF).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.map_outlined, size: 80, color: Color(0xFF6C63FF)),
@@ -143,9 +143,9 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.05),
+              color: Colors.orange.withOpacity(0.05),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+              border: Border.all(color: Colors.orange.withOpacity(0.2)),
             ),
             child: const Row(
               children: [
@@ -178,13 +178,13 @@ class _ServiceAreaCard extends StatelessWidget {
         color: const Color(0xFF1A1F3C).withValues(alpha: isHero ? 1.0 : 0.6),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isHero ? const Color(0xFF6C63FF).withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+          color: isHero ? const Color(0xFF6C63FF).withOpacity(0.5) : Colors.white.withOpacity(0.05),
           width: isHero ? 2 : 1,
         ),
         boxShadow: isHero
             ? [
                 BoxShadow(
-                  color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                  color: const Color(0xFF6C63FF).withOpacity(0.2),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 )
@@ -206,7 +206,7 @@ class _ServiceAreaCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                          color: const Color(0xFF6C63FF).withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.location_on_rounded, color: Color(0xFF6C63FF), size: 24),
@@ -222,7 +222,7 @@ class _ServiceAreaCard extends StatelessWidget {
                             ),
                             Text(
                               '${area.areaName ?? "City Center"}, ${area.country}',
-                              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
                             ),
                           ],
                         ),
@@ -267,7 +267,7 @@ class _ServiceAreaCard extends StatelessWidget {
                           label: const Text('Edit'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white70,
-                            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                            side: BorderSide(color: Colors.white.withOpacity(0.1)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
@@ -277,7 +277,7 @@ class _ServiceAreaCard extends StatelessWidget {
                         onPressed: () => _confirmDelete(context),
                         icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF6B6B)),
                         style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                          backgroundColor: const Color(0xFFFF6B6B).withOpacity(0.1),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -325,7 +325,7 @@ class _StatItem extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 10)),
+        Text(label, style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10)),
         Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
       ],
     );

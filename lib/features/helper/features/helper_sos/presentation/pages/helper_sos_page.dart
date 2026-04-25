@@ -50,7 +50,7 @@ class _EmergencyWarningCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isActive ? Colors.red : const Color(0xFF1A1F3C),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isActive ? Colors.white24 : Colors.red.withValues(alpha: 0.3)),
+        border: Border.all(color: isActive ? Colors.white24 : Colors.red.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -66,7 +66,7 @@ class _EmergencyWarningCard extends StatelessWidget {
                 ),
                 Text(
                   isActive ? 'Authorities are being notified...' : 'Use this only in real emergency situations.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
+                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
                 ),
               ],
             ),
@@ -122,7 +122,7 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
               color: Colors.red,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.red.withValues(alpha: 0.4),
+                  color: Colors.red.withOpacity(0.4),
                   blurRadius: 20 + (_controller.value * 20),
                   spreadRadius: 5 + (_controller.value * 15),
                 ),
@@ -259,9 +259,9 @@ class _EmergencyItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

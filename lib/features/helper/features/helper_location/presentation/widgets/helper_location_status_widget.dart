@@ -35,7 +35,7 @@ class HelperLocationStatusWidget extends StatelessWidget {
                   color: const Color(0xFF1A1F3C),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: isConnected ? const Color(0xFF00C896).withValues(alpha: 0.2) : Colors.white12,
+                    color: isConnected ? const Color(0xFF00C896).withOpacity(0.2) : Colors.white12,
                   ),
                 ),
                 child: Row(
@@ -44,7 +44,7 @@ class HelperLocationStatusWidget extends StatelessWidget {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: (isConnected ? const Color(0xFF00C896) : Colors.white24).withValues(alpha: 0.1),
+                        color: (isConnected ? const Color(0xFF00C896) : Colors.white24).withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -86,7 +86,7 @@ class HelperLocationStatusWidget extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: (isEligible ? const Color(0xFF00C896) : Colors.orange).withValues(alpha: 0.15),
+                        color: (isEligible ? const Color(0xFF00C896) : Colors.orange).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(

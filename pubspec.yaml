@@ -40,6 +40,7 @@ dependencies:
   video_player: ^2.11.1
   signalr_netcore: ^1.4.1
   url_launcher: ^6.3.2
+  webview_flutter: ^4.13.1
 
 
 dev_dependencies:

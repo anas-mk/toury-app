@@ -97,7 +97,7 @@ class _RateUserPageState extends State<RateUserPage> {
                 CircleAvatar(
                   radius: 50,
                   backgroundImage: widget.travelerAvatar.isNotEmpty ? NetworkImage(widget.travelerAvatar) : null,
-                  backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                  backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
                   child: widget.travelerAvatar.isEmpty
                       ? Text(widget.travelerName[0], style: const TextStyle(fontSize: 32, color: Color(0xFF6C63FF)))
                       : null,

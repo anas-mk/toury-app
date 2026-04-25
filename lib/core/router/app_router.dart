@@ -1,6 +1,11 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:toury/features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/earnings_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/helper_history_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/incoming_requests_page.dart';
 import '../../features/helper/features/helper_location/presentation/pages/helper_location_page.dart';
 import '../../features/helper/features/helper_location/presentation/pages/eligibility_debug_page.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/service_areas_page.dart';
@@ -9,10 +14,15 @@ import '../../features/helper/features/helper_service_areas/domain/entities/serv
 import '../../features/helper/features/helper_invoices/presentation/pages/invoices_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/invoice_detail_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/invoice_view_page.dart';
+import '../../features/helper/features/home/presentation/pages/helper_home_layout.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 import '../../features/helper/features/language_interview/presentation/pages/interview_pending_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/interview_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/pre_interview_screen.dart';
+import '../../features/helper/features/language_interview/presentation/pages/exams_page.dart';
+import '../../features/helper/features/profile/presentation/pages/profile_page.dart';
+import '../../features/tourist/features/payments/presentation/cubit/payment_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
 import '../di/injection_container.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
@@ -24,8 +34,7 @@ import '../../features/tourist/features/auth/presentation/pages/forgot_password_
 import '../../features/tourist/features/auth/presentation/pages/reset_password_page.dart'; // ✅ New import
 import '../../features/tourist/features/auth/presentation/pages/verify_code_page.dart';
 import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
-import '../../features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
-import '../../features/tourist/features/profile/presentation/page/profile_page.dart';
+import '../../features/helper/features/profile/presentation/pages/account_control_center_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/booking_home_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/scheduled_search_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant_search_page.dart';
@@ -37,6 +46,21 @@ import '../../features/tourist/features/user_booking/presentation/pages/my_booki
 import '../../features/tourist/features/user_booking/presentation/pages/reassignment_page.dart';
 import '../../features/tourist/features/user_booking/domain/entities/helper_booking_entity.dart';
 import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
+import '../../features/tourist/features/payments/presentation/pages/payment_method_page.dart';
+import '../../features/tourist/features/payments/presentation/pages/payment_processing_page.dart';
+import '../../features/tourist/features/payments/presentation/pages/payment_webview_page.dart';
+import '../../features/tourist/features/payments/presentation/pages/payment_success_page.dart';
+import '../../features/tourist/features/payments/presentation/pages/payment_failed_page.dart';
+import '../../features/tourist/features/payments/domain/entities/payment_entity.dart';
+import '../../features/tourist/features/user_invoices/presentation/pages/user_invoices_page.dart';
+import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
+import '../../features/tourist/features/user_invoices/presentation/pages/invoice_view_page.dart' as user_invoice_view;
+import '../../features/tourist/features/user_invoices/domain/entities/invoice_entity.dart';
+import '../../features/tourist/features/user_ratings/presentation/pages/helper_reviews_page.dart';
+import '../../features/tourist/features/user_chat/presentation/pages/user_chat_page.dart';
+import '../../features/tourist/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
+import '../../features/helper/features/helper_booking_tracking/presentation/pages/helper_booking_tracking_page.dart';
+import '../../features/helper/features/helper_booking_tracking/presentation/cubit/helper_tracking_cubit.dart';
 
 // Helper imports
 import '../../features/helper/features/auth/presentation/pages/helper_login_page.dart';
@@ -44,17 +68,15 @@ import '../../features/helper/features/auth/presentation/pages/helper_enter_pass
 import '../../features/helper/features/auth/presentation/pages/verify_login_otp_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_register_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
-import '../../features/helper/features/home/presentation/pages/home_page.dart';
 
 // Helper Bookings imports
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_dashboard_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/incoming_requests_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/pages/bookings_center_page.dart';
+import '../../features/helper/features/helper_chat/presentation/pages/conversations_list_page.dart';
+import '../../features/helper/features/helper_invoices/presentation/pages/wallet_hub_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/request_details_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/upcoming_bookings_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/helper_history_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/earnings_page.dart';
 
 import 'dart:async';
 
@@ -137,11 +159,33 @@ class AppRouter {
   static const String bookingDetails = '/booking-details/:id';
   static const String myBookings = '/my-bookings';
   static const String reassignment = '/reassignment/:id';
+  
+  // Payment Routes
+  static const String paymentMethod = '/payment-method/:bookingId';
+  static const String paymentProcessing = '/payment-processing';
+  static const String paymentWebview = '/payment-webview';
+  static const String paymentSuccess = '/payment-success';
+  static const String paymentFailed = '/payment-failed';
+
+  // User Invoice Routes
+  static const String userInvoices = '/user-invoices';
+  static const String userInvoiceDetail = '/invoice-detail/:id';
+  static const String userInvoiceView = '/invoice-view/:id';
+
+  // User Chat Routes
+  static const String userChat = '/user-chat/:id';
+
+  // User Tracking Routes
+  static const String userTracking = '/user-tracking/:id';
+  static const String helperTracking = '/helper-tracking/:id';
+
+  // User Rating Routes
+  static const String helperReviews = '/helper-reviews/:id';
 
 
-  // Helper Routes
+
+// Helper Constants
   static const String helperLogin = '/helper-login';
-  static const String helperHome = '/helper-home';
   static const String helperRegister = 'helper-register';
   static const String helperEnterPassword = 'enter-password/:email';
   static const String helperVerifyCode = 'helper-verify-code/:email';
@@ -155,31 +199,38 @@ class AppRouter {
   static const String preInterview = '/pre-interview';
   static const String interviewPending = '/interview-pending';
 
-  // Helper Booking Routes
-  static const String helperDashboard       = '/helper-dashboard';
-  static const String helperRequests        = '/helper-requests';
-  static const String helperRequestDetails  = '/helper-request-details/:id';
-  static const String helperUpcoming        = '/helper-upcoming';
-  static const String helperActiveBooking   = '/helper-active-booking';
-  static const String helperBookingDetails  = '/helper-booking-details/:id';
-  static const String helperHistory         = '/helper-history';
-  static const String helperEarnings        = '/helper-earnings';
-  static const String helperLocation         = '/helper-location';
-  static const String helperEligibilityDebug = '/helper-eligibility-debug';
-  static const String helperServiceAreas     = '/helper-service-areas';
-  static const String helperAddServiceArea   = '/helper-add-service-area';
-  static const String helperEditServiceArea  = '/helper-edit-service-area';
-  static const String helperInvoices         = '/helper-invoices';
-  static const String helperInvoiceDetail    = '/helper-invoice-detail/:id';
-  static const String helperInvoiceView      = '/helper-invoice-view/:id';
+  // Helper Shell Routes
+  static const String helperHome      = '/helper/home';
+  static const String helperBookings  = '/helper/bookings';
+  static const String helperMessages  = '/helper/messages';
+  static const String helperWallet    = '/helper/wallet';
+  static const String helperAccount   = '/helper/account';
+
+  // Helper Sub-Routes
+  static const String helperDashboard       = helperHome; // For backward compatibility if needed
+  static const String helperRequests        = '/helper/requests';
+  static const String helperRequestDetails  = '/helper/request-details/:id';
+  static const String helperUpcoming        = '/helper/upcoming';
+  static const String helperActiveBooking   = '/helper/active-booking';
+  static const String helperBookingDetails  = '/helper/booking-details/:id';
+  static const String helperHistory         = '/helper/history';
+  static const String helperEarnings        = '/helper/earnings';
+  static const String helperLocation         = '/helper/location';
+  static const String helperEligibilityDebug = '/helper/eligibility-debug';
+  static const String helperServiceAreas     = '/helper/service-areas';
+  static const String helperAddServiceArea   = '/helper/add-service-area';
+  static const String helperEditServiceArea  = '/helper/edit-service-area';
+  static const String helperInvoices         = '/helper/invoices';
+  static const String helperInvoiceDetail    = '/helper/invoice-detail/:id';
+  static const String helperInvoiceView      = '/helper/invoice-view/:id';
+
+  static final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
   static final GoRouter router = GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: splash,
     debugLogDiagnostics: true,
 
-    // ----------------------------------------
-    // Redirection Logic - Auth Guard
-    // ----------------------------------------
     redirect: (context, state) async {
       final matchedPath = state.matchedLocation;
       final isGoingToSplash = matchedPath == splash;
@@ -189,7 +240,6 @@ class AppRouter {
       final helper = await localDataSource.getCurrentHelper();
       final isAuthenticated = helper != null && helper.token != null && helper.token!.isNotEmpty;
 
-      // Define public routes (accessible without login)
       final publicRoutes = [
         splash,
         roleSelection,
@@ -202,7 +252,6 @@ class AppRouter {
         verifyCode,
       ];
 
-      // Routes that should NOT be accessible if already logged in
       final authRoutes = [
         roleSelection,
         login,
@@ -212,9 +261,7 @@ class AppRouter {
       final isPublic = publicRoutes.any((path) => matchedPath.startsWith(path));
       final isAuthRoute = authRoutes.contains(matchedPath);
 
-      // Case: Unauthenticated user
       if (!isAuthenticated) {
-        // Block direct access to login/helper-login unless coming from role-selection
         final isLoginRoute = matchedPath == login || matchedPath == helperLogin;
         final hasRoleSelectionFlag = state.extra == 'from_role_selection';
 
@@ -227,7 +274,6 @@ class AppRouter {
         }
       }
 
-      // Case: Authenticated user
       if (isAuthenticated && isAuthRoute) {
         return helperHome;
       }
@@ -236,7 +282,6 @@ class AppRouter {
     },
 
     routes: [
-      // 1. Splash & Role Selection
       GoRoute(
         path: splash,
         name: 'splash',
@@ -249,17 +294,16 @@ class AppRouter {
         builder: (context, state) => const RoleSelectionPage(),
       ),
 
-      // 1b. Verify Code - New Top Level Route
       GoRoute(
         path: verifyCode,
-        name: 'verify-code', // Added name
+        name: 'verify-code',
         builder: (context, state) {
           final email = state.uri.queryParameters['email'] ?? '';
           return VerifyCodePage(email: email);
         },
       ),
 
-      // 2. Login Flow Group
+      // 1. Tourist Login Flow
       GoRoute(
         path: login,
         name: 'login',
@@ -287,46 +331,16 @@ class AppRouter {
                 path: resetPassword,
                 name: 'reset-password',
                 builder: (context, state) {
-                  // Get email from extra parameter
                   final email = state.extra as String? ?? '';
                   return ResetPasswordPage(email: email);
                 },
               ),
             ],
           ),
-          GoRoute(
-            path: googleVerifyCode,
-            name: 'google-verify-code',
-            builder: (context, state) {
-              final email = state.pathParameters['email']!;
-              return GoogleVerifyCodePage(email: email);
-            },
-          ),
         ],
       ),
 
-      // 3. Home Layout Group
-      GoRoute(
-        path: home,
-        name: 'home',
-        builder: (context, state) => const HomeLayout(),
-        routes: [
-          GoRoute(
-            path: accountSettings,
-            name: 'account-settings',
-            builder: (context, state) => const AccountSettingsPage(),
-            routes: [
-              GoRoute(
-                path: profile,
-                name: 'profile',
-                builder: (context, state) => const ProfilePage(),
-              ),
-            ],
-          ),
-        ],
-      ),
-
-      // 4. Helper Authentication Logic
+      // 2. Helper Authentication
       GoRoute(
         path: helperLogin,
         name: 'helper-login',
@@ -364,99 +378,145 @@ class AppRouter {
         ],
       ),
 
-      // 5. Helper Home
-      GoRoute(
-        path: helperHome,
-        name: 'helper-home',
-        builder: (context, state) => const HomePage(),
+      // 3. Helper Main Shell
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return HelperHomeLayout(navigationShell: navigationShell);
+        },
+        branches: [
+          // Branch: Dashboard
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: helperHome,
+                name: 'helper-home',
+                builder: (context, state) => const HelperDashboardPage(),
+              ),
+            ],
+          ),
+          // Branch: Bookings
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: helperBookings,
+                name: 'helper-bookings',
+                builder: (context, state) => const BookingsCenterPage(),
+              ),
+            ],
+          ),
+          // Branch: Messages
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: helperMessages,
+                name: 'helper-messages',
+                builder: (context, state) => const ConversationsListPage(),
+              ),
+            ],
+          ),
+          // Branch: Wallet
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: helperWallet,
+                name: 'helper-wallet',
+                builder: (context, state) => const WalletHubPage(),
+              ),
+            ],
+          ),
+          // Branch: Language
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/helper/language-interview',
+                name: 'language-interview-tab',
+                builder: (context, state) => const ExamsPage(),
+              ),
+            ],
+          ),
+          // Branch: Account
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: helperAccount,
+                name: 'helper-account',
+                builder: (context, state) => const AccountControlCenterPage(),
+              ),
+            ],
+          ),
+        ],
       ),
 
-      // 8. Helper Booking Routes
-      GoRoute(
-        path: helperDashboard,
-        name: 'helper-dashboard',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const HelperDashboardPage(),
-          transitionsBuilder: _fadeSlide,
-        ),
-      ),
+      // 4. Helper Sub-Pages (Pushed on top of Shell)
       GoRoute(
         path: helperRequests,
         name: 'helper-requests',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const IncomingRequestsPage(),
-          transitionsBuilder: _fadeSlide,
-        ),
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const IncomingRequestsPage(),
       ),
       GoRoute(
         path: helperRequestDetails,
         name: 'helper-request-details',
-        pageBuilder: (context, state) {
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: RequestDetailsPage(bookingId: id),
-            transitionsBuilder: _slideUp,
-          );
+          return RequestDetailsPage(bookingId: id);
         },
-      ),
-      GoRoute(
-        path: helperUpcoming,
-        name: 'helper-upcoming',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const UpcomingBookingsPage(),
-          transitionsBuilder: _fadeSlide,
-        ),
       ),
       GoRoute(
         path: helperActiveBooking,
         name: 'helper-active-booking',
-        pageBuilder: (context, state) {
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
           final id = state.pathParameters['id'] ?? (state.extra as String? ?? '');
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: ActiveBookingPage(bookingId: id),
-            transitionsBuilder: _slideUp,
-          );
+          return ActiveBookingPage(bookingId: id);
         },
       ),
       GoRoute(
         path: helperBookingDetails,
         name: 'helper-booking-details',
-        pageBuilder: (context, state) {
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: HelperBookingDetailsPage(bookingId: id),
-            transitionsBuilder: _fadeSlide,
-          );
+          return HelperBookingDetailsPage(bookingId: id);
         },
       ),
       GoRoute(
         path: helperHistory,
         name: 'helper-history',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const HelperHistoryPage(),
-          transitionsBuilder: _fadeSlide,
-        ),
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const HelperHistoryPage(),
       ),
       GoRoute(
         path: helperEarnings,
         name: 'helper-earnings',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const EarningsPage(),
-          transitionsBuilder: _fadeSlide,
-        ),
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const EarningsPage(),
       ),
 
 
+      // 5. Tourist Home & Flow
+      GoRoute(
+        path: home,
+        name: 'home',
+        builder: (context, state) => const HomeLayout(),
+        routes: [
+          GoRoute(
+            path: accountSettings,
+            name: 'account-settings',
+            builder: (context, state) => const AccountSettingsPage(),
+            routes: [
+              GoRoute(
+                path: profile,
+                name: 'profile',
+                builder: (context, state) => const ProfilePage(),
+              ),
+            ],
+          ),
+        ],
+      ),
 
-      // 6. Helper Status Routes
+      // 6. Helper Status & Interview
       GoRoute(
         path: helperOnboarding,
         name: 'helper-onboarding',
@@ -475,19 +535,15 @@ class AppRouter {
       GoRoute(
         path: preInterview,
         name: 'pre-interview',
-        builder: (context, state) {
-          // Always resolve from singleton — never pass cubit via extra
-          return BlocProvider.value(
-            value: sl<ExamsCubit>(),
-            child: const PreInterviewScreen(),
-          );
-        },
+        builder: (context, state) => BlocProvider.value(
+          value: sl<ExamsCubit>(),
+          child: const PreInterviewScreen(),
+        ),
       ),
       GoRoute(
         path: interviewScreen,
         name: 'interview-screen',
         builder: (context, state) {
-          // Always resolve from singleton — never pass cubit via extra
           final cubit = sl<ExamsCubit>();
           return BlocProvider.value(
             value: cubit,
@@ -501,6 +557,11 @@ class AppRouter {
         builder: (context, state) => const InterviewPendingScreen(),
       ),
 
+
+
+
+
+
       // 7. User Booking Routes
       GoRoute(
         path: bookingHome,
@@ -512,7 +573,10 @@ class AppRouter {
         name: 'scheduled-search',
         builder: (context, state) {
           final destination = state.extra as String?;
-          return ScheduledSearchPage(initialDestination: destination);
+          return BlocProvider(
+            create: (_) => sl<SearchHelpersCubit>(),
+            child: ScheduledSearchPage(initialDestination: destination),
+          );
         },
       ),
       GoRoute(
@@ -520,7 +584,10 @@ class AppRouter {
         name: 'instant-search',
         builder: (context, state) {
           final helper = state.extra as HelperBookingEntity?;
-          return InstantSearchPage(preSelectedHelper: helper);
+          return BlocProvider(
+            create: (_) => sl<SearchHelpersCubit>(),
+            child: InstantSearchPage(preSelectedHelper: helper),
+          );
         },
       ),
       GoRoute(
@@ -579,10 +646,160 @@ class AppRouter {
         builder: (context, state) => const MyBookingsPage(),
       ),
 
+      // ── Payments ────────────────────────────────────────────────────────
+      GoRoute(
+        path: paymentMethod,
+        name: 'payment-method',
+        builder: (context, state) {
+          final bookingId = state.pathParameters['bookingId']!;
+          return BlocProvider(
+            create: (_) => sl<PaymentCubit>(),
+            child: PaymentMethodPage(bookingId: bookingId),
+          );
+        },
+      ),
+      GoRoute(
+        path: paymentProcessing,
+        name: 'payment-processing',
+        builder: (context, state) {
+          final payment = state.extra as PaymentEntity;
+          return BlocProvider(
+            create: (_) => sl<PaymentCubit>(),
+            child: PaymentProcessingPage(payment: payment),
+          );
+        },
+      ),
+      GoRoute(
+        path: paymentWebview,
+        name: 'payment-webview',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return BlocProvider(
+            create: (_) => sl<PaymentCubit>(),
+            child: PaymentWebviewPage(
+              paymentUrl: extra['paymentUrl'],
+              paymentId: extra['paymentId'],
+              bookingId: extra['bookingId'],
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: paymentSuccess,
+        name: 'payment-success',
+        builder: (context, state) {
+          final bookingId = state.extra as String;
+          return PaymentSuccessPage(bookingId: bookingId);
+        },
+      ),
+      GoRoute(
+        path: paymentFailed,
+        name: 'payment-failed',
+        builder: (context, state) {
+          final bookingId = state.extra as String;
+          return PaymentFailedPage(bookingId: bookingId);
+        },
+      ),
+
+      // ── User Invoices ──────────────────────────────────────────────────
+      GoRoute(
+        path: userInvoices,
+        name: 'user-invoices',
+        builder: (context, state) => const UserInvoicesPage(),
+      ),
+      GoRoute(
+        path: userInvoiceDetail,
+        name: 'user-invoice-detail',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final invoice = state.extra as InvoiceEntity?;
+          return UserInvoiceDetailPage(invoiceId: id, initialInvoice: invoice);
+        },
+      ),
+      GoRoute(
+        path: userInvoiceView,
+        name: 'user-invoice-view',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return user_invoice_view.InvoiceViewPage(invoiceId: id);
+        },
+      ),
+
+      // ── User Ratings ──────────────────────────────────────────────────
+      GoRoute(
+        path: helperReviews,
+        name: 'helper-reviews',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final name = state.uri.queryParameters['name'] ?? 'Helper';
+          return HelperReviewsPage(helperId: id, helperName: name);
+        },
+      ),
+
+      // ── User Chat ──────────────────────────────────────────────────
+      GoRoute(
+        path: userChat,
+        name: 'user-chat',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final name = state.uri.queryParameters['name'];
+          final image = state.uri.queryParameters['image'];
+          return UserChatPage(
+            bookingId: id,
+            helperName: name,
+            helperImage: image,
+          );
+        },
+      ),
+
+      // ── User Booking Tracking ─────────────────────────────────────────
+      GoRoute(
+        path: userTracking,
+        name: 'user-tracking',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final pickupLat = double.parse(state.uri.queryParameters['pickupLat'] ?? '0');
+          final pickupLng = double.parse(state.uri.queryParameters['pickupLng'] ?? '0');
+          final destLat = double.parse(state.uri.queryParameters['destLat'] ?? '0');
+          final destLng = double.parse(state.uri.queryParameters['destLng'] ?? '0');
+          
+          return UserBookingTrackingPage(
+            bookingId: id,
+            pickupLocation: LatLng(pickupLat, pickupLng),
+            destinationLocation: LatLng(destLat, destLng),
+          );
+        },
+      ),
+
+      // ── Helper Booking Tracking ─────────────────────────────────────────
+      GoRoute(
+        path: helperTracking,
+        name: 'helper-tracking',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final pickupLat = double.parse(state.uri.queryParameters['pickupLat'] ?? '0');
+          final pickupLng = double.parse(state.uri.queryParameters['pickupLng'] ?? '0');
+          final destLat = double.parse(state.uri.queryParameters['destLat'] ?? '0');
+          final destLng = double.parse(state.uri.queryParameters['destLng'] ?? '0');
+          
+          return BlocProvider(
+            create: (context) => sl<HelperTrackingCubit>()..startTracking(id),
+            child: HelperBookingTrackingPage(
+              bookingId: id,
+              pickupLat: pickupLat,
+              pickupLng: pickupLng,
+              destLat: destLat,
+              destLng: destLng,
+            ),
+          );
+        },
+      ),
+
       // ── Helper Location ──────────────────────────────────────────────────
       GoRoute(
         path: helperLocation,
         name: 'helper-location',
+        parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const HelperLocationPage(),
@@ -603,6 +820,7 @@ class AppRouter {
       GoRoute(
         path: helperServiceAreas,
         name: 'helper-service-areas',
+        parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const ServiceAreasPage(),
@@ -612,6 +830,7 @@ class AppRouter {
       GoRoute(
         path: helperAddServiceArea,
         name: 'helper-add-service-area',
+        parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const AddEditServiceAreaPage(),
@@ -621,6 +840,7 @@ class AppRouter {
       GoRoute(
         path: helperEditServiceArea,
         name: 'helper-edit-service-area',
+        parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) {
           final area = state.extra as ServiceAreaEntity;
           return CustomTransitionPage(
@@ -643,6 +863,7 @@ class AppRouter {
       GoRoute(
         path: helperInvoiceDetail,
         name: 'helper-invoice-detail',
+        parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: InvoiceDetailPage(invoiceId: state.pathParameters['id']!),
@@ -661,6 +882,7 @@ class AppRouter {
       GoRoute(
         path: reassignment,
         name: 'reassignment',
+        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           final extra = state.extra as Map<String, dynamic>;

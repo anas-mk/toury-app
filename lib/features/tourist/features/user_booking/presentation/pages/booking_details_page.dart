@@ -233,12 +233,28 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                 _buildPriceSection(booking),
               ],
               const SizedBox(height: 40),
+              if (booking.status == BookingStatus.inProgress || booking.status == BookingStatus.confirmed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: CustomButton(
+                    text: 'Track Live',
+                    icon: Icons.map_outlined,
+                    color: AppColor.primaryColor,
+                    onPressed: () {
+                      context.push(
+                        '/user-tracking/${booking.id}?pickupLat=${booking.pickupLatitude ?? 0}&pickupLng=${booking.pickupLongitude ?? 0}&destLat=${booking.destinationLatitude ?? 0}&destLng=${booking.destinationLongitude ?? 0}',
+                      );
+                    },
+                  ),
+                ),
               if (booking.chatEnabled)
                 CustomButton(
                   text: 'Chat with Helper',
                   icon: Icons.chat_bubble_outline,
                   onPressed: () {
-                    // Chat logic
+                    context.push(
+                      '/user-chat/${booking.id}?name=${booking.helper?.name ?? "Helper"}&image=${booking.helper?.profileImageUrl ?? ""}',
+                    );
                   },
                 ),
               const SizedBox(height: 20),

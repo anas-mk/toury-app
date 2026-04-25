@@ -91,6 +91,51 @@ import '../../features/tourist/features/user_booking/presentation/cubits/cancel_
 import '../../features/tourist/features/user_booking/presentation/cubits/alternatives_cubit.dart';
 
 // ============================================================
+// Tourist Payments Feature Imports
+// ============================================================
+import '../../features/tourist/features/payments/data/datasources/payment_remote_datasource.dart';
+import '../../features/tourist/features/payments/data/repositories/payment_repository_impl.dart';
+import '../../features/tourist/features/payments/domain/repositories/payment_repository.dart';
+import '../../features/tourist/features/payments/domain/usecases/initiate_payment_usecase.dart';
+import '../../features/tourist/features/payments/domain/usecases/get_payment_usecase.dart';
+import '../../features/tourist/features/payments/domain/usecases/get_latest_payment_usecase.dart';
+import '../../features/tourist/features/payments/domain/usecases/mock_payment_complete_usecase.dart';
+import '../../features/tourist/features/payments/presentation/cubit/payment_cubit.dart';
+import '../../features/tourist/features/user_invoices/data/datasources/invoice_remote_datasource.dart';
+import '../../features/tourist/features/user_invoices/data/repositories/invoice_repository_impl.dart';
+import '../../features/tourist/features/user_invoices/domain/repositories/invoice_repository.dart';
+import '../../features/tourist/features/user_invoices/domain/usecases/get_invoices_usecase.dart' as user_inv;
+import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_detail_usecase.dart' as user_inv;
+import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_by_booking_usecase.dart' as user_inv;
+import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_html_usecase.dart' as user_inv;
+import '../../features/tourist/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
+import '../../features/tourist/features/user_ratings/data/datasources/rating_remote_datasource.dart';
+import '../../features/tourist/features/user_ratings/data/repositories/rating_repository_impl.dart';
+import '../../features/tourist/features/user_ratings/domain/repositories/rating_repository.dart';
+import '../../features/tourist/features/user_ratings/domain/usecases/get_booking_rating_state_usecase.dart' as user_rat;
+import '../../features/tourist/features/user_ratings/domain/usecases/get_helper_rating_summary_usecase.dart' as user_rat;
+import '../../features/tourist/features/user_ratings/domain/usecases/get_helper_ratings_usecase.dart' as user_rat;
+import '../../features/tourist/features/user_ratings/domain/usecases/get_user_rating_summary_usecase.dart' as user_rat;
+import '../../features/tourist/features/user_ratings/domain/usecases/rate_helper_usecase.dart' as user_rat;
+import '../../features/tourist/features/user_chat/presentation/cubit/user_chat_cubit.dart';
+import '../../features/tourist/features/user_booking_tracking/data/datasources/tracking_remote_datasource.dart';
+import '../../features/tourist/features/user_booking_tracking/data/repositories/tracking_repository_impl.dart';
+import '../../features/tourist/features/user_booking_tracking/domain/repositories/tracking_repository.dart';
+import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_latest_location_usecase.dart';
+import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_tracking_history_usecase.dart';
+import '../../features/tourist/features/user_booking_tracking/presentation/cubit/tracking_cubit.dart';
+import '../../core/services/signalr/booking_tracking_hub_service.dart';
+import '../../features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
+import '../../features/tourist/features/user_chat/data/datasources/user_chat_remote_datasource.dart';
+import '../../features/tourist/features/user_chat/data/repositories/user_chat_repository_impl.dart';
+import '../../features/tourist/features/user_chat/domain/repositories/user_chat_repository.dart';
+import '../../features/tourist/features/user_chat/domain/usecases/get_chat_conversation_usecase.dart';
+import '../../features/tourist/features/user_chat/domain/usecases/get_chat_messages_usecase.dart';
+import '../../features/tourist/features/user_chat/domain/usecases/listen_to_messages_usecase.dart';
+import '../../features/tourist/features/user_chat/domain/usecases/mark_chat_as_read_usecase.dart';
+import '../../features/tourist/features/user_chat/domain/usecases/send_chat_message_usecase.dart';
+
+// ============================================================
 // Helper Bookings Feature Imports
 // ============================================================
 import '../../features/helper/features/helper_bookings/data/datasources/helper_bookings_remote_data_source.dart';
@@ -136,6 +181,17 @@ import '../../features/helper/features/helper_chat/data/services/helper_chat_sig
 import '../../features/helper/features/helper_chat/domain/repositories/helper_chat_repository.dart';
 import '../../features/helper/features/helper_chat/domain/usecases/helper_chat_usecases.dart';
 import '../../features/helper/features/helper_chat/presentation/cubit/helper_chat_cubit.dart';
+
+// ============================================================
+// Helper Booking Tracking Feature Imports
+// ============================================================
+import '../../features/helper/features/helper_booking_tracking/data/datasources/tracking_remote_datasource.dart';
+import '../../features/helper/features/helper_booking_tracking/data/repositories/tracking_repository_impl.dart';
+import '../../features/helper/features/helper_booking_tracking/domain/repositories/tracking_repository.dart';
+import '../../features/helper/features/helper_booking_tracking/domain/usecases/get_latest_location_usecase.dart' as helper_track;
+import '../../features/helper/features/helper_booking_tracking/domain/usecases/get_tracking_history_usecase.dart' as helper_track;
+import '../../features/helper/features/helper_booking_tracking/presentation/cubit/helper_tracking_cubit.dart';
+
 import '../../features/helper/features/helper_reports/data/repositories/helper_reports_repository_impl.dart';
 import '../../features/helper/features/helper_reports/data/services/helper_reports_signalr_service.dart';
 import '../../features/helper/features/helper_reports/domain/repositories/helper_reports_repository.dart';
@@ -497,6 +553,34 @@ Future<void> init() async {
   );
 
   // ============================================================
+  // Features - Helper Booking Tracking
+  // ============================================================
+
+  // Data sources
+  sl.registerLazySingleton<HelperTrackingRemoteDataSource>(
+    () => HelperTrackingRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // Repositories
+  sl.registerLazySingleton<HelperTrackingRepository>(
+    () => HelperTrackingRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => helper_track.GetLatestLocationUseCase(sl()));
+  sl.registerLazySingleton(() => helper_track.GetTrackingHistoryUseCase(sl()));
+
+  // Cubits
+  sl.registerFactory(
+    () => HelperTrackingCubit(
+      getLatestLocationUseCase: sl<helper_track.GetLatestLocationUseCase>(),
+      getTrackingHistoryUseCase: sl<helper_track.GetTrackingHistoryUseCase>(),
+      hubService: sl(),
+      authService: sl(),
+    ),
+  );
+
+  // ============================================================
   // Features - Helper Invoices
   // ============================================================
 
@@ -623,6 +707,167 @@ Future<void> init() async {
 
   // Services
   sl.registerLazySingleton(() => HelperSosService());
+
+  // ============================================================
+  // Tourist Payments Feature
+  // ============================================================
+  
+  // Data sources
+  sl.registerLazySingleton<PaymentRemoteDataSource>(
+    () => PaymentRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // Repositories
+  sl.registerLazySingleton<PaymentRepository>(
+    () => PaymentRepositoryImpl(
+      remoteDataSource: sl(),
+    ),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => InitiatePaymentUseCase(sl()));
+  sl.registerLazySingleton(() => GetPaymentUseCase(sl()));
+  sl.registerLazySingleton(() => GetLatestPaymentUseCase(sl()));
+  sl.registerLazySingleton(() => MockPaymentCompleteUseCase(sl()));
+
+  // Cubits
+  sl.registerFactory(
+    () => PaymentCubit(
+      initiatePaymentUseCase: sl(),
+      getPaymentUseCase: sl(),
+      getLatestPaymentUseCase: sl(),
+      mockPaymentCompleteUseCase: sl(),
+    ),
+  );
+
+  // ============================================================
+  // User Invoices Feature
+  // ============================================================
+
+  // Data sources
+  sl.registerLazySingleton<InvoiceRemoteDataSource>(
+    () => InvoiceRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // Repositories
+  sl.registerLazySingleton<InvoiceRepository>(
+    () => InvoiceRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => user_inv.GetInvoicesUseCase(sl()));
+  sl.registerLazySingleton(() => user_inv.GetInvoiceDetailUseCase(sl()));
+  sl.registerLazySingleton(() => user_inv.GetInvoiceByBookingUseCase(sl()));
+  sl.registerLazySingleton(() => user_inv.GetInvoiceHtmlUseCase(sl()));
+
+  // Cubits
+  sl.registerFactory(
+    () => UserInvoicesCubit(
+      getInvoicesUseCase: sl<user_inv.GetInvoicesUseCase>(),
+      getInvoiceDetailUseCase: sl<user_inv.GetInvoiceDetailUseCase>(),
+      getInvoiceByBookingUseCase: sl<user_inv.GetInvoiceByBookingUseCase>(),
+      getInvoiceHtmlUseCase: sl<user_inv.GetInvoiceHtmlUseCase>(),
+    ),
+  );
+
+  // ============================================================
+  // User Ratings Feature
+  // ============================================================
+
+  // Data sources
+  sl.registerLazySingleton<RatingRemoteDataSource>(
+    () => RatingRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // Repositories
+  sl.registerLazySingleton<RatingRepository>(
+    () => RatingRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => user_rat.RateHelperUseCase(sl()));
+  sl.registerLazySingleton(() => user_rat.GetBookingRatingStateUseCase(sl()));
+  sl.registerLazySingleton(() => user_rat.GetHelperRatingsUseCase(sl()));
+  sl.registerLazySingleton(() => user_rat.GetHelperRatingSummaryUseCase(sl()));
+  sl.registerLazySingleton(() => user_rat.GetUserRatingSummaryUseCase(sl()));
+
+  // Cubits
+  sl.registerFactory(
+    () => UserRatingsCubit(
+      rateHelperUseCase: sl<user_rat.RateHelperUseCase>(),
+      getBookingRatingStateUseCase: sl<user_rat.GetBookingRatingStateUseCase>(),
+      getHelperRatingsUseCase: sl<user_rat.GetHelperRatingsUseCase>(),
+      getHelperRatingSummaryUseCase: sl<user_rat.GetHelperRatingSummaryUseCase>(),
+      getUserRatingSummaryUseCase: sl<user_rat.GetUserRatingSummaryUseCase>(),
+    ),
+  );
+
+  // ============================================================
+  // User Chat Feature
+  // ============================================================
+
+  // Data sources
+  sl.registerLazySingleton<UserChatRemoteDataSource>(
+    () => UserChatRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // Repositories
+  sl.registerLazySingleton<UserChatRepository>(
+    () => UserChatRepositoryImpl(remoteDataSource: sl()),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => GetChatConversationUseCase(sl()));
+  sl.registerLazySingleton(() => GetChatMessagesUseCase(sl()));
+  sl.registerLazySingleton(() => SendChatMessageUseCase(sl()));
+  sl.registerLazySingleton(() => MarkChatAsReadUseCase(sl()));
+  sl.registerLazySingleton(() => ListenToMessagesUseCase(sl()));
+
+  // Cubits
+  sl.registerFactory(
+    () => UserChatCubit(
+      getChatConversationUseCase: sl(),
+      getChatMessagesUseCase: sl(),
+      sendChatMessageUseCase: sl(),
+      markChatAsReadUseCase: sl(),
+      listenToMessagesUseCase: sl(),
+    ),
+  );
+
+  // ============================================================
+  // User Booking Tracking Feature
+  // ============================================================
+
+  // SignalR Service
+  sl.registerLazySingleton(() => BookingTrackingHubService());
+
+  // Data sources
+  sl.registerLazySingleton<TrackingRemoteDataSource>(
+    () => TrackingRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // Repositories
+  sl.registerLazySingleton<TrackingRepository>(
+    () => TrackingRepositoryImpl(
+      remoteDataSource: sl(),
+      hubService: sl(),
+    ),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => GetLatestLocationUseCase(sl()));
+  sl.registerLazySingleton(() => GetTrackingHistoryUseCase(sl()));
+
+  // Cubits
+  sl.registerFactory(
+    () => TrackingCubit(
+      getLatestLocationUseCase: sl(),
+      getTrackingHistoryUseCase: sl(),
+      repository: sl(),
+      hubService: sl(),
+      authService: sl(),
+    ),
+  );
 
   // ============================================================
   // Core - External Dependencies

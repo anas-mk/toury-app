@@ -94,7 +94,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
                 CircleAvatar(
                   radius: 18,
                   backgroundImage: user.profileImageUrl.isNotEmpty ? NetworkImage(user.profileImageUrl) : null,
-                  backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                  backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
                   child: user.profileImageUrl.isEmpty
                       ? Text(user.name[0], style: const TextStyle(color: Color(0xFF6C63FF), fontSize: 14))
                       : null,

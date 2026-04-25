@@ -20,7 +20,7 @@ class RatingSummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -58,7 +58,7 @@ class RatingSummaryCard extends StatelessWidget {
                   Text(
                     '${summary.totalCount} reviews',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
+                      color: Colors.white.withOpacity(0.5),
                       fontSize: 14,
                     ),
                   ),
@@ -103,9 +103,9 @@ class RatingSummaryCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C896).withValues(alpha: 0.1),
+              color: const Color(0xFF00C896).withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF00C896).withValues(alpha: 0.3)),
+              border: Border.all(color: const Color(0xFF00C896).withOpacity(0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -138,7 +138,7 @@ class ReviewListTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1F3C),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,7 +150,7 @@ class ReviewListTile extends StatelessWidget {
                 backgroundImage: review.authorAvatarUrl.isNotEmpty
                     ? NetworkImage(review.authorAvatarUrl)
                     : null,
-                backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                backgroundColor: const Color(0xFF6C63FF).withOpacity(0.2),
                 child: review.authorAvatarUrl.isEmpty
                     ? Text(
                         review.authorDisplayName[0],
@@ -181,7 +181,7 @@ class ReviewListTile extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           DateFormat('MMM dd, yyyy').format(review.createdAt),
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+                          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
                         ),
                       ],
                     ),
@@ -191,7 +191,7 @@ class ReviewListTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                  color: const Color(0xFF6C63FF).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -241,10 +241,10 @@ class TagChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF6C63FF) : Colors.white.withValues(alpha: 0.05),
+          color: isSelected ? const Color(0xFF6C63FF) : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.1),
+            color: isSelected ? Colors.transparent : Colors.white.withOpacity(0.1),
           ),
         ),
         child: Text(

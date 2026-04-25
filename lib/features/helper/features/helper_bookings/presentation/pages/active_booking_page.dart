@@ -6,6 +6,7 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
+import '../../../../../../core/theme/app_color.dart';
 
 class ActiveBookingPage extends StatefulWidget {
   final String bookingId;
@@ -155,16 +156,32 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
         Positioned(
           right: 20,
           bottom: 120,
-          child: FloatingActionButton.extended(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HelperChatPage(bookingId: booking.id),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton.extended(
+                heroTag: 'track_live',
+                onPressed: () => context.push(
+                  '/helper-tracking/${booking.id}?pickupLat=${booking.pickupLat}&pickupLng=${booking.pickupLng}&destLat=${booking.destinationLat}&destLng=${booking.destinationLng}',
+                ),
+                backgroundColor: AppColor.primaryColor,
+                icon: const Icon(Icons.map_outlined, color: Colors.white),
+                label: const Text('Track Live', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-            ),
-            backgroundColor: const Color(0xFF6C63FF),
-            icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
-            label: const Text('Chat Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              FloatingActionButton.extended(
+                heroTag: 'chat_traveler',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => HelperChatPage(bookingId: booking.id),
+                  ),
+                ),
+                backgroundColor: const Color(0xFF6C63FF),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
+                label: const Text('Chat Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
         ),
       ],
@@ -179,7 +196,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C896).withValues(alpha: 0.1),
+              color: const Color(0xFF00C896).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check_circle_outline_rounded,
@@ -477,9 +494,9 @@ class _Chip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.09),
+          color: color.withOpacity(0.09),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+          border: Border.all(color: color.withOpacity(0.25)),
         ),
         child: Column(
           children: [
@@ -543,10 +560,10 @@ class _ElapsedTimerState extends State<_ElapsedTimer> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF6C63FF).withValues(alpha: 0.08),
+        color: const Color(0xFF6C63FF).withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: const Color(0xFF6C63FF).withValues(alpha: 0.25)),
+            color: const Color(0xFF6C63FF).withOpacity(0.25)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,

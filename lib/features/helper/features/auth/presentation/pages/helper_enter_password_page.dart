@@ -109,7 +109,7 @@ class _HelperEnterPasswordPageState extends State<HelperEnterPasswordPage>
                             boxShadow: [
                               if (!isDark)
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
+                                  color: Colors.black.withOpacity(0.08),
                                   blurRadius: 10,
                                   offset: const Offset(0, 6),
                                 ),

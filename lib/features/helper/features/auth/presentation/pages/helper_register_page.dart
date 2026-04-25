@@ -143,7 +143,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0E0E0E) : AppColor.primaryColor.withValues(alpha: 0.95),
+      backgroundColor: isDark ? const Color(0xFF0E0E0E) : AppColor.primaryColor.withOpacity(0.95),
       appBar: const BasicAppBar(),
       body: SafeArea(
         child: BlocConsumer<HelperAuthCubit, HelperAuthState>(
@@ -198,7 +198,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage>
                             ? []
                             : [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
+                                  color: Colors.black.withOpacity(0.1),
                                   blurRadius: 10,
                                   offset: const Offset(0, 6),
                                 ),

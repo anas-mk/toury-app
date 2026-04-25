@@ -101,8 +101,8 @@ class _HelperLocationPageState extends State<HelperLocationPage> {
                             point: LatLng(state.location.latitude, state.location.longitude),
                             radius: 100,
                             useRadiusInMeter: true,
-                            color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
-                            borderColor: const Color(0xFF6C63FF).withValues(alpha: 0.3),
+                            color: const Color(0xFF6C63FF).withOpacity(0.1),
+                            borderColor: const Color(0xFF6C63FF).withOpacity(0.3),
                             borderStrokeWidth: 2,
                           ),
                         ],
@@ -185,7 +185,7 @@ class _LocationMarker extends StatelessWidget {
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF6C63FF).withValues(alpha: 0.5),
+                color: const Color(0xFF6C63FF).withOpacity(0.5),
                 blurRadius: 10,
                 spreadRadius: 2,
               ),
@@ -211,9 +211,9 @@ class _TopStatusBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C).withValues(alpha: 0.9),
+        color: const Color(0xFF1A1F3C).withOpacity(0.9),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -231,7 +231,7 @@ class _TopStatusBar extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: (connected ? Colors.green : Colors.red).withValues(alpha: 0.5),
+                      color: (connected ? Colors.green : Colors.red).withOpacity(0.5),
                       blurRadius: 6,
                       spreadRadius: 1,
                     ),
@@ -255,7 +255,7 @@ class _TopStatusBar extends StatelessWidget {
                       status = state.connectionState.name.toUpperCase();
                     }
                     return Text(status,
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11));
+                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11));
                   },
                 ),
               ],
@@ -280,9 +280,9 @@ class _EligibilityBadge extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: (eligible ? Colors.green : Colors.orange).withValues(alpha: 0.15),
+            color: (eligible ? Colors.green : Colors.orange).withOpacity(0.15),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: (eligible ? Colors.green : Colors.orange).withValues(alpha: 0.3)),
+            border: Border.all(color: (eligible ? Colors.green : Colors.orange).withOpacity(0.3)),
           ),
           child: Text(
             eligible ? 'ELIGIBLE' : 'STALE',
@@ -309,10 +309,10 @@ class _BottomControlPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C).withValues(alpha: 0.95),
+        color: const Color(0xFF1A1F3C).withOpacity(0.95),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10)),
+          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
         ],
       ),
       child: Column(
@@ -330,7 +330,7 @@ class _BottomControlPanel extends StatelessWidget {
                         Text(isOnline ? 'You are Online' : 'You are Offline', 
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                         Text(isOnline ? 'Streaming location live' : 'Location sync paused',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12)),
+                            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
                       ],
                     );
                   },
@@ -353,7 +353,7 @@ class _BottomControlPanel extends StatelessWidget {
                   icon: const Icon(Icons.bug_report_rounded, size: 18),
                   label: const Text('Debug'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    backgroundColor: Colors.white.withOpacity(0.05),
                     foregroundColor: Colors.white70,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

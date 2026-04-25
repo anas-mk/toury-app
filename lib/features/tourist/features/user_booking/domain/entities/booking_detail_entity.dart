@@ -9,6 +9,7 @@ enum BookingStatus {
   cancelled,
   expired,
   declined,
+  confirmedAwaitingPayment,
 }
 
 enum BookingType {
@@ -27,12 +28,15 @@ class BookingDetailEntity extends Equatable {
   final String? pickupLocationName;
   final double? pickupLatitude;
   final double? pickupLongitude;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
   final HelperBookingEntity? helper;
   final double totalPrice;
   final String currency;
   final String? notes;
   final bool chatEnabled;
   final List<BookingTimelineStep> timeline;
+  final String? paymentStatus;
   final PriceBreakdownEntity? priceBreakdown;
 
   const BookingDetailEntity({
@@ -46,12 +50,15 @@ class BookingDetailEntity extends Equatable {
     this.pickupLocationName,
     this.pickupLatitude,
     this.pickupLongitude,
+    this.destinationLatitude,
+    this.destinationLongitude,
     this.helper,
     required this.totalPrice,
     required this.currency,
     this.notes,
     required this.chatEnabled,
     required this.timeline,
+    this.paymentStatus,
     this.priceBreakdown,
   });
 
@@ -67,12 +74,15 @@ class BookingDetailEntity extends Equatable {
         pickupLocationName,
         pickupLatitude,
         pickupLongitude,
+        destinationLatitude,
+        destinationLongitude,
         helper,
         totalPrice,
         currency,
         notes,
         chatEnabled,
         timeline,
+        paymentStatus,
         priceBreakdown,
       ];
 }

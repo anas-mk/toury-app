@@ -256,10 +256,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00C896).withValues(alpha: 0.15),
+                        color: const Color(0xFF00C896).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: const Color(0xFF00C896).withValues(alpha: 0.4)),
+                            color: const Color(0xFF00C896).withOpacity(0.4)),
                       ),
                       child: Column(
                         children: [
@@ -374,9 +374,9 @@ class _CountdownBarState extends State<_CountdownBar> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.08),
+        color: c.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: c.withValues(alpha: 0.3)),
+        border: Border.all(color: c.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -418,7 +418,7 @@ class _TravelerCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+            backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
             child: Text(
               booking.travelerName.isNotEmpty
                   ? booking.travelerName[0].toUpperCase()
@@ -563,7 +563,7 @@ class _NotesCard extends StatelessWidget {
         color: const Color(0xFF1A1F3C),
         borderRadius: BorderRadius.circular(20),
         border:
-            Border.all(color: const Color(0xFFFFAB40).withValues(alpha: 0.25)),
+            Border.all(color: const Color(0xFFFFAB40).withOpacity(0.25)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,12 +681,12 @@ class _DeclineReasonSheetState extends State<_DeclineReasonSheet> {
                           horizontal: 14, vertical: 11),
                       decoration: BoxDecoration(
                         color: _selected == r
-                            ? const Color(0xFFFF6B6B).withValues(alpha: 0.08)
-                            : Colors.white.withValues(alpha: 0.04),
+                            ? const Color(0xFFFF6B6B).withOpacity(0.08)
+                            : Colors.white.withOpacity(0.04),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                             color: _selected == r
-                                ? const Color(0xFFFF6B6B).withValues(alpha: 0.4)
+                                ? const Color(0xFFFF6B6B).withOpacity(0.4)
                                 : Colors.white12),
                       ),
                       child: Row(
