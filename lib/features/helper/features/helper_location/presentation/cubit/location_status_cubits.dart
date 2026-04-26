@@ -70,10 +70,20 @@ class EligibilityCubit extends Cubit<EligibilityState> {
 
   EligibilityCubit({required this.getEligibilityUseCase}) : super(EligibilityInitial());
 
-  Future<void> loadEligibility() async {
+  Future<void> loadEligibility({
+    double? pickupLat,
+    double? pickupLng,
+    String? language,
+    bool? requiresCar,
+  }) async {
     emit(EligibilityLoading());
     try {
-      final eligibility = await getEligibilityUseCase.execute();
+      final eligibility = await getEligibilityUseCase.execute(
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        language: language,
+        requiresCar: requiresCar,
+      );
       emit(EligibilityLoaded(eligibility));
     } catch (e) {
       emit(EligibilityError(e.toString()));

@@ -21,46 +21,62 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
     required this.hubService,
   }) : super(BookingStatusInitial());
 
+  /// Polls for any booking that is currently active (in progress or accepted).
+  /// Uses multiple valid statuses in sequence to find the most relevant one.
   Future<void> startPollingForActive() async {
+    if (isClosed) return;
     emit(BookingStatusLoading());
-    
-    // First, check if there's any active booking using the usecase
-    // We can use getMyBookings with 'Active' status or similar
-    final result = await getMyBookingsUseCase(status: 'Active', pageSize: 1);
-    
-    result.fold(
-      (failure) => emit(BookingStatusError(failure.message)),
-      (pagedResponse) {
-        if (pagedResponse.items.isNotEmpty) {
-          final activeBooking = pagedResponse.items.first;
-          emit(BookingStatusActive(activeBooking));
-          _subscribeToStatusChanges(activeBooking.id);
-        } else {
-          emit(BookingStatusNoActive());
+
+    // Search statuses that indicate an "active" booking requiring user attention
+    const activeStatuses = [
+      'InProgress',
+      'ConfirmedPaid',
+      'AcceptedByHelper',
+      'PendingHelperResponse',
+    ];
+
+    for (final status in activeStatuses) {
+      if (isClosed) return;
+      final result = await getMyBookingsUseCase(status: status, pageSize: 1);
+      final found = result.fold((_) => null, (paged) => paged.items.isNotEmpty ? paged.items.first : null);
+      if (found != null) {
+        if (!isClosed) {
+          emit(BookingStatusActive(found));
+          _subscribeToStatusChanges(found.id);
         }
-      },
-    );
+        return;
+      }
+    }
+
+    if (!isClosed) emit(BookingStatusNoActive());
   }
 
   void _subscribeToStatusChanges(String bookingId) {
     _statusSubscription?.cancel();
     _statusSubscription = hubService.statusStream.listen((event) {
       final String? eventBookingId = event['bookingId']?.toString();
-      if (eventBookingId == bookingId) {
-        // Refresh booking details when status changes
+      if (eventBookingId == bookingId && !isClosed) {
         refreshActiveBooking(bookingId);
       }
     });
   }
 
   Future<void> refreshActiveBooking(String bookingId) async {
+    if (isClosed) return;
     final result = await getBookingDetailsUseCase(bookingId);
+    if (isClosed) return;
     result.fold(
       (failure) => emit(BookingStatusError(failure.message)),
       (booking) {
-        // Check if booking is still active/upcoming
-        const inactiveStatuses = ['Completed', 'Cancelled', 'Declined', 'Expired'];
-        if (inactiveStatuses.contains(booking.status.name)) {
+        const terminalStatuses = [
+          'completed',
+          'cancelledByUser',
+          'cancelledByHelper',
+          'cancelledBySystem',
+          'declinedByHelper',
+          'expiredNoResponse',
+        ];
+        if (terminalStatuses.contains(booking.status.name)) {
           emit(BookingStatusNoActive());
           _statusSubscription?.cancel();
         } else {

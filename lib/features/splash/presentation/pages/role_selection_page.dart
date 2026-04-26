@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_color.dart';
-import '../../../../core/widgets/custom_card.dart';
 import '../../../../core/widgets/custom_button.dart';
 
 class RoleSelectionPage extends StatefulWidget {
@@ -13,27 +13,26 @@ class RoleSelectionPage extends StatefulWidget {
   State<RoleSelectionPage> createState() => _RoleSelectionPageState();
 }
 
-class _RoleSelectionPageState extends State<RoleSelectionPage>
-    with SingleTickerProviderStateMixin {
+class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000),
     )..forward();
 
     _fadeAnimation = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeInOut,
+      curve: Curves.easeIn,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    _slideAnimation = Tween<double>(begin: 30, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
   }
 
@@ -46,122 +45,183 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final loc = AppLocalizations.of(context);
-    final textColor = isDark ? Colors.white70 : Colors.white;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0E0E0E)
-          : AppColor.primaryColor.withOpacity(0.95),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: ScaleTransition(
-                    scale: _scaleAnimation,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Logo
-                        Image.asset(
-                          'assets/logo/logo.png',
-                          height: 180,
-                        ),
-                        const SizedBox(height: 30),
-
-                        // Card
-                        CustomCard(
-                        backgroundColor: isDark
-                              ? Colors.grey[900]
-                              : Colors.white.withOpacity(0.95),
-                          child: Column(
-                            children: [
-                              Text(
-                                loc.translate("continue_as"),
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark
-                                      ? Colors.white
-                                      : AppColor.primaryColor,
-                                ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.colorScheme.primary.withOpacity(0.05),
+              theme.scaffoldBackgroundColor,
+              theme.colorScheme.secondary.withOpacity(0.03),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: AnimatedBuilder(
+                      animation: _controller,
+                      builder: (context, child) {
+                        return Opacity(
+                          opacity: _fadeAnimation.value,
+                          child: Transform.translate(
+                            offset: Offset(0, _slideAnimation.value),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SizedBox(height: AppTheme.space2XL),
+                            Center(
+                              child: Image.asset(
+                                'assets/logo/logo.png',
+                                height: 100,
+                                fit: BoxFit.contain,
                               ),
-                              const SizedBox(height: 30),
-                              _buildTouristButton(context,loc),
-                              const SizedBox(height: 20),
-                              _buildHelperButton(context,loc),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: AppTheme.space2XL),
+                            Text(
+                              loc.translate("continue_as") ?? "Continue as",
+                              style: theme.textTheme.displaySmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppTheme.spaceSM),
+                            Text(
+                              loc.translate("select_role") ?? "Please select your role to continue",
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppTheme.space2XL),
+                            _buildRoleCard(
+                              context,
+                              title: loc.translate("tourist") ?? "Tourist",
+                              subtitle: "Discover places and book amazing trips",
+                              icon: Icons.travel_explore_rounded,
+                              color: theme.colorScheme.primary,
+                              onTap: () => context.push(AppRouter.login, extra: 'from_role_selection'),
+                            ),
+                            const SizedBox(height: AppTheme.spaceLG),
+                            _buildRoleCard(
+                              context,
+                              title: loc.translate("helper") ?? "Helper",
+                              subtitle: "Join as a partner and earn while helping",
+                              icon: Icons.handshake_rounded,
+                              color: theme.colorScheme.secondary,
+                              onTap: () => context.push(AppRouter.helperLogin, extra: 'from_role_selection'),
+                            ),
+                            const Spacer(),
+                            const SizedBox(height: AppTheme.spaceXL),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppTheme.spaceXL),
+                              child: Text(
+                                "By continuing, you agree to our Terms and Privacy Policy",
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 40),
-
-                        // Footer
-                        Text(
-                          loc.translate("select_role"),
-                          style: TextStyle(
-                            color: textColor.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+        child: Ink(
+          padding: const EdgeInsets.all(AppTheme.spaceXL),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+            border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: theme.shadowColor.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTouristButton(BuildContext context,AppLocalizations loc) {
-    return CustomButton(
-      text:  loc.translate("tourist") ,
-      color: AppColor.primaryColor,
-      height: 55,
-      borderRadius: 16,
-      textStyle: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.white,
-      ),
-      onPressed: () {
-        context.push(AppRouter.login, extra: 'from_role_selection');
-      },
-    );
-  }
-
-  Widget _buildHelperButton(BuildContext context,AppLocalizations loc) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    return OutlinedButton.icon(
-      onPressed: () {
-        context.push(AppRouter.helperLogin, extra: 'from_role_selection');
-      },
-      label: Text(
-        loc.translate("helper"),
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: isDarkMode ? Colors.white : AppColor.primaryColor,
-        ),
-      ),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 55),
-        side: BorderSide(
-          color: AppColor.primaryColor,
-          width: 2,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppTheme.spaceLG),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                ),
+                child: Icon(icon, color: color, size: 32),
+              ),
+              const SizedBox(width: AppTheme.spaceLG),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurface.withOpacity(0.2),
+              ),
+            ],
+          ),
         ),
       ),
     );

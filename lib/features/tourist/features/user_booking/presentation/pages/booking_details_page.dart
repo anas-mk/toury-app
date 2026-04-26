@@ -11,7 +11,7 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/booking_status_cubit.dart';
 import '../cubits/booking_status_state.dart';
-import '../cubits/booking_cubit.dart';
+import '../cubits/cancel_booking_cubit.dart';
 
 class BookingDetailsPage extends StatefulWidget {
   final String bookingId;
@@ -28,59 +28,103 @@ class BookingDetailsPage extends StatefulWidget {
 }
 
 class _BookingDetailsPageState extends State<BookingDetailsPage> {
+  final TextEditingController _cancelReasonController = TextEditingController();
+
+  @override
+  void dispose() {
+    _cancelReasonController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return BlocProvider(
-      create: (_) => sl<BookingStatusCubit>()..refreshActiveBooking(widget.bookingId),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Booking Details'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.help_outline),
-              onPressed: () {},
-            ),
-          ],
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => sl<BookingStatusCubit>()..refreshActiveBooking(widget.bookingId),
         ),
-        body: BlocBuilder<BookingStatusCubit, BookingStatusState>(
-          builder: (context, state) {
-            if (state is BookingStatusLoading && widget.initialBooking == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            
-            final booking = (state is BookingStatusActive) 
-                ? state.booking 
-                : widget.initialBooking;
-
-            if (booking == null) {
-              return const Center(child: Text('Booking not found'));
-            }
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(AppTheme.spaceLG),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStatusBanner(booking),
-                  const SizedBox(height: AppTheme.spaceXL),
-                  
-                  _buildHelperInfo(theme, booking),
-                  const SizedBox(height: AppTheme.spaceXL),
-                  
-                  _buildTripSummary(theme, booking),
-                  const SizedBox(height: AppTheme.spaceXL),
-                  
-                  _buildActionButtons(context, booking),
-                  const SizedBox(height: AppTheme.space2XL),
-                  
-                  if (booking.status != BookingStatus.completed && booking.status != BookingStatus.cancelledByUser && booking.status != BookingStatus.cancelledByHelper && booking.status != BookingStatus.cancelledBySystem)
-                    _buildCancelOption(context, booking),
-                ],
-              ),
+        BlocProvider(create: (_) => sl<CancelBookingCubit>()),
+      ],
+      child: BlocListener<CancelBookingCubit, CancelBookingState>(
+        listener: (context, state) {
+          if (state is CancelBookingSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Booking cancelled successfully.')),
             );
-          },
+            context.go(AppRouter.home);
+          } else if (state is CancelBookingError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),
+            );
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Booking Details'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.help_outline),
+                onPressed: () {},
+              ),
+            ],
+          ),
+          body: BlocBuilder<BookingStatusCubit, BookingStatusState>(
+            builder: (context, state) {
+              if (state is BookingStatusLoading && widget.initialBooking == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final booking = (state is BookingStatusActive)
+                  ? state.booking
+                  : widget.initialBooking;
+
+              if (booking == null) {
+                if (state is BookingStatusError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: AppColor.errorColor),
+                        const SizedBox(height: AppTheme.spaceMD),
+                        Text(state.message),
+                        const SizedBox(height: AppTheme.spaceMD),
+                        CustomButton(
+                          text: 'Retry',
+                          onPressed: () => context.read<BookingStatusCubit>().refreshActiveBooking(widget.bookingId),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const Center(child: Text('Booking not found'));
+              }
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(AppTheme.spaceLG),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStatusBanner(booking),
+                    const SizedBox(height: AppTheme.spaceXL),
+
+                    _buildHelperInfo(theme, context, booking),
+                    const SizedBox(height: AppTheme.spaceXL),
+
+                    _buildTripSummary(theme, booking),
+                    const SizedBox(height: AppTheme.spaceXL),
+
+                    _buildActionButtons(context, booking),
+                    const SizedBox(height: AppTheme.space2XL),
+
+                    if (booking.canCancel)
+                      _buildCancelOption(context, booking),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -103,15 +147,34 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            booking.status.name.toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            _formatStatus(booking.status),
+            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.0),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHelperInfo(ThemeData theme, BookingDetailEntity booking) {
+  String _formatStatus(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.pendingHelperResponse: return 'Pending Helper Response';
+      case BookingStatus.acceptedByHelper: return 'Accepted by Helper';
+      case BookingStatus.confirmedAwaitingPayment: return 'Awaiting Payment';
+      case BookingStatus.confirmedPaid: return 'Confirmed & Paid';
+      case BookingStatus.upcoming: return 'Upcoming';
+      case BookingStatus.inProgress: return 'In Progress';
+      case BookingStatus.completed: return 'Completed';
+      case BookingStatus.declinedByHelper: return 'Declined by Helper';
+      case BookingStatus.expiredNoResponse: return 'No Response — Expired';
+      case BookingStatus.reassignmentInProgress: return 'Finding New Helper';
+      case BookingStatus.waitingForUserAction: return 'Action Required';
+      case BookingStatus.cancelledByUser: return 'Cancelled by You';
+      case BookingStatus.cancelledByHelper: return 'Cancelled by Helper';
+      case BookingStatus.cancelledBySystem: return 'Cancelled by System';
+    }
+  }
+
+  Widget _buildHelperInfo(ThemeData theme, BuildContext context, BookingDetailEntity booking) {
     return Row(
       children: [
         ClipRRect(
@@ -128,15 +191,28 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(booking.helper?.name ?? 'Helper', style: theme.textTheme.titleLarge),
-              Text('Your professional local helper', style: theme.textTheme.bodySmall),
+              if (booking.helper?.rating != null)
+                Row(
+                  children: [
+                    const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Text('${booking.helper!.rating}', style: theme.textTheme.bodySmall),
+                    Text(' • ${booking.helper!.completedTrips} trips', style: theme.textTheme.bodySmall),
+                  ],
+                ),
             ],
           ),
         ),
-        IconButton(
-          onPressed: () => context.pushNamed('user-chat', pathParameters: {'id': booking.id}),
-          icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColor.primaryColor),
-          style: IconButton.styleFrom(backgroundColor: AppColor.lightSurface),
-        ),
+        // Chat button only shown when chat is enabled by backend
+        if (booking.chatEnabled)
+          IconButton(
+            onPressed: () => context.pushNamed(
+              'user-chat',
+              pathParameters: {'id': booking.id},
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppColor.primaryColor),
+            style: IconButton.styleFrom(backgroundColor: AppColor.lightSurface),
+          ),
       ],
     );
   }
@@ -153,12 +229,21 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
           _buildInfoRow(Icons.location_on_rounded, 'Destination', booking.destinationCity),
           const Divider(height: AppTheme.spaceLG),
           _buildInfoRow(
-            Icons.calendar_today_rounded, 
-            'Date & Time', 
-            DateFormat('MMM dd, yyyy - jm').format(booking.requestedDate)
+            Icons.calendar_today_rounded,
+            'Date & Time',
+            DateFormat('MMM dd, yyyy').format(booking.requestedDate) +
+                (booking.startTime != null ? ' at ${booking.startTime}' : ''),
           ),
           const Divider(height: AppTheme.spaceLG),
-          _buildInfoRow(Icons.payments_rounded, 'Total Paid', '${booking.finalPrice ?? booking.estimatedPrice ?? 0} ${booking.currency ?? "USD"}'),
+          _buildInfoRow(
+            Icons.payments_rounded,
+            'Price',
+            '${(booking.finalPrice ?? booking.estimatedPrice ?? 0).toStringAsFixed(2)} ${booking.currency ?? "EGP"}',
+          ),
+          if (booking.paymentStatus != null) ...[
+            const Divider(height: AppTheme.spaceLG),
+            _buildInfoRow(Icons.receipt_long_rounded, 'Payment', booking.paymentStatus!),
+          ],
         ],
       ),
     );
@@ -169,63 +254,120 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       children: [
         Icon(icon, size: 20, color: AppColor.lightTextSecondary),
         const SizedBox(width: AppTheme.spaceMD),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: AppColor.lightTextSecondary, fontSize: 12)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: AppColor.lightTextSecondary, fontSize: 12)),
+              Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _buildActionButtons(BuildContext context, BookingDetailEntity booking) {
-    final bool canTrack = [BookingStatus.inProgress, BookingStatus.acceptedByHelper, BookingStatus.confirmedPaid].contains(booking.status);
-    
+    final canTrack = [
+      BookingStatus.inProgress,
+      BookingStatus.acceptedByHelper,
+      BookingStatus.confirmedPaid,
+    ].contains(booking.status);
+
     return Column(
       children: [
         if (canTrack)
           CustomButton(
             text: 'Track Helper',
             icon: Icons.map_rounded,
-            onPressed: () => context.pushNamed('user-tracking', pathParameters: {'id': booking.id}),
+            onPressed: () => context.pushNamed(
+              'user-tracking',
+              pathParameters: {'id': booking.id},
+            ),
           ),
-        const SizedBox(height: AppTheme.spaceMD),
-        if (booking.status == BookingStatus.completed)
+        if (booking.status == BookingStatus.completed) ...[
+          const SizedBox(height: AppTheme.spaceMD),
           CustomButton(
             text: 'Rate Helper',
             variant: ButtonVariant.secondary,
-            onPressed: () => context.pushNamed('helper-reviews', pathParameters: {'id': booking.id}),
+            onPressed: () => context.pushNamed('rate-booking', pathParameters: {'bookingId': booking.id}),
           ),
+        ],
+        if ([
+          BookingStatus.declinedByHelper,
+          BookingStatus.expiredNoResponse,
+          BookingStatus.reassignmentInProgress,
+        ].contains(booking.status)) ...[
+          const SizedBox(height: AppTheme.spaceMD),
+          CustomButton(
+            text: 'View Alternatives',
+            variant: ButtonVariant.secondary,
+            onPressed: () => context.pushNamed(
+              'reassignment',
+              pathParameters: {'id': booking.id},
+            ),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildCancelOption(BuildContext context, BookingDetailEntity booking) {
-    return Center(
-      child: TextButton(
-        onPressed: () => _showCancelDialog(context, booking.id),
-        child: const Text('Cancel Booking', style: TextStyle(color: AppColor.errorColor)),
-      ),
+    return BlocBuilder<CancelBookingCubit, CancelBookingState>(
+      builder: (context, state) {
+        return Center(
+          child: TextButton(
+            onPressed: state is CancelBookingLoading ? null : () => _showCancelDialog(context, booking.id),
+            child: state is CancelBookingLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColor.errorColor),
+                  )
+                : const Text('Cancel Booking', style: TextStyle(color: AppColor.errorColor)),
+          ),
+        );
+      },
     );
   }
 
   void _showCancelDialog(BuildContext context, String bookingId) {
+    _cancelReasonController.clear();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Booking?'),
-        content: const Text('Are you sure you want to cancel this trip? A cancellation fee may apply.'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel Booking'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please provide a reason for cancellation (required):'),
+            const SizedBox(height: AppTheme.spaceMD),
+            TextField(
+              controller: _cancelReasonController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Plans changed...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('No, Keep It')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Keep Booking')),
           TextButton(
             onPressed: () {
-              // Should use BookingCubit to cancel
-              Navigator.pop(context);
-              context.go(AppRouter.home);
+              final reason = _cancelReasonController.text.trim();
+              if (reason.length < 5) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a reason (min 5 characters).')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext);
+              context.read<CancelBookingCubit>().cancel(bookingId, reason);
             },
-            child: const Text('Yes, Cancel', style: TextStyle(color: AppColor.errorColor)),
+            child: const Text('Confirm Cancel', style: TextStyle(color: AppColor.errorColor)),
           ),
         ],
       ),

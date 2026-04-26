@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/auth_service.dart';
+import '../../../../core/theme/app_theme.dart';
 import 'package:go_router/go_router.dart';
 
 class SplashPage extends StatefulWidget {
@@ -27,12 +28,14 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
       duration: const Duration(milliseconds: 1500),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.7, curve: Curves.easeOutBack),
     );
 
     _controller.forward();
@@ -56,26 +59,16 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     final authService = sl<AuthService>();
     final token = authService.getToken();
     final role = authService.getRole();
-    
-    // Debug Logs
-    print('--- 🌊 SPLASH AUTH AUDIT ---');
-    print('Token: ${token ?? "NULL"}');
-    print('Role: ${role ?? "NULL"}');
 
     String targetRoute = AppRouter.roleSelection;
 
-    if (token == null || token.isEmpty) {
-      targetRoute = AppRouter.roleSelection;
-    } else {
+    if (token != null && token.isNotEmpty) {
       if (role == 'helper') {
         targetRoute = AppRouter.helperHome;
       } else if (role == 'tourist') {
         targetRoute = AppRouter.home;
       }
     }
-
-    print('Final Selected Route: $targetRoute');
-    print('---------------------------');
 
     if (mounted && !_isNavigated) {
       _isNavigated = true;
@@ -92,30 +85,77 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A0A) : theme.primaryColor,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Image.asset(
-              'assets/logo/logo.png',
-              height: 230,
-              width: 230,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.travel_explore,
-                  size: 120,
-                  color: Colors.white,
-                );
-              },
-            ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              theme.scaffoldBackgroundColor,
+              theme.colorScheme.primary.withOpacity(0.05),
+              theme.scaffoldBackgroundColor,
+            ],
           ),
         ),
+        child: Stack(
+          children: [
+            // Background Decorative Elements
+            Positioned(
+              top: -100,
+              right: -100,
+              child: _buildCircle(theme.colorScheme.primary.withOpacity(0.05), 300),
+            ),
+            Positioned(
+              bottom: -50,
+              left: -50,
+              child: _buildCircle(theme.colorScheme.secondary.withOpacity(0.03), 200),
+            ),
+
+            Center(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/logo/logo.png',
+                        height: 140,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: AppTheme.spaceXL),
+                      SizedBox(
+                        width: 40,
+                        height: 2,
+                        child: LinearProgressIndicator(
+                          backgroundColor: theme.colorScheme.onSurface.withOpacity(0.1),
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCircle(Color color, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
       ),
     );
   }

@@ -63,7 +63,8 @@ class HelperLocationSignalRService {
     required double lat,
     required double lng,
     double? heading,
-    double? speed,
+    double? speedKmh,
+    double? accuracyMeters,
   }) async {
     if (_hubConnection?.state != HubConnectionState.Connected) {
       throw Exception('SignalR not connected');
@@ -74,7 +75,8 @@ class HelperLocationSignalRService {
         'latitude': lat,
         'longitude': lng,
         'heading': heading,
-        'speed': speed,
+        'speedKmh': speedKmh,
+        'accuracyMeters': accuracyMeters,
         'timestamp': DateTime.now().toIso8601String(),
       }
     ]);

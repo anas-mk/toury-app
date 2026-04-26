@@ -19,8 +19,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _googleSignIn = GoogleSignIn(scopes: ['email']);
@@ -38,16 +37,16 @@ class _LoginPageState extends State<LoginPage>
   void _setupAnimations() {
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 800),
     );
 
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeIn,
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
+      begin: const Offset(0, 0.05),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animController,
@@ -70,150 +69,143 @@ class _LoginPageState extends State<LoginPage>
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: SafeArea(
-        child: BlocConsumer<AuthCubit, AuthState>(
-          listener: _handleAuthState,
-          builder: (context, state) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: CustomScrollView(
-                  slivers: [
-                    // App Bar
-                    SliverAppBar(
-                      floating: true,
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      leading: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                        onPressed: () => Navigator.pop(context),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => context.pop(),
+        ),
+        backgroundColor: Colors.transparent,
+      ),
+      body: BlocConsumer<AuthCubit, AuthState>(
+        listener: _handleAuthState,
+        builder: (context, state) {
+          return FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: AppTheme.spaceLG),
+                    // Logo
+                    Center(
+                      child: Hero(
+                        tag: 'app-logo',
+                        child: Image.asset(
+                          'assets/logo/logo.png',
+                          height: 120,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceXL),
+
+                    // Welcome Text
+                    Text(
+                      l10n.login,
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppTheme.spaceSM),
+                    Text(
+                      "Enter your email to continue",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppTheme.space2XL),
+
+                    // Login Form
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          EmailTextField(
+                            controller: _emailController,
+                            label: l10n.email,
+                            hintText: "example@email.com",
+                          ),
+                          const SizedBox(height: AppTheme.spaceXL),
+
+                          CustomButton(
+                            text: l10n.continueText,
+                            onPressed: _handleContinue,
+                            isLoading: state is AuthLoading,
+                          ),
+                        ],
                       ),
                     ),
 
-                    // Content
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppTheme.spaceLG),
-                        child: Column(
-                          children: [
-                            // Logo
-                            Hero(
-                              tag: 'app-logo',
-                              child: Image.asset(
-                                'assets/logo/logo.png',
-                                height: 200,
-                              ),
+                    const SizedBox(height: AppTheme.space2XL),
+
+                    // Divider
+                    Row(
+                      children: [
+                        const Expanded(child: Divider()),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD),
+                          child: Text(
+                            l10n.or,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withOpacity(0.4),
                             ),
-                            const SizedBox(height: AppTheme.spaceSM),
-
-                            // Welcome Text
-                            Text(
-                              l10n.login,
-                              style: AppTheme.displayLarge.copyWith(
-                                color: theme.colorScheme.onSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: AppTheme.space2XL),
-
-                            // Login Form Card
-                            CustomCard(
-                              variant: CardVariant.elevated,
-                              child: Form(
-                                key: _formKey,
-                                child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.stretch,
-                                  children: [
-                                    // Email Field
-                                    EmailTextField(
-                                      controller: _emailController,
-                                      label: l10n.email,
-                                    ),
-                                    const SizedBox(height: AppTheme.spaceLG),
-
-                                    // Continue Button
-                                    CustomButton(
-                                      text: l10n.continueText,
-                                      onPressed: _handleContinue,
-                                      isLoading: state is AuthLoading,
-                                    ),
-                                    const SizedBox(height: AppTheme.spaceLG),
-
-                                    // Divider
-                                    Row(
-                                      children: [
-                                        const Expanded(child: Divider()),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: AppTheme.spaceMD,
-                                          ),
-                                          child: Text(
-                                            l10n.or,
-                                            style: AppTheme.bodySmall.copyWith(
-                                              color: theme.colorScheme.onSurface
-                                                  .withOpacity(0.5),
-                                            ),
-                                          ),
-                                        ),
-                                        const Expanded(child: Divider()),
-                                      ],
-                                    ),
-                                    const SizedBox(height: AppTheme.spaceLG),
-
-                                    // Google Sign-In
-                                    SocialLoginButton(
-                                      text: l10n.continueWithGoogle,
-                                      icon: Icons.g_mobiledata,
-                                      color: AppColor.primaryColor,
-                                      onPressed: _handleGoogleSignIn,
-                                      isLoading: state is AuthLoading,
-                                    ),
-                                    const SizedBox(height: AppTheme.spaceLG),
-                                    // Register Link
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          l10n.dontHaveAccount,
-                                          style: AppTheme.bodyMedium,
-                                        ),
-                                        TextButton(
-                                          onPressed: () {
-                                            context.go(
-                                              '${AppRouter.login}/${AppRouter.register}',
-                                            );
-                                          },
-                                          child: Text(
-                                            l10n.register,
-                                            style: AppTheme.labelLarge.copyWith(
-                                              color: AppColor.primaryColor,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                        const Expanded(child: Divider()),
+                      ],
+                    ),
+
+                    const SizedBox(height: AppTheme.space2XL),
+
+                    // Social Login
+                    SocialLoginButton(
+                      text: l10n.continueWithGoogle,
+                      icon: const Icon(Icons.g_mobiledata_rounded, size: 32, color: AppColor.secondaryColor),
+                      onPressed: _handleGoogleSignIn,
+                      isLoading: state is AuthLoading,
+                    ),
+                    
+                    const SizedBox(height: AppTheme.space2XL),
+
+                    // Register Link
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          l10n.dontHaveAccount,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () => context.go('${AppRouter.login}/${AppRouter.register}'),
+                          child: Text(
+                            l10n.register,
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
   void _handleContinue() {
     if (!_formKey.currentState!.validate()) return;
-
+    FocusScope.of(context).unfocus();
     final email = _emailController.text.trim();
     context.read<AuthCubit>().checkEmail(email);
   }
@@ -231,7 +223,7 @@ class _LoginPageState extends State<LoginPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Google sign-in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -243,7 +235,7 @@ class _LoginPageState extends State<LoginPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(state.message),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } else if (state is AuthEmailExists) {

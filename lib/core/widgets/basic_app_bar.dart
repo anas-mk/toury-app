@@ -23,48 +23,40 @@ class BasicAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final appBarTheme = theme.appBarTheme;
-
-    final bgColor = backgroundColor ??
-        appBarTheme.backgroundColor ??
-        (isDark ? theme.colorScheme.surface : Colors.white);
-
-    final icColor = iconColor ??
-        appBarTheme.foregroundColor ??
-        (isDark ? Colors.white : Colors.black87);
 
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: bgColor,
-      elevation: appBarTheme.elevation ?? (isDark ? 0 : 2),
-      shadowColor:
-      isDark ? Colors.transparent : Colors.black.withOpacity(0.1),
-      centerTitle: appBarTheme.centerTitle ?? true,
+      backgroundColor: backgroundColor ?? Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
       actions: actions,
       bottom: bottom,
       leading: showBackButton
           ? IconButton(
-        icon: Icon(Icons.arrow_back_ios_new_rounded, color: icColor),
-        onPressed: () => Navigator.pop(context),
-      )
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: iconColor ?? theme.colorScheme.onSurface,
+                size: 20,
+              ),
+              onPressed: () => Navigator.maybePop(context),
+            )
           : null,
       title: title != null
           ? Text(
-        title!,
-        style: titleStyle ??
-            theme.textTheme.titleMedium?.copyWith(
-              color: icColor,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-      )
+              title!,
+              style: titleStyle ??
+                  theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: iconColor ?? theme.colorScheme.onSurface,
+                  ),
+            )
           : null,
     );
   }
 
   @override
   Size get preferredSize => Size.fromHeight(
-    kToolbarHeight + (bottom?.preferredSize.height ?? 0.0),
-  );
+        kToolbarHeight + (bottom?.preferredSize.height ?? 0.0),
+      );
 }

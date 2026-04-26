@@ -75,6 +75,8 @@ import '../../features/helper/features/auth/presentation/pages/verify_login_otp_
 import '../../features/helper/features/auth/presentation/pages/helper_register_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_verify_email_otp_page.dart';
 
+import '../../features/helper/features/auth/presentation/pages/helper_forgot_password_page.dart';
+import '../../features/helper/features/auth/presentation/pages/helper_reset_password_page.dart';
 // Helper Bookings imports
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_dashboard_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/bookings_center_page.dart';
@@ -85,6 +87,9 @@ import '../../features/helper/features/helper_bookings/presentation/pages/active
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
 
 import 'dart:async';
+
+import '../theme/app_theme.dart';
+import '../widgets/custom_button.dart';
 
 /// Helper class to make GoRouter react to Stream changes (Bloc/Cubit streams)
 class GoRouterRefreshStream extends ChangeNotifier {
@@ -386,6 +391,21 @@ class AppRouter {
               final email = state.uri.queryParameters['email'] ?? 'mock@example.com';
               return HelperVerifyEmailOtpPage(email: email);
             },
+          ),
+          GoRoute(
+            path: forgotPassword,
+            name: 'helper-forgot-password',
+            builder: (context, state) => const HelperForgotPasswordPage(),
+            routes: [
+              GoRoute(
+                path: resetPassword,
+                name: 'helper-reset-password',
+                builder: (context, state) {
+                  final email = state.extra as String? ?? '';
+                  return HelperResetPasswordPage(email: email);
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -986,27 +1006,59 @@ class AppRouter {
     ],
 
     // 4. Custom 404 Error Page
-    errorBuilder: (context, state) => Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Color(0xFFFF6B6B)),
-            const SizedBox(height: 16),
-            const Text('Page not found', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(state.uri.toString(), style: const TextStyle(color: Colors.white38, fontSize: 12)),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => context.go(splash),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
-              child: const Text('Go to Start'),
+    errorBuilder: (context, state) {
+      final theme = Theme.of(context);
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spaceXL),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppTheme.spaceXL),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.error.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.error_outline_rounded, size: 64, color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: AppTheme.space2XL),
+                Text(
+                  'Page Not Found',
+                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppTheme.spaceLG),
+                Text(
+                  'The page you are looking for does not exist or has been moved.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (state.uri.toString().isNotEmpty) ...[
+                  const SizedBox(height: AppTheme.spaceMD),
+                  Text(
+                    state.uri.toString(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.3),
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: AppTheme.space2XL),
+                CustomButton(
+                  text: 'Go to Home',
+                  onPressed: () => context.go(splash),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 
   // ── Transition helpers ───────────────────────────────────────────────────

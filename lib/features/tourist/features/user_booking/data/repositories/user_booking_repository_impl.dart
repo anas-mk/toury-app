@@ -86,9 +86,19 @@ class UserBookingRepositoryImpl implements UserBookingRepository {
   }
 
   @override
-  Future<Either<Failure, PagedResponse<BookingDetailEntity>>> getMyBookings({int page = 1, int pageSize = 10, String? status}) async {
+  Future<Either<Failure, PagedResponse<BookingDetailEntity>>> getMyBookings({
+    int page = 1,
+    int pageSize = 10,
+    String? status,
+    String? type,
+  }) async {
     try {
-      final result = await remoteDataSource.getMyBookings(page: page, pageSize: pageSize, status: status);
+      final result = await remoteDataSource.getMyBookings(
+        page: page,
+        pageSize: pageSize,
+        status: status,
+        type: type,
+      );
       return Right(result as PagedResponse<BookingDetailEntity>);
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));

@@ -2,12 +2,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_color.dart';
 
 enum CardVariant {
-  elevated,    // بظل
-  outlined,    // ببوردر
-  filled,      // بخلفية ملونة
-  glass,       // Glass morphism effect
+  elevated,    
+  outlined,    
+  filled,      
+  glass,       
 }
 
 class CustomCard extends StatelessWidget {
@@ -37,10 +38,8 @@ class CustomCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final effectivePadding = padding ??
-        const EdgeInsets.all(AppTheme.spaceLG);
-
-    final effectiveRadius = borderRadius ?? AppTheme.radiusXL;
+    final effectivePadding = padding ?? const EdgeInsets.all(AppTheme.spaceLG);
+    final effectiveRadius = borderRadius ?? AppTheme.radiusLG;
 
     Widget cardContent = Container(
       margin: margin,
@@ -49,25 +48,26 @@ class CustomCard extends StatelessWidget {
       child: child,
     );
 
-    // Apply glass effect if needed
     if (variant == CardVariant.glass) {
       cardContent = ClipRRect(
         borderRadius: BorderRadius.circular(effectiveRadius),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: cardContent,
         ),
       );
     }
 
-    // Make clickable if needed
     if (onTap != null || isClickable) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(effectiveRadius),
-          child: cardContent,
+      return Container(
+        margin: margin,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(effectiveRadius),
+            child: cardContent,
+          ),
         ),
       );
     }
@@ -75,53 +75,44 @@ class CustomCard extends StatelessWidget {
     return cardContent;
   }
 
-  BoxDecoration _buildDecoration(
-      BuildContext context,
-      bool isDark,
-      double radius,
-      ) {
+  BoxDecoration _buildDecoration(BuildContext context, bool isDark, double radius) {
     final theme = Theme.of(context);
 
     switch (variant) {
       case CardVariant.elevated:
         return BoxDecoration(
-          color: backgroundColor ??
-              (isDark ? Colors.grey[900] : Colors.white),
+          color: backgroundColor ?? theme.cardTheme.color,
           borderRadius: BorderRadius.circular(radius),
           boxShadow: AppTheme.shadowMedium(context),
+          border: Border.all(
+            color: isDark ? AppColor.darkBorder : AppColor.lightBorder,
+            width: 0.5,
+          ),
         );
 
       case CardVariant.outlined:
         return BoxDecoration(
-          color: backgroundColor ??
-              (isDark ? Colors.grey[900] : Colors.white),
+          color: backgroundColor ?? theme.cardTheme.color,
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.grey.shade300,
+            color: isDark ? AppColor.darkBorder : AppColor.lightBorder,
             width: 1.5,
           ),
         );
 
       case CardVariant.filled:
         return BoxDecoration(
-          color: backgroundColor ??
-              theme.colorScheme.primary.withOpacity(0.1),
+          color: backgroundColor ?? theme.colorScheme.primary.withOpacity(0.05),
           borderRadius: BorderRadius.circular(radius),
         );
 
       case CardVariant.glass:
         return BoxDecoration(
-          color: backgroundColor ??
-              (isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.white.withOpacity(0.7)),
+          color: backgroundColor ?? 
+              (isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.4)),
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.05),
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
             width: 1,
           ),
           boxShadow: AppTheme.shadowLight(context),
@@ -129,10 +120,6 @@ class CustomCard extends StatelessWidget {
     }
   }
 }
-
-// ============================================
-// 🎯 Specialized Cards
-// ============================================
 
 class InfoCard extends StatelessWidget {
   final IconData icon;
@@ -153,6 +140,7 @@ class InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return CustomCard(
       onTap: onTap,
@@ -162,8 +150,7 @@ class InfoCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppTheme.spaceSM),
             decoration: BoxDecoration(
-              color: (iconColor ?? theme.colorScheme.primary)
-                  .withOpacity(0.1),
+              color: (iconColor ?? theme.colorScheme.primary).withOpacity(0.1),
               borderRadius: BorderRadius.circular(AppTheme.radiusSM),
             ),
             child: Icon(
@@ -179,15 +166,15 @@ class InfoCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: AppTheme.bodySmall.copyWith(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.6),
                   ),
                 ),
                 const SizedBox(height: AppTheme.spaceXS),
                 Text(
                   value,
-                  style: AppTheme.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w600,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
@@ -195,9 +182,9 @@ class InfoCard extends StatelessWidget {
           ),
           if (onTap != null)
             Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: theme.iconTheme.color?.withOpacity(0.4),
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: theme.colorScheme.onSurface.withOpacity(0.3),
             ),
         ],
       ),
@@ -223,19 +210,29 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return CustomCard(
       onTap: onTap,
       isClickable: onTap != null,
       variant: CardVariant.filled,
-      backgroundColor: color.withOpacity(0.1),
+      backgroundColor: color.withOpacity(0.08),
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceLG),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 32, color: color),
-          const SizedBox(height: AppTheme.spaceSM),
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spaceSM),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(height: AppTheme.spaceMD),
           Text(
             value,
-            style: AppTheme.headlineMedium.copyWith(
+            style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -243,7 +240,9 @@ class StatCard extends StatelessWidget {
           const SizedBox(height: AppTheme.spaceXS),
           Text(
             title,
-            style: AppTheme.bodySmall,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            ),
             textAlign: TextAlign.center,
           ),
         ],

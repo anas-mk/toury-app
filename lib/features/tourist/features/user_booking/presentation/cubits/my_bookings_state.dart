@@ -1,6 +1,5 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/booking_detail_entity.dart';
-import '../../data/models/paged_response_model.dart';
 
 abstract class MyBookingsState extends Equatable {
   const MyBookingsState();
