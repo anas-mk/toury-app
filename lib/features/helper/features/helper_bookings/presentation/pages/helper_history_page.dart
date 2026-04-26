@@ -330,7 +330,7 @@ class _HistoryCard extends StatelessWidget {
     final done = booking.status == 'completed';
     final accent = done ? const Color(0xFF00C896) : const Color(0xFFFF6B6B);
     return GestureDetector(
-      onTap: () => context.push('/helper-booking-details/${booking.id}'),
+      onTap: () => context.push('/helper/booking-details/${booking.id}'),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),

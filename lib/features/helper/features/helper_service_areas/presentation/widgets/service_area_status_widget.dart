@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/custom_card.dart';
 import '../cubit/service_areas_cubit.dart';
 import '../../domain/entities/service_area_entities.dart';
 
@@ -11,13 +14,15 @@ class ServiceAreaStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocBuilder<ServiceAreasCubit, ServiceAreasState>(
       builder: (context, state) {
         if (state is ServiceAreasLoading || state is ServiceAreaOperationLoading) {
           return const _ShimmerCard();
         }
 
-        // Safely extract the typed entity list — never cast or assume runtime type.
         final List<ServiceAreaEntity> areas;
         if (state is ServiceAreasLoaded) {
           areas = state.areas;
@@ -25,7 +30,6 @@ class ServiceAreaStatusWidget extends StatelessWidget {
           areas = const [];
         }
 
-        // Use null-safe lookup instead of firstWhere to avoid orElse type issues.
         final ServiceAreaEntity? primaryArea = areas.isNotEmpty
             ? (areas.where((a) => a.isPrimary).firstOrNull ?? areas.first)
             : null;
@@ -33,104 +37,100 @@ class ServiceAreaStatusWidget extends StatelessWidget {
         final isEmpty = areas.isEmpty;
 
         return GestureDetector(
-          onTap: () => context.push('/helper-service-areas'),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1F3C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isEmpty
-                    ? Colors.orange.withOpacity(0.3)
-                    : const Color(0xFF6C63FF).withOpacity(0.2),
-              ),
-            ),
+          onTap: () => context.push('/helper/service-areas'),
+          child: CustomCard(
+            variant: isEmpty ? CardVariant.outlined : CardVariant.elevated,
+            padding: const EdgeInsets.all(AppTheme.spaceMD),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(AppTheme.spaceSM),
                       decoration: BoxDecoration(
-                        color: (isEmpty ? Colors.orange : const Color(0xFF6C63FF)).withOpacity(0.1),
+                        color: (isEmpty ? AppColor.warningColor : theme.colorScheme.primary).withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         isEmpty ? Icons.warning_amber_rounded : Icons.map_rounded,
-                        color: isEmpty ? Colors.orange : const Color(0xFF6C63FF),
+                        color: isEmpty ? AppColor.warningColor : theme.colorScheme.primary,
                         size: 20,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppTheme.spaceMD),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Service Areas',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
                             isEmpty
                                 ? 'Not visible in scheduled search'
                                 : '${areas.length} region${areas.length > 1 ? 's' : ''} configured',
-                            style: TextStyle(
-                              color: isEmpty ? Colors.orange : Colors.white38,
-                              fontSize: 12,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isEmpty ? AppColor.warningColor : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 14),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded, 
+                      color: isDark ? Colors.white24 : Colors.black26, 
+                      size: 14
+                    ),
                   ],
                 ),
                 if (primaryArea != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppTheme.spaceMD),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD, vertical: AppTheme.spaceSM),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(14),
+                      color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.star_rounded, color: Color(0xFF6C63FF), size: 14),
+                        Icon(Icons.star_rounded, color: theme.colorScheme.primary, size: 14),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             '${primaryArea.city}, ${primaryArea.country}',
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '${primaryArea.radiusKm.round()} km',
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ],
                 if (isEmpty) ...[
-                  const SizedBox(height: 14),
+                  const SizedBox(height: AppTheme.spaceMD),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD, vertical: AppTheme.spaceSM),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(14),
+                      color: AppColor.warningColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.info_outline_rounded, color: Colors.orange, size: 14),
-                        SizedBox(width: 8),
+                        const Icon(Icons.info_outline_rounded, color: AppColor.warningColor, size: 14),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'You will not appear in scheduled searches until you add an area.',
-                            style: TextStyle(color: Colors.orange, fontSize: 12),
+                            style: theme.textTheme.labelSmall?.copyWith(color: AppColor.warningColor),
                           ),
                         ),
                       ],
@@ -183,29 +183,31 @@ class _ShimmerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 90,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(24),
-      ),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return CustomCard(
+      variant: CardVariant.elevated,
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(color: Colors.white12, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white12 : Colors.black12, 
+              shape: BoxShape.circle
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppTheme.spaceMD),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(height: 12, width: 120, color: Colors.white12),
+                Container(height: 12, width: 120, color: isDark ? Colors.white12 : Colors.black12),
                 const SizedBox(height: 6),
-                Container(height: 10, width: 80, color: Colors.white12),
+                Container(height: 10, width: 80, color: isDark ? Colors.white12 : Colors.black12),
               ],
             ),
           ),

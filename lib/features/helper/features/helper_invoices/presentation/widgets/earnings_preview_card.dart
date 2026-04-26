@@ -3,6 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/custom_card.dart';
 import '../cubit/helper_invoices_cubit.dart';
 import '../../domain/entities/invoice_entities.dart';
 
@@ -32,6 +35,9 @@ class _EarningsPreviewCardState extends State<EarningsPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider.value(
       value: _cubit,
       child: BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
@@ -44,67 +50,75 @@ class _EarningsPreviewCardState extends State<EarningsPreviewCard> {
           final fmt = NumberFormat('#,##0.00');
 
           return GestureDetector(
-            onTap: () => context.push('/helper-invoices'),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF00C896).withOpacity(0.12),
-                    const Color(0xFF1A1F3C),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFF00C896).withOpacity(0.2)),
-              ),
+            onTap: () => context.push('/helper/invoices'),
+            child: CustomCard(
+              variant: CardVariant.elevated,
+              padding: const EdgeInsets.all(AppTheme.spaceLG),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppTheme.spaceMD),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C896).withOpacity(0.1),
+                      color: AppColor.accentColor.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.account_balance_wallet_rounded,
-                        color: Color(0xFF00C896), size: 22),
+                        color: AppColor.accentColor, size: 22),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: AppTheme.spaceMD),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Net Earnings',
-                            style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        Text(
+                          'Net Earnings',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         summary != null
                             ? Text(
                                 '${summary.currency} ${fmt.format(summary.netAmount)}',
-                                style: const TextStyle(
-                                    color: Color(0xFF00C896),
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold),
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: AppColor.accentColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               )
-                            : const Text('— —',
-                                style: TextStyle(color: Colors.white38, fontSize: 16)),
+                            : Text(
+                                '— —',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: theme.hintColor,
+                                ),
+                              ),
                         if (summary != null) ...[
                           const SizedBox(height: 4),
                           Text(
-                            '${summary.invoiceCount} invoices · Commission: ${summary.currency} ${fmt.format(summary.commissionAmount)}',
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            '${summary.invoiceCount} invoices · ${summary.currency} ${fmt.format(summary.commissionAmount)} fees',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Column(
+                  const SizedBox(width: AppTheme.spaceMD),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 14),
-                      SizedBox(height: 4),
-                      Text('All Invoices',
-                          style: TextStyle(color: Colors.white38, fontSize: 10)),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded, 
+                        color: isDark ? Colors.white24 : Colors.black26, 
+                        size: 14
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Details',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: isDark ? Colors.white24 : Colors.black26,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -122,11 +136,19 @@ class _EarningsShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(24),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return CustomCard(
+      variant: CardVariant.elevated,
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
+      child: Container(
+        height: 40,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white54 : Colors.black26,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+        ),
       ),
     );
   }

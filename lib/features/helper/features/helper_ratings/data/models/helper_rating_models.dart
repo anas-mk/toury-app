@@ -60,8 +60,8 @@ class RatingModel extends RatingEntity {
 class RatingStateModel extends RatingStateEntity {
   const RatingStateModel({
     required super.bookingId,
-    required super.userToHelper,
-    required super.helperToUser,
+    super.userToHelper,
+    super.helperToUser,
     required super.callerHasRated,
     required super.canRate,
   });
@@ -69,8 +69,12 @@ class RatingStateModel extends RatingStateEntity {
   factory RatingStateModel.fromJson(Map<String, dynamic> json) {
     return RatingStateModel(
       bookingId: json['bookingId'] ?? '',
-      userToHelper: json['userToHelper'] ?? false,
-      helperToUser: json['helperToUser'] ?? false,
+      userToHelper: json['userToHelper'] != null
+          ? RatingModel.fromJson(json['userToHelper'] as Map<String, dynamic>)
+          : null,
+      helperToUser: json['helperToUser'] != null
+          ? RatingModel.fromJson(json['helperToUser'] as Map<String, dynamic>)
+          : null,
       callerHasRated: json['callerHasRated'] ?? false,
       canRate: json['canRate'] ?? false,
     );

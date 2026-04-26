@@ -26,6 +26,8 @@ import '../../features/helper/features/profile/presentation/pages/profile_page.d
 import '../../features/tourist/features/home/presentation/pages/tourist_home_page.dart';
 import '../../features/tourist/features/payments/presentation/cubit/payment_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
+import '../../features/helper/features/helper_ratings/presentation/pages/helper_ratings_page.dart';
+import '../../features/helper/features/helper_ratings/presentation/pages/rate_user_page.dart';
 import '../di/injection_container.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
@@ -229,6 +231,10 @@ class AppRouter {
   static const String helperInvoices         = '/helper/invoices';
   static const String helperInvoiceDetail    = '/helper/invoice-detail/:id';
   static const String helperInvoiceView      = '/helper/invoice-view/:id';
+  static const String helperRatings          = '/helper/ratings';
+  static const String rateUser               = '/helper/rate-user/:id';
+  static const String helperReports          = '/helper/reports';
+  static const String helperSos              = '/helper/sos';
 
   static final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -946,6 +952,34 @@ class AppRouter {
           return ReassignmentPage(
             bookingId: id,
             booking: extra['booking'] as BookingDetailEntity,
+          );
+        },
+      ),
+      // ── Helper Ratings ─────────────────────────────────────────────
+      GoRoute(
+        path: helperRatings,
+        name: 'helper-ratings',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const HelperRatingsPage(),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: rateUser,
+        name: 'rate-user',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra as Map<String, dynamic>;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: RateUserPage(
+              bookingId: id,
+              travelerName: extra['name'] ?? 'Traveler',
+              travelerAvatar: extra['avatar'] ?? '',
+            ),
+            transitionsBuilder: _slideUp,
           );
         },
       ),

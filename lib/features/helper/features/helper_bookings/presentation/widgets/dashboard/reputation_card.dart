@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../../../../../core/theme/app_color.dart';
+import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/widgets/custom_card.dart';
 
 class ReputationCard extends StatelessWidget {
   final double rating;
@@ -8,37 +11,38 @@ class ReputationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-        ),
+      child: CustomCard(
+        variant: CardVariant.elevated,
+        padding: const EdgeInsets.all(AppTheme.spaceLG),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppTheme.spaceMD),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFAB40).withOpacity(0.1),
+                color: AppColor.accentColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.star_rounded, color: Color(0xFFFFAB40), size: 28),
+              child: const Icon(Icons.star_rounded, color: AppColor.accentColor, size: 28),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: AppTheme.spaceMD),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Your Reputation',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   Text(
                     'View your ratings and feedback',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -48,20 +52,25 @@ class ReputationCard extends StatelessWidget {
               children: [
                 Text(
                   rating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: Color(0xFFFFAB40),
-                    fontSize: 22,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: AppColor.accentColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text(
+                Text(
                   'Rating',
-                  style: TextStyle(color: Colors.white38, fontSize: 10),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 14),
+            const SizedBox(width: AppTheme.spaceMD),
+            Icon(
+              Icons.arrow_forward_ios_rounded, 
+              color: isDark ? Colors.white24 : Colors.black26, 
+              size: 14
+            ),
           ],
         ),
       ),

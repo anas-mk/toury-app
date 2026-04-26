@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../domain/entities/helper_profile_entity.dart';
 
 class HelperProfileHeader extends StatelessWidget {
@@ -19,15 +20,15 @@ class HelperProfileHeader extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 40,
-          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+          backgroundColor: AppColor.primaryColor.withOpacity(0.1),
           backgroundImage: profile.profileImageUrl != null && profile.profileImageUrl!.isNotEmpty
               ? NetworkImage(profile.profileImageUrl!)
               : null,
           child: profile.profileImageUrl == null || profile.profileImageUrl!.isEmpty
-              ? Icon(
+              ? const Icon(
                   Icons.person,
                   size: 40,
-                  color: theme.colorScheme.primary,
+                  color: AppColor.primaryColor,
                 )
               : null,
         ),
@@ -48,7 +49,7 @@ class HelperProfileHeader extends StatelessWidget {
               Text(
                 profile.email,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isDark ? Colors.white70 : Colors.grey[600],
+                  color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
 import '../../../helper_bookings/presentation/widgets/shared/empty_state_view.dart';
@@ -30,23 +32,24 @@ class _ConversationsListPageState extends State<ConversationsListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return BlocProvider.value(
       value: _cubit,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0D1120),
           elevation: 0,
-          title: const Text('Messages', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: const Text('Messages'),
           actions: [
-            IconButton(icon: const Icon(Icons.search_rounded, color: Colors.white38), onPressed: () {}),
+            IconButton(icon: const Icon(Icons.search_rounded), onPressed: () {}),
           ],
         ),
         body: BlocBuilder<UpcomingBookingsCubit, UpcomingBookingsState>(
           builder: (context, state) {
             if (state is UpcomingBookingsLoading) {
               return ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppTheme.spaceLG),
                 itemCount: 5,
                 itemBuilder: (_, __) => const _ConversationSkeleton(),
               );
@@ -62,7 +65,7 @@ class _ConversationsListPageState extends State<ConversationsListPage> {
               return RefreshIndicator(
                 onRefresh: () async => _cubit.load(),
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(AppTheme.spaceSM),
                   itemCount: state.bookings.length,
                   itemBuilder: (context, index) {
                     final booking = state.bookings[index];
@@ -71,7 +74,7 @@ class _ConversationsListPageState extends State<ConversationsListPage> {
                       lastMsg: 'Click to open chat with traveler...',
                       time: 'Active',
                       unread: 0,
-                      onTap: () => context.push('/helper/active-booking', extra: booking.id), // Redirect to chat/active page
+                      onTap: () => context.push('/helper/active-booking', extra: booking.id),
                     );
                   },
                 ),
@@ -102,22 +105,24 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return ListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG, vertical: AppTheme.spaceSM),
       leading: CircleAvatar(
         radius: 28,
-        backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
+        backgroundColor: AppColor.primaryColor.withOpacity(0.1),
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 18),
+          style: const TextStyle(color: AppColor.primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-          Text(time, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          Text(name, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+          Text(time, style: theme.textTheme.bodySmall),
         ],
       ),
       subtitle: Padding(
@@ -129,13 +134,15 @@ class _ConversationTile extends StatelessWidget {
                 lastMsg,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white38, fontSize: 13),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                ),
               ),
             ),
             if (unread > 0)
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(color: Color(0xFF6C63FF), shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: AppColor.primaryColor, shape: BoxShape.circle),
                 child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
               ),
           ],
@@ -150,19 +157,23 @@ class _ConversationSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final skeletonColor = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG, vertical: 12),
       child: Row(
         children: [
-          Container(width: 56, height: 56, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), shape: BoxShape.circle)),
+          Container(width: 56, height: 56, decoration: BoxDecoration(color: skeletonColor, shape: BoxShape.circle)),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(width: 120, height: 14, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(4))),
+                Container(width: 120, height: 14, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(4))),
                 const SizedBox(height: 8),
-                Container(width: double.infinity, height: 10, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(4))),
+                Container(width: double.infinity, height: 10, decoration: BoxDecoration(color: skeletonColor, borderRadius: BorderRadius.circular(4))),
               ],
             ),
           ),

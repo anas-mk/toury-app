@@ -25,6 +25,10 @@ class AppColor {
   static const Color errorColor = Color(0xFFE11900); // Red
   static const Color warningColor = Color(0xFFFFC043);
 
+  // Card Colors
+  static const Color lightCardColor = Colors.white;
+  static const Color darkCardColor = Color(0xFF1E1E1E);
+
   // Border Colors
   static const Color lightBorder = Color(0xFFEEEEEE);
   static const Color darkBorder = Color(0xFF333333);

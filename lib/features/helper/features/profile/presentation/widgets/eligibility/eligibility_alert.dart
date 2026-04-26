@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
-
 import '../../../domain/entities/helper_eligibility_entity.dart';
 
 class EligibilityAlert extends StatelessWidget {
@@ -17,21 +17,22 @@ class EligibilityAlert extends StatelessWidget {
     if (eligibility.isEligible) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return CustomCard(
       variant: CardVariant.elevated,
-      backgroundColor: Colors.red.withOpacity(0.1),
+      backgroundColor: AppColor.errorColor.withOpacity(0.1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.error_outline, color: Colors.red[700]),
+              const Icon(Icons.error_outline, color: AppColor.errorColor),
               const SizedBox(width: AppTheme.spaceSM),
               Text(
                 'Action Required',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.red[700],
+                  color: AppColor.errorColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -45,9 +46,9 @@ class EligibilityAlert extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.arrow_right_rounded,
-                      color: Colors.red[700],
+                      color: AppColor.errorColor,
                       size: 20,
                     ),
                     const SizedBox(width: 4),
@@ -55,7 +56,7 @@ class EligibilityAlert extends StatelessWidget {
                       child: Text(
                         reason,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.red[900],
+                          color: isDark ? Colors.white : AppColor.errorColor,
                         ),
                       ),
                     ),

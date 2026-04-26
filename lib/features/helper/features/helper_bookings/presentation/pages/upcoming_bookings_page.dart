@@ -145,7 +145,7 @@ class _UpcomingCard extends StatelessWidget {
         booking.status == 'confirmed' || booking.status == 'accepted';
 
     return GestureDetector(
-      onTap: () => context.push('/helper-booking-details/${booking.id}'),
+      onTap: () => context.push('/helper/booking-details/${booking.id}'),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
@@ -323,7 +323,7 @@ class _InlineStartButtonState extends State<_InlineStartButton> {
                 behavior: SnackBarBehavior.floating,
               ),
             );
-            context.push('/helper-active-booking', extra: widget.bookingId);
+            context.push('/helper/active-booking', extra: widget.bookingId);
           } else if (state is StartTripError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

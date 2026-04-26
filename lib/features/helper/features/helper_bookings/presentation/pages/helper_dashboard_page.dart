@@ -1,22 +1,27 @@
 import 'dart:async';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:toury/features/helper/features/helper_location/presentation/cubit/helper_location_cubit.dart';
-import 'package:toury/features/helper/features/helper_location/presentation/cubit/location_status_cubits.dart';
-import 'package:toury/features/helper/features/helper_location/presentation/widgets/helper_location_status_widget.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/router/app_router.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
+import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
+import '../../../helper_location/presentation/cubit/location_status_cubits.dart';
+import '../../../helper_location/presentation/widgets/helper_location_status_widget.dart';
 import '../../../helper_service_areas/presentation/widgets/service_area_status_widget.dart';
 import '../../../helper_invoices/presentation/widgets/earnings_preview_card.dart';
 import '../../../helper_ratings/presentation/pages/helper_ratings_page.dart';
 import '../../../helper_reports/presentation/cubit/helper_reports_cubit.dart';
 import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
-import 'package:geolocator/geolocator.dart';
 
 // Modularized Dashboard Widgets
 import '../widgets/dashboard/availability_toggle_card.dart';
@@ -100,6 +105,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _dashCubit),
@@ -134,14 +142,14 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
               }
             },
           ),
-          // Handle location permission denied from dashboard toggle
           BlocListener<HelperLocationCubit, HelperLocationState>(
             listener: (context, state) {
               if (state is HelperLocationPermissionDenied) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: const Text('Location permission required to go Online.'),
-                    backgroundColor: Colors.redAccent,
+                    backgroundColor: AppColor.errorColor,
+                    behavior: SnackBarBehavior.floating,
                     action: SnackBarAction(
                       label: 'Settings',
                       textColor: Colors.white,
@@ -154,14 +162,14 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           ),
         ],
         child: Scaffold(
-          backgroundColor: const Color(0xFF0A0E1A),
+          backgroundColor: theme.scaffoldBackgroundColor,
           body: RefreshIndicator(
             onRefresh: () async => _loadAll(),
-            color: const Color(0xFF6C63FF),
+            color: theme.colorScheme.primary,
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildAppBar(),
+                _buildAppBar(context),
                 SliverToBoxAdapter(
                   child: BlocBuilder<HelperDashboardCubit, HelperDashboardState>(
                     builder: (context, state) {
@@ -185,61 +193,75 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildAppBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return SliverAppBar(
       expandedHeight: 120,
       floating: false,
       pinned: true,
-      backgroundColor: const Color(0xFF0D1120),
+      backgroundColor: theme.scaffoldBackgroundColor,
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1A1F3C), Color(0xFF0A0E1A)],
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
+          padding: const EdgeInsets.fromLTRB(AppTheme.spaceLG, 50, AppTheme.spaceLG, 0),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const CircleAvatar(
-                radius: 24,
-                backgroundColor: Color(0xFF6C63FF),
-                child: Icon(Icons.person_rounded, color: Colors.white, size: 28),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2), width: 2),
+                ),
+                child: Center(
+                  child: Icon(Icons.person_rounded, color: theme.colorScheme.primary, size: 28),
+                ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: AppTheme.spaceMD),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     'Welcome back,',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                    ),
                   ),
-                  const Text(
+                  Text(
                     'Captain',
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ],
               ),
               const Spacer(),
-              _IconButton(icon: Icons.notifications_none_rounded, onTap: () {}),
+              _IconButton(
+                icon: Icons.notifications_none_rounded, 
+                onTap: () {
+                   HapticService.light();
+                },
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
   Widget _buildBody(BuildContext context, HelperDashboard dashboard) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
+          const SizedBox(height: AppTheme.spaceLG),
           FadeInSlide(
             duration: const Duration(milliseconds: 400),
             child: AvailabilityToggleCard(
@@ -250,10 +272,8 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 if (_availCubit.state is AvailabilityUpdating) return;
                 if (dashboard.availabilityState == s) return;
                 
-                // Block all changes during active trip except going Offline
                 if (dashboard.activeTrip != null && s != HelperAvailabilityState.offline) {
                   _showSnack(context, 'You cannot change availability during an active trip', isError: true);
-                  debugPrint('[Availability][UI] Blocked: active trip');
                   return;
                 }
                 
@@ -261,7 +281,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                   final token = sl<SharedPreferences>().getString('auth_token') ?? '';
                   final success = await _locCubit.requestPermissionAndInitialize(token);
                   if (!success) {
-                    _dashCubit.refresh(); // Restore toggle if location fails
+                    _dashCubit.refresh();
                     return;
                   }
                 }
@@ -270,7 +290,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
               },
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppTheme.spaceXL),
           
           BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
@@ -280,7 +300,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                   child: Column(
                     children: [
                       ActiveTripCard(booking: state.booking!),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: AppTheme.spaceXL),
                     ],
                   ),
                 );
@@ -290,38 +310,38 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           ),
 
           const FadeInSlide(delay: Duration(milliseconds: 150), child: SectionHeader(title: 'Overview')),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTheme.spaceMD),
           FadeInSlide(delay: const Duration(milliseconds: 200), child: StatsGrid(dashboard: dashboard)),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppTheme.spaceXL),
 
           const FadeInSlide(delay: Duration(milliseconds: 250), child: SectionHeader(title: 'Service & Location')),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTheme.spaceMD),
           const FadeInSlide(delay: Duration(milliseconds: 300), child: HelperLocationStatusWidget()),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTheme.spaceSM),
           const FadeInSlide(delay: Duration(milliseconds: 350), child: ServiceAreaStatusCard()),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppTheme.spaceXL),
 
           const FadeInSlide(delay: Duration(milliseconds: 400), child: SectionHeader(title: 'Financials')),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTheme.spaceMD),
           const FadeInSlide(delay: Duration(milliseconds: 450), child: EarningsPreviewCard()),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppTheme.spaceXL),
 
           const FadeInSlide(delay: Duration(milliseconds: 500), child: SectionHeader(title: 'Reputation')),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTheme.spaceMD),
           FadeInSlide(
             delay: const Duration(milliseconds: 550),
             child: ReputationCard(
               rating: dashboard.rating,
               onTap: () {
                 HapticService.light();
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const HelperRatingsPage()));
+                context.push(AppRouter.helperRatings);
               },
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppTheme.spaceXL),
 
           const FadeInSlide(delay: Duration(milliseconds: 600), child: SectionHeader(title: 'Quick Actions')),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTheme.spaceMD),
           const FadeInSlide(delay: Duration(milliseconds: 650), child: QuickActionsGrid()),
           const SizedBox(height: 32),
         ],
@@ -331,7 +351,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
 
   Widget _buildShimmer() {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       child: Column(
         children: List.generate(4, (i) => _ShimmerBox(height: i == 0 ? 120 : 100)),
       ),
@@ -339,18 +359,33 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   }
 
   Widget _buildError(BuildContext context, String message) {
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
+        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 40),
         child: Column(
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
-            const SizedBox(height: 16),
-            const Text('Something went wrong', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(message, style: const TextStyle(color: Colors.white38, fontSize: 12)),
-            const SizedBox(height: 24),
-            ElevatedButton(onPressed: _loadAll, child: const Text('Retry')),
+            const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
+            const SizedBox(height: AppTheme.spaceLG),
+            Text(
+              'Something went wrong', 
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+            ),
+            const SizedBox(height: AppTheme.spaceSM),
+            Text(
+              message, 
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+            ),
+            const SizedBox(height: AppTheme.spaceXL),
+            ElevatedButton(
+              onPressed: _loadAll, 
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+              ),
+              child: const Text('Retry'),
+            ),
           ],
         ),
       ),
@@ -361,7 +396,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: isError ? Colors.redAccent : const Color(0xFF6C63FF),
+        backgroundColor: isError ? AppColor.errorColor : AppColor.accentColor,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -379,13 +414,15 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Text(
       title,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 18,
+      style: theme.textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.bold,
         letterSpacing: -0.5,
+        color: isDark ? Colors.white : Colors.black,
       ),
     );
   }
@@ -398,15 +435,16 @@ class _IconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppTheme.spaceSM),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: theme.colorScheme.primary.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: 22),
+        child: Icon(icon, color: theme.colorScheme.primary, size: 22),
       ),
     );
   }
@@ -418,12 +456,15 @@ class _ShimmerBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       height: height,
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMD),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(24),
+        color: isDark ? AppColor.darkCardColor : AppColor.lightCardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../../../../core/theme/app_color.dart';
+import '../../../../../../../core/theme/app_theme.dart';
 import '../../../domain/entities/helper_booking_entities.dart';
 import '../../cubit/helper_bookings_cubits.dart';
 
@@ -17,6 +19,8 @@ class AvailabilityToggleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isOnline = currentStatus == HelperAvailabilityState.availableNow;
     
     return BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
@@ -25,21 +29,29 @@ class AvailabilityToggleCard extends StatelessWidget {
         
         return AnimatedContainer(
           duration: const Duration(milliseconds: 500),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppTheme.spaceLG),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isOnline
-                  ? [const Color(0xFF00C896), const Color(0xFF007A5E)]
-                  : [const Color(0xFF1E2340), const Color(0xFF141829)],
+                  ? [AppColor.accentColor, AppColor.accentColor.withOpacity(0.8)]
+                  : [
+                      isDark ? AppColor.darkCardColor : Colors.white,
+                      isDark ? AppColor.darkCardColor.withOpacity(0.8) : Colors.white.withOpacity(0.9)
+                    ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+            border: Border.all(
+              color: isOnline 
+                  ? Colors.white.withOpacity(0.2) 
+                  : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+            ),
             boxShadow: [
               BoxShadow(
                 color: isOnline
-                    ? const Color(0xFF00C896).withOpacity(0.3)
-                    : Colors.black.withOpacity(0.3),
+                    ? AppColor.accentColor.withOpacity(0.25)
+                    : Colors.black.withOpacity(isDark ? 0.2 : 0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -54,35 +66,38 @@ class AvailabilityToggleCard extends StatelessWidget {
                     isOnline: isOnline,
                     pulseAnimation: pulseAnimation,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppTheme.spaceMD),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isOnline ? 'Online' : 'Offline',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          isOnline ? 'Active & Online' : 'Currently Offline',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: isOnline ? Colors.white : (isDark ? Colors.white : Colors.black),
                             fontWeight: FontWeight.bold,
-                            fontSize: 18,
                             letterSpacing: -0.5,
                           ),
                         ),
                         Text(
-                          isOnline ? 'Ready for requests' : 'Toggle to start working',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 12,
+                          isOnline ? 'You are visible to travelers' : 'Tap the toggle to go online',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isOnline 
+                                ? Colors.white.withOpacity(0.8) 
+                                : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                           ),
                         ),
                       ],
                     ),
                   ),
                   if (isUpdating)
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: isOnline ? Colors.white : theme.colorScheme.primary, 
+                        strokeWidth: 2
+                      ),
                     )
                   else
                     Switch.adaptive(
@@ -92,12 +107,16 @@ class AvailabilityToggleCard extends StatelessWidget {
                       },
                       activeColor: Colors.white,
                       activeTrackColor: Colors.white24,
+                      inactiveTrackColor: isDark ? Colors.white10 : Colors.black12,
                     ),
                 ],
               ),
-              const SizedBox(height: 20),
-              const Divider(color: Colors.white12, height: 1),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppTheme.spaceLG),
+              Divider(
+                color: isOnline ? Colors.white24 : (isDark ? Colors.white10 : Colors.black12), 
+                height: 1
+              ),
+              const SizedBox(height: AppTheme.spaceMD),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
@@ -134,10 +153,10 @@ class _PulseIndicator extends StatelessWidget {
       builder: (_, __) => Transform.scale(
         scale: isOnline ? pulseAnimation.value : 1.0,
         child: Container(
-          width: 12,
-          height: 12,
+          width: 14,
+          height: 14,
           decoration: BoxDecoration(
-            color: isOnline ? Colors.white : Colors.white.withOpacity(0.3),
+            color: isOnline ? Colors.white : AppColor.warningColor.withOpacity(0.5),
             shape: BoxShape.circle,
             boxShadow: isOnline
                 ? [BoxShadow(color: Colors.white.withOpacity(0.8), blurRadius: 10)]
@@ -164,27 +183,31 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.only(right: AppTheme.spaceSM),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(30),
+          color: isSelected 
+              ? (isOnline ? Colors.white : theme.colorScheme.primary) 
+              : (isOnline ? Colors.white.withOpacity(0.1) : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
           border: Border.all(
-            color: isSelected ? Colors.transparent : Colors.white10,
+            color: isSelected ? Colors.transparent : (isOnline ? Colors.white10 : Colors.transparent),
           ),
         ),
         child: Text(
           _label(status),
-          style: TextStyle(
+          style: theme.textTheme.labelMedium?.copyWith(
             color: isSelected 
-                ? (isOnline ? const Color(0xFF007A5E) : const Color(0xFF141829)) 
-                : Colors.white70,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 12,
+                ? (isOnline ? AppColor.accentColor : (isDark ? Colors.black : Colors.white)) 
+                : (isOnline ? Colors.white70 : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
           ),
         ),
       ),
@@ -194,7 +217,7 @@ class _StatusChip extends StatelessWidget {
   String _label(HelperAvailabilityState s) {
     switch (s) {
       case HelperAvailabilityState.availableNow:  return '🟢 Online';
-      case HelperAvailabilityState.scheduledOnly: return '📅 Scheduled Only';
+      case HelperAvailabilityState.scheduledOnly: return '📅 Scheduled';
       case HelperAvailabilityState.busy:          return '🔴 Busy';
       case HelperAvailabilityState.offline:       return '⚫ Offline';
     }

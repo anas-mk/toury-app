@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/helper_ratings_cubits.dart';
 import '../widgets/rating_widgets.dart';
@@ -37,34 +39,36 @@ class _HelperRatingsPageState extends State<HelperRatingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider.value(
       value: _cubit,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Column(
+          title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Ratings & Reviews',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 'How travelers rate your service',
-                style: TextStyle(color: Colors.white38, fontSize: 12),
+                style: theme.textTheme.bodySmall,
               ),
             ],
           ),
         ),
         body: RefreshIndicator(
           onRefresh: () => _cubit.refresh(),
-          color: const Color(0xFF6C63FF),
+          color: AppColor.primaryColor,
           child: BlocBuilder<HelperRatingsCubit, HelperRatingsState>(
             builder: (context, state) {
               if (state is HelperRatingsLoading) {
@@ -96,11 +100,11 @@ class _HelperRatingsPageState extends State<HelperRatingsPage> {
           return RatingSummaryCard(summary: state.summary);
         }
         if (index == 1) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
             child: Text(
               'Recent Reviews',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
           );
         }
@@ -115,7 +119,7 @@ class _HelperRatingsPageState extends State<HelperRatingsPage> {
             : const Center(
                 child: Padding(
                   padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
+                  child: CircularProgressIndicator(color: AppColor.primaryColor),
                 ),
               );
       },
@@ -124,7 +128,7 @@ class _HelperRatingsPageState extends State<HelperRatingsPage> {
 
   Widget _buildLoading() {
     return const Center(
-      child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
+      child: CircularProgressIndicator(color: AppColor.primaryColor),
     );
   }
 
@@ -133,13 +137,13 @@ class _HelperRatingsPageState extends State<HelperRatingsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Color(0xFFFF6B6B), size: 60),
+          const Icon(Icons.error_outline, color: AppColor.errorColor, size: 60),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(color: Colors.white70)),
+          Text(message, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => _cubit.load(),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColor.primaryColor),
             child: const Text('Retry'),
           ),
         ],
@@ -159,21 +163,21 @@ class _HelperRatingsPageState extends State<HelperRatingsPage> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1F3C),
+                color: Theme.of(context).cardColor,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.reviews_outlined, color: Color(0xFF6C63FF), size: 60),
+              child: const Icon(Icons.reviews_outlined, color: AppColor.primaryColor, size: 60),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'No reviews yet',
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Complete trips to receive feedback\nfrom travelers.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white38, fontSize: 14),
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
         ),

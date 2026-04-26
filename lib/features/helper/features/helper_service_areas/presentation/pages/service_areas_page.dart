@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/custom_card.dart';
+import '../../../../../../core/widgets/custom_button.dart';
 import '../cubit/service_areas_cubit.dart';
 import '../../domain/entities/service_area_entities.dart';
 
@@ -30,34 +34,44 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider.value(
       value: _cubit,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
             onPressed: () => context.pop(),
           ),
-          title: const Text('Service Areas', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: const Text('Service Areas'),
         ),
         body: BlocConsumer<ServiceAreasCubit, ServiceAreasState>(
           listener: (context, state) {
             if (state is ServiceAreaOperationSuccess) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message), backgroundColor: const Color(0xFF00C896)),
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppColor.accentColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             } else if (state is ServiceAreasError) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message), backgroundColor: const Color(0xFFFF6B6B)),
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppColor.errorColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             }
           },
           builder: (context, state) {
             if (state is ServiceAreasLoading) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+              return Center(child: CircularProgressIndicator(color: theme.colorScheme.primary));
             }
 
             if (state is ServiceAreasEmpty) {
@@ -72,8 +86,9 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
           },
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => context.push('/helper-add-service-area'),
-          backgroundColor: const Color(0xFF6C63FF),
+          onPressed: () => context.push('/helper/add-service-area'),
+          backgroundColor: theme.colorScheme.primary,
+          foregroundColor: isDark ? Colors.black : Colors.white,
           icon: const Icon(Icons.add_location_alt_rounded),
           label: const Text('Add Area', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
@@ -82,30 +97,39 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(AppTheme.spaceXL),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(30),
+              padding: const EdgeInsets.all(AppTheme.spaceXL),
               decoration: BoxDecoration(
-                color: const Color(0xFF6C63FF).withOpacity(0.1),
+                color: theme.colorScheme.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.map_outlined, size: 80, color: Color(0xFF6C63FF)),
+              child: Icon(
+                Icons.map_outlined,
+                size: 80,
+                color: theme.colorScheme.primary,
+              ),
             ),
-            const SizedBox(height: 24),
-            const Text(
+            const SizedBox(height: AppTheme.spaceLG),
+            Text(
               'No service areas yet',
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-            const Text(
+            const SizedBox(height: AppTheme.spaceSM),
+            Text(
               'You must define at least one area to appear in scheduled booking searches.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 14),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+              ),
             ),
           ],
         ),
@@ -114,52 +138,64 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
   }
 
   Widget _buildAreasList(BuildContext context, List<ServiceAreaEntity> areas) {
-    // Null-safe primary lookup — avoids firstWhere orElse type mismatch.
-    final ServiceAreaEntity primaryArea =
-        areas.where((a) => a.isPrimary).firstOrNull ?? areas.first;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final ServiceAreaEntity? primaryArea =
+        areas.where((a) => a.isPrimary).firstOrNull ?? (areas.isNotEmpty ? areas.first : null);
+    
+    if (primaryArea == null) return const SizedBox.shrink();
+
     final otherAreas = areas.where((a) => a.id != primaryArea.id).toList();
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
       children: [
-        const Text(
+        Text(
           'Primary Working Area',
-          style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
-        _ServiceAreaCard(area: primaryArea, isHero: true),
-        const SizedBox(height: 30),
-        if (otherAreas.isNotEmpty) ...[
-          const Text(
-            'Other Regions',
-            style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 12),
+        ),
+        const SizedBox(height: AppTheme.spaceSM),
+        _ServiceAreaCard(area: primaryArea, isHero: true),
+        const SizedBox(height: AppTheme.spaceXL),
+        if (otherAreas.isNotEmpty) ...[
+          Text(
+            'Other Regions',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceSM),
           ...otherAreas.map((area) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.only(bottom: AppTheme.spaceMD),
                 child: _ServiceAreaCard(area: area),
               )),
         ] else if (areas.length == 1)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppTheme.spaceMD),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.orange.withOpacity(0.2)),
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, color: Colors.orange),
-                SizedBox(width: 12),
+                const Icon(Icons.info_outline_rounded, color: Colors.orange),
+                const SizedBox(width: AppTheme.spaceSM),
                 Expanded(
                   child: Text(
                     'Consider adding more areas to increase your visibility to travelers.',
-                    style: TextStyle(color: Colors.orange, fontSize: 13),
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.orange),
                   ),
                 ),
               ],
             ),
           ),
+        const SizedBox(height: 80), // Fab space
       ],
     );
   }
@@ -173,141 +209,118 @@ class _ServiceAreaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C).withValues(alpha: isHero ? 1.0 : 0.6),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isHero ? const Color(0xFF6C63FF).withOpacity(0.5) : Colors.white.withOpacity(0.05),
-          width: isHero ? 2 : 1,
-        ),
-        boxShadow: isHero
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF6C63FF).withOpacity(0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                )
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => context.push('/helper-edit-service-area', extra: area),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6C63FF).withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.location_on_rounded, color: Color(0xFF6C63FF), size: 24),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              area.city,
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              '${area.areaName ?? "City Center"}, ${area.country}',
-                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (area.isPrimary)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6C63FF), Color(0xFF928DFF)],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.star_rounded, color: Colors.white, size: 12),
-                              SizedBox(width: 4),
-                              Text('PRIMARY',
-                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _StatItem(label: 'Radius', value: '${area.radiusKm.round()} km'),
-                      _StatItem(label: 'Latitude', value: area.latitude.toStringAsFixed(4)),
-                      _StatItem(label: 'Longitude', value: area.longitude.toStringAsFixed(4)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push('/helper-edit-service-area', extra: area),
-                          icon: const Icon(Icons.edit_rounded, size: 16),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white70,
-                            side: BorderSide(color: Colors.white.withOpacity(0.1)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        onPressed: () => _confirmDelete(context),
-                        icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF6B6B)),
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF6B6B).withOpacity(0.1),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return CustomCard(
+      variant: isHero ? CardVariant.elevated : CardVariant.outlined,
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppTheme.spaceSM),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.location_on_rounded, color: theme.colorScheme.primary, size: 24),
               ),
-            ),
+              const SizedBox(width: AppTheme.spaceMD),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      area.city,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${area.areaName ?? "City Center"}, ${area.country}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (area.isPrimary)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColor.accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSM),
+                    border: Border.all(color: AppColor.accentColor.withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star_rounded, color: AppColor.accentColor, size: 12),
+                      SizedBox(width: 4),
+                      Text(
+                        'PRIMARY',
+                        style: TextStyle(color: AppColor.accentColor, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
-        ),
+          const SizedBox(height: AppTheme.spaceLG),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _StatItem(label: 'Radius', value: '${area.radiusKm.round()} km'),
+              _StatItem(label: 'Latitude', value: area.latitude.toStringAsFixed(4)),
+              _StatItem(label: 'Longitude', value: area.longitude.toStringAsFixed(4)),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spaceLG),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/helper/edit-service-area', extra: area),
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  label: const Text('Edit'),
+                ),
+              ),
+              const SizedBox(width: AppTheme.spaceSM),
+              IconButton(
+                onPressed: () => _confirmDelete(context),
+                icon: const Icon(Icons.delete_outline_rounded, color: AppColor.errorColor),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColor.errorColor.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   void _confirmDelete(BuildContext context) {
+    final theme = Theme.of(context);
+    
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F3C),
-        title: const Text('Delete Area?', style: TextStyle(color: Colors.white)),
-        content: const Text('Travelers in this region will no longer see you in scheduled searches.',
-            style: TextStyle(color: Colors.white70)),
+        title: const Text('Delete Area?'),
+        content: const Text('Travelers in this region will no longer see you in scheduled searches.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               context.read<ServiceAreasCubit>().deleteArea(area.id);
             },
-            child: const Text('Delete', style: TextStyle(color: Color(0xFFFF6B6B))),
+            child: const Text('Delete', style: TextStyle(color: AppColor.errorColor)),
           ),
         ],
       ),
@@ -322,11 +335,22 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10)),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+          ),
+        ),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }

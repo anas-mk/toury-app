@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../../core/widgets/custom_button.dart';
 import '../../cubit/profile_cubit.dart';
@@ -40,7 +41,7 @@ class _DocumentsChecklistState extends State<DocumentsChecklist> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColor.errorColor),
       );
     }
   }
@@ -58,9 +59,7 @@ class _DocumentsChecklistState extends State<DocumentsChecklist> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // If documents are not empty in profile, ideally we'd show a "Verified" state.
-    // Assuming we just provide the upload UI here for simplicity and requirements.
+    final isDark = theme.brightness == Brightness.dark;
 
     return CustomCard(
       variant: CardVariant.elevated,
@@ -73,15 +72,17 @@ class _DocumentsChecklistState extends State<DocumentsChecklist> {
             children: [
               Text(
                 'Required Documents (Batch Upload)',
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: AppTheme.spaceSM),
               Text(
                 'You must upload both sides of your National ID to proceed.',
-                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                style: TextStyle(
+                  color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: AppTheme.spaceMD),
 
@@ -134,6 +135,7 @@ class _DocItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isSelected = file != null;
 
     return InkWell(
@@ -142,7 +144,7 @@ class _DocItem extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD, vertical: AppTheme.spaceSM),
         decoration: BoxDecoration(
-          border: Border.all(color: isSelected ? Colors.green : Colors.grey.withOpacity(0.3)),
+          border: Border.all(color: isSelected ? Colors.green : AppColor.lightBorder),
           borderRadius: BorderRadius.circular(AppTheme.radiusSM),
           color: isSelected ? Colors.green.withOpacity(0.05) : null,
         ),
@@ -157,7 +159,7 @@ class _DocItem extends StatelessWidget {
               child: Text(
                 isSelected ? 'Selected: ${file!.path.split('/').last}' : title,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isSelected ? Colors.green[700] : null,
+                  color: isSelected ? Colors.green : null,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
                 maxLines: 1,

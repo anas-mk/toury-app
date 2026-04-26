@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
@@ -14,8 +15,6 @@ import '../widgets/onboarding/onboarding_progress_card.dart';
 import '../widgets/profile_info/profile_info_form.dart';
 import '../widgets/status/profile_status_card.dart';
 
-
-
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -24,33 +23,39 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // We provide the Cubit directly if it's not provided above, but assuming 
-  // standard routing, we'll wrap it here to ensure independence as requested.
-  // ProfileCubit cubit is factory registered.
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider<ProfileCubit>(
       create: (context) => sl<ProfileCubit>()..fetchProfileBundle(),
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: theme.scaffoldBackgroundColor,
         body: BlocConsumer<ProfileCubit, ProfileState>(
           listenWhen: (previous, current) => previous.successMessage != current.successMessage || previous.errorMessage != current.errorMessage,
           listener: (context, state) {
             if (state.successMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.successMessage!), backgroundColor: Colors.green),
+                SnackBar(
+                  content: Text(state.successMessage!),
+                  backgroundColor: AppColor.accentColor,
+                ),
               );
               context.read<ProfileCubit>().clearMessages();
             } else if (state.errorMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
+                SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: AppColor.errorColor,
+                ),
               );
               context.read<ProfileCubit>().clearMessages();
             }
           },
           builder: (context, state) {
             if (state.status == ProfileStatus.initial || (state.status == ProfileStatus.loading && state.profile == null)) {
-              return const Center(child: CircularProgressIndicator());
+              return Center(child: CircularProgressIndicator(color: theme.colorScheme.primary));
             }
 
             if (state.profile == null) {
@@ -58,7 +63,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                    ),
                     const SizedBox(height: AppTheme.spaceMD),
                     const Text('Failed to load profile.'),
                     const SizedBox(height: AppTheme.spaceSM),
@@ -79,6 +88,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onRefresh: () async {
                 await context.read<ProfileCubit>().fetchProfileBundle();
               },
+              color: theme.colorScheme.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 padding: const EdgeInsets.all(AppTheme.spaceMD),
@@ -94,6 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       onPressed: () => ProfileInfoForm.show(context, profile),
                       icon: const Icon(Icons.edit, size: 18),
                       label: const Text('Edit Basic Info'),
+                      style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
                     ),
                   ),
 

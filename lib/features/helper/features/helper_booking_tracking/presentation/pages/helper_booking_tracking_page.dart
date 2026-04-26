@@ -188,7 +188,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                   top: MediaQuery.of(context).padding.top + 10,
                   left: 20,
                   right: 20,
-                  child: _buildTopStatus(tracking.status),
+                  child: _buildTopStatus(context, tracking.status),
                 ),
 
                 // 3. FLOATING BUTTONS
@@ -229,7 +229,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: _buildDashboard(tracking),
+                  child: _buildDashboard(context, tracking),
                 ),
 
                 // 5. BACK BUTTON
@@ -254,11 +254,12 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
     );
   }
 
-  Widget _buildTopStatus(String status) {
+  Widget _buildTopStatus(BuildContext context, String status) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: theme.cardColor.withOpacity(0.9),
         borderRadius: BorderRadius.circular(30),
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
@@ -271,19 +272,20 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
             decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
-          Text(status.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(status.toUpperCase(), style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildDashboard(dynamic tracking) {
+  Widget _buildDashboard(BuildContext context, dynamic tracking) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20)],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -291,9 +293,9 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStat('ETA', '${tracking.etaMinutes ?? "--"} min', Icons.timer),
-              _buildStat('Distance', '${((tracking.distanceToTarget ?? 0) / 1000).toStringAsFixed(1)} km', Icons.directions),
-              _buildStat('Speed', '${(tracking.latestPoint?.speed ?? 0).toStringAsFixed(0)} km/h', Icons.speed),
+              _buildStat(context, 'ETA', '${tracking.etaMinutes ?? "--"} min', Icons.timer),
+              _buildStat(context, 'Distance', '${((tracking.distanceToTarget ?? 0) / 1000).toStringAsFixed(1)} km', Icons.directions),
+              _buildStat(context, 'Speed', '${(tracking.latestPoint?.speed ?? 0).toStringAsFixed(0)} km/h', Icons.speed),
             ],
           ),
           const SizedBox(height: 24),
@@ -303,17 +305,17 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
             children: [
               const CircleAvatar(backgroundColor: AppColor.primaryColor, child: Icon(Icons.person, color: Colors.white)),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('On Active Trip', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('Trip ID: #TOUR-8293', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text('On Active Trip', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                    Text('Trip ID: #TOUR-8293', style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
               CustomButton(
-                text: 'Contact Support',
+                text: 'Support',
                 variant: ButtonVariant.outlined,
                 onPressed: () {},
               ),
@@ -324,13 +326,14 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
     );
   }
 
-  Widget _buildStat(String label, String value, IconData icon) {
+  Widget _buildStat(BuildContext context, String label, String value, IconData icon) {
+    final theme = Theme.of(context);
     return Column(
       children: [
         Icon(icon, color: AppColor.primaryColor, size: 24),
         const SizedBox(height: 8),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+        Text(label, style: theme.textTheme.bodySmall),
       ],
     );
   }

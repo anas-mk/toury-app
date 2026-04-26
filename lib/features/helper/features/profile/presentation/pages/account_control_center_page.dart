@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/di/injection_container.dart';
@@ -39,24 +41,26 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _profileCubit),
         BlocProvider(create: (context) => sl<HelperAuthCubit>()),
       ],
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0D1120),
           elevation: 0,
           centerTitle: false,
-          title: const Text(
+          title: Text(
             'Control Center',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.help_outline_rounded, color: Colors.white38),
+              icon: Icon(Icons.help_outline_rounded, color: isDark ? Colors.white38 : Colors.black38),
               onPressed: () {},
             ),
           ],
@@ -64,17 +68,17 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
         body: BlocBuilder<ProfileCubit, ProfileState>(
           builder: (context, state) {
             if (state.status == ProfileStatus.loading && state.profile == null) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+              return Center(child: CircularProgressIndicator(color: theme.colorScheme.primary));
             }
             if (state.profile == null) {
-              return _buildErrorState();
+              return _buildErrorState(context);
             }
 
             final profile = state.profile!;
 
             return RefreshIndicator(
               onRefresh: () async => _profileCubit.fetchProfileBundle(),
-              color: const Color(0xFF6C63FF),
+              color: AppColor.primaryColor,
               child: ListView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 40),
@@ -171,7 +175,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                             onChanged: (v) {
                               HapticService.medium();
                             }, 
-                            activeColor: const Color(0xFF6C63FF),
+                            activeColor: theme.colorScheme.primary,
                           ),
                           onTap: () => HapticService.light(),
                         ),
@@ -226,10 +230,10 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Center(
+                  Center(
                     child: Text(
                       'App Version 2.4.0 (Build 124)',
-                      style: TextStyle(color: Colors.white12, fontSize: 11),
+                      style: TextStyle(color: isDark ? Colors.white12 : Colors.black12, fontSize: 11),
                     ),
                   ),
                 ],
@@ -242,11 +246,14 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
   }
 
   Widget _buildHeader(BuildContext context, HelperProfileEntity profile) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0D1120),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
       ),
       child: Row(
         children: [
@@ -254,10 +261,10 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
             children: [
               CircleAvatar(
                 radius: 40,
-                backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
                 backgroundImage: profile.profileImageUrl != null ? NetworkImage(profile.profileImageUrl!) : null,
                 child: profile.profileImageUrl == null
-                    ? const Icon(Icons.person_rounded, color: Color(0xFF6C63FF), size: 40)
+                    ? Icon(Icons.person_rounded, color: theme.colorScheme.primary, size: 40)
                     : null,
               ),
               Positioned(
@@ -265,7 +272,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                 right: 0,
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Color(0xFF00C896), shape: BoxShape.circle),
+                  decoration: const BoxDecoration(color: AppColor.accentColor, shape: BoxShape.circle),
                   child: const Icon(Icons.check_rounded, color: Colors.white, size: 12),
                 ),
               ),
@@ -278,24 +285,24 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
               children: [
                 Text(
                   profile.fullName,
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   profile.email,
-                  style: const TextStyle(color: Colors.white38, fontSize: 13),
+                  style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6C63FF).withOpacity(0.1),
+                    color: theme.colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+                    border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3)),
                   ),
-                  child: const Text(
+                  child: Text(
                     'PRO HELPER',
-                    style: TextStyle(color: Color(0xFF6C63FF), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                    style: TextStyle(color: theme.colorScheme.primary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                   ),
                 ),
               ],
@@ -306,14 +313,15 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+          const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
           const SizedBox(height: 16),
-          const Text('Failed to load profile', style: TextStyle(color: Colors.white)),
+          Text('Failed to load profile', style: theme.textTheme.bodyMedium),
           const SizedBox(height: 12),
           ElevatedButton(onPressed: () => _profileCubit.fetchProfileBundle(), child: const Text('Retry')),
         ],
@@ -322,9 +330,12 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
   }
 
   void _showLogoutConfirm(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1F3C),
+      backgroundColor: theme.dialogBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => SafeArea(
         child: Padding(
@@ -335,16 +346,16 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
               Container(
                 width: 56,
                 height: 56,
-                decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), shape: BoxShape.circle),
-                child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 28),
+                decoration: BoxDecoration(color: AppColor.errorColor.withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.logout_rounded, color: AppColor.errorColor, size: 28),
               ),
               const SizedBox(height: 20),
-              const Text('Are you sure?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Are you sure?', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'You will need to login again to access your dashboard.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white38, fontSize: 14),
+                style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 14),
               ),
               const SizedBox(height: 32),
               Row(
@@ -352,7 +363,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                   Expanded(
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                      child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -363,7 +374,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                         context.read<HelperAuthCubit>().logout();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
+                        backgroundColor: AppColor.errorColor,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
@@ -392,14 +403,14 @@ class _LogoutButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.redAccent.withOpacity(0.1),
+          color: AppColor.errorColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+          border: Border.all(color: AppColor.errorColor.withOpacity(0.3)),
         ),
         child: const Center(
           child: Text(
             'Logout',
-            style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16),
+            style: TextStyle(color: AppColor.errorColor, fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
       ),

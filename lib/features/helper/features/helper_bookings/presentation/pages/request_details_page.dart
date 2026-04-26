@@ -50,7 +50,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
             listener: (context, state) {
               if (state is AcceptBookingSuccess) {
                 _showSnack(context, '✓ Request accepted!');
-                context.go('/helper-booking-details/${state.booking.id}');
+                context.go('/helper/booking-details/${state.booking.id}');
               } else if (state is AcceptBookingError) {
                 _showSnack(context, state.message, isError: true);
               }

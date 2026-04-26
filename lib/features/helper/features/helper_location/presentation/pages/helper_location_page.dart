@@ -349,7 +349,7 @@ class _BottomControlPanel extends StatelessWidget {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => context.push('/helper-eligibility-debug'),
+                  onPressed: () => context.push('/helper/eligibility-debug'),
                   icon: const Icon(Icons.bug_report_rounded, size: 18),
                   label: const Text('Debug'),
                   style: ElevatedButton.styleFrom(

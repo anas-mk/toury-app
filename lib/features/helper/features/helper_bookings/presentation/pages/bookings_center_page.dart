@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/di/injection_container.dart';
@@ -47,6 +49,8 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _requestsCubit),
@@ -54,22 +58,19 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
         BlocProvider.value(value: _historyCubit),
       ],
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0D1120),
           elevation: 0,
           centerTitle: false,
-          title: const Text(
-            'Order Center',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
-          ),
+          title: const Text('Order Center'),
           bottom: TabBar(
             controller: _tabController,
             isScrollable: false,
-            indicatorColor: const Color(0xFF6C63FF),
+            indicatorColor: AppColor.primaryColor,
             indicatorWeight: 3,
-            labelColor: const Color(0xFF6C63FF),
-            unselectedLabelColor: Colors.white38,
+            labelColor: AppColor.primaryColor,
+            unselectedLabelColor: theme.brightness == Brightness.dark 
+                ? AppColor.darkTextSecondary 
+                : AppColor.lightTextSecondary,
             labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             tabs: const [
               Tab(text: 'Requests'),
@@ -101,7 +102,7 @@ class _RequestsTab extends StatelessWidget {
       builder: (context, state) {
         if (state is IncomingRequestsLoading) {
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
             itemCount: 3,
             itemBuilder: (_, __) => const SkeletonBookingCard(),
           );
@@ -117,7 +118,7 @@ class _RequestsTab extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () async => cubit.load(),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppTheme.spaceLG),
               itemCount: state.requests.length,
               itemBuilder: (context, index) => FadeInSlide(
                 delay: Duration(milliseconds: index * 50),
@@ -142,7 +143,7 @@ class _UpcomingTab extends StatelessWidget {
       builder: (context, state) {
         if (state is UpcomingBookingsLoading) {
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
             itemCount: 3,
             itemBuilder: (_, __) => const SkeletonBookingCard(),
           );
@@ -158,7 +159,7 @@ class _UpcomingTab extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () async => cubit.load(),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppTheme.spaceLG),
               itemCount: state.bookings.length,
               itemBuilder: (context, index) => FadeInSlide(
                 delay: Duration(milliseconds: index * 50),
@@ -183,7 +184,7 @@ class _HistoryTab extends StatelessWidget {
       builder: (context, state) {
         if (state is HelperHistoryLoading) {
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
             itemCount: 5,
             itemBuilder: (_, __) => const SkeletonBookingCard(),
           );
@@ -199,7 +200,7 @@ class _HistoryTab extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () async => cubit.load(),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppTheme.spaceLG),
               itemCount: state.bookings.length,
               itemBuilder: (context, index) => FadeInSlide(
                 delay: Duration(milliseconds: index * 50),
@@ -220,17 +221,18 @@ class _BookingItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isHistory = booking.status == 'completed' || booking.status == 'cancelled';
     
     return GestureDetector(
-      onTap: () => context.push('/helper-booking-details/${booking.id}'),
+      onTap: () => context.push('/helper/booking-details/${booking.id}'),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(18),
+        margin: const EdgeInsets.only(bottom: AppTheme.spaceMD),
+        padding: const EdgeInsets.all(AppTheme.spaceMD),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+          border: Border.all(color: AppColor.lightBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -239,24 +241,24 @@ class _BookingItemCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
+                  backgroundColor: AppColor.primaryColor.withOpacity(0.1),
                   child: Text(
                     booking.travelerName.isNotEmpty ? booking.travelerName[0].toUpperCase() : '?',
-                    style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: AppColor.primaryColor, fontWeight: FontWeight.bold),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppTheme.spaceMD),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         booking.travelerName,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Text(
                         _formatDate(booking.startTime),
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        style: theme.textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -264,20 +266,20 @@ class _BookingItemCard extends StatelessWidget {
                 _StatusBadge(status: booking.status),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppTheme.spaceMD),
             _LocationRow(icon: Icons.circle_outlined, color: Colors.green, label: booking.pickupLocation),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppTheme.spaceXS),
             _LocationRow(icon: Icons.location_on_rounded, color: Colors.redAccent, label: booking.destinationLocation),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppTheme.spaceMD),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '\$${booking.payout.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Color(0xFF00C896), fontWeight: FontWeight.bold, fontSize: 18),
+                  style: const TextStyle(color: AppColor.primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 if (!isHistory)
-                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 14),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: AppColor.lightTextSecondary, size: 14),
               ],
             ),
           ],
@@ -299,12 +301,12 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (status.toLowerCase()) {
-      case 'pending': color = Colors.orange; break;
+      case 'pending': color = AppColor.warningColor; break;
       case 'confirmed':
-      case 'accepted': color = Colors.blue; break;
-      case 'completed': color = Colors.green; break;
-      case 'cancelled': color = Colors.red; break;
-      default: color = Colors.grey;
+      case 'accepted': color = AppColor.secondaryColor; break;
+      case 'completed': color = AppColor.accentColor; break;
+      case 'cancelled': color = AppColor.errorColor; break;
+      default: color = AppColor.lightTextSecondary;
     }
     
     return Container(
@@ -331,6 +333,7 @@ class _LocationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Icon(icon, color: color, size: 14),
@@ -340,7 +343,7 @@ class _LocationRow extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white60, fontSize: 13),
+            style: theme.textTheme.bodySmall,
           ),
         ),
       ],

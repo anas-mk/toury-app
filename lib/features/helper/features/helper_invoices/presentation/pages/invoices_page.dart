@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/helper_invoices_cubit.dart';
 import '../../domain/entities/invoice_entities.dart';
@@ -45,16 +47,19 @@ class _InvoicesPageState extends State<InvoicesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _cubit),
         BlocProvider.value(value: _summaryCubit),
       ],
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         body: RefreshIndicator(
-          color: const Color(0xFF6C63FF),
-          backgroundColor: const Color(0xFF1A1F3C),
+          color: AppColor.primaryColor,
+          backgroundColor: theme.cardColor,
           onRefresh: () async {
             await _cubit.refresh();
             await _summaryCubit.loadSummary();
@@ -64,17 +69,17 @@ class _InvoicesPageState extends State<InvoicesPage> {
             slivers: [
               // ── App Bar ──────────────────────────────────────────────────────
               SliverAppBar(
-                backgroundColor: const Color(0xFF0A0E1A),
+                backgroundColor: theme.scaffoldBackgroundColor,
                 expandedHeight: 180,
                 pinned: true,
                 elevation: 0,
                 leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
                   onPressed: () => context.pop(),
                 ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.filter_list_rounded, color: Colors.white),
+                    icon: const Icon(Icons.filter_list_rounded),
                     onPressed: () => _showFilterSheet(context),
                   ),
                 ],
@@ -95,7 +100,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
               ),
 
               // ── Filter Chips ─────────────────────────────────────────────────
-              SliverToBoxAdapter(child: _buildFilterChips()),
+              SliverToBoxAdapter(child: _buildFilterChips(context)),
 
               // ── Invoice List ─────────────────────────────────────────────────
               BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
@@ -111,11 +116,11 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   }
 
                   if (state is InvoicesEmpty) {
-                    return SliverFillRemaining(child: _buildEmptyState());
+                    return SliverFillRemaining(child: _buildEmptyState(context));
                   }
 
                   if (state is InvoicesError) {
-                    return SliverFillRemaining(child: _buildErrorState(state.message));
+                    return SliverFillRemaining(child: _buildErrorState(context, state.message));
                   }
 
                   if (state is InvoicesLoaded) {
@@ -128,7 +133,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                     padding: EdgeInsets.all(16),
                                     child: Center(
                                       child: CircularProgressIndicator(
-                                          color: Color(0xFF6C63FF), strokeWidth: 2),
+                                          color: AppColor.primaryColor, strokeWidth: 2),
                                     ),
                                   )
                                 : const SizedBox(height: 40);
@@ -151,13 +156,18 @@ class _InvoicesPageState extends State<InvoicesPage> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 56, 20, 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1A1F3C), Color(0xFF0A0E1A)],
+          colors: isDark 
+            ? [const Color(0xFF1A1F3C), const Color(0xFF0A0E1A)]
+            : [AppColor.primaryColor, AppColor.primaryColor.withOpacity(0.8)],
         ),
       ),
       child: Column(
@@ -167,13 +177,15 @@ class _InvoicesPageState extends State<InvoicesPage> {
           const Text('Invoices',
               style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
           Text('Your complete financial history',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14)),
+              style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
         ],
       ),
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildFilterChips(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final filters = [null, 'paid', 'pending', 'cancelled'];
     final labels = {null: 'All', 'paid': 'Paid', 'pending': 'Pending', 'cancelled': 'Cancelled'};
 
@@ -193,15 +205,15 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   setState(() => _activeFilter = f);
                   _cubit.loadInvoices(statusFilter: f);
                 },
-                backgroundColor: const Color(0xFF1A1F3C),
-                selectedColor: const Color(0xFF6C63FF).withOpacity(0.2),
+                backgroundColor: theme.cardColor,
+                selectedColor: AppColor.primaryColor.withOpacity(0.2),
                 labelStyle: TextStyle(
-                    color: selected ? const Color(0xFF6C63FF) : Colors.white54, fontSize: 12),
+                    color: selected ? AppColor.primaryColor : (isDark ? Colors.white54 : Colors.black54), fontSize: 12),
                 side: BorderSide(
                     color: selected
-                        ? const Color(0xFF6C63FF)
-                        : Colors.white.withOpacity(0.1)),
-                checkmarkColor: const Color(0xFF6C63FF),
+                        ? AppColor.primaryColor
+                        : AppColor.lightBorder),
+                checkmarkColor: AppColor.primaryColor,
               ),
             );
           }).toList(),
@@ -213,39 +225,46 @@ class _InvoicesPageState extends State<InvoicesPage> {
   void _showFilterSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1F3C),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Filter Invoices',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ...['All', 'Paid', 'Pending', 'Cancelled'].map((label) {
-              final val = label == 'All' ? null : label.toLowerCase();
-              return ListTile(
-                title: Text(label, style: const TextStyle(color: Colors.white)),
-                trailing: _activeFilter == val
-                    ? const Icon(Icons.check_rounded, color: Color(0xFF6C63FF))
-                    : null,
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _activeFilter = val);
-                  _cubit.loadInvoices(statusFilter: val);
-                },
-              );
-            }),
-          ],
-        ),
-      ),
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        final theme = Theme.of(context);
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Filter Invoices',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ...['All', 'Paid', 'Pending', 'Cancelled'].map((label) {
+                final val = label == 'All' ? null : label.toLowerCase();
+                return ListTile(
+                  title: Text(label),
+                  trailing: _activeFilter == val
+                      ? const Icon(Icons.check_rounded, color: AppColor.primaryColor)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _activeFilter = val);
+                    _cubit.loadInvoices(statusFilter: val);
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -255,45 +274,47 @@ class _InvoicesPageState extends State<InvoicesPage> {
             Container(
               padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C896).withOpacity(0.08),
+                color: AppColor.accentColor.withOpacity(0.08),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.receipt_long_rounded, size: 72, color: Color(0xFF00C896)),
+              child: const Icon(Icons.receipt_long_rounded, size: 72, color: AppColor.accentColor),
             ),
             const SizedBox(height: 24),
-            const Text('No invoices yet',
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('No invoices yet',
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Text('Completed trips will generate invoices here.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14)),
+                style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 14)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildErrorState(String message) {
+  Widget _buildErrorState(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 64, color: Color(0xFFFF6B6B)),
+            const Icon(Icons.cloud_off_rounded, size: 64, color: AppColor.errorColor),
             const SizedBox(height: 16),
-            const Text('Could not load invoices',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Could not load invoices',
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 12)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _cubit.refresh,
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColor.primaryColor),
             ),
           ],
         ),
@@ -312,20 +333,19 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = NumberFormat('#,##0.00');
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A1F3C), Color(0xFF252B50)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.2)),
+        border: Border.all(color: AppColor.primaryColor.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withOpacity(0.15),
+            color: AppColor.primaryColor.withOpacity(0.15),
             blurRadius: 24,
             offset: const Offset(0, 8),
           )
@@ -339,26 +359,26 @@ class _SummaryCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Net Earnings', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Net Earnings', style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text('${summary.currency} ${fmt.format(summary.netAmount)}',
                       style: const TextStyle(
-                          color: Color(0xFF00C896), fontSize: 26, fontWeight: FontWeight.bold)),
+                          color: AppColor.accentColor, fontSize: 26, fontWeight: FontWeight.bold)),
                 ],
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text('${summary.invoiceCount} invoices',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 12)),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          const Divider(color: Colors.white12),
+          Divider(color: AppColor.lightBorder),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -366,16 +386,16 @@ class _SummaryCard extends StatelessWidget {
                 label: 'Gross',
                 value: fmt.format(summary.grossAmount),
                 currency: summary.currency,
-                color: Colors.white70,
+                color: isDark ? Colors.white70 : Colors.black87,
               ),
               const SizedBox(width: 1),
-              Container(width: 1, height: 40, color: Colors.white12),
+              Container(width: 1, height: 40, color: AppColor.lightBorder),
               const SizedBox(width: 1),
               _SummaryItem(
                 label: 'Commission',
                 value: fmt.format(summary.commissionAmount),
                 currency: summary.currency,
-                color: const Color(0xFFFF6B6B),
+                color: AppColor.errorColor,
               ),
             ],
           ),
@@ -394,10 +414,13 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Expanded(
       child: Column(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          Text(label, style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 11)),
           const SizedBox(height: 4),
           Text('$currency $value', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
         ],
@@ -415,19 +438,21 @@ class _InvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final fmt = NumberFormat('#,##0.00');
     final dateFmt = DateFormat('MMM d, yyyy');
     final isPaid = invoice.paymentStatus.toLowerCase() == 'paid';
 
     return GestureDetector(
-      onTap: () => context.push('/helper-invoice-detail/${invoice.invoiceId}'),
+      onTap: () => context.push('/helper/invoice-detail/${invoice.invoiceId}'),
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          border: Border.all(color: AppColor.lightBorder),
         ),
         child: Row(
           children: [
@@ -435,12 +460,12 @@ class _InvoiceCard extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: (isPaid ? const Color(0xFF00C896) : Colors.orange).withOpacity(0.1),
+                color: (isPaid ? AppColor.accentColor : Colors.orange).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.receipt_rounded,
-                color: isPaid ? const Color(0xFF00C896) : Colors.orange,
+                color: isPaid ? AppColor.accentColor : Colors.orange,
                 size: 22,
               ),
             ),
@@ -450,21 +475,21 @@ class _InvoiceCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('#${invoice.invoiceNumber}',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
                   Text(invoice.userName,
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                      style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 12)),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_rounded, color: Colors.white24, size: 12),
+                      Icon(Icons.location_on_rounded, color: isDark ? Colors.white24 : Colors.black26, size: 12),
                       const SizedBox(width: 2),
                       Text(invoice.destinationCity,
-                          style: const TextStyle(color: Colors.white24, fontSize: 11)),
+                          style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 11)),
                       if (invoice.issuedAt != null) ...[
-                        const Text(' · ', style: TextStyle(color: Colors.white24)),
+                        Text(' · ', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26)),
                         Text(dateFmt.format(invoice.issuedAt!),
-                            style: const TextStyle(color: Colors.white24, fontSize: 11)),
+                            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 11)),
                       ]
                     ],
                   ),
@@ -477,7 +502,7 @@ class _InvoiceCard extends StatelessWidget {
               children: [
                 Text('${invoice.currency} ${fmt.format(invoice.totalAmount)}',
                     style: const TextStyle(
-                        color: Color(0xFF00C896), fontWeight: FontWeight.bold, fontSize: 14)),
+                        color: AppColor.accentColor, fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 4),
                 _StatusBadge(status: invoice.paymentStatus),
               ],
@@ -497,10 +522,10 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
     final color = s == 'paid'
-        ? const Color(0xFF00C896)
+        ? AppColor.accentColor
         : s == 'pending'
             ? Colors.orange
-            : Colors.red;
+            : AppColor.errorColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -522,11 +547,12 @@ class _SummaryShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       height: 148,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(24),
       ),
     );
@@ -538,11 +564,12 @@ class _InvoiceShimmerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       height: 80,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
       ),
     );

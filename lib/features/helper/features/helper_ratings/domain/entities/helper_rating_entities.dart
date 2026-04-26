@@ -54,15 +54,15 @@ class RatingEntity extends Equatable {
 
 class RatingStateEntity extends Equatable {
   final String bookingId;
-  final bool userToHelper;
-  final bool helperToUser;
+  final RatingEntity? userToHelper;
+  final RatingEntity? helperToUser;
   final bool callerHasRated;
   final bool canRate;
 
   const RatingStateEntity({
     required this.bookingId,
-    required this.userToHelper,
-    required this.helperToUser,
+    this.userToHelper,
+    this.helperToUser,
     required this.callerHasRated,
     required this.canRate,
   });

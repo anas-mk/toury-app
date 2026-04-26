@@ -28,7 +28,7 @@ class HelperLocationStatusWidget extends StatelessWidget {
             }
 
             return GestureDetector(
-              onTap: () => context.push('/helper-location'),
+              onTap: () => context.push('/helper/location'),
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../domain/entities/helper_profile_entity.dart';
 import '../../cubit/profile_cubit.dart';
@@ -28,7 +29,7 @@ class ImageManagementCard extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColor.errorColor),
       );
     }
   }
@@ -49,9 +50,8 @@ class ImageManagementCard extends StatelessWidget {
             children: [
               Text(
                 'Identity Verification',
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: AppTheme.spaceMD),
@@ -100,6 +100,7 @@ class _ImageUploadBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
 
     return Column(
@@ -109,10 +110,10 @@ class _ImageUploadBox extends StatelessWidget {
           child: Container(
             height: 120,
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.05),
+              color: AppColor.primaryColor.withOpacity(0.05),
               borderRadius: BorderRadius.circular(AppTheme.radiusMD),
               border: Border.all(
-                color: hasImage ? theme.colorScheme.primary : Colors.grey.withOpacity(0.3),
+                color: hasImage ? AppColor.primaryColor : AppColor.lightBorder,
                 width: 1.5,
               ),
               image: hasImage && !isLoading
@@ -124,9 +125,13 @@ class _ImageUploadBox extends StatelessWidget {
             ),
             child: Center(
               child: isLoading
-                  ? const CircularProgressIndicator()
+                  ? const CircularProgressIndicator(color: AppColor.primaryColor)
                   : (!hasImage
-                      ? Icon(Icons.add_a_photo, color: Colors.grey[400], size: 32)
+                      ? Icon(
+                          Icons.add_a_photo,
+                          color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                          size: 32,
+                        )
                       : null),
             ),
           ),
@@ -135,7 +140,7 @@ class _ImageUploadBox extends StatelessWidget {
         Text(
           title,
           style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.8),
+            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
           ),
           textAlign: TextAlign.center,
         ),

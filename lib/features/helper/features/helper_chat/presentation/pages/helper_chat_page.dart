@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/features/helper/features/helper_chat/data/services/helper_chat_signalr_service.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../cubit/helper_chat_cubit.dart';
@@ -49,11 +51,13 @@ class _HelperChatPageState extends State<HelperChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return BlocProvider.value(
       value: _cubit,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
-        appBar: _buildAppBar(),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: _buildAppBar(context),
         body: Column(
           children: [
             Expanded(
@@ -77,12 +81,12 @@ class _HelperChatPageState extends State<HelperChatPage> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final theme = Theme.of(context);
     return AppBar(
-      backgroundColor: const Color(0xFF0D1120),
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
         onPressed: () => Navigator.pop(context),
       ),
       title: BlocBuilder<HelperChatCubit, HelperChatState>(
@@ -94,9 +98,9 @@ class _HelperChatPageState extends State<HelperChatPage> {
                 CircleAvatar(
                   radius: 18,
                   backgroundImage: user.profileImageUrl.isNotEmpty ? NetworkImage(user.profileImageUrl) : null,
-                  backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
+                  backgroundColor: AppColor.primaryColor.withOpacity(0.1),
                   child: user.profileImageUrl.isEmpty
-                      ? Text(user.name[0], style: const TextStyle(color: Color(0xFF6C63FF), fontSize: 14))
+                      ? Text(user.name[0], style: const TextStyle(color: AppColor.primaryColor, fontSize: 14))
                       : null,
                 ),
                 const SizedBox(width: 12),
@@ -106,24 +110,25 @@ class _HelperChatPageState extends State<HelperChatPage> {
                     children: [
                       Text(
                         user.name,
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      _buildConnectionStatus(state.connectionState),
+                      _buildConnectionStatus(context, state.connectionState),
                     ],
                   ),
                 ),
               ],
             );
           }
-          return const Text('Chat', style: TextStyle(color: Colors.white));
+          return const Text('Chat');
         },
       ),
     );
   }
 
-  Widget _buildConnectionStatus(ChatSignalRState state) {
+  Widget _buildConnectionStatus(BuildContext context, ChatSignalRState state) {
+    final theme = Theme.of(context);
     String text = '';
-    Color color = Colors.white38;
+    Color color = theme.brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary;
     
     switch (state) {
       case ChatSignalRState.connected:
@@ -137,7 +142,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
       case ChatSignalRState.disconnected:
       case ChatSignalRState.error:
         text = 'Offline';
-        color = Colors.white38;
+        color = theme.brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary;
         break;
     }
     
@@ -169,7 +174,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(16.0),
-              child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
+              child: CircularProgressIndicator(color: AppColor.primaryColor),
             ),
           );
         }
@@ -186,7 +191,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
   }
 
   Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+    return const Center(child: CircularProgressIndicator(color: AppColor.primaryColor));
   }
 
   Widget _buildError(String message) {
@@ -194,13 +199,13 @@ class _HelperChatPageState extends State<HelperChatPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Color(0xFFFF6B6B), size: 48),
+          const Icon(Icons.error_outline, color: AppColor.errorColor, size: 48),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(color: Colors.white70)),
+          Text(message, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _init,
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColor.primaryColor),
             child: const Text('Retry'),
           ),
         ],
@@ -213,11 +218,11 @@ class _HelperChatPageState extends State<HelperChatPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white10, size: 80),
+          const Icon(Icons.chat_bubble_outline_rounded, color: AppColor.lightBorder, size: 80),
           const SizedBox(height: 16),
           Text(
             'Start a conversation with ${state.conversation.user.name}',
-            style: const TextStyle(color: Colors.white38),
+            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
           ),
         ],
       ),

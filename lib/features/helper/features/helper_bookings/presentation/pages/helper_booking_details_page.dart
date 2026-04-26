@@ -155,7 +155,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                       icon: Icons.navigation_rounded,
                       color: const Color(0xFF6C63FF),
                       onTap: () => context.push(
-                        '/helper-active-booking',
+                        '/helper/active-booking',
                         extra: booking.id,
                       ),
                       outline: true,

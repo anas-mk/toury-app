@@ -231,7 +231,7 @@ class _RequestCardState extends State<_RequestCard> {
         isUrgent ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
 
     return GestureDetector(
-      onTap: () => context.push('/helper-request-details/${widget.booking.id}'),
+      onTap: () => context.push('/helper/request-details/${widget.booking.id}'),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         margin: const EdgeInsets.only(bottom: 14),
@@ -369,7 +369,7 @@ class _RequestCardState extends State<_RequestCard> {
                         label: 'Accept',
                         color: const Color(0xFF00C896),
                         onTap: () => context
-                            .push('/helper-request-details/${widget.booking.id}'),
+                            .push('/helper/request-details/${widget.booking.id}'),
                       ),
                     ),
                     const SizedBox(width: 10),

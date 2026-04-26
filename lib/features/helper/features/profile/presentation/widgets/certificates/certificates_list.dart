@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../domain/entities/certificate_entity.dart';
 import '../empty_states/empty_state_card.dart';
@@ -15,6 +16,7 @@ class CertificatesList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     if (certificates.isEmpty) {
       return EmptyStateCard(
@@ -38,9 +40,8 @@ class CertificatesList extends StatelessWidget {
             children: [
               Text(
                 'Certificates',
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
               TextButton.icon(
@@ -49,6 +50,7 @@ class CertificatesList extends StatelessWidget {
                 },
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add'),
+                style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
               ),
             ],
           ),
@@ -68,17 +70,22 @@ class CertificatesList extends StatelessWidget {
                     color: theme.colorScheme.primary.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.verified, color: theme.colorScheme.primary),
+                  child: Icon(Icons.verified, color: theme.colorScheme.primary, size: 20),
                 ),
                 title: Text(
                   cert.name,
                   style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 subtitle: cert.issuingOrganization != null 
-                    ? Text(cert.issuingOrganization!) 
+                    ? Text(
+                        cert.issuingOrganization!,
+                        style: TextStyle(
+                          color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                        ),
+                      ) 
                     : null,
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  icon: const Icon(Icons.delete_outline, color: AppColor.errorColor),
                   onPressed: () {
                     // Trigger delete confirmation logic
                   },

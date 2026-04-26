@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../domain/entities/helper_chat_entities.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -14,6 +16,9 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -25,7 +30,7 @@ class MessageBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isMe ? const Color(0xFF6C63FF) : const Color(0xFF1A1F3C),
+          color: isMe ? AppColor.primaryColor : theme.cardColor,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -35,7 +40,7 @@ class MessageBubble extends StatelessWidget {
           boxShadow: [
             if (isMe)
               BoxShadow(
-                color: const Color(0xFF6C63FF).withOpacity(0.2),
+                color: AppColor.primaryColor.withOpacity(0.2),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -47,8 +52,8 @@ class MessageBubble extends StatelessWidget {
           children: [
             Text(
               message.text,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87),
                 fontSize: 15,
                 height: 1.4,
               ),
@@ -60,7 +65,7 @@ class MessageBubble extends StatelessWidget {
                 Text(
                   DateFormat('HH:mm').format(message.sentAt),
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: isMe ? Colors.white70 : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                     fontSize: 10,
                   ),
                 ),
@@ -69,7 +74,7 @@ class MessageBubble extends StatelessWidget {
                   Icon(
                     message.isRead ? Icons.done_all_rounded : Icons.done_rounded,
                     size: 14,
-                    color: message.isRead ? const Color(0xFF00C896) : Colors.white38,
+                    color: message.isRead ? AppColor.accentColor : Colors.white38,
                   ),
                 ],
               ],
@@ -125,13 +130,16 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0E1A),
+        color: theme.scaffoldBackgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -147,18 +155,18 @@ class _ChatInputBarState extends State<ChatInputBar> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1F3C),
+                color: theme.cardColor,
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: AppColor.lightBorder),
               ),
               child: TextField(
                 controller: _controller,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
+                style: theme.textTheme.bodyMedium,
                 maxLines: 4,
                 minLines: 1,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Type a message...',
-                  hintStyle: TextStyle(color: Colors.white24),
+                  hintStyle: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                   border: InputBorder.none,
                 ),
               ),
@@ -173,12 +181,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _hasText ? const Color(0xFF6C63FF) : Colors.white10,
+                  color: _hasText ? AppColor.primaryColor : theme.disabledColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.send_rounded,
-                  color: Colors.white,
+                  color: _hasText ? Colors.white : (isDark ? Colors.white38 : Colors.black38),
                   size: 20,
                 ),
               ),
@@ -197,6 +205,7 @@ class QuickRepliesSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final replies = [
       "I'm on my way",
       "I arrived",
@@ -206,27 +215,27 @@ class QuickRepliesSheet extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF141829),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Quick Replies',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           ...replies.map((reply) => ListTile(
-                title: Text(reply, style: const TextStyle(color: Colors.white70)),
+                title: Text(reply, style: theme.textTheme.bodyMedium),
                 onTap: () {
                   onReply(reply);
                   Navigator.pop(context);
                 },
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
+                trailing: const Icon(Icons.arrow_forward_ios, color: AppColor.lightTextSecondary, size: 14),
                 contentPadding: EdgeInsets.zero,
               )),
           const SizedBox(height: 20),

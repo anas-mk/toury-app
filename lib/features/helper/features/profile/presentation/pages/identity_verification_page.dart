@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../domain/entities/helper_profile_entity.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
@@ -12,18 +14,20 @@ class IdentityVerificationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1120),
-        title: const Text('Identity & Documents', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Identity & Documents'),
         elevation: 0,
       ),
       body: BlocBuilder<ProfileCubit, ProfileState>(
         builder: (context, state) {
           final statusRecord = state.statusRecord;
           return ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
             children: [
               if (statusRecord != null) ...[
                 ProfileStatusCard(
@@ -32,16 +36,19 @@ class IdentityVerificationPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
               ],
-              const Text(
+              Text(
                 'Document Checklist',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               const DocumentsChecklist(),
               const SizedBox(height: 32),
-              const Text(
+              Text(
                 'Verification Status',
-                style: TextStyle(color: Colors.white38, fontSize: 13),
+                style: TextStyle(
+                  color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 12),
               _StatusTile(
@@ -71,12 +78,14 @@ class _StatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColor.lightBorder),
       ),
       child: Row(
         children: [
@@ -86,11 +95,15 @@ class _StatusTile extends StatelessWidget {
             size: 20,
           ),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+          Text(label, style: theme.textTheme.bodyMedium),
           const Spacer(),
           Text(
             isVerified ? 'Verified' : 'Pending',
-            style: TextStyle(color: isVerified ? Colors.green : Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: isVerified ? Colors.green : Colors.orange,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

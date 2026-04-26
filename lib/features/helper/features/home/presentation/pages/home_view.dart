@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 
 class HomeView extends StatelessWidget {
@@ -7,61 +9,101 @@ class HomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: AppTheme.spaceXL),
-          
-          Text(
-            'Welcome back,',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: isDark ? Colors.white70 : Colors.grey[600],
-            ),
-          ),
-          Text(
-            'Helper Professional',
-            style: theme.textTheme.headlineLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: AppTheme.spaceXL),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your Professional Dashboard',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onPrimaryContainer,
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: () async {},
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              floating: true,
+              pinned: true,
+              expandedHeight: 70,
+              backgroundColor: theme.scaffoldBackgroundColor,
+              elevation: 0,
+              title: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {},
+                    child: const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppColor.lightBorder,
+                      child: Icon(Icons.person, color: AppColor.primaryColor),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Manage your profile and certificates here.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+                  const SizedBox(width: AppTheme.spaceMD),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome back,',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColor.lightTextSecondary,
+                        ),
+                      ),
+                      Text(
+                        'Helper Professional',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded),
+                  onPressed: () {},
                 ),
+                const SizedBox(width: AppTheme.spaceMD),
               ],
             ),
-          ),
-          
-          const SizedBox(height: AppTheme.spaceXL * 2),
-        ],
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  const SizedBox(height: AppTheme.spaceMD),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(AppTheme.spaceLG),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColor.primaryColor, Color(0xFF333333)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+                      boxShadow: AppTheme.shadowMedium(context),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Professional Dashboard',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: AppTheme.spaceSM),
+                        Text(
+                          'Manage your profile and certificates here.',
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                        SizedBox(height: AppTheme.spaceLG),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: AppTheme.spaceXL * 2),
+                ]),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

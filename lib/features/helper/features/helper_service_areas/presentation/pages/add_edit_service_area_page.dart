@@ -3,6 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/custom_card.dart';
+import '../../../../../../core/widgets/custom_button.dart';
 import '../../domain/entities/service_area_entities.dart';
 import '../cubit/service_areas_cubit.dart';
 import 'map_picker_page.dart';
@@ -29,7 +33,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   bool _locationPicked = false;
 
   static const _radiusOptions = [5, 10, 15, 20];
-  // Well-known city coordinates
+  
   static const _cityCoords = {
     'cairo': (lat: 30.0444, lng: 31.2357),
     'alexandria': (lat: 31.2001, lng: 29.9187),
@@ -103,7 +107,8 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please pick a location on the map or enter a recognised city name'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColor.errorColor,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -130,21 +135,20 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider.value(
       value: sl<ServiceAreasCubit>(),
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
             onPressed: () => context.pop(),
           ),
-          title: Text(
-            _isEditing ? 'Edit Service Area' : 'Add Service Area',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
+          title: Text(_isEditing ? 'Edit Service Area' : 'Add Service Area'),
         ),
         body: BlocListener<ServiceAreasCubit, ServiceAreasState>(
           listener: (context, state) {
@@ -152,111 +156,108 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
               context.pop();
             } else if (state is ServiceAreasError) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message), backgroundColor: const Color(0xFFFF6B6B)),
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppColor.errorColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             }
           },
           child: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(AppTheme.spaceLG),
               children: [
                 // ── Location Picker Card ───────────────────────────────────────────
                 GestureDetector(
                   onTap: _pickOnMap,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1F3C),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: _locationPicked
-                            ? const Color(0xFF6C63FF).withOpacity(0.5)
-                            : Colors.white.withOpacity(0.1),
-                      ),
-                    ),
+                  child: CustomCard(
+                    variant: _locationPicked ? CardVariant.elevated : CardVariant.outlined,
+                    padding: const EdgeInsets.all(AppTheme.spaceMD),
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(AppTheme.spaceSM),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF6C63FF).withOpacity(0.1),
+                            color: theme.colorScheme.primary.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             _locationPicked ? Icons.location_on_rounded : Icons.add_location_alt_rounded,
-                            color: const Color(0xFF6C63FF),
+                            color: theme.colorScheme.primary,
                             size: 24,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: AppTheme.spaceMD),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 _locationPicked ? 'Location Selected' : 'Pick on Map',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 _locationPicked
                                     ? '${_lat.toStringAsFixed(5)}, ${_lng.toStringAsFixed(5)}'
                                     : 'Tap to open map and pin your area center',
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.map_outlined, color: Colors.white24),
+                        Icon(
+                          Icons.map_outlined,
+                          color: isDark ? Colors.white24 : Colors.black26,
+                        ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppTheme.spaceLG),
 
                 // ── Country Field ───────────────────────────────────────────────────
                 _FormLabel('Country'),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppTheme.spaceXS),
                 _PremiumTextField(
                   controller: _countryCtrl,
                   hint: 'e.g. United Arab Emirates',
                   icon: Icons.flag_rounded,
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Country is required' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppTheme.spaceLG),
 
                 // ── City Field ─────────────────────────────────────────────────────
                 _FormLabel('City ⭐ Required'),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppTheme.spaceXS),
                 _PremiumTextField(
                   controller: _cityCtrl,
                   hint: 'e.g. Dubai',
                   icon: Icons.location_city_rounded,
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'City is required for matching' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppTheme.spaceLG),
 
                 // ── Area Name Field ────────────────────────────────────────────────
                 _FormLabel('Area Name (Optional)'),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppTheme.spaceXS),
                 _PremiumTextField(
                   controller: _areaNameCtrl,
                   hint: 'e.g. Downtown, Marina, JBR',
                   icon: Icons.area_chart_rounded,
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: AppTheme.spaceXL),
 
                 // ── Radius Selector ───────────────────────────────────────────────────
                 _FormLabel('Coverage Radius'),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1F3C),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.07)),
-                  ),
+                const SizedBox(height: AppTheme.spaceXS),
+                CustomCard(
+                  variant: CardVariant.outlined,
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceXS, vertical: AppTheme.spaceMD),
                   child: Row(
                     children: _radiusOptions.map((km) {
                       final selected = _radiusKm == km.toDouble();
@@ -269,22 +270,16 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               color: selected
-                                  ? const Color(0xFF6C63FF)
-                                  : Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: selected
-                                    ? const Color(0xFF6C63FF)
-                                    : Colors.white12,
-                              ),
+                                  ? theme.colorScheme.primary
+                                  : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                              borderRadius: BorderRadius.circular(AppTheme.radiusMD),
                             ),
                             child: Text(
                               '$km km',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: selected ? Colors.white : Colors.white54,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: selected ? (isDark ? Colors.black : Colors.white) : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 14,
                               ),
                             ),
                           ),
@@ -293,76 +288,57 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                     }).toList(),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppTheme.spaceLG),
 
                 // ── Primary Toggle ─────────────────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: _isPrimary
-                        ? const Color(0xFF6C63FF).withOpacity(0.08)
-                        : const Color(0xFF1A1F3C),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _isPrimary
-                          ? const Color(0xFF6C63FF).withOpacity(0.4)
-                          : Colors.white.withOpacity(0.07),
-                    ),
-                  ),
+                CustomCard(
+                  variant: _isPrimary ? CardVariant.elevated : CardVariant.outlined,
+                  padding: const EdgeInsets.all(AppTheme.spaceMD),
                   child: Row(
                     children: [
-                      const Icon(Icons.star_rounded, color: Color(0xFF6C63FF)),
-                      const SizedBox(width: 14),
-                      const Expanded(
+                      Icon(Icons.star_rounded, color: theme.colorScheme.primary),
+                      const SizedBox(width: AppTheme.spaceMD),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Set as Primary Area',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            SizedBox(height: 2),
-                            Text('Travelers see your primary area prominently',
-                                style: TextStyle(color: Colors.white54, fontSize: 12)),
+                            Text(
+                              'Set as Primary Area',
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Travelers see your primary area prominently',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       Switch.adaptive(
                         value: _isPrimary,
                         onChanged: (v) => setState(() => _isPrimary = v),
-                        activeColor: const Color(0xFF6C63FF),
+                        activeColor: theme.colorScheme.primary,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: AppTheme.spaceXL),
 
                 // ── Submit Button ──────────────────────────────────────────────────
                 BlocBuilder<ServiceAreasCubit, ServiceAreasState>(
                   builder: (context, state) {
                     final isLoading = state is ServiceAreaOperationLoading;
-                    return ElevatedButton(
+                    return CustomButton(
                       onPressed: isLoading ? null : () => _submit(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C63FF),
-                        disabledBackgroundColor: const Color(0xFF6C63FF).withOpacity(0.4),
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        elevation: 8,
-                        shadowColor: const Color(0xFF6C63FF).withOpacity(0.4),
-                      ),
-                      child: isLoading
-                          ? const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(
-                              _isEditing ? 'Save Changes' : 'Add Service Area',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
+                      text: _isEditing ? 'Save Changes' : 'Add Service Area',
+                      isLoading: isLoading,
+                      isFullWidth: true,
                     );
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppTheme.spaceXL),
               ],
             ),
           ),
@@ -377,8 +353,15 @@ class _FormLabel extends StatelessWidget {
   const _FormLabel(this.text);
   @override
   Widget build(BuildContext context) {
-    return Text(text,
-        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13, fontWeight: FontWeight.w600));
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Text(
+      text,
+      style: theme.textTheme.labelLarge?.copyWith(
+        color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+        fontWeight: FontWeight.bold,
+      ),
+    );
   }
 }
 
@@ -397,33 +380,28 @@ class _PremiumTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return TextFormField(
       controller: controller,
       validator: validator,
-      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white24),
-        prefixIcon: Icon(icon, color: Colors.white38, size: 20),
+        prefixIcon: Icon(icon, size: 20),
         filled: true,
-        fillColor: const Color(0xFF1A1F3C),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.07)),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          borderSide: BorderSide(color: theme.dividerColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.07)),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          borderSide: BorderSide(color: theme.dividerColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFFF6B6B)),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }

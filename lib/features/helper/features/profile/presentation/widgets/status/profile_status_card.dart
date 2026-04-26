@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../../core/widgets/custom_button.dart';
 import '../../../domain/entities/helper_status_entity.dart';
@@ -45,6 +46,7 @@ class ProfileStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final statusColor = _getStatusColor(status);
 
     return CustomCard(
@@ -66,7 +68,7 @@ class ProfileStatusCard extends StatelessWidget {
                   size: 28,
                 ),
               ),
-              SizedBox(width: AppTheme.spaceMD),
+              const SizedBox(width: AppTheme.spaceMD),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +83,7 @@ class ProfileStatusCard extends StatelessWidget {
                     Text(
                       _getStatusMessage(status),
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[700],
+                        color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
                       ),
                     ),
                   ],
@@ -90,9 +92,9 @@ class ProfileStatusCard extends StatelessWidget {
             ],
           ),
           if (status.canSubmitForAdminReview) ...[
-            SizedBox(height: AppTheme.spaceMD),
+            const SizedBox(height: AppTheme.spaceMD),
             const Divider(),
-            SizedBox(height: AppTheme.spaceMD),
+            const SizedBox(height: AppTheme.spaceMD),
             CustomButton(
               text: 'Submit for Review',
               onPressed: onSubmitForReview ?? () {},

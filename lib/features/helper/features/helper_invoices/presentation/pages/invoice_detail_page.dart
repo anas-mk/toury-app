@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/helper_invoices_cubit.dart';
 import '../../domain/entities/invoice_entities.dart';
@@ -32,24 +34,26 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider.value(
       value: _cubit,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
             onPressed: () => context.pop(),
           ),
-          title: const Text('Invoice', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: const Text('Invoice'),
           actions: [
             BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
               builder: (context, state) {
                 if (state is! InvoiceDetailLoaded) return const SizedBox.shrink();
                 return IconButton(
-                  icon: const Icon(Icons.share_rounded, color: Colors.white),
+                  icon: const Icon(Icons.share_rounded),
                   onPressed: () => _copyInvoiceNumber(context, state.detail.invoiceNumber),
                 );
               },
@@ -58,8 +62,8 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
         ),
         body: BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
           builder: (context, state) {
-            if (state is InvoiceDetailLoading) return _buildShimmer();
-            if (state is InvoicesError) return _buildError(state.message);
+            if (state is InvoiceDetailLoading) return _buildShimmer(context);
+            if (state is InvoicesError) return _buildError(context, state.message);
             if (state is InvoiceDetailLoaded) return _buildDetail(context, state.detail);
             return const SizedBox.shrink();
           },
@@ -72,9 +76,11 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
     final fmt = NumberFormat('#,##0.00');
     final dateFmt = DateFormat('MMM d, yyyy  HH:mm');
     final shortDate = DateFormat('MMM d, yyyy');
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       children: [
         // ── Invoice Header Card ─────────────────────────────────────────────
         _GlassCard(
@@ -87,17 +93,17 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('INVOICE', style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.5)),
+                      Text('INVOICE', style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 10, letterSpacing: 1.5)),
                       const SizedBox(height: 4),
                       Text('#${d.invoiceNumber}',
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                     ],
                   ),
                   _StatusPill(status: d.paymentStatus),
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(color: Colors.white12),
+              Divider(color: AppColor.lightBorder),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -118,7 +124,7 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
         const SizedBox(height: 16),
 
         // ── Trip Info ────────────────────────────────────────────────────────
-        _SectionTitle('Trip Information'),
+        const _SectionTitle('Trip Information'),
         const SizedBox(height: 10),
         _GlassCard(
           child: Column(
@@ -138,7 +144,7 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
         const SizedBox(height: 16),
 
         // ── Price Breakdown ──────────────────────────────────────────────────
-        _SectionTitle('Price Breakdown'),
+        const _SectionTitle('Price Breakdown'),
         const SizedBox(height: 10),
         _GlassCard(
           child: Column(
@@ -150,37 +156,37 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
                 _PriceRow(label: 'Duration Cost', value: '${d.currency} ${fmt.format(d.durationCost)}'),
               if (d.surchargeAmount > 0)
                 _PriceRow(label: 'Surcharge', value: '${d.currency} ${fmt.format(d.surchargeAmount)}'),
-              const Divider(color: Colors.white12, height: 24),
+              Divider(color: AppColor.lightBorder, height: 24),
               _PriceRow(label: 'Subtotal', value: '${d.currency} ${fmt.format(d.subtotal)}', bold: true),
               _PriceRow(
                 label: 'Commission (${(d.commissionRate * 100).toStringAsFixed(0)}%)',
                 value: '- ${d.currency} ${fmt.format(d.commissionAmount)}',
-                color: const Color(0xFFFF6B6B),
+                color: AppColor.errorColor,
               ),
-              const Divider(color: Colors.white12, height: 24),
+              Divider(color: AppColor.lightBorder, height: 24),
               // Net Earnings (highlighted)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00C896).withOpacity(0.08),
+                  color: AppColor.accentColor.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF00C896).withOpacity(0.2)),
+                  border: Border.all(color: AppColor.accentColor.withOpacity(0.2)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF00C896), size: 18),
+                        Icon(Icons.account_balance_wallet_rounded, color: AppColor.accentColor, size: 18),
                         SizedBox(width: 8),
                         Text('Your Earnings',
                             style: TextStyle(
-                                color: Color(0xFF00C896), fontWeight: FontWeight.bold, fontSize: 15)),
+                                color: AppColor.accentColor, fontWeight: FontWeight.bold, fontSize: 15)),
                       ],
                     ),
                     Text('${d.currency} ${fmt.format(d.netAmount)}',
                         style: const TextStyle(
-                            color: Color(0xFF00C896), fontWeight: FontWeight.bold, fontSize: 18)),
+                            color: AppColor.accentColor, fontWeight: FontWeight.bold, fontSize: 18)),
                   ],
                 ),
               ),
@@ -198,8 +204,8 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
                 icon: const Icon(Icons.copy_rounded, size: 16),
                 label: const Text('Copy #'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white70,
-                  side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                  foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                  side: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
@@ -209,11 +215,11 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
             Expanded(
               flex: 2,
               child: ElevatedButton.icon(
-                onPressed: () => context.push('/helper-invoice-view/${d.invoiceId}'),
+                onPressed: () => context.push('/helper/invoice-view/${d.invoiceId}'),
                 icon: const Icon(Icons.receipt_long_rounded, size: 16),
                 label: const Text('View Receipt'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C63FF),
+                  backgroundColor: AppColor.primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -229,26 +235,28 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
 
   void _copyInvoiceNumber(BuildContext context, String number) {
     Clipboard.setData(ClipboardData(text: number));
+    final theme = Theme.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Invoice #$number copied'),
-        backgroundColor: const Color(0xFF1A1F3C),
+        backgroundColor: theme.dialogBackgroundColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  Widget _buildShimmer() {
+  Widget _buildShimmer(BuildContext context) {
+    final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       children: List.generate(
         4,
         (_) => Container(
           margin: const EdgeInsets.only(bottom: 16),
           height: 100,
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1F3C),
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(20),
           ),
         ),
@@ -256,16 +264,18 @@ class _InvoiceDetailPageState extends State<InvoiceDetailPage> {
     );
   }
 
-  Widget _buildError(String message) {
+  Widget _buildError(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.receipt_long_outlined, size: 64, color: Colors.white12),
+          Icon(Icons.receipt_long_outlined, size: 64, color: isDark ? Colors.white12 : Colors.black12),
           const SizedBox(height: 16),
-          const Text('Invoice not found', style: TextStyle(color: Colors.white, fontSize: 18)),
+          Text('Invoice not found', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text(message, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          Text(message, style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 12)),
         ],
       ),
     );
@@ -280,13 +290,15 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: AppColor.lightBorder),
       ),
       child: child,
     );
@@ -299,8 +311,11 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Text(title,
-        style: const TextStyle(color: Colors.white54, fontSize: 12,
+        style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 12,
             fontWeight: FontWeight.w600, letterSpacing: 0.5));
   }
 }
@@ -313,10 +328,10 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
     final color = s == 'paid'
-        ? const Color(0xFF00C896)
+        ? AppColor.accentColor
         : s == 'pending'
             ? Colors.orange
-            : Colors.red;
+            : AppColor.errorColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -337,12 +352,15 @@ class _InfoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        Text(label, style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 10)),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+        Text(value, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -356,16 +374,19 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white24, size: 16),
+          Icon(icon, color: isDark ? Colors.white24 : Colors.black26, size: 16),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          Text(label, style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary, fontSize: 12)),
           const Spacer(),
           Text(value,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
               textAlign: TextAlign.right),
         ],
       ),
@@ -382,6 +403,9 @@ class _PriceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -389,12 +413,12 @@ class _PriceRow extends StatelessWidget {
         children: [
           Text(label,
               style: TextStyle(
-                  color: bold ? Colors.white70 : Colors.white38,
+                  color: bold ? (isDark ? Colors.white70 : Colors.black87) : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                   fontSize: 13,
                   fontWeight: bold ? FontWeight.w600 : FontWeight.normal)),
           Text(value,
               style: TextStyle(
-                  color: color ?? Colors.white,
+                  color: color ?? (isDark ? Colors.white : Colors.black),
                   fontSize: 13,
                   fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
         ],

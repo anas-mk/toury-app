@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../domain/entities/car_entity.dart';
 import '../empty_states/empty_state_card.dart';
@@ -39,15 +40,14 @@ class CarManagementCard extends StatelessWidget {
             children: [
               Text(
                 'Vehicle Information',
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+                    icon: Icon(Icons.edit_outlined, color: theme.colorScheme.primary),
                     onPressed: () {
                       // Open Edit Car Form
                     },
@@ -56,7 +56,7 @@ class CarManagementCard extends StatelessWidget {
                   ),
                   const SizedBox(width: AppTheme.spaceMD),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                    icon: const Icon(Icons.delete_outline, color: AppColor.errorColor),
                     onPressed: () {
                       // Trigger delete car
                     },
@@ -90,13 +90,15 @@ class _CarDetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
           ),
         ),
         Text(

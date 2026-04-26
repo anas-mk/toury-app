@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:toury/features/helper/features/helper_reports/presentation/pages/helper_reports_page.dart';
-import 'package:toury/features/helper/features/helper_sos/presentation/pages/helper_sos_page.dart';
-
+import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
+import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../../core/router/app_router.dart';
 
 class QuickActionsGrid extends StatelessWidget {
@@ -10,19 +10,21 @@ class QuickActionsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     final actions = [
-      _ActionItem('Requests', Icons.notifications_active_rounded, const Color(0xFFFFAB40), 
+      _ActionItem('Requests', Icons.notifications_active_rounded, Colors.orange, 
           () => context.push(AppRouter.helperRequests)),
-      _ActionItem('Upcoming', Icons.event_available_rounded, const Color(0xFF6C63FF), 
+      _ActionItem('Upcoming', Icons.event_available_rounded, theme.colorScheme.primary, 
           () => context.push(AppRouter.helperUpcoming)),
-      _ActionItem('History', Icons.history_rounded, const Color(0xFF26C6DA), 
+      _ActionItem('History', Icons.history_rounded, Colors.blueAccent, 
           () => context.push(AppRouter.helperHistory)),
-      _ActionItem('My Areas', Icons.map_rounded, const Color(0xFFFF8C69), 
+      _ActionItem('My Areas', Icons.map_rounded, AppColor.accentColor, 
           () => context.push(AppRouter.helperServiceAreas)),
-      _ActionItem('Reports', Icons.flag_rounded, const Color(0xFFFF6B6B), 
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelperReportsPage()))),
-      _ActionItem('SOS', Icons.sos_rounded, Colors.redAccent, 
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelperSosPage()))),
+      _ActionItem('Reports', Icons.flag_rounded, AppColor.errorColor, 
+          () => context.push(AppRouter.helperReports)),
+      _ActionItem('SOS', Icons.sos_rounded, AppColor.errorColor, 
+          () => context.push(AppRouter.helperSos)),
     ];
 
     return GridView.builder(
@@ -31,9 +33,9 @@ class QuickActionsGrid extends StatelessWidget {
       itemCount: actions.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.95,
+        crossAxisSpacing: AppTheme.spaceMD,
+        mainAxisSpacing: AppTheme.spaceMD,
+        childAspectRatio: 1.0,
       ),
       itemBuilder: (context, index) => _ActionTile(action: actions[index]),
     );
@@ -54,32 +56,31 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: action.onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: action.color.withOpacity(0.05)),
-        ),
+      child: CustomCard(
+        variant: CardVariant.elevated,
+        padding: EdgeInsets.zero,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppTheme.spaceSM),
               decoration: BoxDecoration(
                 color: action.color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(action.icon, color: action.color, size: 24),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppTheme.spaceSM),
             Text(
               action.label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: isDark ? Colors.white70 : Colors.black87,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],

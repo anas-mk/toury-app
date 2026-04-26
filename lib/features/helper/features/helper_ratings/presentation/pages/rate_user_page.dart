@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/helper_ratings_cubits.dart';
 import '../widgets/rating_widgets.dart';
@@ -62,6 +64,9 @@ class _RateUserPageState extends State<RateUserPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocProvider.value(
       value: _cubit,
       child: BlocListener<RateUserCubit, RateUserState>(
@@ -73,20 +78,19 @@ class _RateUserPageState extends State<RateUserPage> {
             Navigator.pop(context, true);
           } else if (state is RateUserError) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+              SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),
             );
           }
         },
         child: Scaffold(
-          backgroundColor: const Color(0xFF0A0E1A),
+          backgroundColor: theme.scaffoldBackgroundColor,
           appBar: AppBar(
-            backgroundColor: Colors.transparent,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
+              icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context),
             ),
-            title: const Text('Rate Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            title: const Text('Rate Traveler'),
           ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -97,19 +101,19 @@ class _RateUserPageState extends State<RateUserPage> {
                 CircleAvatar(
                   radius: 50,
                   backgroundImage: widget.travelerAvatar.isNotEmpty ? NetworkImage(widget.travelerAvatar) : null,
-                  backgroundColor: const Color(0xFF6C63FF).withOpacity(0.1),
+                  backgroundColor: AppColor.primaryColor.withOpacity(0.1),
                   child: widget.travelerAvatar.isEmpty
-                      ? Text(widget.travelerName[0], style: const TextStyle(fontSize: 32, color: Color(0xFF6C63FF)))
+                      ? Text(widget.travelerName[0], style: const TextStyle(fontSize: 32, color: AppColor.primaryColor))
                       : null,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   widget.travelerName,
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const Text(
+                Text(
                   'How was your experience with this traveler?',
-                  style: TextStyle(color: Colors.white38, fontSize: 14),
+                  style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 40),
                 StarSelector(
@@ -117,11 +121,11 @@ class _RateUserPageState extends State<RateUserPage> {
                   onRatingChanged: (val) => setState(() => _rating = val),
                 ),
                 const SizedBox(height: 40),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Quick Tags',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -137,11 +141,11 @@ class _RateUserPageState extends State<RateUserPage> {
                   }).toList(),
                 ),
                 const SizedBox(height: 32),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Additional Comments',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -149,12 +153,12 @@ class _RateUserPageState extends State<RateUserPage> {
                   controller: _commentController,
                   maxLines: 4,
                   maxLength: 1000,
-                  style: const TextStyle(color: Colors.white),
+                  style: theme.textTheme.bodyMedium,
                   decoration: InputDecoration(
                     hintText: 'Share more details about your experience...',
-                    hintStyle: const TextStyle(color: Colors.white24),
+                    hintStyle: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
                     filled: true,
-                    fillColor: const Color(0xFF1A1F3C),
+                    fillColor: theme.cardColor,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
@@ -179,8 +183,8 @@ class _RateUserPageState extends State<RateUserPage> {
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6C63FF),
-                          disabledBackgroundColor: Colors.white10,
+                          backgroundColor: AppColor.primaryColor,
+                          disabledBackgroundColor: theme.disabledColor.withOpacity(0.1),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         child: state is RateUserSubmitting

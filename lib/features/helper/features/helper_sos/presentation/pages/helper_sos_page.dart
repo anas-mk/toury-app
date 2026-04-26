@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../cubit/helper_sos_cubit.dart';
 
 class HelperSosPage extends StatelessWidget {
@@ -9,18 +11,20 @@ class HelperSosPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocBuilder<HelperSosCubit, HelperSosState>(
       builder: (context, state) {
         final isActive = state.status == SosStatus.active;
         return Scaffold(
-          backgroundColor: isActive ? const Color(0xFF450000) : const Color(0xFF0A0E1A),
+          backgroundColor: isActive ? const Color(0xFF450000) : theme.scaffoldBackgroundColor,
           appBar: AppBar(
-            backgroundColor: isActive ? Colors.transparent : const Color(0xFF0D1120),
             elevation: 0,
             title: const Text('Emergency Assistance', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
             child: Column(
               children: [
                 _EmergencyWarningCard(isActive: isActive),
@@ -45,12 +49,14 @@ class _EmergencyWarningCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: isActive ? Colors.red : const Color(0xFF1A1F3C),
+        color: isActive ? AppColor.errorColor : theme.cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isActive ? Colors.white24 : Colors.red.withOpacity(0.3)),
+        border: Border.all(color: isActive ? Colors.white24 : AppColor.errorColor.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -62,11 +68,14 @@ class _EmergencyWarningCard extends StatelessWidget {
               children: [
                 Text(
                   isActive ? 'PANIC MODE ACTIVE' : 'SOS Emergency',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   isActive ? 'Authorities are being notified...' : 'Use this only in real emergency situations.',
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.7)),
                 ),
               ],
             ),
@@ -119,10 +128,10 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
             height: 200,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.red,
+              color: AppColor.errorColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.red.withOpacity(0.4),
+                  color: AppColor.errorColor.withOpacity(0.4),
                   blurRadius: 20 + (_controller.value * 20),
                   spreadRadius: 5 + (_controller.value * 15),
                 ),
@@ -153,20 +162,24 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final isDark = theme.brightness == Brightness.dark;
+        
+        return Container(
         padding: const EdgeInsets.all(32),
-        decoration: const BoxDecoration(
-          color: Color(0xFF141829),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
+            const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
             const SizedBox(height: 16),
-            const Text('Confirm Emergency?', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Confirm Emergency?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Authorities and nearby helpers will be notified.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
+            Text('Authorities and nearby helpers will be notified.', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 32),
             Row(
               children: [
@@ -174,11 +187,11 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(ctx),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Colors.white24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMD),
+                      side: BorderSide(color: isDark ? Colors.white24 : Colors.black26),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
                     ),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+                    child: Text('Cancel', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -189,18 +202,19 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
                       context.read<HelperSosCubit>().activatePanic(0, 0); // Replace with real location
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      backgroundColor: AppColor.errorColor,
+                      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMD),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
                     ),
-                    child: const Text('Trigger SOS', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text('Trigger SOS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                   ),
                 ),
               ],
             ),
           ],
         ),
-      ),
+      );
+      },
     );
   }
 }
@@ -237,7 +251,7 @@ class _EmergencyGrid extends StatelessWidget {
         _EmergencyItem(
           label: 'Safe Place',
           icon: Icons.shield_rounded,
-          color: const Color(0xFF6C63FF),
+          color: AppColor.primaryColor,
           onTap: () {}, // Mock
         ),
       ],
@@ -279,16 +293,18 @@ class _EmergencyItem extends StatelessWidget {
 class _SafetyChecklist extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(24),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Safety Checklist', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          Text('Safety Checklist', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           _CheckItem(text: 'Park in a well-lit public area'),
           _CheckItem(text: 'Lock all doors and windows'),
@@ -306,13 +322,15 @@ class _CheckItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00C896), size: 18),
+          const Icon(Icons.check_circle_outline_rounded, color: AppColor.accentColor, size: 18),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../domain/entities/helper_profile_entity.dart';
 
@@ -14,6 +15,7 @@ class OnboardingProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     
     // Evaluate steps
     final bool hasImage = profile.profileImageUrl != null && profile.profileImageUrl!.isNotEmpty;
@@ -43,9 +45,8 @@ class OnboardingProgressCard extends StatelessWidget {
             children: [
               Text(
                 'Onboarding Progress',
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
               Text(
@@ -74,20 +75,20 @@ class OnboardingProgressCard extends StatelessWidget {
             const SizedBox(height: AppTheme.spaceMD),
             Text(
               'Pending Requirements:',
-              style: theme.textTheme.labelLarge,
+              style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppTheme.spaceSM),
             ...missingSteps.map((step) => Padding(
               padding: const EdgeInsets.only(bottom: 4.0),
               child: Row(
                 children: [
-                  const Icon(Icons.radio_button_unchecked, size: 16, color: Colors.orangeAccent),
+                  const Icon(Icons.radio_button_unchecked, size: 16, color: Colors.orange),
                   const SizedBox(width: AppTheme.spaceSM),
                   Expanded(
                     child: Text(
                       step,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.8),
+                        color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
                       ),
                     ),
                   ),

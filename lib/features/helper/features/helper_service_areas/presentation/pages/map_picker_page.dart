@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/custom_button.dart';
 
 class MapPickerPage extends StatefulWidget {
   final double? initialLat;
@@ -27,8 +30,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
           FlutterMap(
@@ -42,7 +48,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                urlTemplate: isDark 
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
               ),
               MarkerLayer(
@@ -51,11 +59,16 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     point: _selected,
                     width: 60,
                     height: 60,
-                    child: const Icon(
+                    child: Icon(
                       Icons.location_pin,
-                      color: Color(0xFF6C63FF),
+                      color: theme.colorScheme.primary,
                       size: 48,
-                      shadows: [Shadow(blurRadius: 12, color: Color(0x886C63FF))],
+                      shadows: [
+                        Shadow(
+                          blurRadius: 12, 
+                          color: theme.colorScheme.primary.withOpacity(0.5),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -72,27 +85,37 @@ class _MapPickerPageState extends State<MapPickerPage> {
               children: [
                 _GlassButton(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1F3C).withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      color: theme.cardColor.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                      border: Border.all(color: theme.dividerColor),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Tap to pin location', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                        Text(
+                          'Tap to pin location', 
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           '${_selected.latitude.toStringAsFixed(6)}, ${_selected.longitude.toStringAsFixed(6)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
+                          style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             fontFamily: 'monospace',
                           ),
@@ -110,18 +133,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
             bottom: MediaQuery.of(context).padding.bottom + 24,
             left: 24,
             right: 24,
-            child: ElevatedButton.icon(
+            child: CustomButton(
               onPressed: () => Navigator.pop(context, _selected),
-              icon: const Icon(Icons.check_circle_rounded),
-              label: const Text('Confirm Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                elevation: 8,
-                shadowColor: const Color(0xFF6C63FF).withOpacity(0.5),
-              ),
+              text: 'Confirm Location',
+              icon: Icons.check_circle_rounded,
+              isFullWidth: true,
             ),
           ),
         ],
@@ -137,15 +153,23 @@ class _GlassButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C).withOpacity(0.95),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          color: theme.cardColor.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          border: Border.all(color: theme.dividerColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Center(child: child),
       ),

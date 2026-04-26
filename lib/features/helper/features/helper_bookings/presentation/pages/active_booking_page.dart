@@ -126,7 +126,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                       label: const Text('Full Booking Details',
                           style: TextStyle(color: Colors.white38, fontSize: 13)),
                       onPressed: () =>
-                          context.push('/helper-booking-details/${booking.id}'),
+                          context.push('/helper/booking-details/${booking.id}'),
                     ),
                   ),
                 ]),
