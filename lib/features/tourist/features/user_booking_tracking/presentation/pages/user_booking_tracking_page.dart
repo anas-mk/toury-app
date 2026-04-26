@@ -1,24 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import '../../../../../../core/di/injection_container.dart';
+import 'package:go_router/go_router.dart';
+import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_state.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/custom_card.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/widgets/custom_button.dart';
+import '../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../core/di/injection_container.dart';
 import '../cubit/tracking_cubit.dart';
 import '../cubit/tracking_state.dart';
 
 class UserBookingTrackingPage extends StatefulWidget {
   final String bookingId;
-  final LatLng pickupLocation;
-  final LatLng destinationLocation;
+  final LatLng? pickupLocation;
+  final LatLng? destinationLocation;
 
   const UserBookingTrackingPage({
-    super.key,
+    super.key, 
     required this.bookingId,
-    required this.pickupLocation,
-    required this.destinationLocation,
+    this.pickupLocation,
+    this.destinationLocation,
   });
 
   @override
@@ -27,308 +31,270 @@ class UserBookingTrackingPage extends StatefulWidget {
 
 class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
   final MapController _mapController = MapController();
-  bool _followHelper = true;
+  bool _following = true;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => sl<TrackingCubit>()..startTracking(widget.bookingId),
+    final theme = Theme.of(context);
+
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => sl<TrackingCubit>()..startTracking(widget.bookingId)),
+        BlocProvider(create: (_) => sl<BookingStatusCubit>()..refreshActiveBooking(widget.bookingId)),
+      ],
       child: Scaffold(
         body: Stack(
           children: [
-            // 1. Map Layer
+            // ── Map Layer ────────────────────────────────────────────────────────
             BlocConsumer<TrackingCubit, TrackingState>(
               listener: (context, state) {
-                if (state is TrackingLive && _followHelper && state.tracking.latestPoint != null) {
+                if (state is TrackingActive && state.latestPoint != null && _following) {
                   _mapController.move(
-                    LatLng(state.tracking.latestPoint!.latitude, state.tracking.latestPoint!.longitude),
+                    LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude),
                     _mapController.camera.zoom,
                   );
                 }
               },
               builder: (context, state) {
-                LatLng? helperPos;
-                List<LatLng> polylinePoints = [];
-
-                if (state is TrackingLive) {
-                  if (state.tracking.latestPoint != null) {
-                    helperPos = LatLng(state.tracking.latestPoint!.latitude, state.tracking.latestPoint!.longitude);
-                  }
-                  polylinePoints = state.tracking.history
-                      .map((p) => LatLng(p.latitude, p.longitude))
-                      .toList();
-                  if (helperPos != null) polylinePoints.add(helperPos);
+                LatLng initialCenter = const LatLng(30.0444, 31.2357); // Default Cairo
+                if (state is TrackingActive && state.latestPoint != null) {
+                  initialCenter = LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude);
                 }
 
                 return FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: widget.pickupLocation,
+                    initialCenter: initialCenter,
                     initialZoom: 15,
                     onPositionChanged: (pos, hasGesture) {
-                      if (hasGesture && _followHelper) {
-                        setState(() => _followHelper = false);
-                      }
+                      if (hasGesture) setState(() => _following = false);
                     },
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.toury.app',
+                      urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                      subdomains: const ['a', 'b', 'c', 'd'],
                     ),
-                    if (polylinePoints.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: polylinePoints,
-                            color: AppColor.primaryColor,
-                            strokeWidth: 4,
+                    if (state is TrackingActive && state.latestPoint != null) ...[
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude),
+                            width: 60,
+                            height: 60,
+                            child: _HelperMarker(heading: state.latestPoint!.heading ?? 0),
                           ),
                         ],
                       ),
-                    MarkerLayer(
-                      markers: [
-                        // Pickup Marker
-                        Marker(
-                          point: widget.pickupLocation,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(Icons.location_on, color: Colors.green, size: 40),
-                        ),
-                        // Destination Marker
-                        Marker(
-                          point: widget.destinationLocation,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(Icons.flag, color: Colors.red, size: 40),
-                        ),
-                        // Helper Marker
-                        if (helperPos != null)
-                          Marker(
-                            point: helperPos,
-                            width: 60,
-                            height: 60,
-                            child: _buildHelperMarker(state is TrackingLive ? state.tracking.latestPoint?.heading : 0),
-                          ),
-                      ],
-                    ),
+                    ],
                   ],
                 );
               },
             ),
 
-            // 2. Top Status Bar
-            _buildTopStatus(),
+            // ── Top Bar ──────────────────────────────────────────────────────────
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 10,
+              child: CircleAvatar(
+                backgroundColor: Colors.white,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColor.primaryColor, size: 20),
+                  onPressed: () => context.pop(),
+                ),
+              ),
+            ),
 
-            // 3. Floating Actions
-            _buildFloatingActions(),
+            // ── Status Badge ─────────────────────────────────────────────────────
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 15,
+              left: 70,
+              right: 70,
+              child: _StatusBadge(bookingId: widget.bookingId),
+            ),
 
-            // 4. Bottom Info Sheet
-            _buildBottomInfo(),
+            // ── Bottom Panel ─────────────────────────────────────────────────────
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _TrackingBottomPanel(
+                following: _following,
+                onRecenter: () {
+                  setState(() => _following = true);
+                  final state = context.read<TrackingCubit>().state;
+                  if (state is TrackingActive && state.latestPoint != null) {
+                    _mapController.move(
+                      LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude),
+                      15,
+                    );
+                  }
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildHelperMarker(double? heading) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: (heading ?? 0) * (3.14159 / 180)),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, rotation, child) {
-        return Transform.rotate(
-          angle: rotation,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColor.primaryColor,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: const Icon(Icons.navigation, color: Colors.white, size: 24),
-          ),
-        );
-      },
-    );
-  }
+class _HelperMarker extends StatelessWidget {
+  final double heading;
+  const _HelperMarker({required this.heading});
 
-  Widget _buildTopStatus() {
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 10,
-      left: 20,
-      right: 20,
-      child: BlocBuilder<TrackingCubit, TrackingState>(
-        builder: (context, state) {
-          bool isLive = state is TrackingLive && !state.isReconnecting;
-          return CustomCard(
-            variant: CardVariant.glass,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: isLive ? Colors.green : Colors.orange,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isLive ? 'LIVE TRACKING' : 'CONNECTING...',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFloatingActions() {
-    return Positioned(
-      bottom: 240,
-      right: 20,
-      child: Column(
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: (heading * (3.1415926535 / 180)),
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          FloatingActionButton.small(
-            heroTag: 'recenter',
-            backgroundColor: Colors.white,
-            onPressed: () {
-              final state = context.read<TrackingCubit>().state;
-              if (state is TrackingLive && state.tracking.latestPoint != null) {
-                _mapController.move(
-                  LatLng(state.tracking.latestPoint!.latitude, state.tracking.latestPoint!.longitude),
-                  15,
-                );
-                setState(() => _followHelper = true);
-              }
-            },
-            child: Icon(Icons.my_location, color: _followHelper ? AppColor.primaryColor : Colors.grey),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColor.primaryColor.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
           ),
-          const SizedBox(height: 10),
-          FloatingActionButton.small(
-            heroTag: 'zoom_in',
-            backgroundColor: Colors.white,
-            onPressed: () => _mapController.move(_mapController.camera.center, _mapController.camera.zoom + 1),
-            child: const Icon(Icons.add, color: Colors.black),
+          const Icon(
+            Icons.navigation_rounded,
+            color: AppColor.primaryColor,
+            size: 40,
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildBottomInfo() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        height: 220,
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
-        ),
-        child: BlocBuilder<TrackingCubit, TrackingState>(
-          builder: (context, state) {
-            if (state is TrackingLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+class _StatusBadge extends StatelessWidget {
+  final String bookingId;
+  const _StatusBadge({required this.bookingId});
 
-            if (state is TrackingError) {
-              return Center(child: Text(state.message));
-            }
-
-            if (state is TrackingLive) {
-              final t = state.tracking;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColor.primaryColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          t.status.toUpperCase(),
-                          style: const TextStyle(color: AppColor.primaryColor, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                      ),
-                      const Spacer(),
-                      const Icon(Icons.access_time, size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${t.etaMinutes ?? "--"} mins',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStatItem('Distance', '${t.distanceToTarget?.toStringAsFixed(1) ?? "--"} km', Icons.straighten),
-                      _buildStatItem('Speed', '${t.latestPoint?.speed?.toStringAsFixed(0) ?? "0"} km/h', Icons.speed),
-                      _buildStatItem('Phase', t.status, Icons.info_outline),
-                    ],
-                  ),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColor.primaryColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      onPressed: () {
-                        context.push(
-                          '/user-chat/${widget.bookingId}?name=Helper&image=',
-                        );
-                      },
-                      label: const Text('Chat with Helper', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              );
-            }
-
-            return const SizedBox.shrink();
-          },
-        ),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<TrackingCubit, TrackingState>(
+      builder: (context, state) {
+        String status = 'Tracking Helper';
+        if (state is TrackingActive) {
+          status = state.tracking.status;
+        }
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: AppTheme.shadowLight(context),
+            border: Border.all(color: AppColor.lightBorder),
+          ),
+          child: Text(
+            status.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColor.primaryColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              letterSpacing: 1.1,
+            ),
+          ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.grey, size: 20),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-      ],
+class _TrackingBottomPanel extends StatelessWidget {
+  final bool following;
+  final VoidCallback onRecenter;
+
+  const _TrackingBottomPanel({required this.following, required this.onRecenter});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!following)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppTheme.spaceMD),
+              child: CustomButton(
+                text: 'Recenter Map',
+                variant: ButtonVariant.outlined,
+                icon: Icons.my_location_rounded,
+                onPressed: onRecenter,
+              ),
+            ),
+          
+          BlocBuilder<BookingStatusCubit, BookingStatusState>(
+            builder: (context, state) {
+              if (state is BookingStatusActive) {
+                final booking = state.booking;
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: AppNetworkImage(
+                            imageUrl: booking.helper?.profileImageUrl ?? '',
+                            width: 50,
+                            height: 50,
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spaceMD),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(booking.helper?.name ?? 'Helper', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              BlocBuilder<TrackingCubit, TrackingState>(
+                                builder: (context, state) {
+                                  if (state is TrackingActive && state.tracking.etaMinutes != null) {
+                                    return Text(
+                                      'Arriving in ${state.tracking.etaMinutes} mins',
+                                      style: const TextStyle(color: AppColor.accentColor, fontWeight: FontWeight.bold),
+                                    );
+                                  }
+                                  return const Text('Calculating ETA...', style: TextStyle(color: AppColor.lightTextSecondary));
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton.filled(
+                          onPressed: () => context.pushNamed('user-chat', pathParameters: {'id': booking.id}),
+                          icon: const Icon(Icons.chat_bubble_rounded),
+                          style: IconButton.styleFrom(backgroundColor: AppColor.primaryColor),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppTheme.spaceLG),
+                    CustomButton(
+                      text: 'Booking Details',
+                      variant: ButtonVariant.text,
+                      onPressed: () => context.pushNamed('booking-details', pathParameters: {'id': booking.id}),
+                    ),
+                  ],
+                );
+              }
+              return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+            },
+          ),
+        ],
+      ),
     );
   }
 }

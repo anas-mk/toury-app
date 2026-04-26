@@ -80,17 +80,23 @@ class BookingDetailModel extends BookingDetailEntity {
     switch (status?.toLowerCase()) {
       case 'pendinghelperresponse': return BookingStatus.pendingHelperResponse;
       case 'acceptedbyhelper': return BookingStatus.acceptedByHelper;
+      case 'confirmedawaitingpayment': return BookingStatus.confirmedAwaitingPayment;
       case 'confirmedpaid': return BookingStatus.confirmedPaid;
+      case 'upcoming': return BookingStatus.upcoming;
       case 'inprogress': return BookingStatus.inProgress;
       case 'completed': return BookingStatus.completed;
+      case 'declinedbyhelper': return BookingStatus.declinedByHelper;
+      case 'expirednoresponse': return BookingStatus.expiredNoResponse;
+      case 'reassignmentinprogress': return BookingStatus.reassignmentInProgress;
+      case 'waitingforuseraction': return BookingStatus.waitingForUserAction;
       case 'cancelledbyuser': return BookingStatus.cancelledByUser;
       case 'cancelledbyhelper': return BookingStatus.cancelledByHelper;
       case 'cancelledbysystem': return BookingStatus.cancelledBySystem;
-      case 'pending': return BookingStatus.pending;
-      case 'confirmed': return BookingStatus.confirmed;
-      case 'expired': return BookingStatus.expired;
-      case 'declined': return BookingStatus.declined;
-      case 'confirmedawaitingpayment': return BookingStatus.confirmedAwaitingPayment;
+      // Legacy fallbacks from older backend values.
+      case 'pending': return BookingStatus.pendingHelperResponse;
+      case 'confirmed': return BookingStatus.confirmedPaid;
+      case 'expired': return BookingStatus.expiredNoResponse;
+      case 'declined': return BookingStatus.declinedByHelper;
       default: return BookingStatus.pendingHelperResponse;
     }
   }

@@ -46,7 +46,7 @@ import '../../features/tourist/features/user_booking/presentation/pages/booking_
 import '../../features/tourist/features/user_booking/presentation/pages/waiting_helper_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/booking_details_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/my_bookings_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/reassignment_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled_trip_details_page.dart';
 import '../../features/tourist/features/user_booking/domain/entities/helper_booking_entity.dart';
 import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
 import '../../features/tourist/features/payments/presentation/pages/payment_method_page.dart';
@@ -56,10 +56,11 @@ import '../../features/tourist/features/payments/presentation/pages/payment_succ
 import '../../features/tourist/features/payments/presentation/pages/payment_failed_page.dart';
 import '../../features/tourist/features/payments/domain/entities/payment_entity.dart';
 import '../../features/tourist/features/user_invoices/presentation/pages/user_invoices_page.dart';
-import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
-import '../../features/tourist/features/user_invoices/presentation/pages/invoice_view_page.dart' as user_invoice_view;
 import '../../features/tourist/features/user_invoices/domain/entities/invoice_entity.dart';
+import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/reassignment_page.dart';
 import '../../features/tourist/features/user_ratings/presentation/pages/helper_reviews_page.dart';
+import '../../features/tourist/features/user_ratings/presentation/pages/rate_booking_page.dart';
 import '../../features/tourist/features/user_chat/presentation/pages/user_chat_page.dart';
 import '../../features/tourist/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
 import '../../features/helper/features/helper_booking_tracking/presentation/pages/helper_booking_tracking_page.dart';
@@ -160,6 +161,7 @@ class AppRouter {
   static const String bookingConfirm = '/booking-confirm';
   static const String waitingHelper = '/waiting-helper/:id';
   static const String bookingDetails = '/booking-details/:id';
+  static const String scheduledTripDetails = '/scheduled-trip-details';
   static const String myBookings = '/my-bookings';
   static const String reassignment = '/reassignment/:id';
   
@@ -184,6 +186,7 @@ class AppRouter {
 
   // User Rating Routes
   static const String helperReviews = '/helper-reviews/:id';
+  static const String rateBooking = '/rate-booking/:bookingId';
 
 
 
@@ -674,6 +677,16 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: scheduledTripDetails,
+        name: 'scheduled-trip-details',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return ScheduledTripDetailsPage(
+            trip: extra?['trip'] as ScheduledTripEntity?,
+          );
+        },
+      ),
+      GoRoute(
         path: bookingDetails,
         name: 'booking-details',
         builder: (context, state) {
@@ -756,7 +769,7 @@ class AppRouter {
         name: 'user-invoice-view',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return user_invoice_view.InvoiceViewPage(invoiceId: id);
+          return UserInvoiceDetailPage(invoiceId: id);
         },
       ),
 
@@ -768,6 +781,15 @@ class AppRouter {
           final id = state.pathParameters['id']!;
           final name = state.uri.queryParameters['name'] ?? 'Helper';
           return HelperReviewsPage(helperId: id, helperName: name);
+        },
+      ),
+
+      GoRoute(
+        path: rateBooking,
+        name: 'rate-booking',
+        builder: (context, state) {
+          final id = state.pathParameters['bookingId']!;
+          return RateBookingPage(bookingId: id);
         },
       ),
 

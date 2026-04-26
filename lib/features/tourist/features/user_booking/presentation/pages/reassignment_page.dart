@@ -1,123 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../core/widgets/basic_app_bar.dart';
-import '../../../../../../core/widgets/custom_button.dart';
-import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/alternatives_cubit.dart';
-import '../widgets/helper_search_item.dart';
+import '../../domain/entities/booking_detail_entity.dart';
 
 class ReassignmentPage extends StatelessWidget {
   final String bookingId;
-  final BookingDetailEntity booking;
+  final BookingDetailEntity? booking;
 
   const ReassignmentPage({
-    super.key,
+    super.key, 
     required this.bookingId,
-    required this.booking,
+    this.booking,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return BlocProvider(
-      create: (context) => sl<AlternativesCubit>()..getAlternatives(bookingId),
+      create: (_) => sl<AlternativesCubit>()..loadAlternatives(bookingId),
       child: Scaffold(
-        appBar: const BasicAppBar(
-          title: 'Find Another Helper',
-          showBackButton: true,
-        ),
+        appBar: AppBar(title: const Text('New Helper Needed')),
         body: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppTheme.spaceLG),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.red[100]!),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 30),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Helper unavailable',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.red),
-                          ),
-                          Text(
-                            'The helper was unable to accept your request. Choose another helper below.',
-                            style: TextStyle(fontSize: 13, color: Colors.red[900]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
               const Text(
-                'Available Alternatives',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                'Unfortunately, your helper is no longer available. Please select an alternative helper to continue your trip.',
+                style: TextStyle(fontSize: 16),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: AppTheme.spaceXL),
+              Text('Available Alternatives', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppTheme.spaceMD),
               Expanded(
                 child: BlocBuilder<AlternativesCubit, AlternativesState>(
                   builder: (context, state) {
                     if (state is AlternativesLoading) {
                       return const Center(child: CircularProgressIndicator());
-                    } else if (state is AlternativesError) {
-                      return Center(child: Text('Error: ${state.message}'));
-                    } else if (state is AlternativesLoaded) {
-                      if (state.helpers.isEmpty) {
-                        return const Center(child: Text('No other helpers available at the moment.'));
-                      }
-                      return ListView.separated(
-                        itemCount: state.helpers.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 15),
+                    }
+                    if (state is AlternativesLoaded) {
+                      return ListView.builder(
+                        itemCount: state.alternatives.length,
                         itemBuilder: (context, index) {
-                          final helper = state.helpers[index];
-                          return HelperSearchItem(
-                            helper: helper,
-                            onTap: () {
-                              // Logic to reassign to this helper
-                              // For now, go back to confirm
-                              context.push('/booking-confirm', extra: {
-                                'helper': helper,
-                                'isInstant': booking.type == BookingType.instant,
-                                'searchParams': _getParamsFromBooking(booking),
-                              });
-                            },
+                          final helper = state.alternatives[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: AppTheme.spaceMD),
+                            child: ListTile(
+                              leading: const CircleAvatar(child: Icon(Icons.person)),
+                              title: Text(helper.name),
+                              subtitle: Text('${helper.rating} ★ • ${helper.completedTrips} Trips'),
+                              trailing: ElevatedButton(
+                                onPressed: () {
+                                  // Re-book with this helper logic
+                                  context.go('/home');
+                                },
+                                child: const Text('Select'),
+                              ),
+                            ),
                           );
                         },
                       );
                     }
-                    return const SizedBox.shrink();
+                    return const Center(child: Text('No alternatives found at this time.'));
                   },
                 ),
-              ),
-              const SizedBox(height: 20),
-              CustomButton(
-                text: 'Cancel Booking',
-                color: Colors.grey[200],
-                textStyle: const TextStyle(color: Colors.black),
-                onPressed: () => context.go('/home'),
               ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  dynamic _getParamsFromBooking(BookingDetailEntity booking) {
-    // Helper to recreate search params from booking entity
-    return null; // Implementation depends on details
   }
 }

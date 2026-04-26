@@ -1,11 +1,28 @@
-import 'package:bloc/bloc.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import '../../domain/entities/booking_detail_entity.dart';
-import '../../domain/entities/helper_booking_entity.dart';
+import 'package:toury/features/tourist/features/user_booking/domain/usecases/booking_actions_usecase.dart';
 import '../../domain/usecases/create_booking_usecase.dart';
-import '../../domain/usecases/booking_actions_usecase.dart';
+import '../../domain/entities/booking_detail_entity.dart';
 
-part 'instant_booking_state.dart';
+abstract class InstantBookingState extends Equatable {
+  const InstantBookingState();
+  @override
+  List<Object?> get props => [];
+}
+class InstantBookingInitial extends InstantBookingState {}
+class InstantBookingLoading extends InstantBookingState {}
+class InstantBookingSuccess extends InstantBookingState {
+  final BookingDetailEntity booking;
+  const InstantBookingSuccess(this.booking);
+  @override
+  List<Object?> get props => [booking];
+}
+class InstantBookingError extends InstantBookingState {
+  final String message;
+  const InstantBookingError(this.message);
+  @override
+  List<Object?> get props => [message];
+}
 
 class InstantBookingCubit extends Cubit<InstantBookingState> {
   final CreateInstantBookingUseCase createInstantBookingUseCase;
@@ -16,23 +33,12 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
     required this.getBookingStatusUseCase,
   }) : super(InstantBookingInitial());
 
-  Future<void> createInstantBooking(Map<String, dynamic> bookingData) async {
+  Future<void> createInstant(Map<String, dynamic> params) async {
     emit(InstantBookingLoading());
-    final result = await createInstantBookingUseCase(bookingData);
+    final result = await createInstantBookingUseCase(params);
     result.fold(
       (failure) => emit(InstantBookingError(failure.message)),
-      (booking) => emit(InstantBookingWaitingResponse(booking)),
+      (booking) => emit(InstantBookingSuccess(booking)),
     );
-  }
-
-  void updateStatus(String status) {
-    if (state is InstantBookingWaitingResponse) {
-      final booking = (state as InstantBookingWaitingResponse).booking;
-      if (status.toLowerCase() == 'confirmed') {
-        emit(InstantBookingConfirmed(booking));
-      } else if (status.toLowerCase() == 'declined' || status.toLowerCase() == 'cancelled') {
-        emit(InstantBookingDeclined(booking));
-      }
-    }
   }
 }

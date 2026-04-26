@@ -10,43 +10,32 @@ abstract class UserChatState extends Equatable {
 
 class UserChatInitial extends UserChatState {}
 
-class UserChatLoading extends UserChatState {}
+class ChatLoading extends UserChatState {}
 
-class UserChatLoaded extends UserChatState {
-  final ChatConversationEntity conversation;
+class ChatLoaded extends UserChatState {
   final List<ChatMessageEntity> messages;
-  final bool hasMore;
-  final bool isPaginationLoading;
+  final bool isSending;
 
-  const UserChatLoaded({
-    required this.conversation,
-    required this.messages,
-    this.hasMore = false,
-    this.isPaginationLoading = false,
-  });
-
-  UserChatLoaded copyWith({
-    ChatConversationEntity? conversation,
-    List<ChatMessageEntity>? messages,
-    bool? hasMore,
-    bool? isPaginationLoading,
-  }) {
-    return UserChatLoaded(
-      conversation: conversation ?? this.conversation,
-      messages: messages ?? this.messages,
-      hasMore: hasMore ?? this.hasMore,
-      isPaginationLoading: isPaginationLoading ?? this.isPaginationLoading,
-    );
-  }
+  const ChatLoaded({required this.messages, this.isSending = false});
 
   @override
-  List<Object?> get props => [conversation, messages, hasMore, isPaginationLoading];
+  List<Object?> get props => [messages, isSending];
+
+  ChatLoaded copyWith({
+    List<ChatMessageEntity>? messages,
+    bool? isSending,
+  }) {
+    return ChatLoaded(
+      messages: messages ?? this.messages,
+      isSending: isSending ?? this.isSending,
+    );
+  }
 }
 
-class UserChatError extends UserChatState {
+class ChatError extends UserChatState {
   final String message;
 
-  const UserChatError(this.message);
+  const ChatError(this.message);
 
   @override
   List<Object?> get props => [message];

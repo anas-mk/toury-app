@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_button.dart';
-import '../../../../../../core/widgets/custom_text_field.dart';
+import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../../domain/entities/search_params.dart';
 import '../cubits/search_helpers_cubit.dart';
-import '../widgets/helper_search_item.dart';
+import '../cubits/search_helpers_state.dart';
+import '../widgets/helper_search_card.dart';
 
 class ScheduledSearchPage extends StatefulWidget {
   final String? initialDestination;
+
   const ScheduledSearchPage({super.key, this.initialDestination});
 
   @override
@@ -20,15 +22,10 @@ class ScheduledSearchPage extends StatefulWidget {
 }
 
 class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
-  final MapController _mapController = MapController();
-  final _destinationController = TextEditingController();
-  LatLng _center = const LatLng(30.0444, 31.2357);
-  
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _selectedTime = const TimeOfDay(hour: 10, minute: 0);
-  int _duration = 120;
-  bool _requiresCar = false;
-  bool _showResults = false;
+  final TextEditingController _destinationController = TextEditingController();
+  DateTime? _startDate;
+  TimeOfDay? _startTime;
+  int _hours = 4; // Default trip duration
 
   @override
   void initState() {
@@ -38,219 +35,178 @@ class _ScheduledSearchPageState extends State<ScheduledSearchPage> {
     }
   }
 
-  void _performSearch() {
-    if (_destinationController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a destination city')),
-      );
-      return;
-    }
-    setState(() => _showResults = true);
-    context.read<SearchHelpersCubit>().searchScheduled(ScheduledSearchParams(
-      destinationCity: _destinationController.text,
-      requestedDate: _selectedDate,
-      startTime: '${_selectedTime.hour}:${_selectedTime.minute}',
-      durationInMinutes: _duration,
-      requestedLanguage: 'English',
-      requiresCar: _requiresCar,
-      travelersCount: 1,
-    ));
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Map Background
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(initialCenter: _center, initialZoom: 13),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.toury.app',
-              ),
-              MarkerLayer(
-                markers: [
-                  Marker(point: _center, child: const Icon(Icons.location_on, color: Colors.black, size: 45)),
-                ],
-              ),
-            ],
-          ),
+    final loc = AppLocalizations.of(context);
+    final theme = Theme.of(context);
 
-          // 2. Safe Area UI
-          SafeArea(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(loc.translate('scheduled_search')),
+      ),
+      body: Column(
+        children: [
+          // Filter Panel
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
+            decoration: BoxDecoration(
+              color: theme.scaffoldBackgroundColor,
+              boxShadow: AppTheme.shadowLight(context),
+            ),
             child: Column(
               children: [
-                // Top Search Panel
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.1), blurRadius: 20, offset: const Offset(0, 10))],
-                  ),
-                  child: Column(
-                    children: [
-                      // Header with Back Button
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8, top: 8, right: 16),
-                        child: Row(
-                          children: [
-                            IconButton(icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black), onPressed: () => context.pop()),
-                            Text('Plan your trip', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                          ],
-                        ),
-                      ),
-                      // Inputs
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          children: [
-                            CustomTextField(
-                              controller: _destinationController,
-                              hintText: 'Where to?',
-                              prefixIcon: Icons.search,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(child: _buildPickerTile(Icons.calendar_today, DateFormat('MMM dd').format(_selectedDate), _pickDate, isDark)),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildPickerTile(Icons.access_time, _selectedTime.format(context), _pickTime, isDark)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                TextField(
+                  controller: _destinationController,
+                  decoration: InputDecoration(
+                    hintText: loc.translate('enter_destination'),
+                    prefixIcon: const Icon(Icons.location_on_rounded),
                   ),
                 ),
-                const Spacer(),
-                // Bottom Results / Action
-                _buildBottomUI(isDark),
+                const SizedBox(height: AppTheme.spaceMD),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: _selectDate,
+                        child: Container(
+                          padding: const EdgeInsets.all(AppTheme.spaceMD),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColor.lightBorder),
+                            borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today_rounded, size: 18),
+                              const SizedBox(width: 8),
+                              Text(_startDate == null ? 'Date' : DateFormat('MMM dd').format(_startDate!)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spaceMD),
+                    Expanded(
+                      child: InkWell(
+                        onTap: _selectTime,
+                        child: Container(
+                          padding: const EdgeInsets.all(AppTheme.spaceMD),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColor.lightBorder),
+                            borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.access_time_rounded, size: 18),
+                              const SizedBox(width: 8),
+                              Text(_startTime == null ? 'Time' : _startTime!.format(context)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spaceMD),
+                CustomButton(
+                  text: loc.translate('search_helpers'),
+                  onPressed: _onSearch,
+                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildPickerTile(IconData icon, String text, VoidCallback onTap, bool isDark) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF6F6F6),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: isDark ? Colors.white : Colors.black),
-            const SizedBox(width: 8),
-            Text(text, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Colors.white : Colors.black)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomUI(bool isDark) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5))],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!_showResults)
-            CustomButton(text: 'Search Helpers', onPressed: _performSearch, isFullWidth: true)
-          else
-            _buildResultsList(isDark),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResultsList(bool isDark) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Available Helpers', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            GestureDetector(
-              onTap: () => setState(() => _showResults = false),
-              child: const Text('Edit Search', style: TextStyle(color: AppColor.secondaryColor, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
-          child: BlocBuilder<SearchHelpersCubit, SearchHelpersState>(
-            builder: (context, state) {
-              if (state is SearchHelpersLoading) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (state is SearchHelpersLoaded) {
-                if (state.helpers.isEmpty) return const Center(child: Text('No helpers found in this area.'));
-                return ListView.separated(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: state.helpers.length,
-                  separatorBuilder: (context, index) => Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
-                  itemBuilder: (context, index) {
-                    final helper = state.helpers[index];
-                    return HelperSearchItem(
-                      helper: helper,
-                      onTap: () => context.push('/helper-profile/${helper.id}', extra: {
-                        'helper': helper,
-                        'searchParams': ScheduledSearchParams(
-                          destinationCity: _destinationController.text,
-                          requestedDate: _selectedDate,
-                          startTime: '${_selectedTime.hour}:${_selectedTime.minute}',
-                          durationInMinutes: _duration,
-                          requestedLanguage: 'English',
-                          requiresCar: _requiresCar,
-                          travelersCount: 1,
+          // Results List
+          Expanded(
+            child: BlocBuilder<SearchHelpersCubit, SearchHelpersState>(
+              builder: (context, state) {
+                if (state is SearchHelpersLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is SearchHelpersError) {
+                  return Center(child: Text(state.message));
+                }
+                if (state is SearchHelpersLoaded) {
+                  if (state.helpers.isEmpty) {
+                    return const Center(child: Text('No helpers found for this criteria'));
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(AppTheme.spaceLG),
+                    itemCount: state.helpers.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: AppTheme.spaceMD),
+                    itemBuilder: (context, index) {
+                      return HelperSearchCard(
+                        helper: state.helpers[index],
+                        onTap: () => context.pushNamed(
+                          'helper-profile',
+                          pathParameters: {'id': state.helpers[index].id},
+                          extra: {
+                            'helper': state.helpers[index],
+                            'searchParams': _getSearchParams(),
+                            'isInstant': false,
+                          },
                         ),
-                      }),
-                    );
-                  },
+                      );
+                    },
+                  );
+                }
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.search_rounded, size: 64, color: AppColor.lightBorder),
+                      const SizedBox(height: AppTheme.spaceMD),
+                      Text(
+                        'Search for helpers in your destination',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ],
+                  ),
                 );
-              }
-              return const SizedBox();
-            },
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  void _pickDate() async {
-    final date = await showDatePicker(
+  ScheduledSearchParams _getSearchParams() {
+    return ScheduledSearchParams(
+      destinationCity: _destinationController.text,
+      requestedDate: _startDate ?? DateTime.now().add(const Duration(days: 1)),
+      startTime: _startTime != null ? '${_startTime!.hour}:${_startTime!.minute}' : '09:00',
+      durationInMinutes: _hours * 60,
+      requestedLanguage: 'English',
+      requiresCar: false,
+      travelersCount: 1,
+    );
+  }
+
+  void _onSearch() {
+    if (_destinationController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a destination')),
+      );
+      return;
+    }
+    context.read<SearchHelpersCubit>().searchScheduled(_getSearchParams());
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
     );
-    if (date != null) setState(() => _selectedDate = date);
+    if (picked != null) setState(() => _startDate = picked);
   }
 
-  void _pickTime() async {
-    final time = await showTimePicker(context: context, initialTime: _selectedTime);
-    if (time != null) setState(() => _selectedTime = time);
+  Future<void> _selectTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (picked != null) setState(() => _startTime = picked);
   }
 }

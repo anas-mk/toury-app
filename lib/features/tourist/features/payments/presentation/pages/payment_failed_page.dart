@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_button.dart';
+import '../../../../../../core/router/app_router.dart';
 
 class PaymentFailedPage extends StatelessWidget {
   final String bookingId;
@@ -10,60 +13,45 @@ class PaymentFailedPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.error_outline,
-                  color: Colors.red,
-                  size: 100,
-                ),
+      body: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceLG),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Spacer(),
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 100,
+              color: AppColor.errorColor,
+            ),
+            const SizedBox(height: AppTheme.spaceXL),
+            Text(
+              'Payment Failed',
+              style: AppTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppTheme.spaceMD),
+            const Text(
+              'Something went wrong with your transaction. Please try again or use a different payment method.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColor.lightTextSecondary),
+            ),
+            const Spacer(),
+            CustomButton(
+              text: 'Try Again',
+              onPressed: () => context.goNamed(
+                'payment-method',
+                pathParameters: {'bookingId': bookingId},
               ),
-              const SizedBox(height: 30),
-              const Text(
-                'Payment Failed',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'We could not process your payment at this time. Please try another payment method.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-              const Spacer(),
-              CustomButton(
-                text: 'Try Another Method',
-                onPressed: () {
-                  context.pushReplacement('/payment-method/$bookingId');
-                },
-              ),
-              const SizedBox(height: 15),
-              CustomButton(
-                text: 'Back to Home',
-                variant: ButtonVariant.outlined,
-                onPressed: () {
-                  context.go('/home');
-                },
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: AppTheme.spaceMD),
+            CustomButton(
+              text: 'Go to Home',
+              variant: ButtonVariant.text,
+              onPressed: () => context.go(AppRouter.home),
+            ),
+            const SizedBox(height: AppTheme.spaceXL),
+          ],
         ),
       ),
     );

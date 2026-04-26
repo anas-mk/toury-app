@@ -1,4 +1,5 @@
-part of 'search_helpers_cubit.dart';
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/helper_booking_entity.dart';
 
 abstract class SearchHelpersState extends Equatable {
   const SearchHelpersState();

@@ -1,10 +1,7 @@
-import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
-import '../../domain/entities/helper_booking_entity.dart';
-import '../../domain/entities/search_params.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/usecases/search_helpers_usecase.dart';
-
-part 'search_helpers_state.dart';
+import '../../domain/entities/search_params.dart';
+import 'search_helpers_state.dart';
 
 class SearchHelpersCubit extends Cubit<SearchHelpersState> {
   final SearchScheduledHelpersUseCase searchScheduledHelpersUseCase;
@@ -31,5 +28,9 @@ class SearchHelpersCubit extends Cubit<SearchHelpersState> {
       (failure) => emit(SearchHelpersError(failure.message)),
       (helpers) => emit(SearchHelpersLoaded(helpers)),
     );
+  }
+
+  void clearSearch() {
+    emit(SearchHelpersInitial());
   }
 }

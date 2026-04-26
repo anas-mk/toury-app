@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/tracking_entity.dart';
+import '../../../../../../core/models/tracking/tracking_point_entity.dart';
 
 abstract class TrackingState extends Equatable {
   const TrackingState();
@@ -12,27 +13,24 @@ class TrackingInitial extends TrackingState {}
 
 class TrackingLoading extends TrackingState {}
 
-class TrackingLive extends TrackingState {
+class TrackingActive extends TrackingState {
   final TrackingEntity tracking;
-  final bool isReconnecting;
+  final TrackingPointEntity? latestPoint;
 
-  const TrackingLive({
-    required this.tracking,
-    this.isReconnecting = false,
-  });
-
-  TrackingLive copyWith({
-    TrackingEntity? tracking,
-    bool? isReconnecting,
-  }) {
-    return TrackingLive(
-      tracking: tracking ?? this.tracking,
-      isReconnecting: isReconnecting ?? this.isReconnecting,
-    );
-  }
+  const TrackingActive({required this.tracking, this.latestPoint});
 
   @override
-  List<Object?> get props => [tracking, isReconnecting];
+  List<Object?> get props => [tracking, latestPoint];
+
+  TrackingActive copyWith({
+    TrackingEntity? tracking,
+    TrackingPointEntity? latestPoint,
+  }) {
+    return TrackingActive(
+      tracking: tracking ?? this.tracking,
+      latestPoint: latestPoint ?? this.latestPoint,
+    );
+  }
 }
 
 class TrackingError extends TrackingState {

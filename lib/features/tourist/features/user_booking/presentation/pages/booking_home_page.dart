@@ -1,76 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/widgets/basic_app_bar.dart';
-import '../../../../../../core/widgets/custom_card.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/router/app_router.dart';
 
 class BookingHomePage extends StatelessWidget {
   const BookingHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: const BasicAppBar(
-        title: 'Book a Rafiq',
-        showBackButton: true,
+      appBar: AppBar(
+        title: Text(loc.translate('book_a_helper')),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceLG),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'How would you like to travel?',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Choose your preferred booking method',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 30),
-            _buildBookingOption(
+            const SizedBox(height: AppTheme.spaceXL),
+            _buildTypeCard(
               context,
-              title: 'Instant Ride',
-              description: 'Get a nearby helper right now. Like Uber, but with a local guide.',
-              icon: Icons.bolt,
-              color: Colors.amber,
-              onTap: () => context.push('/instant-search'),
+              title: loc.translate('instant'),
+              subtitle: 'Find an available helper right now',
+              icon: Icons.bolt_rounded,
+              color: AppColor.accentColor,
+              onTap: () => context.push(AppRouter.instantSearch),
             ),
-            const SizedBox(height: 20),
-            _buildBookingOption(
+            const SizedBox(height: AppTheme.spaceLG),
+            _buildTypeCard(
               context,
-              title: 'Scheduled Booking',
-              description: 'Plan your trip in advance. Choose your helper, date, and time.',
-              icon: Icons.calendar_today,
-              color: Colors.blue,
-              onTap: () => context.push('/scheduled-search'),
-            ),
-            const SizedBox(height: 40),
-            const Text(
-              'Recent Bookings',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-            CustomCard(
-              onTap: () => context.push('/my-bookings'),
-              child: const ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.blueGrey,
-                  child: Icon(Icons.history, color: Colors.white),
-                ),
-                title: Text('View Booking History'),
-                subtitle: Text('Manage your past and upcoming trips'),
-                trailing: Icon(Icons.arrow_forward_ios, size: 16),
-              ),
+              title: loc.translate('scheduled'),
+              subtitle: 'Plan ahead and book for a future date',
+              icon: Icons.calendar_today_rounded,
+              color: AppColor.secondaryColor,
+              onTap: () => context.push(AppRouter.scheduledSearch),
             ),
           ],
         ),
@@ -78,52 +45,54 @@ class BookingHomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildBookingOption(
+  Widget _buildTypeCard(
     BuildContext context, {
     required String title,
-    required String description,
+    required String subtitle,
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return CustomCard(
+    return InkWell(
       onTap: onTap,
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spaceLG),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppTheme.spaceMD),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+              ),
+              child: Icon(icon, color: Colors.white, size: 32),
             ),
-            child: Icon(icon, color: color, size: 30),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            const SizedBox(width: AppTheme.spaceLG),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTheme.headlineMedium.copyWith(color: color),
                   ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                  const SizedBox(height: AppTheme.spaceXS),
+                  Text(
+                    subtitle,
+                    style: AppTheme.bodyMedium.copyWith(color: AppColor.lightTextSecondary),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-        ],
+            Icon(Icons.arrow_forward_ios_rounded, color: color, size: 16),
+          ],
+        ),
       ),
     );
   }

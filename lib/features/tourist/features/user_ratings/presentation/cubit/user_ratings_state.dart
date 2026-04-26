@@ -10,45 +10,24 @@ abstract class UserRatingsState extends Equatable {
 
 class UserRatingsInitial extends UserRatingsState {}
 
-class UserRatingsLoading extends UserRatingsState {}
+class RatingLoading extends UserRatingsState {}
 
-class UserRatingsSubmitting extends UserRatingsState {}
-
-class UserRatingsSubmitted extends UserRatingsState {}
-
-class UserRatingsLoaded extends UserRatingsState {
+class RatingLoaded extends UserRatingsState {
   final List<RatingEntity> ratings;
-  final bool hasMore;
+  final RatingSummaryEntity? summary;
 
-  const UserRatingsLoaded({required this.ratings, this.hasMore = false});
-
-  @override
-  List<Object?> get props => [ratings, hasMore];
-}
-
-class RatingSummaryLoaded extends UserRatingsState {
-  final RatingSummaryEntity summary;
-
-  const RatingSummaryLoaded(this.summary);
+  const RatingLoaded({required this.ratings, this.summary});
 
   @override
-  List<Object?> get props => [summary];
+  List<Object?> get props => [ratings, summary];
 }
 
-class BookingRatingStateLoaded extends UserRatingsState {
-  final bool canRate;
-  final RatingEntity? existingRating;
+class RatingSuccess extends UserRatingsState {}
 
-  const BookingRatingStateLoaded({required this.canRate, this.existingRating});
-
-  @override
-  List<Object?> get props => [canRate, existingRating];
-}
-
-class UserRatingsError extends UserRatingsState {
+class RatingError extends UserRatingsState {
   final String message;
 
-  const UserRatingsError(this.message);
+  const RatingError(this.message);
 
   @override
   List<Object?> get props => [message];

@@ -1,4 +1,6 @@
-part of 'my_bookings_cubit.dart';
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/booking_detail_entity.dart';
+import '../../data/models/paged_response_model.dart';
 
 abstract class MyBookingsState extends Equatable {
   const MyBookingsState();
@@ -13,17 +15,29 @@ class MyBookingsLoading extends MyBookingsState {}
 
 class MyBookingsLoaded extends MyBookingsState {
   final List<BookingDetailEntity> bookings;
-  final bool hasNextPage;
-  final String? status;
+  final bool hasReachedMax;
+  final int currentPage;
 
   const MyBookingsLoaded({
     required this.bookings,
-    required this.hasNextPage,
-    this.status,
+    this.hasReachedMax = false,
+    this.currentPage = 1,
   });
 
   @override
-  List<Object?> get props => [bookings, hasNextPage, status];
+  List<Object?> get props => [bookings, hasReachedMax, currentPage];
+
+  MyBookingsLoaded copyWith({
+    List<BookingDetailEntity>? bookings,
+    bool? hasReachedMax,
+    int? currentPage,
+  }) {
+    return MyBookingsLoaded(
+      bookings: bookings ?? this.bookings,
+      hasReachedMax: hasReachedMax ?? this.hasReachedMax,
+      currentPage: currentPage ?? this.currentPage,
+    );
+  }
 }
 
 class MyBookingsError extends MyBookingsState {

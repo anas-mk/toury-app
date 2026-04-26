@@ -1,14 +1,29 @@
 import 'package:equatable/equatable.dart';
 
+enum PaymentStatus {
+  notRequired,
+  awaitingPayment,
+  paymentPending,
+  paid,
+  refunded,
+  failed,
+}
+
+enum PaymentPhase {
+  full,
+  deposit,
+  remaining,
+}
+
 class PaymentEntity extends Equatable {
   final String paymentId;
   final String bookingId;
   final double amount;
   final String currency;
   final String method;
-  final String status;
+  final PaymentStatus status;
   final String? paymentUrl;
-  final String? phase; // Deposit | Remaining | Full
+  final PaymentPhase? phase;
   final DateTime? initiatedAt;
   final DateTime? completedAt;
 

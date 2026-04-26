@@ -7,7 +7,6 @@ import 'core/theme/theme_cubit.dart';
 import 'core/localization/cubit/localization_cubit.dart';
 import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
 import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
-import 'features/tourist/features/home/presentation/cubit/bottom_nav_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +20,6 @@ void main() async {
       providers: [
         BlocProvider(create: (_) => ThemeCubit(isDark: isDark)),
         BlocProvider(create: (_) => LocalizationCubit()),
-        BlocProvider(create: (_) => BottomNavCubit()),
         BlocProvider(
           create: (_) => di.sl<AuthCubit>()
             ..checkAuthStatus(),

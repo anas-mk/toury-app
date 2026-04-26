@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/localization/app_localizations.dart';
 
 class HomeLayout extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -9,16 +12,11 @@ class HomeLayout extends StatelessWidget {
     required this.navigationShell,
   });
 
-  void _goBranch(int index) {
-    navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context);
 
     return Scaffold(
       body: navigationShell,
@@ -26,41 +24,47 @@ class HomeLayout extends StatelessWidget {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
               blurRadius: 10,
-              offset: const Offset(0, -5),
+              offset: const Offset(0, -2),
             ),
           ],
         ),
         child: BottomNavigationBar(
           currentIndex: navigationShell.currentIndex,
-          onTap: _goBranch,
+          onTap: (index) => navigationShell.goBranch(index),
           type: BottomNavigationBarType.fixed,
-          backgroundColor: isDark ? Colors.black : Colors.white,
-          selectedItemColor: isDark ? Colors.white : Colors.black,
-          unselectedItemColor: Colors.grey.shade400,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedFontSize: 10,
-          unselectedFontSize: 10,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, height: 1.5),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, height: 1.5),
-          items: const [
+          backgroundColor: isDark ? AppColor.darkSurface : AppColor.lightSurface,
+          selectedItemColor: isDark ? Colors.white : AppColor.primaryColor,
+          unselectedItemColor: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+          selectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+          unselectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+            fontSize: 11,
+          ),
+          items: [
             BottomNavigationBarItem(
-              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.home_filled)),
-              label: 'Home',
+              icon: const Icon(Icons.home_outlined),
+              activeIcon: const Icon(Icons.home_rounded),
+              label: loc.translate('home'),
             ),
             BottomNavigationBarItem(
-              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.receipt_long)),
-              label: 'Activity',
+              icon: const Icon(Icons.receipt_long_outlined),
+              activeIcon: const Icon(Icons.receipt_long_rounded),
+              label: loc.translate('trips'),
             ),
             BottomNavigationBarItem(
-              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.account_balance_wallet_outlined)),
-              label: 'Wallet',
+              icon: const Icon(Icons.account_balance_wallet_outlined),
+              activeIcon: const Icon(Icons.account_balance_wallet_rounded),
+              label: loc.translate('wallet'),
             ),
             BottomNavigationBarItem(
-              icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.person_outline)),
-              label: 'Account',
+              icon: const Icon(Icons.person_outline_rounded),
+              activeIcon: const Icon(Icons.person_rounded),
+              label: loc.translate('account'),
             ),
           ],
         ),

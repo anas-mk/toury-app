@@ -1,12 +1,16 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../core/widgets/app_network_image.dart';
+import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_state.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_button.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/booking_status_cubit.dart';
+import '../cubits/booking_status_state.dart';
+import '../cubits/booking_cubit.dart';
+import '../../../../../../core/di/injection_container.dart';
 
 class WaitingHelperPage extends StatefulWidget {
   final String bookingId;
@@ -22,224 +26,118 @@ class WaitingHelperPage extends StatefulWidget {
   State<WaitingHelperPage> createState() => _WaitingHelperPageState();
 }
 
-class _WaitingHelperPageState extends State<WaitingHelperPage> with TickerProviderStateMixin {
-  late AnimationController _pulseController;
-  int _secondsLeft = 60;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-    _startTimer();
-  }
-
-  void _startTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsLeft > 0) {
-        setState(() => _secondsLeft--);
-      } else {
-        _timer?.cancel();
-        context.pushReplacement('/reassignment/${widget.bookingId}', extra: {'booking': widget.booking});
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pulseController.dispose();
-    super.dispose();
-  }
-
+class _WaitingHelperPageState extends State<WaitingHelperPage> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => sl<BookingStatusCubit>()..startPolling(widget.bookingId),
-      child: Scaffold(
-        body: BlocListener<BookingStatusCubit, BookingStatusState>(
-          listener: (context, state) {
-            if (state is BookingActiveFound) {
-              final b = state.booking;
-              context.go(
-                '/user-tracking/${widget.bookingId}?pickupLat=${b.pickupLatitude ?? 0}&pickupLng=${b.pickupLongitude ?? 0}&destLat=${b.destinationLatitude ?? 0}&destLng=${b.destinationLongitude ?? 0}',
+      create: (_) => sl<BookingStatusCubit>()..startPollingForActive(),
+      child: BlocListener<BookingStatusCubit, BookingStatusState>(
+        listener: (context, state) {
+          if (state is BookingStatusActive) {
+            final booking = state.booking;
+            if (booking.status == BookingStatus.acceptedByHelper) {
+              context.goNamed(
+                'payment-method',
+                pathParameters: {'bookingId': booking.id},
               );
-            } else if (state is BookingStatusUpdated) {
-              final status = state.status.toLowerCase();
-              if (status == 'confirmed' || status == 'acceptedbyhelper' || status == 'confirmedpaid') {
-                final b = widget.booking;
-                context.go(
-                  '/user-tracking/${widget.bookingId}?pickupLat=${b.pickupLatitude ?? 0}&pickupLng=${b.pickupLongitude ?? 0}&destLat=${b.destinationLatitude ?? 0}&destLng=${b.destinationLongitude ?? 0}',
-                );
-              } else if (status == 'declined' || status == 'expired' || status.contains('cancelled')) {
-                context.pushReplacement('/reassignment/${widget.bookingId}', extra: {'booking': widget.booking});
-              }
+            } else if (booking.status == BookingStatus.declinedByHelper || booking.status == BookingStatus.expiredNoResponse) {
+              _showFailedDialog();
             }
-          },
-          child: Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 60),
-                  _buildHeader(),
-                  const Spacer(),
-                  _buildPulseAnimation(),
-                  const Spacer(),
-                  _buildHelperCard(),
-                  const SizedBox(height: 40),
-                  _buildCancelButton(),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        const Text(
-          'Finding your Helper',
-          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: -0.5),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Request expires in $_secondsLeft s',
-                style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPulseAnimation() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        ...List.generate(3, (index) {
-          return AnimatedBuilder(
-            animation: _pulseController,
-            builder: (context, child) {
-              double progress = (_pulseController.value + (index / 3)) % 1.0;
-              return Container(
-                width: 100 + (progress * 200),
-                height: 100 + (progress * 200),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.blue.withOpacity(1.0 - progress),
-                    width: 2,
+          }
+        },
+        child: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                _buildRadarAnimation(),
+                const SizedBox(height: AppTheme.space2XL),
+                Text(
+                  'Waiting for Helper',
+                  style: AppTheme.headlineMedium,
+                ),
+                const SizedBox(height: AppTheme.spaceSM),
+                Text(
+                  'Sending request to ${widget.booking.helper?.name ?? "the helper"}...',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColor.lightTextSecondary),
+                ),
+                const Spacer(),
+                BlocProvider(
+                  create: (_) => sl<BookingCubit>(),
+                  child: BlocBuilder<BookingCubit, BookingState>(
+                    builder: (context, state) {
+                      return CustomButton(
+                        text: 'Cancel Request',
+                        variant: ButtonVariant.outlined,
+                        color: AppColor.errorColor,
+                        isLoading: state is BookingLoading,
+                        onPressed: () {
+                          context.read<BookingCubit>().cancelBooking(widget.bookingId, 'User cancelled while waiting');
+                          context.go(AppRouter.home);
+                        },
+                      );
+                    },
                   ),
                 ),
-              );
-            },
-          );
-        }),
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.blue.withOpacity(0.2),
-            boxShadow: [
-              BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 40, spreadRadius: 10),
-            ],
-          ),
-          child: const Center(
-            child: Icon(Icons.person_search, color: Colors.white, size: 50),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHelperCard() {
-    if (widget.booking.helper == null) return const SizedBox.shrink();
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 30),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: AppNetworkImage(
-              imageUrl: widget.booking.helper!.profileImageUrl ?? '',
-              width: 60,
-              height: 60,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.booking.helper!.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Colors.amber, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${widget.booking.helper!.rating} • Selected Helper',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: AppTheme.spaceXL),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildCancelButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 30),
-      child: CustomButton(
-        text: 'Cancel Request',
-        variant: ButtonVariant.text,
-        color: Colors.white.withOpacity(0.5),
-        onPressed: () => context.pop(),
+  Widget _buildRadarAnimation() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Pulsing circles (simplified for now with just a static design or simple sized boxes)
+        Container(
+          width: 150,
+          height: 150,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColor.accentColor.withOpacity(0.1),
+          ),
+        ),
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColor.accentColor.withOpacity(0.2),
+          ),
+        ),
+        const CircleAvatar(
+          radius: 35,
+          backgroundColor: AppColor.accentColor,
+          child: Icon(Icons.person_search_rounded, color: Colors.white, size: 35),
+        ),
+      ],
+    );
+  }
+
+  void _showFailedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Request Declined'),
+        content: const Text('The helper is unable to accept your request at this time. Please try another helper.'),
+        actions: [
+          TextButton(
+            onPressed: () => context.go(AppRouter.home),
+            child: const Text('Back to Home'),
+          ),
+          TextButton(
+            onPressed: () => context.go(AppRouter.instantSearch),
+            child: const Text('Find Others'),
+          ),
+        ],
       ),
     );
   }

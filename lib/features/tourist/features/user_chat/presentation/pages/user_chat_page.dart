@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../core/theme/app_color.dart';
 import '../cubit/user_chat_cubit.dart';
 import '../cubit/user_chat_state.dart';
-import '../widgets/chat_bubble_widget.dart';
-import '../widgets/chat_input_widget.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/di/injection_container.dart';
+import '../widgets/chat_message_bubble.dart';
 
 class UserChatPage extends StatefulWidget {
   final String bookingId;
@@ -25,174 +24,120 @@ class UserChatPage extends StatefulWidget {
 }
 
 class _UserChatPageState extends State<UserChatPage> {
+  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      context.read<UserChatCubit>().loadMoreMessages(widget.bookingId);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return BlocProvider(
-      create: (context) => sl<UserChatCubit>()..initChat(widget.bookingId),
+      create: (_) => sl<UserChatCubit>()..loadMessages(widget.bookingId),
       child: Scaffold(
-        appBar: _buildAppBar(),
+        appBar: AppBar(
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Chat with Helper'),
+              Text('Online', style: TextStyle(fontSize: 10, color: AppColor.accentColor)),
+            ],
+          ),
+          actions: [
+            IconButton(icon: const Icon(Icons.call_outlined), onPressed: () {}),
+          ],
+        ),
         body: Column(
           children: [
             Expanded(
               child: BlocBuilder<UserChatCubit, UserChatState>(
                 builder: (context, state) {
-                  if (state is UserChatLoading) {
+                  if (state is ChatLoading) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  
-                  if (state is UserChatError) {
-                    return Center(child: Text(state.message));
-                  }
-                  
-                  if (state is UserChatLoaded) {
+                  if (state is ChatLoaded) {
                     if (state.messages.isEmpty) {
-                      return _buildEmptyState();
+                      return const Center(child: Text('Start a conversation...'));
                     }
-                    
                     return ListView.builder(
                       controller: _scrollController,
                       reverse: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                      itemCount: state.messages.length + (state.hasMore ? 1 : 0),
+                      padding: const EdgeInsets.all(AppTheme.spaceLG),
+                      itemCount: state.messages.length,
                       itemBuilder: (context, index) {
-                        if (index == state.messages.length) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          );
-                        }
-                        
-                        final message = state.messages[index];
-                        final isMe = message.senderId == state.conversation.user.id;
-                        
-                        return ChatBubbleWidget(
-                          message: message,
-                          isMe: isMe,
+                        return ChatMessageBubble(
+                          message: state.messages[index],
+                          isMe: state.messages[index].senderType == 'User',
                         );
                       },
                     );
                   }
-                  
+                  if (state is ChatError) {
+                    return Center(child: Text(state.message));
+                  }
                   return const SizedBox.shrink();
                 },
               ),
             ),
-            BlocBuilder<UserChatCubit, UserChatState>(
-              builder: (context, state) {
-                return ChatInputWidget(
-                  onSend: (text) => context.read<UserChatCubit>().sendMessage(widget.bookingId, text),
-                );
-              },
-            ),
+            _buildInputArea(context),
           ],
         ),
       ),
     );
   }
 
-  AppBar _buildAppBar() {
-    return AppBar(
-      titleSpacing: 0,
-      title: Row(
-        children: [
-          Hero(
-            tag: 'chat_avatar_${widget.bookingId}',
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.grey[200]!, width: 2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: AppNetworkImage(
-                  imageUrl: widget.helperImage ?? '',
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.helperName ?? 'Helper',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Online',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+  Widget _buildInputArea(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AppTheme.spaceLG,
+        AppTheme.spaceMD,
+        AppTheme.spaceLG,
+        MediaQuery.of(context).padding.bottom + AppTheme.spaceMD,
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.more_vert),
-          onPressed: () {},
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
+      ),
+      child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColor.primaryColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD),
+              decoration: BoxDecoration(
+                color: AppColor.lightSurface,
+                borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+              ),
+              child: TextField(
+                controller: _messageController,
+                decoration: const InputDecoration(
+                  hintText: 'Type a message...',
+                  border: InputBorder.none,
+                ),
+                maxLines: null,
+              ),
             ),
-            child: const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: AppColor.primaryColor),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'No messages yet',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Start your conversation with your helper',
-            style: TextStyle(color: Colors.grey),
+          const SizedBox(width: AppTheme.spaceMD),
+          BlocBuilder<UserChatCubit, UserChatState>(
+            builder: (context, state) {
+              final isSending = state is ChatLoaded && state.isSending;
+              return CircleAvatar(
+                backgroundColor: AppColor.primaryColor,
+                child: IconButton(
+                  icon: isSending 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.send_rounded, color: Colors.white),
+                  onPressed: isSending ? null : () {
+                    if (_messageController.text.trim().isNotEmpty) {
+                      context.read<UserChatCubit>().sendMessage(
+                        widget.bookingId,
+                        _messageController.text.trim(),
+                      );
+                      _messageController.clear();
+                    }
+                  },
+                ),
+              );
+            },
           ),
         ],
       ),

@@ -1,4 +1,5 @@
-part of 'payment_cubit.dart';
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/payment_entity.dart';
 
 abstract class PaymentState extends Equatable {
   const PaymentState();
@@ -11,21 +12,19 @@ class PaymentInitial extends PaymentState {}
 
 class PaymentLoading extends PaymentState {}
 
-class PaymentCreated extends PaymentState {
+class PaymentInitiated extends PaymentState {
   final PaymentEntity payment;
 
-  const PaymentCreated(this.payment);
+  const PaymentInitiated(this.payment);
 
   @override
   List<Object?> get props => [payment];
 }
 
-class PaymentProcessing extends PaymentState {}
-
 class PaymentSuccess extends PaymentState {
-  final PaymentEntity? payment;
+  final PaymentEntity payment;
 
-  const PaymentSuccess({this.payment});
+  const PaymentSuccess(this.payment);
 
   @override
   List<Object?> get props => [payment];
@@ -38,14 +37,4 @@ class PaymentFailed extends PaymentState {
 
   @override
   List<Object?> get props => [message];
-}
-
-class PaymentWebviewOpen extends PaymentState {
-  final String paymentUrl;
-  final String paymentId;
-
-  const PaymentWebviewOpen({required this.paymentUrl, required this.paymentId});
-
-  @override
-  List<Object?> get props => [paymentUrl, paymentId];
 }

@@ -1,4 +1,5 @@
-part of 'booking_status_cubit.dart';
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/booking_detail_entity.dart';
 
 abstract class BookingStatusState extends Equatable {
   const BookingStatusState();
@@ -9,14 +10,18 @@ abstract class BookingStatusState extends Equatable {
 
 class BookingStatusInitial extends BookingStatusState {}
 
-class BookingStatusUpdated extends BookingStatusState {
-  final String status;
+class BookingStatusLoading extends BookingStatusState {}
 
-  const BookingStatusUpdated(this.status);
+class BookingStatusActive extends BookingStatusState {
+  final BookingDetailEntity booking;
+
+  const BookingStatusActive(this.booking);
 
   @override
-  List<Object?> get props => [status];
+  List<Object?> get props => [booking];
 }
+
+class BookingStatusNoActive extends BookingStatusState {}
 
 class BookingStatusError extends BookingStatusState {
   final String message;
@@ -25,31 +30,4 @@ class BookingStatusError extends BookingStatusState {
 
   @override
   List<Object?> get props => [message];
-}
-
-class BookingActiveFound extends BookingStatusState {
-  final BookingDetailEntity booking;
-
-  const BookingActiveFound(this.booking);
-
-  @override
-  List<Object?> get props => [booking];
-}
-
-class BookingAwaitingPayment extends BookingStatusState {
-  final BookingDetailEntity booking;
-
-  const BookingAwaitingPayment(this.booking);
-
-  @override
-  List<Object?> get props => [booking];
-}
-
-class BookingAwaitingRating extends BookingStatusState {
-  final BookingDetailEntity booking;
-
-  const BookingAwaitingRating(this.booking);
-
-  @override
-  List<Object?> get props => [booking];
 }

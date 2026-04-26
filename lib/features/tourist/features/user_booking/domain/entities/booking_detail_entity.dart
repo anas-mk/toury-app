@@ -4,17 +4,18 @@ import 'helper_booking_entity.dart';
 enum BookingStatus {
   pendingHelperResponse,
   acceptedByHelper,
+  confirmedAwaitingPayment,
   confirmedPaid,
+  upcoming,
   inProgress,
   completed,
+  declinedByHelper,
+  expiredNoResponse,
+  reassignmentInProgress,
+  waitingForUserAction,
   cancelledByUser,
   cancelledByHelper,
   cancelledBySystem,
-  pending, // Legacy/Helper
-  confirmed, // Legacy/Helper
-  expired, // Legacy/Helper
-  declined, // Legacy/Helper
-  confirmedAwaitingPayment, // Legacy/Helper
 }
 
 enum BookingType {

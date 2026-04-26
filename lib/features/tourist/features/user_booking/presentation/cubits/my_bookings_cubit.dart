@@ -1,45 +1,52 @@
-import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
-import '../../domain/entities/booking_detail_entity.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/usecases/get_my_bookings_usecase.dart';
-
-part 'my_bookings_state.dart';
+import 'my_bookings_state.dart';
 
 class MyBookingsCubit extends Cubit<MyBookingsState> {
   final GetMyBookingsUseCase getMyBookingsUseCase;
-  int _currentPage = 1;
-  bool _isFetching = false;
 
-  MyBookingsCubit({
-    required this.getMyBookingsUseCase,
-  }) : super(MyBookingsInitial());
+  MyBookingsCubit({required this.getMyBookingsUseCase}) : super(MyBookingsInitial());
 
-  Future<void> getBookings({String? status, bool refresh = false, int pageSize = 10}) async {
-    if (_isFetching) return;
-    if (refresh) {
-      _currentPage = 1;
-      emit(MyBookingsLoading());
-    } else if (state is MyBookingsLoaded) {
-      if (!(state as MyBookingsLoaded).hasNextPage) return;
-      _currentPage++;
+  Future<void> getBookings({int pageSize = 10, String? status, bool refresh = false}) async {
+    if (state is MyBookingsLoading && !refresh) return;
+
+    final currentState = state;
+    int pageToFetch = 1;
+
+    if (currentState is MyBookingsLoaded && !refresh) {
+      if (currentState.hasReachedMax) return;
+      pageToFetch = currentState.currentPage + 1;
     } else {
       emit(MyBookingsLoading());
     }
 
-    _isFetching = true;
-    final result = await getMyBookingsUseCase(page: _currentPage, pageSize: pageSize, status: status);
-    _isFetching = false;
+    final result = await getMyBookingsUseCase(
+      page: pageToFetch,
+      pageSize: pageSize,
+      status: status,
+    );
 
     result.fold(
       (failure) => emit(MyBookingsError(failure.message)),
       (pagedResponse) {
-        final List<BookingDetailEntity> currentItems = refresh ? [] : (state is MyBookingsLoaded ? (state as MyBookingsLoaded).bookings : []);
-        emit(MyBookingsLoaded(
-          bookings: [...currentItems, ...pagedResponse.items],
-          hasNextPage: pagedResponse.hasNextPage,
-          status: status,
-        ));
+        if (pageToFetch == 1) {
+          emit(MyBookingsLoaded(
+            bookings: pagedResponse.items,
+            hasReachedMax: !pagedResponse.hasNextPage,
+            currentPage: pagedResponse.pageNumber,
+          ));
+        } else if (currentState is MyBookingsLoaded) {
+          emit(MyBookingsLoaded(
+            bookings: currentState.bookings + pagedResponse.items,
+            hasReachedMax: !pagedResponse.hasNextPage,
+            currentPage: pagedResponse.pageNumber,
+          ));
+        }
       },
     );
+  }
+
+  Future<void> refreshBookings({int pageSize = 10, String? status}) async {
+    await getBookings(pageSize: pageSize, status: status, refresh: true);
   }
 }

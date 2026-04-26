@@ -15,7 +15,6 @@ import '../../features/tourist/features/auth/domain/usecases/get_cached_user_use
 import '../../features/tourist/features/auth/domain/usecases/resend_verification_code_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/verify_code_usecase.dart';
 import '../../features/tourist/features/profile/domain/usecases/update_profile_usecase.dart';
-import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_local_data_source.dart';
 import '../../features/tourist/features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/tourist/features/auth/domain/usecases/check_email_usecas.dart';
@@ -26,6 +25,7 @@ import '../../features/tourist/features/auth/domain/usecases/verify_password_use
 import '../../features/tourist/features/auth/domain/usecases/forgot_password_usecase.dart';
 import '../../features/tourist/features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
+import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
 
 
 // ============================================================
@@ -82,13 +82,18 @@ import '../../features/tourist/features/user_booking/domain/usecases/get_helper_
 import '../../features/tourist/features/user_booking/domain/usecases/get_my_bookings_usecase.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/search_helpers_usecase.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/scheduled_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/booking_details_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/cancel_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/alternatives_cubit.dart';
+import '../../features/tourist/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
+import '../../features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
+import '../../features/tourist/features/user_chat/presentation/cubit/user_chat_cubit.dart';
+import '../../features/tourist/features/user_booking_tracking/presentation/cubit/tracking_cubit.dart';
 
 // ============================================================
 // Tourist Payments Feature Imports
@@ -108,7 +113,6 @@ import '../../features/tourist/features/user_invoices/domain/usecases/get_invoic
 import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_detail_usecase.dart' as user_inv;
 import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_by_booking_usecase.dart' as user_inv;
 import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_html_usecase.dart' as user_inv;
-import '../../features/tourist/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
 import '../../features/tourist/features/user_ratings/data/datasources/rating_remote_datasource.dart';
 import '../../features/tourist/features/user_ratings/data/repositories/rating_repository_impl.dart';
 import '../../features/tourist/features/user_ratings/domain/repositories/rating_repository.dart';
@@ -117,15 +121,12 @@ import '../../features/tourist/features/user_ratings/domain/usecases/get_helper_
 import '../../features/tourist/features/user_ratings/domain/usecases/get_helper_ratings_usecase.dart' as user_rat;
 import '../../features/tourist/features/user_ratings/domain/usecases/get_user_rating_summary_usecase.dart' as user_rat;
 import '../../features/tourist/features/user_ratings/domain/usecases/rate_helper_usecase.dart' as user_rat;
-import '../../features/tourist/features/user_chat/presentation/cubit/user_chat_cubit.dart';
 import '../../features/tourist/features/user_booking_tracking/data/datasources/tracking_remote_datasource.dart';
 import '../../features/tourist/features/user_booking_tracking/data/repositories/tracking_repository_impl.dart';
 import '../../features/tourist/features/user_booking_tracking/domain/repositories/tracking_repository.dart';
 import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_latest_location_usecase.dart';
 import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_tracking_history_usecase.dart';
-import '../../features/tourist/features/user_booking_tracking/presentation/cubit/tracking_cubit.dart';
 import '../../core/services/signalr/booking_tracking_hub_service.dart';
-import '../../features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
 import '../../features/tourist/features/user_chat/data/datasources/user_chat_remote_datasource.dart';
 import '../../features/tourist/features/user_chat/data/repositories/user_chat_repository_impl.dart';
 import '../../features/tourist/features/user_chat/domain/repositories/user_chat_repository.dart';
@@ -415,6 +416,14 @@ Future<void> init() async {
   sl.registerFactory(() => CancelBookingCubit(
     cancelBookingUseCase: sl(),
   ));
+  sl.registerFactory(() => BookingCubit(
+    createInstantBookingUseCase: sl(),
+    createScheduledBookingUseCase: sl(),
+    getBookingDetailsUseCase: sl(),
+    cancelBookingUseCase: sl(),
+    getAlternativesUseCase: sl(),
+  ));
+  
   sl.registerFactory(() => AlternativesCubit(
     getAlternativesUseCase: sl(),
   ));
@@ -797,10 +806,8 @@ Future<void> init() async {
   sl.registerFactory(
     () => UserRatingsCubit(
       rateHelperUseCase: sl<user_rat.RateHelperUseCase>(),
-      getBookingRatingStateUseCase: sl<user_rat.GetBookingRatingStateUseCase>(),
       getHelperRatingsUseCase: sl<user_rat.GetHelperRatingsUseCase>(),
       getHelperRatingSummaryUseCase: sl<user_rat.GetHelperRatingSummaryUseCase>(),
-      getUserRatingSummaryUseCase: sl<user_rat.GetUserRatingSummaryUseCase>(),
     ),
   );
 
@@ -828,11 +835,9 @@ Future<void> init() async {
   // Cubits
   sl.registerFactory(
     () => UserChatCubit(
-      getChatConversationUseCase: sl(),
-      getChatMessagesUseCase: sl(),
-      sendChatMessageUseCase: sl(),
-      markChatAsReadUseCase: sl(),
-      listenToMessagesUseCase: sl(),
+      getMessagesUseCase: sl(),
+      sendMessageUseCase: sl(),
+      hubService: sl(),
     ),
   );
 
@@ -863,11 +868,8 @@ Future<void> init() async {
   // Cubits
   sl.registerFactory(
     () => TrackingCubit(
-      getLatestLocationUseCase: sl(),
-      getTrackingHistoryUseCase: sl(),
-      repository: sl(),
+      getTrackingUseCase: sl(),
       hubService: sl(),
-      authService: sl(),
     ),
   );
 
