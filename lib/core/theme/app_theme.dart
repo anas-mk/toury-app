@@ -1,7 +1,22 @@
 // lib/core/theme/app_theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../router/brand_page_route.dart';
 import 'app_color.dart';
+
+// Pass #4 — global page-transition theme: replaces the default Material
+// zoom with our brand parallax slide on every platform. The map is
+// applied identically to light + dark themes.
+const PageTransitionsTheme _brandPageTransitions = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: BrandPageTransitionsBuilder(),
+    TargetPlatform.iOS: BrandPageTransitionsBuilder(),
+    TargetPlatform.fuchsia: BrandPageTransitionsBuilder(),
+    TargetPlatform.linux: BrandPageTransitionsBuilder(),
+    TargetPlatform.macOS: BrandPageTransitionsBuilder(),
+    TargetPlatform.windows: BrandPageTransitionsBuilder(),
+  },
+);
 
 class AppTheme {
   // ============================================
@@ -72,7 +87,8 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      
+      pageTransitionsTheme: _brandPageTransitions,
+
       // Color Scheme
       colorScheme: const ColorScheme.light(
         primary: AppColor.primaryColor,
@@ -194,6 +210,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      pageTransitionsTheme: _brandPageTransitions,
 
       colorScheme: const ColorScheme.dark(
         primary: Colors.white,

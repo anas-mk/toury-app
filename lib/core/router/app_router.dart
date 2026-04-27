@@ -58,6 +58,7 @@ import '../../features/tourist/features/user_booking/presentation/pages/instant/
 import '../../features/tourist/features/user_booking/presentation/pages/instant/booking_confirmed_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant/trip_tracking_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant/trip_tracking_entry_page.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/instant/pay_now_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant/location_pick_result.dart';
 import '../../features/tourist/features/user_booking/domain/entities/alternatives_response.dart' as instant_alt;
 import '../../features/tourist/features/user_booking/domain/entities/booking_detail.dart' as instant_booking;
@@ -210,6 +211,7 @@ class AppRouter {
   static const String instantTripTracking = '/instant/tracking/:id';
   /// Push contract alias — same live map as [instantTripTracking].
   static const String tripLive = '/trip/:id';
+  static const String instantPayNow = '/instant/pay-now/:id';
   /// Push contract — `id` is booking / conversation id on the wire.
   static const String chatByConversation = '/chat/:id';
   static const String reports = '/reports';
@@ -574,8 +576,13 @@ class AppRouter {
                 name: 'home',
                 builder: (context, state) => MultiBlocProvider(
                   providers: [
-                    BlocProvider(create: (context) => sl<MyBookingsCubit>()..getBookings(pageSize: 5)),
-                    BlocProvider(create: (context) => sl<BookingStatusCubit>()..startPollingForActive()),
+                    // Cubits are created here, but the initial fetch is
+                    // owned by TouristHomePage.initState. Calling
+                    // ..getBookings(...) here causes the same endpoint to
+                    // fire twice on every home mount (once from the
+                    // cascade, once from initState's post-frame callback).
+                    BlocProvider(create: (context) => sl<MyBookingsCubit>()),
+                    BlocProvider(create: (context) => sl<BookingStatusCubit>()),
                     BlocProvider(create: (context) => sl<SearchHelpersCubit>()),
                   ],
                   child: const TouristHomePage(),
@@ -853,6 +860,19 @@ class AppRouter {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return TripTrackingEntryPage(bookingId: id);
+        },
+      ),
+      GoRoute(
+        path: instantPayNow,
+        name: 'instant-pay-now',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra;
+          InstantBookingCubit? cubit;
+          if (extra is Map<String, dynamic>) {
+            cubit = extra['cubit'] as InstantBookingCubit?;
+          }
+          return PayNowPage(bookingId: id, instantCubit: cubit);
         },
       ),
 

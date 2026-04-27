@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
+import '../../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../../core/theme/app_color.dart';
@@ -66,7 +68,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     try {
       await _hub.ensureConnected();
     } catch (e) {
-      debugPrint('ðŸ›°ï¸ TripTrackingPage: hub ensureConnected failed â†’ $e');
+      if (kDebugMode) {
+        debugPrint("TripTrackingPage: hub ensureConnected failed -> $e");
+      }
     }
   }
 
@@ -85,8 +89,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   void _onTripEnded(BookingTripEndedEvent event) {
     if (!mounted) return;
-    context.pushReplacement(
-      AppRouter.rateBooking.replaceFirst(':bookingId', widget.bookingId),
+    context.go(
+      AppRouter.instantPayNow.replaceFirst(':id', widget.bookingId),
+      extra: {'cubit': widget.cubit},
     );
   }
 
@@ -129,7 +134,12 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: widget.cubit,
-      child: Scaffold(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) context.go(AppRouter.home);
+        },
+        child: Scaffold(
         body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
           builder: (context, state) {
             final booking = _bookingFrom(state);
@@ -161,6 +171,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.toury.app',
+                      tileProvider: CachedTileProvider(),
                     ),
                     if (pickup != null && destination != null)
                       PolylineLayer(
@@ -221,7 +232,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                   left: AppTheme.spaceMD,
                   child: _BlurredCircleButton(
                     icon: Icons.arrow_back_rounded,
-                    onTap: () => context.pop(),
+                    onTap: () => context.go(AppRouter.home),
                   ),
                 ),
                 // Top-right recenter.
@@ -264,6 +275,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
               ],
             );
           },
+        ),
         ),
       ),
     );

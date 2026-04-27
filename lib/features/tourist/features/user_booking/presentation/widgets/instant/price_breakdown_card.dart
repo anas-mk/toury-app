@@ -12,6 +12,8 @@ class PriceBreakdownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currency = breakdown.currency ?? 'EGP';
+    final totalLabel =
+        breakdown.total == 0 ? '--' : breakdown.total.toStringAsFixed(2);
 
     final lines = <_Line>[
       if (breakdown.baseFare != null)
@@ -73,7 +75,7 @@ class PriceBreakdownCard extends StatelessWidget {
                 child: Text('Total', style: theme.textTheme.titleMedium),
               ),
               Text(
-                '$currency ${breakdown.total.toStringAsFixed(2)}',
+                '$currency $totalLabel',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),

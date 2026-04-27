@@ -16,17 +16,39 @@ class PriceBreakdownModel extends PriceBreakdown {
   });
 
   factory PriceBreakdownModel.fromJson(Map<String, dynamic> json) {
+    double? d(List<String> keys) =>
+        parseDoubleOrNull(pickJsonKey(json, keys));
+    final totalRaw = pickJsonKey(json, [
+      'finalPrice',
+      'FinalPrice',
+      'total',
+      'Total',
+      'subtotal',
+      'Subtotal',
+    ]);
+    var total = parseDouble(totalRaw);
+    if (total == 0) {
+      final sub = parseDoubleOrNull(pickJsonKey(json, ['subtotal', 'Subtotal']));
+      if (sub != null && sub > 0) total = sub;
+    }
     return PriceBreakdownModel(
-      baseFare: parseDoubleOrNull(json['baseFare']),
-      hourlyTotal: parseDoubleOrNull(json['hourlyTotal']),
-      carSurcharge: parseDoubleOrNull(json['carSurcharge']),
-      distanceFee: parseDoubleOrNull(json['distanceFee']),
-      travelerSurcharge: parseDoubleOrNull(json['travelerSurcharge']),
-      languageSurcharge: parseDoubleOrNull(json['languageSurcharge']),
-      discount: parseDoubleOrNull(json['discount']),
-      tax: parseDoubleOrNull(json['tax']),
-      total: parseDouble(json['total']),
-      currency: json['currency']?.toString(),
+      baseFare: d(['baseFare', 'BaseFare', 'basePrice', 'BasePrice']),
+      hourlyTotal: d([
+        'hourlyTotal',
+        'HourlyTotal',
+        'durationCost',
+        'DurationCost',
+      ]),
+      carSurcharge: d(['carSurcharge', 'CarSurcharge']),
+      distanceFee: d(['distanceFee', 'DistanceFee', 'distanceCost', 'DistanceCost']),
+      travelerSurcharge:
+          d(['travelerSurcharge', 'TravelerSurcharge']),
+      languageSurcharge:
+          d(['languageSurcharge', 'LanguageSurcharge']),
+      discount: d(['discount', 'Discount']),
+      tax: d(['tax', 'Tax', 'instantSurcharge', 'InstantSurcharge']),
+      total: total,
+      currency: pickJsonKey(json, ['currency', 'Currency'])?.toString(),
     );
   }
 }

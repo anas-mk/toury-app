@@ -16,6 +16,13 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
 
   StreamSubscription? _statusSubscription;
 
+  // Reentrancy guard. The home page can mount more than once during a
+  // session (tab switch, hot reload, deep-link). Without this guard
+  // we end up firing the same /api/user/bookings call multiple times
+  // in parallel, which both wastes battery and amplifies any
+  // server-side 500 into a flood of error logs.
+  bool _inFlight = false;
+
   BookingStatusCubit({
     required this.getBookingStatusUseCase,
     required this.getMyBookingsUseCase,
@@ -33,31 +40,51 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
   /// filter client-side using [BookingStatusChip.isActive], which keeps the
   /// definition of "active" in one place.
   Future<void> startPollingForActive() async {
-    emit(BookingStatusLoading());
-    final result = await getMyBookingsUseCase(pageSize: 10);
-    result.fold(
-      (failure) => emit(BookingStatusError(failure.message)),
-      (pagedResponse) {
-        final activeList = pagedResponse.items
-            .where((b) => BookingStatusChip.isActive(b.status))
-            .toList()
-          ..sort(
-            (a, b) {
-              final ar = _activeRank(a.status);
-              final br = _activeRank(b.status);
-              if (ar != br) return ar.compareTo(br);
-              return b.requestedDate.compareTo(a.requestedDate);
-            },
-          );
-        if (activeList.isNotEmpty) {
-          final activeBooking = activeList.first;
-          emit(BookingStatusActive(activeBooking));
-          _subscribeToStatusChanges(activeBooking.id);
-        } else {
-          emit(BookingStatusNoActive());
-        }
-      },
-    );
+    if (_inFlight) return;
+    _inFlight = true;
+
+    // Only show the loading shimmer on the very first call. Subsequent
+    // refreshes keep the existing card visible so the UI never blanks
+    // out under the user's finger.
+    if (state is BookingStatusInitial) {
+      emit(BookingStatusLoading());
+    }
+
+    try {
+      final result = await getMyBookingsUseCase(pageSize: 10);
+      result.fold(
+        (failure) {
+          // Network/500 is not fatal here — the active-trip banner is
+          // optional UI. Fall back to "no active" so the home page is
+          // fully interactive instead of stuck on a loading skeleton.
+          if (state is! BookingStatusActive) {
+            emit(BookingStatusNoActive());
+          }
+        },
+        (pagedResponse) {
+          final activeList = pagedResponse.items
+              .where((b) => BookingStatusChip.isActive(b.status))
+              .toList()
+            ..sort(
+              (a, b) {
+                final ar = _activeRank(a.status);
+                final br = _activeRank(b.status);
+                if (ar != br) return ar.compareTo(br);
+                return b.requestedDate.compareTo(a.requestedDate);
+              },
+            );
+          if (activeList.isNotEmpty) {
+            final activeBooking = activeList.first;
+            emit(BookingStatusActive(activeBooking));
+            _subscribeToStatusChanges(activeBooking.id);
+          } else {
+            emit(BookingStatusNoActive());
+          }
+        },
+      );
+    } finally {
+      _inFlight = false;
+    }
   }
 
   /// Lower rank wins: in-progress trips beat upcoming trips beat pending.

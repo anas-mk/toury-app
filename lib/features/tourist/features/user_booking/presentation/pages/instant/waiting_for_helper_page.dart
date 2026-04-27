@@ -7,8 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../../core/widgets/hero_header.dart';
+import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
@@ -109,25 +110,31 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: Stack(
               children: [
-                Container(
-                  height: MediaQuery.of(context).size.height * 0.55,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: kBrandGradient,
+                ClipPath(
+                  clipper: const _WaitingHeroBlobClipper(),
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.55,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        const RepaintBoundary(child: MeshGradientBackground()),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                BrandTokens.primaryBlueDark
+                                    .withValues(alpha: 0.05),
+                                BrandTokens.primaryBlueDark
+                                    .withValues(alpha: 0.30),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(36),
-                      bottomRight: Radius.circular(36),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: kBrandGradient.first.withValues(alpha: 0.28),
-                        blurRadius: 26,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
                   ),
                 ),
                 SafeArea(
@@ -291,7 +298,7 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
 
   void _onState(BuildContext context, InstantBookingState state) {
     if (state is InstantBookingAccepted) {
-      context.pushReplacement(
+      context.go(
         AppRouter.instantConfirmed
             .replaceFirst(':id', state.booking.bookingId),
         extra: {
@@ -400,5 +407,31 @@ class _AttemptBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WaitingHeroBlobClipper extends CustomClipper<Path> {
+  const _WaitingHeroBlobClipper();
+
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.lineTo(0, size.height - 50);
+    p.cubicTo(
+      size.width * 0.25, size.height - 10,
+      size.width * 0.55, size.height - 80,
+      size.width * 0.78, size.height - 40,
+    );
+    p.cubicTo(
+      size.width * 0.92, size.height - 20,
+      size.width, size.height - 50,
+      size.width, size.height - 80,
+    );
+    p.lineTo(size.width, 0);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 

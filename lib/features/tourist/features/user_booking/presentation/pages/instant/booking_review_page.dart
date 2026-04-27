@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
+import '../../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../../core/widgets/brand_widgets.dart';
 import '../../../../../../../core/widgets/hero_header.dart';
+import '../../../domain/entities/app_payment_method.dart';
 import '../../../domain/entities/create_instant_booking_request.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
@@ -16,7 +21,7 @@ import '../../widgets/instant/language_picker_sheet.dart';
 import '../../widgets/instant/price_breakdown_card.dart';
 import 'location_pick_result.dart';
 
-/// Step 6 â€” read-only review of the trip + helper before firing
+/// Step 6 — read-only review of the trip + helper before firing
 /// `POST /user/bookings/instant`. On success we replace the stack with
 /// the WaitingForHelperPage so back doesn't return here.
 class BookingReviewPage extends StatelessWidget {
@@ -48,6 +53,7 @@ class BookingReviewPage extends StatelessWidget {
     return BlocProvider.value(
       value: cubit,
       child: _ReviewView(
+        cubit: cubit,
         helper: helper,
         pickup: pickup,
         destination: destination,
@@ -61,7 +67,8 @@ class BookingReviewPage extends StatelessWidget {
   }
 }
 
-class _ReviewView extends StatelessWidget {
+class _ReviewView extends StatefulWidget {
+  final InstantBookingCubit cubit;
   final HelperSearchResult helper;
   final LocationPickResult pickup;
   final LocationPickResult destination;
@@ -72,6 +79,7 @@ class _ReviewView extends StatelessWidget {
   final String? notes;
 
   const _ReviewView({
+    required this.cubit,
     required this.helper,
     required this.pickup,
     required this.destination,
@@ -82,29 +90,67 @@ class _ReviewView extends StatelessWidget {
     required this.notes,
   });
 
-  void _confirm(BuildContext context) {
+  @override
+  State<_ReviewView> createState() => _ReviewViewState();
+}
+
+class _ReviewViewState extends State<_ReviewView> {
+  late AppPaymentMethod _paymentMethod;
+
+  @override
+  void initState() {
+    super.initState();
+    _paymentMethod = widget.cubit.selectedPaymentMethod;
+  }
+
+  bool get _canConfirm {
+    if (widget.pickup.name.trim().isEmpty ||
+        widget.destination.name.trim().isEmpty) {
+      return false;
+    }
+    if (widget.durationInMinutes < kMinDurationMinutes ||
+        widget.durationInMinutes > kMaxDurationMinutes) {
+      return false;
+    }
+    if (widget.travelers < 1 || widget.travelers > 20) return false;
+    return true;
+  }
+
+  void _fireCreate(BuildContext context) {
     final request = CreateInstantBookingRequest(
-      helperId: helper.helperId,
-      pickupLocationName: pickup.name,
-      pickupLatitude: pickup.latitude,
-      pickupLongitude: pickup.longitude,
-      destinationName: destination.name,
-      destinationLatitude: destination.latitude,
-      destinationLongitude: destination.longitude,
-      durationInMinutes: durationInMinutes,
-      requestedLanguage: languageCode,
-      requiresCar: requiresCar,
-      travelersCount: travelers,
-      notes: notes,
+      helperId: widget.helper.helperId,
+      pickupLocationName: widget.pickup.name,
+      pickupLatitude: widget.pickup.latitude,
+      pickupLongitude: widget.pickup.longitude,
+      destinationName: widget.destination.name,
+      destinationLatitude: widget.destination.latitude,
+      destinationLongitude: widget.destination.longitude,
+      durationInMinutes: widget.durationInMinutes,
+      requestedLanguage: widget.languageCode,
+      requiresCar: widget.requiresCar,
+      travelersCount: widget.travelers,
+      notes: widget.notes,
     );
     context.read<InstantBookingCubit>().createBooking(request);
+  }
+
+  void _onConfirmPressed(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    if (!_canConfirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(loc.bookingReviewValidationSnackbar)),
+      );
+      return;
+    }
+    _fireCreate(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final breakdown = helper.priceBreakdown;
-    final language = languageOptionForCode(languageCode);
+    final loc = AppLocalizations.of(context);
+    final breakdown = widget.helper.priceBreakdown;
+    final language = languageOptionForCode(widget.languageCode);
 
     return BlocConsumer<InstantBookingCubit, InstantBookingState>(
       listener: (context, state) {
@@ -124,7 +170,7 @@ class _ReviewView extends StatelessWidget {
             AppRouter.instantWaiting.replaceFirst(':id', booking.bookingId),
             extra: {
               'cubit': context.read<InstantBookingCubit>(),
-              'helper': helper,
+              'helper': widget.helper,
             },
           );
         }
@@ -143,10 +189,13 @@ class _ReviewView extends StatelessWidget {
                 AppTheme.spaceLG,
               ),
               child: _GradientCta(
-                label: loading ? 'Sending requestâ€¦' : 'Confirm & send request',
+                label: loading
+                    ? loc.bookingReviewConfirmLoading
+                    : loc.bookingReviewConfirm,
                 icon: Icons.send_rounded,
                 isLoading: loading,
-                onTap: loading ? null : () => _confirm(context),
+                visualEnabled: _canConfirm,
+                onTap: loading ? null : () => _onConfirmPressed(context),
               ),
             ),
           ),
@@ -155,67 +204,107 @@ class _ReviewView extends StatelessWidget {
               SliverPersistentHeader(
                 pinned: false,
                 delegate: HeroSliverHeader(
-                  title: 'Review your booking',
-                  subtitle: 'Make sure everything looks right',
+                  title: loc.bookingReviewTitle,
+                  subtitle: loc.bookingReviewSubtitle,
                   leadingIcon: Icons.fact_check_rounded,
                   height: 200,
+                  gradient: const [
+                    BrandTokens.primaryBlue,
+                    BrandTokens.primaryBlueDark,
+                  ],
                 ),
               ),
               SliverToBoxAdapter(
                 child: Transform.translate(
                   offset: const Offset(0, -28),
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceLG,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _HelperMiniCard(helper: helper),
+                        _HelperMiniCard(helper: widget.helper),
                         const SizedBox(height: AppTheme.spaceLG),
-                        SectionTitle('Itinerary'),
+                        BrandSectionTitle(loc.bookingReviewPaymentTitle),
                         const SizedBox(height: AppTheme.spaceSM),
-                        _ItineraryCard(
-                          pickup: pickup,
-                          destination: destination,
-                          durationLabel:
-                              formatDurationMinutes(durationInMinutes),
+                        BrandCard(
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<AppPaymentMethod>(
+                              segments: [
+                                ButtonSegment(
+                                  value: AppPaymentMethod.cash,
+                                  label: Text(loc.bookingReviewPayCash),
+                                  icon: const Icon(Icons.payments_outlined, size: 18),
+                                ),
+                                ButtonSegment(
+                                  value: AppPaymentMethod.mockCard,
+                                  label: Text(loc.bookingReviewPayCard),
+                                  icon: const Icon(Icons.credit_card, size: 18),
+                                ),
+                              ],
+                              selected: {_paymentMethod},
+                              onSelectionChanged: (s) {
+                                final m = s.first;
+                                setState(() => _paymentMethod = m);
+                                widget.cubit.setPaymentMethod(m);
+                              },
+                            ),
+                          ),
                         ),
                         const SizedBox(height: AppTheme.spaceLG),
-                        SectionTitle('Trip details'),
+                        BrandSectionTitle(loc.bookingReviewItinerary),
+                        const SizedBox(height: AppTheme.spaceSM),
+                        _ItineraryCard(
+                          pickup: widget.pickup,
+                          destination: widget.destination,
+                          pickupLabel: loc.bookingReviewPickupLabel,
+                          destinationLabel: loc.bookingReviewDestinationLabel,
+                          durationLabel: formatDurationMinutes(
+                            widget.durationInMinutes,
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spaceLG),
+                        BrandSectionTitle(loc.bookingReviewTripDetails),
                         const SizedBox(height: AppTheme.spaceSM),
                         _DetailsCard(
                           rows: [
                             _DetailRow(
                               icon: Icons.schedule_rounded,
-                              label: 'Duration',
-                              value: formatDurationMinutes(durationInMinutes),
+                              label: loc.bookingReviewDuration,
+                              value: formatDurationMinutes(
+                                widget.durationInMinutes,
+                              ),
                               color: AppColor.secondaryColor,
                             ),
                             _DetailRow(
                               icon: Icons.group_rounded,
-                              label: 'Travelers',
-                              value: '$travelers',
+                              label: loc.bookingReviewTravelers,
+                              value: '${widget.travelers}',
                               color: AppColor.accentColor,
                             ),
                             _DetailRow(
                               icon: Icons.translate_rounded,
-                              label: 'Preferred language',
+                              label: loc.bookingReviewLanguage,
                               value: language.name,
                               color: AppColor.secondaryColor,
                             ),
                             _DetailRow(
                               icon: Icons.directions_car_rounded,
-                              label: 'Car required',
-                              value: requiresCar ? 'Yes' : 'No',
+                              label: loc.bookingReviewCar,
+                              value: widget.requiresCar
+                                  ? loc.bookingReviewYes
+                                  : loc.bookingReviewNo,
                               color: AppColor.warningColor,
                             ),
                           ],
                         ),
-                        if ((notes ?? '').isNotEmpty) ...[
+                        if ((widget.notes ?? '').isNotEmpty) ...[
                           const SizedBox(height: AppTheme.spaceLG),
-                          SectionTitle('Notes'),
+                          BrandSectionTitle(loc.bookingReviewNotes),
                           const SizedBox(height: AppTheme.spaceSM),
-                          _SoftCard(
+                          BrandCard(
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -226,7 +315,7 @@ class _ReviewView extends StatelessWidget {
                                 const SizedBox(width: AppTheme.spaceSM),
                                 Expanded(
                                   child: Text(
-                                    notes!,
+                                    widget.notes!,
                                     style: theme.textTheme.bodyMedium?.copyWith(
                                       height: 1.4,
                                     ),
@@ -237,44 +326,15 @@ class _ReviewView extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: AppTheme.spaceLG),
-                        SectionTitle('Price breakdown'),
+                        BrandSectionTitle(loc.bookingReviewPriceBreakdown),
                         const SizedBox(height: AppTheme.spaceSM),
                         if (breakdown != null)
                           PriceBreakdownCard(breakdown: breakdown)
                         else
-                          _SoftCard(
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: AppColor.accentColor
-                                        .withValues(alpha: 0.12),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.payments_rounded,
-                                    color: AppColor.accentColor,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: AppTheme.spaceMD),
-                                Expanded(
-                                  child: Text(
-                                    'Estimated total',
-                                    style: theme.textTheme.titleMedium,
-                                  ),
-                                ),
-                                Text(
-                                  'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColor.accentColor,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          _PriceEstimateFallback(
+                            theme: theme,
+                            loc: loc,
+                            estimatedPrice: widget.helper.estimatedPrice,
                           ),
                         const SizedBox(height: 110),
                       ],
@@ -290,26 +350,95 @@ class _ReviewView extends StatelessWidget {
   }
 }
 
-class _SoftCard extends StatelessWidget {
-  final Widget child;
-  const _SoftCard({required this.child});
+class _PriceEstimateFallback extends StatelessWidget {
+  final ThemeData theme;
+  final AppLocalizations loc;
+  final double estimatedPrice;
+
+  const _PriceEstimateFallback({
+    required this.theme,
+    required this.loc,
+    required this.estimatedPrice,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+    final totalLabel = estimatedPrice <= 0
+        ? '--'
+        : 'EGP ${estimatedPrice.toStringAsFixed(0)}';
+    return BrandCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Shimmer.fromColors(
+            baseColor: BrandTokens.borderSoft,
+            highlightColor: BrandTokens.bgSoft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 12,
+                  width: 160,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  height: 12,
+                  width: 220,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceMD),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColor.accentColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.payments_rounded,
+                  color: AppColor.accentColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spaceMD),
+              Expanded(
+                child: Text(
+                  loc.bookingReviewEstimatedTotal,
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              Text(
+                totalLabel,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColor.accentColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spaceSM),
+          BrandOutlinedButton(
+            label: loc.retry,
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(loc.bookingReviewPriceRetry)),
+              );
+            },
           ),
         ],
       ),
-      child: child,
     );
   }
 }
@@ -402,10 +531,14 @@ class _HelperMiniCard extends StatelessWidget {
 class _ItineraryCard extends StatelessWidget {
   final LocationPickResult pickup;
   final LocationPickResult destination;
+  final String pickupLabel;
+  final String destinationLabel;
   final String durationLabel;
   const _ItineraryCard({
     required this.pickup,
     required this.destination,
+    required this.pickupLabel,
+    required this.destinationLabel,
     required this.durationLabel,
   });
 
@@ -429,7 +562,7 @@ class _ItineraryCard extends StatelessWidget {
         children: [
           _Endpoint(
             color: AppColor.accentColor,
-            label: 'PICKUP',
+            label: pickupLabel,
             name: pickup.name,
             address: pickup.address,
           ),
@@ -481,7 +614,7 @@ class _ItineraryCard extends StatelessWidget {
           ),
           _Endpoint(
             color: AppColor.errorColor,
-            label: 'DESTINATION',
+            label: destinationLabel,
             name: destination.name,
             address: destination.address,
           ),
@@ -655,11 +788,14 @@ class _GradientCta extends StatefulWidget {
   final IconData icon;
   final bool isLoading;
   final VoidCallback? onTap;
+  final bool visualEnabled;
+
   const _GradientCta({
     required this.label,
     required this.icon,
     required this.isLoading,
     required this.onTap,
+    this.visualEnabled = true,
   });
 
   @override
@@ -672,11 +808,13 @@ class _GradientCtaState extends State<_GradientCta> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null && !widget.isLoading;
+    final muted = enabled && !widget.visualEnabled;
+    final opacity = widget.isLoading ? 1.0 : (muted ? 0.55 : 1.0);
     return AnimatedScale(
       duration: const Duration(milliseconds: 90),
       scale: _down ? 0.98 : 1,
       child: Opacity(
-        opacity: enabled ? 1 : 0.7,
+        opacity: opacity,
         child: GestureDetector(
           onTapDown: enabled ? (_) => setState(() => _down = true) : null,
           onTapCancel: enabled ? () => setState(() => _down = false) : null,
@@ -688,7 +826,7 @@ class _GradientCtaState extends State<_GradientCta> {
               gradient: const LinearGradient(
                 colors: [AppColor.accentColor, AppColor.secondaryColor],
               ),
-              boxShadow: enabled
+              boxShadow: (enabled && widget.visualEnabled)
                   ? [
                       BoxShadow(
                         color: AppColor.accentColor.withValues(alpha: 0.32),

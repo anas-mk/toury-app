@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/utils/responsive.dart';
 import '../../../../../../../core/widgets/hero_header.dart';
 import '../../../domain/entities/alternatives_response.dart';
 import '../../../domain/entities/booking_detail.dart';
@@ -15,7 +17,7 @@ import '../../widgets/instant/helper_suitability_card.dart';
 import 'location_pick_result.dart';
 import 'location_picker_page.dart';
 
-/// Step 8 â€” shown when the original helper declined / expired or the
+/// Step 8 — shown when the original helper declined / expired or the
 /// system asked the user to pick again.
 class BookingAlternativesPage extends StatefulWidget {
   final InstantBookingCubit cubit;
@@ -62,116 +64,83 @@ class _BookingAlternativesPageState extends State<BookingAlternativesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    final empty = widget.alternatives.alternativeHelpers.isEmpty;
     return BlocProvider.value(
       value: widget.cubit,
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: widget.alternatives.alternativeHelpers.isEmpty
-            ? CustomScrollView(
-                slivers: [
-                  SliverPersistentHeader(
-                    pinned: false,
-                    delegate: HeroSliverHeader(
-                      title: 'Pick another helper',
-                      subtitle:
-                          'We found a few helpers who could take this trip',
-                      leadingIcon: Icons.swap_horiz_rounded,
-                      gradient: const [
-                        AppColor.warningColor,
-                        AppColor.errorColor,
-                      ],
-                      height: 200,
-                    ),
-                  ),
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.person_search_rounded,
-                      title: 'No helpers available',
-                      message: widget.alternatives.message,
-                      actionLabel: 'Back to home',
-                      onAction: () => context.go(AppRouter.bookingHome),
-                    ),
-                  ),
+        backgroundColor: BrandTokens.bgSoft,
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverPersistentHeader(
+              pinned: false,
+              delegate: HeroSliverHeader(
+                title: 'Pick another helper',
+                subtitle: 'We found a few helpers who could take this trip',
+                leadingIcon: Icons.swap_horiz_rounded,
+                gradient: const [
+                  AppColor.warningColor,
+                  AppColor.errorColor,
                 ],
+                height: r.pick(compact: 180.0, phone: 200.0, tablet: 220.0),
+              ),
+            ),
+            if (empty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyState(
+                  icon: Icons.person_search_rounded,
+                  title: 'No helpers available',
+                  message: widget.alternatives.message,
+                  actionLabel: 'Back to home',
+                  onAction: () => context.go(AppRouter.bookingHome),
+                ),
               )
-            : CustomScrollView(
-                slivers: [
-                  SliverPersistentHeader(
-                    pinned: false,
-                    delegate: HeroSliverHeader(
-                      title: 'Pick another helper',
-                      subtitle:
-                          'We found a few helpers who could take this trip',
-                      leadingIcon: Icons.swap_horiz_rounded,
-                      gradient: const [
-                        AppColor.warningColor,
-                        AppColor.errorColor,
-                      ],
-                      height: 200,
-                    ),
-                  ),
-                  SliverToBoxAdapter(
+            else
+              SliverToBoxAdapter(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(maxWidth: r.contentMaxWidth),
                     child: Transform.translate(
-                      offset: const Offset(0, -32),
+                      offset: Offset(0,
+                          -r.pick(compact: 26.0, phone: 32.0, tablet: 40.0)),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spaceLG,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: r.pagePadding,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _Banner(
                               message: widget.alternatives.message,
-                              isAutoRetry: widget.alternatives.autoRetryActive,
+                              isAutoRetry:
+                                  widget.alternatives.autoRetryActive,
                             ),
                             if (!_hasDestinationCoords) ...[
-                              const SizedBox(height: AppTheme.spaceMD),
-                              _MissingDestinationCard(onPick: _pickDestination),
+                              SizedBox(height: r.gapSM + 2),
+                              _MissingDestinationCard(
+                                  onPick: _pickDestination),
                             ],
-                            const SizedBox(height: AppTheme.spaceLG),
+                            SizedBox(height: r.gap),
                             if (widget.alternatives.assignmentHistory
                                 .isNotEmpty) ...[
                               _History(
-                                history: widget.alternatives.assignmentHistory,
+                                history:
+                                    widget.alternatives.assignmentHistory,
                               ),
-                              const SizedBox(height: AppTheme.spaceLG),
+                              SizedBox(height: r.gap),
                             ],
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SectionTitle('Available helpers'),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColor.accentColor
-                                        .withValues(alpha: 0.10),
-                                    borderRadius: BorderRadius.circular(
-                                      AppTheme.radiusFull,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '${widget.alternatives.alternativeHelpers.length}',
-                                    style: const TextStyle(
-                                      color: AppColor.accentColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            _ListHeader(
+                              count: widget.alternatives
+                                  .alternativeHelpers.length,
                             ),
-                            const SizedBox(height: AppTheme.spaceSM),
-                            for (final h
-                                in widget.alternatives.alternativeHelpers)
+                            SizedBox(height: r.gapSM),
+                            for (final h in widget
+                                .alternatives.alternativeHelpers)
                               Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppTheme.spaceMD,
-                                ),
+                                padding: EdgeInsets.only(bottom: r.gapSM + 2),
                                 child: Stack(
                                   children: [
                                     HelperSuitabilityCard(
@@ -196,9 +165,7 @@ class _BookingAlternativesPageState extends State<BookingAlternativesPage> {
                                           ignoring: true,
                                           child: ClipRRect(
                                             borderRadius:
-                                                BorderRadius.circular(
-                                              AppTheme.radiusLG,
-                                            ),
+                                                BorderRadius.circular(22),
                                             child: Container(
                                               color: Colors.white
                                                   .withValues(alpha: 0.55),
@@ -209,14 +176,16 @@ class _BookingAlternativesPageState extends State<BookingAlternativesPage> {
                                   ],
                                 ),
                               ),
-                            const SizedBox(height: 40),
+                            SizedBox(height: r.gapXL),
                           ],
                         ),
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
+          ],
+        ),
       ),
     );
   }
@@ -266,6 +235,63 @@ class _BookingAlternativesPageState extends State<BookingAlternativesPage> {
   }
 }
 
+class _ListHeader extends StatelessWidget {
+  final int count;
+  const _ListHeader({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                BrandTokens.successGreen,
+                BrandTokens.primaryBlue,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Available helpers',
+            style: BrandTokens.heading(
+              fontSize: r.fontTitle,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(40),
+          ),
+          child: Text(
+            '$count',
+            style: BrandTokens.numeric(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Banner extends StatelessWidget {
   final String message;
   final bool isAutoRetry;
@@ -273,19 +299,16 @@ class _Banner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final r = Responsive.of(context);
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      padding: EdgeInsets.all(r.gap),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: BrandTokens.borderSoft.withValues(alpha: 0.7),
+        ),
+        boxShadow: BrandTokens.cardShadow,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,51 +317,68 @@ class _Banner extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColor.warningColor.withValues(alpha: 0.18),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  BrandTokens.warningAmber.withValues(alpha: 0.95),
+                  BrandTokens.accentAmber,
+                ],
+              ),
               shape: BoxShape.circle,
+              boxShadow: const [
+                BoxShadow(
+                  color: BrandTokens.glowAmber,
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ],
             ),
             child: const Icon(
               Icons.info_outline_rounded,
-              color: AppColor.warningColor,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(width: AppTheme.spaceMD),
+          SizedBox(width: r.gapSM + 2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   message,
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: BrandTokens.body(
+                    fontSize: r.fontBody,
                     fontWeight: FontWeight.w600,
+                    color: BrandTokens.textPrimary,
+                    height: 1.4,
                   ),
                 ),
                 if (isAutoRetry) ...[
-                  const SizedBox(height: AppTheme.spaceSM),
+                  SizedBox(height: r.gapSM),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceSM,
-                      vertical: 4,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColor.accentColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                      color: BrandTokens.successGreen.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(40),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(
+                      children: [
+                        const Icon(
                           Icons.bolt_rounded,
-                          size: 14,
-                          color: AppColor.accentColor,
+                          size: 13,
+                          color: BrandTokens.successGreen,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
                           'Auto retry active',
-                          style: TextStyle(
-                            color: AppColor.accentColor,
-                            fontWeight: FontWeight.w700,
+                          style: BrandTokens.body(
                             fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: BrandTokens.successGreen,
                           ),
                         ),
                       ],

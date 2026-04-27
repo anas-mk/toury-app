@@ -34,6 +34,16 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // Pass #4 perf hardening: R8 + resource shrink trim ~6-10 MB off the
+            // APK and remove unused classes/strings, which is also a small
+            // cold-start win because the runtime class loader has less to do.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

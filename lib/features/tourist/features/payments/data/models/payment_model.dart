@@ -15,17 +15,38 @@ class PaymentModel extends PaymentEntity {
   });
 
   factory PaymentModel.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic> m = json;
+    final inner = m['data'];
+    if (inner is Map<String, dynamic>) m = inner;
+
+    dynamic p(String camel, String pascal) => m[camel] ?? m[pascal];
+
+    String ps(String camel, String pascal) =>
+        p(camel, pascal)?.toString() ?? '';
+
+    double amount(dynamic v) {
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? 0.0;
+      return 0.0;
+    }
+
+    DateTime? ts(dynamic v) {
+      if (v == null) return null;
+      if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
+      return null;
+    }
+
     return PaymentModel(
-      paymentId: json['paymentId'] ?? '',
-      bookingId: json['bookingId'] ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] ?? 'EGP',
-      method: json['method'] ?? 'Unknown',
-      status: _parseStatus(json['status']),
-      paymentUrl: json['paymentUrl'],
-      phase: _parsePhase(json['phase']),
-      initiatedAt: json['initiatedAt'] != null ? DateTime.parse(json['initiatedAt']) : null,
-      completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
+      paymentId: ps('paymentId', 'PaymentId'),
+      bookingId: ps('bookingId', 'BookingId'),
+      amount: amount(p('amount', 'Amount')),
+      currency: ps('currency', 'Currency').isEmpty ? 'EGP' : ps('currency', 'Currency'),
+      method: ps('method', 'Method').isEmpty ? 'Unknown' : ps('method', 'Method'),
+      status: _parseStatus(p('status', 'Status')?.toString()),
+      paymentUrl: p('paymentUrl', 'PaymentUrl')?.toString(),
+      phase: _parsePhase(p('phase', 'Phase')?.toString()),
+      initiatedAt: ts(p('initiatedAt', 'InitiatedAt')),
+      completedAt: ts(p('completedAt', 'CompletedAt')),
     );
   }
 
@@ -43,6 +64,9 @@ class PaymentModel extends PaymentEntity {
       case 'refunded':
         return PaymentStatus.refunded;
       case 'failed':
+        return PaymentStatus.failed;
+      case 'cancelled':
+      case 'canceled':
         return PaymentStatus.failed;
       default:
         return PaymentStatus.paymentPending;

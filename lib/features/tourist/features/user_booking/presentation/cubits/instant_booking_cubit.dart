@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/services/realtime/booking_realtime_event_bus.dart';
 import '../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
+import '../../domain/entities/app_payment_method.dart';
 import '../../domain/entities/booking_detail.dart';
 import '../../domain/entities/booking_status.dart';
 import '../../domain/entities/create_instant_booking_request.dart';
@@ -43,6 +44,12 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
   final GetBookingDetailUC getBookingDetailUC;
   final GetAlternativesUC getAlternativesUC;
   final BookingTrackingHubService hubService;
+
+  AppPaymentMethod _selectedPaymentMethod = AppPaymentMethod.cash;
+  AppPaymentMethod get selectedPaymentMethod => _selectedPaymentMethod;
+  void setPaymentMethod(AppPaymentMethod m) {
+    _selectedPaymentMethod = m;
+  }
 
   StreamSubscription<BookingRealtimeBusEvent>? _statusSub;
   StreamSubscription<BookingRealtimeBusEvent>? _cancelledSub;
@@ -106,7 +113,9 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
     try {
       await hubService.ensureConnected();
     } catch (e) {
-      debugPrint('⚠️ InstantBookingCubit: SignalR ensureConnected failed → $e');
+      if (kDebugMode) {
+        debugPrint('⚠️ InstantBookingCubit: SignalR ensureConnected failed → $e');
+      }
     }
 
     _statusSub = BookingRealtimeEventBus.instance.stream
@@ -143,14 +152,18 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
   }
 
   Future<void> _onStatusChanged(BookingStatusChangedEvent event) async {
-    debugPrint(
-      '📡 BookingStatusChanged: ${event.oldStatus} → ${event.newStatus}',
-    );
+    if (kDebugMode) {
+      debugPrint(
+        '📡 BookingStatusChanged: ${event.oldStatus} → ${event.newStatus}',
+      );
+    }
     await _refreshBooking(event.bookingId);
   }
 
   Future<void> _onCancelled(BookingCancelledEvent event) async {
-    debugPrint('📡 BookingCancelled: ${event.reason}');
+    if (kDebugMode) {
+      debugPrint('📡 BookingCancelled: ${event.reason}');
+    }
     await _refreshBooking(event.bookingId);
   }
 

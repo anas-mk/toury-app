@@ -112,6 +112,17 @@ class _RealtimeDiagnosticsPageState extends State<RealtimeDiagnosticsPage> {
             onPressed: _sendingTest ? null : _onSendTestPush,
             label: const Text('Send test push to this device'),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.notifications_active_outlined),
+            onPressed: () {
+              _messaging.debugFakeForegroundHeadsUp();
+              setState(() {
+                _testResult = 'Synthetic foreground heads-up fired (local).';
+              });
+            },
+            label: const Text('Fake foreground heads-up (local)'),
+          ),
           if (_testResult != null) ...[
             const SizedBox(height: 8),
             Text(_testResult!, style: theme.textTheme.bodySmall),

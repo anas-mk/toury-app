@@ -72,6 +72,10 @@ class BookingRealtimeEventBus {
 
   final List<StreamSubscription<dynamic>> _subs = [];
 
+  /// Optional hook after each event is published (e.g. in-app banner).
+
+  void Function(BookingRealtimeBusEvent event)? onEventPublished;
+
   /// Idempotent — safe to call again; cancels prior fan-in taps.
   void attach(BookingTrackingHubService hub) {
     for (final s in _subs) {
@@ -80,7 +84,13 @@ class BookingRealtimeEventBus {
     _subs.clear();
 
     void tap<T>(Stream<T> source, BookingRealtimeBusEvent Function(T) wrap) {
-      _subs.add(source.listen((e) => _controller.add(wrap(e))));
+      _subs.add(
+        source.listen((e) {
+          final ev = wrap(e);
+          _controller.add(ev);
+          onEventPublished?.call(ev);
+        }),
+      );
     }
 
     tap(hub.bookingStatusChangedStream, BusBookingStatusChanged.new);

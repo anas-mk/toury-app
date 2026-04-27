@@ -14,12 +14,14 @@ class NominatimResult {
   final double lng;
   final String name;
   final String displayName;
+  final String? category; // poi / road / address / city ... (used for icons)
 
   const NominatimResult({
     required this.lat,
     required this.lng,
     required this.name,
     required this.displayName,
+    this.category,
   });
 
   factory NominatimResult.fromSearchJson(Map<String, dynamic> json) {
@@ -31,6 +33,7 @@ class NominatimResult {
       lng: lon,
       name: _shortLabelFromSearch(json, displayName),
       displayName: displayName,
+      category: (json['category'] ?? json['type'])?.toString(),
     );
   }
 
@@ -45,8 +48,26 @@ class NominatimResult {
       lng: lng,
       name: _shortLabelFromReverse(json, displayName, lat, lng),
       displayName: displayName,
+      category: (json['category'] ?? json['type'])?.toString(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'lat': lat,
+        'lng': lng,
+        'name': name,
+        'displayName': displayName,
+        if (category != null) 'category': category,
+      };
+
+  factory NominatimResult.fromCacheJson(Map<String, dynamic> json) =>
+      NominatimResult(
+        lat: (json['lat'] as num?)?.toDouble() ?? 0,
+        lng: (json['lng'] as num?)?.toDouble() ?? 0,
+        name: (json['name'] ?? '').toString(),
+        displayName: (json['displayName'] ?? '').toString(),
+        category: json['category']?.toString(),
+      );
 
   static String _shortLabelFromSearch(
     Map<String, dynamic> json,
@@ -127,6 +148,12 @@ class NominatimResult {
 /// block clients otherwise), so we always inject one. We also expose the
 /// in-flight `CancelToken` so the caller can stop a stale request when the
 /// user keeps typing.
+///
+/// Pass #5 upgrades for Egyptian region coverage:
+///  - `countrycodes=eg` biases every search to Egypt first.
+///  - Defaults to `Accept-Language: ar,en` so road / district names come
+///    back in Arabic when available, with English as a graceful fallback.
+///  - Optional viewbox + bounded around the user's current location.
 class NominatimService {
   static const String _userAgent =
       'RAFIQ-UserApp/1.0 (contact: support@rafiq.app)';
@@ -140,10 +167,6 @@ class NominatimService {
   NominatimService({Dio? dio})
       : _dio = dio ??
             Dio(BaseOptions(
-              // Tight timeouts so the search bar surfaces a clear
-              // "Search failed. Try again." pill within ~6s instead of
-              // sitting on a spinner for almost 20s when Nominatim is
-              // slow or the emulator network is flaky.
               connectTimeout: const Duration(seconds: 5),
               receiveTimeout: const Duration(seconds: 6),
               sendTimeout: const Duration(seconds: 5),
@@ -156,26 +179,43 @@ class NominatimService {
 
   Future<List<NominatimResult>> search({
     required String query,
-    int limit = 6,
-    String? acceptLanguage,
+    int limit = 8,
+    String acceptLanguage = 'ar,en',
+    String countryCodes = 'eg',
+    double? nearLat,
+    double? nearLng,
     CancelToken? cancelToken,
   }) async {
     if (query.trim().length < 2) return const [];
     try {
-      debugPrint('[Nominatim] GET $_searchEndpoint?q=$query');
+      final params = <String, dynamic>{
+        'q': query,
+        'format': 'jsonv2',
+        'addressdetails': 1,
+        'limit': limit,
+        'countrycodes': countryCodes,
+        'dedupe': 1,
+      };
+      // Bias the search around the user's current map view if we have it.
+      // ~0.5° box ≈ 55km — good enough to prefer local results without
+      // becoming an exclusive bounded search.
+      if (nearLat != null && nearLng != null) {
+        const span = 0.5;
+        params['viewbox'] =
+            '${nearLng - span},${nearLat + span},${nearLng + span},${nearLat - span}';
+        params['bounded'] = 0;
+      }
+      if (kDebugMode) {
+        debugPrint('[Nominatim] GET $_searchEndpoint q="$query" cc=$countryCodes');
+      }
       final res = await _dio.get<String>(
         _searchEndpoint,
         cancelToken: cancelToken,
-        queryParameters: {
-          'q': query,
-          'format': 'jsonv2',
-          'addressdetails': 1,
-          'limit': limit,
-        },
+        queryParameters: params,
         options: Options(
           headers: {
             'User-Agent': _userAgent,
-            if (acceptLanguage != null) 'Accept-Language': acceptLanguage,
+            'Accept-Language': acceptLanguage,
           },
         ),
       );
@@ -189,10 +229,10 @@ class NominatimService {
           .toList();
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) return const [];
-      debugPrint('[Nominatim] search failed: ${e.message}');
+      if (kDebugMode) debugPrint('[Nominatim] search failed: ${e.message}');
       rethrow;
     } catch (e) {
-      debugPrint('[Nominatim] search error: $e');
+      if (kDebugMode) debugPrint('[Nominatim] search error: $e');
       rethrow;
     }
   }
@@ -200,11 +240,13 @@ class NominatimService {
   Future<NominatimResult?> reverse({
     required double lat,
     required double lng,
-    String? acceptLanguage,
+    String acceptLanguage = 'ar,en',
     CancelToken? cancelToken,
   }) async {
     try {
-      debugPrint('[Nominatim] GET $_reverseEndpoint?lat=$lat&lon=$lng');
+      if (kDebugMode) {
+        debugPrint('[Nominatim] GET $_reverseEndpoint lat=$lat lng=$lng');
+      }
       final res = await _dio.get<String>(
         _reverseEndpoint,
         cancelToken: cancelToken,
@@ -218,7 +260,7 @@ class NominatimService {
         options: Options(
           headers: {
             'User-Agent': _userAgent,
-            if (acceptLanguage != null) 'Accept-Language': acceptLanguage,
+            'Accept-Language': acceptLanguage,
           },
         ),
       );
@@ -229,10 +271,10 @@ class NominatimService {
       return NominatimResult.fromReverseJson(decoded, lat: lat, lng: lng);
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) return null;
-      debugPrint('[Nominatim] reverse failed: ${e.message}');
+      if (kDebugMode) debugPrint('[Nominatim] reverse failed: ${e.message}');
       return null;
     } catch (e) {
-      debugPrint('[Nominatim] reverse error: $e');
+      if (kDebugMode) debugPrint('[Nominatim] reverse error: $e');
       return null;
     }
   }

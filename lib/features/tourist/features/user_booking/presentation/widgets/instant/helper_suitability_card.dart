@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/utils/responsive.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
 import '../../../domain/entities/helper_search_result.dart';
 
+/// Pass #5 redesign — modern, glanceable card for the "available helpers"
+/// list. Replaces the previous flat row with:
+///   • Floating gradient match-score badge
+///   • Avatar with verified halo + status dot
+///   • Stat row (rating, trips, distance) as compact chips
+///   • Capability chips (languages, car, response)
+///   • Inline price strip with subtle gradient and CTA chevron
 class HelperSuitabilityCard extends StatelessWidget {
   final HelperSearchResult helper;
   final VoidCallback onTap;
@@ -17,29 +25,35 @@ class HelperSuitabilityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final r = Responsive.of(context);
     final scoreColor = _matchColor(helper.matchScore);
 
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(22),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Container(
-              padding: const EdgeInsets.all(AppTheme.spaceMD),
+              padding: EdgeInsets.fromLTRB(
+                r.gap,
+                r.gap,
+                r.gap,
+                r.gapSM + 2,
+              ),
               decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.07),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+                color: BrandTokens.surfaceWhite,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: BrandTokens.borderSoft.withValues(alpha: 0.7),
+                ),
+                boxShadow: BrandTokens.cardShadow,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,181 +61,66 @@ class HelperSuitabilityCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Stack(
-                        children: [
-                          AppNetworkImage(
-                            imageUrl: helper.profileImageUrl,
-                            width: 60,
-                            height: 60,
-                            borderRadius: 30,
-                          ),
-                          Positioned(
-                            right: -2,
-                            bottom: -2,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: theme.cardColor,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.verified_rounded,
-                                size: 16,
-                                color: AppColor.accentColor,
-                              ),
-                            ),
-                          ),
-                        ],
+                      _Avatar(
+                        imageUrl: helper.profileImageUrl,
+                        size: r.pick(compact: 52.0, phone: 60.0, tablet: 68.0),
                       ),
-                      const SizedBox(width: AppTheme.spaceMD),
+                      SizedBox(width: r.gapSM + 2),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // leave room for the score badge in the corner
+                            // Name with right padding so the floating
+                            // score badge never overlaps the text.
                             Padding(
-                              padding: const EdgeInsets.only(right: 70),
+                              padding: const EdgeInsets.only(right: 80),
                               child: Text(
                                 helper.fullName,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                style: BrandTokens.heading(
+                                  fontSize: r.fontTitle,
+                                  fontWeight: FontWeight.w800,
+                                  color: BrandTokens.textPrimary,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.star_rounded,
-                                  size: 16,
-                                  color: Color(0xFFF5A623),
-                                ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  helper.rating.toStringAsFixed(1),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(width: AppTheme.spaceSM),
-                                Text(
-                                  '${helper.completedTrips} trips',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColor.lightTextSecondary,
-                                  ),
-                                ),
-                                if (helper.distanceKm != null) ...[
-                                  const SizedBox(width: AppTheme.spaceSM),
-                                  const Icon(
-                                    Icons.location_on_outlined,
-                                    size: 14,
-                                    color: AppColor.lightTextSecondary,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    _formatDistance(helper.distanceKm!),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: AppColor.lightTextSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
+                            SizedBox(height: r.gapXS),
+                            _StatsRow(helper: helper),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppTheme.spaceMD),
-                  Wrap(
-                    spacing: AppTheme.spaceXS,
-                    runSpacing: AppTheme.spaceXS,
-                    children: [
-                      for (final lang in helper.languages.take(3))
-                        _Chip(
-                          icon: Icons.translate_rounded,
-                          label: lang.toUpperCase(),
-                          color: AppColor.secondaryColor,
-                        ),
-                      if (helper.hasCar)
-                        const _Chip(
-                          icon: Icons.directions_car_rounded,
-                          label: 'Has car',
-                          color: AppColor.warningColor,
-                        ),
-                      if (helper.averageResponseTimeSeconds != null)
-                        _Chip(
-                          icon: Icons.bolt_rounded,
-                          label: _formatResponse(
-                              helper.averageResponseTimeSeconds!),
-                          color: AppColor.accentColor,
-                        ),
-                    ],
-                  ),
-                  if (helper.suitabilityReasons.isNotEmpty) ...[
-                    const SizedBox(height: AppTheme.spaceSM),
+                  if (_capabilityChips(context).isNotEmpty) ...[
+                    SizedBox(height: r.gapSM + 2),
                     Wrap(
-                      spacing: AppTheme.spaceXS,
-                      runSpacing: AppTheme.spaceXS,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _capabilityChips(context),
+                    ),
+                  ],
+                  if (helper.suitabilityReasons.isNotEmpty) ...[
+                    SizedBox(height: r.gapSM),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
                         for (final reason in helper.suitabilityReasons.take(2))
-                          _Reason(reason),
+                          _ReasonChip(text: reason),
                       ],
                     ),
                   ],
-                  const SizedBox(height: AppTheme.spaceMD),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceMD,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColor.accentColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.payments_rounded,
-                          color: AppColor.accentColor,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppColor.accentColor,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Â· EGP ${helper.hourlyRate.toStringAsFixed(0)}/hr',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColor.accentColor.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        const Spacer(),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 16,
-                          color: AppColor.accentColor.withValues(alpha: 0.7),
-                        ),
-                      ],
-                    ),
-                  ),
+                  SizedBox(height: r.gapSM + 2),
+                  _PriceStrip(helper: helper),
                 ],
               ),
             ),
+            // Floating match badge anchored to the top-right corner.
             Positioned(
-              top: 12,
-              right: 12,
-              child: _MatchScoreBadge(
-                score: helper.matchScore,
-                color: scoreColor,
-              ),
+              top: -8,
+              right: 14,
+              child: _MatchBadge(score: helper.matchScore, color: scoreColor),
             ),
           ],
         ),
@@ -229,57 +128,106 @@ class HelperSuitabilityCard extends StatelessWidget {
     );
   }
 
-  String _formatDistance(double km) {
-    if (km < 1) return '${(km * 1000).round()} m';
-    return '${km.toStringAsFixed(1)} km';
+  List<Widget> _capabilityChips(BuildContext context) {
+    final chips = <Widget>[];
+    for (final lang in helper.languages.take(3)) {
+      chips.add(_CapChip(
+        icon: Icons.translate_rounded,
+        label: lang.toUpperCase(),
+        color: BrandTokens.primaryBlue,
+      ));
+    }
+    if (helper.hasCar) {
+      chips.add(const _CapChip(
+        icon: Icons.directions_car_rounded,
+        label: 'Has car',
+        color: BrandTokens.accentAmberText,
+        background: BrandTokens.accentAmberSoft,
+      ));
+    }
+    if (helper.averageResponseTimeSeconds != null) {
+      chips.add(_CapChip(
+        icon: Icons.bolt_rounded,
+        label: _responseLabel(helper.averageResponseTimeSeconds!),
+        color: BrandTokens.successGreen,
+      ));
+    }
+    return chips;
   }
 
-  static String _formatResponse(int s) {
-    if (s < 60) return '~${s}s response';
-    return '~${s ~/ 60}m response';
+  static String _responseLabel(int s) {
+    if (s < 60) return '~${s}s';
+    return '~${s ~/ 60}m';
   }
 
   Color _matchColor(int score) {
-    if (score >= 80) return AppColor.accentColor;
-    if (score >= 60) return AppColor.secondaryColor;
-    if (score >= 40) return AppColor.warningColor;
-    return AppColor.lightTextSecondary;
+    if (score >= 80) return BrandTokens.successGreen;
+    if (score >= 60) return BrandTokens.primaryBlue;
+    if (score >= 40) return BrandTokens.warningAmber;
+    return BrandTokens.textSecondary;
   }
 }
 
-class _MatchScoreBadge extends StatelessWidget {
-  final int score;
-  final Color color;
-  const _MatchScoreBadge({required this.score, required this.color});
+class _Avatar extends StatelessWidget {
+  final String? imageUrl;
+  final double size;
+  const _Avatar({required this.imageUrl, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color, color.withValues(alpha: 0.75)],
-        ),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    return SizedBox(
+      width: size + 6,
+      height: size + 6,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          const Icon(Icons.bolt_rounded, color: Colors.white, size: 13),
-          const SizedBox(width: 4),
-          Text(
-            '$score% match',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 11,
+          // Verified halo.
+          Container(
+            width: size + 6,
+            height: size + 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  BrandTokens.successGreen,
+                  BrandTokens.primaryBlue,
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 3,
+            left: 3,
+            child: Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+              ),
+              padding: const EdgeInsets.all(2),
+              child: AppNetworkImage(
+                imageUrl: imageUrl,
+                width: size - 4,
+                height: size - 4,
+                borderRadius: (size - 4) / 2,
+              ),
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.verified_rounded,
+                size: 16,
+                color: BrandTokens.successGreen,
+              ),
             ),
           ),
         ],
@@ -288,22 +236,145 @@ class _MatchScoreBadge extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class _StatsRow extends StatelessWidget {
+  final HelperSearchResult helper;
+  const _StatsRow({required this.helper});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.star_rounded,
+                size: 16, color: Color(0xFFF5A623)),
+            const SizedBox(width: 2),
+            Text(
+              helper.rating.toStringAsFixed(1),
+              style: BrandTokens.numeric(
+                fontSize: r.fontSmall + 1,
+                fontWeight: FontWeight.w800,
+                color: BrandTokens.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '\u2022 ${helper.completedTrips} trips',
+              style: BrandTokens.body(
+                fontSize: r.fontSmall,
+                color: BrandTokens.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        if (helper.distanceKm != null)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.location_on_outlined,
+                  size: 13, color: BrandTokens.textSecondary),
+              const SizedBox(width: 2),
+              Text(
+                _formatDistance(helper.distanceKm!),
+                style: BrandTokens.body(
+                  fontSize: r.fontSmall,
+                  color: BrandTokens.textSecondary,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  String _formatDistance(double km) {
+    if (km < 1) return '${(km * 1000).round()} m';
+    return '${km.toStringAsFixed(1)} km';
+  }
+}
+
+class _MatchBadge extends StatelessWidget {
+  final int score;
   final Color color;
-  const _Chip({required this.icon, required this.label, required this.color});
+  const _MatchBadge({required this.score, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSM,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        gradient: LinearGradient(
+          colors: [color, color.withValues(alpha: 0.78)],
+        ),
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(
+          color: Colors.white,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bolt_rounded, color: Colors.white, size: 12),
+          const SizedBox(width: 3),
+          Text(
+            '$score%',
+            style: BrandTokens.numeric(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            'match',
+            style: BrandTokens.body(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CapChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color? background;
+  const _CapChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.background,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: background ?? color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(40),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -312,10 +383,10 @@ class _Chip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
+            style: BrandTokens.body(
               fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
         ],
@@ -324,20 +395,17 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _Reason extends StatelessWidget {
+class _ReasonChip extends StatelessWidget {
   final String text;
-  const _Reason(this.text);
+  const _ReasonChip({required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSM,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColor.accentColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        color: BrandTokens.successGreen.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(40),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -345,15 +413,90 @@ class _Reason extends StatelessWidget {
           const Icon(
             Icons.check_circle_rounded,
             size: 12,
-            color: AppColor.accentColor,
+            color: BrandTokens.successGreen,
           ),
           const SizedBox(width: 4),
           Text(
             text,
-            style: const TextStyle(
-              color: AppColor.accentColor,
-              fontWeight: FontWeight.w700,
+            style: BrandTokens.body(
               fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: BrandTokens.successGreen,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceStrip extends StatelessWidget {
+  final HelperSearchResult helper;
+  const _PriceStrip({required this.helper});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: r.gapSM + 2,
+        vertical: r.gapSM + 2,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            BrandTokens.primaryBlue.withValues(alpha: 0.08),
+            BrandTokens.successGreen.withValues(alpha: 0.10),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.payments_rounded,
+            color: BrandTokens.primaryBlue,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
+            style: BrandTokens.numeric(
+              fontSize: r.fontTitle,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '\u00b7 EGP ${helper.hourlyRate.toStringAsFixed(0)}/hr',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BrandTokens.body(
+                fontSize: r.fontSmall,
+                color: BrandTokens.textSecondary,
+              ),
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.arrow_forward_rounded,
+              size: 14,
+              color: BrandTokens.primaryBlue,
             ),
           ),
         ],

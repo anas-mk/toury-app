@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +18,7 @@ import 'core/services/realtime/booking_realtime_event_bus.dart';
 import 'core/services/realtime/hub_lifecycle_observer.dart';
 import 'core/services/signalr/booking_tracking_hub_service.dart';
 import 'core/services/realtime/realtime_logger.dart';
+import 'core/theme/shader_warmup.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
 import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
@@ -29,8 +32,10 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   // Background messages are also rendered by the OS via the FCM `notification`
   // payload; we just log here for diagnostics. Do NOT push routes from a
   // background isolate — the navigator isn't mounted there.
-  debugPrint('🔔 [bg] FCM message: ${message.messageId} '
-      'data=${message.data}');
+  if (kDebugMode) {
+    debugPrint('🔔 [bg] FCM message: ${message.messageId} '
+        'data=${message.data}');
+  }
 }
 
 void main() async {
@@ -43,13 +48,15 @@ void main() async {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
   } catch (e) {
-    debugPrint('⚠️ Firebase.initializeApp failed: $e');
+    if (kDebugMode) debugPrint('⚠️ Firebase.initializeApp failed: $e');
   }
 
   await di.init();
 
   BookingRealtimeEventBus.instance
       .attach(di.sl<BookingTrackingHubService>());
+  BookingRealtimeEventBus.instance.onEventPublished =
+      (e) => di.sl<MessagingService>().maybeInAppBannerFromBusEvent(e);
 
   // Bind the GoRouter to the NotificationRouter so FCM taps and SignalR
   // navigation triggers can reach the same routes the rest of the app uses.
@@ -58,13 +65,6 @@ void main() async {
     navigatorKey: AppRouter.rootNavigatorKey,
   );
   RealtimeLogger.instance.log('Router', 'main.bind', 'GoRouter wired');
-
-  // Pre-initialise local-notifications so a foreground push arriving on
-  // the very first second after launch can still display its heads-up.
-  unawaited(di.sl<MessagingService>().initialise());
-
-  // Wake the SignalR connection back up whenever the OS resumes the app.
-  di.sl<HubLifecycleObserver>().attach();
 
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('isDark') ?? false;
@@ -82,5 +82,16 @@ void main() async {
       child: const MyApp(),
     ),
   );
-}
 
+  // Pass #4 perf: defer non-critical work to AFTER the first frame so we don't
+  // delay the time-to-interactive on cold start.
+  SchedulerBinding.instance.addPostFrameCallback((_) {
+    // 1) Foreground push channel (heads-up notifications)
+    unawaited(di.sl<MessagingService>().initialise());
+    // 2) Wake SignalR back up whenever the OS resumes the app
+    di.sl<HubLifecycleObserver>().attach();
+    // 3) Compile every gradient/shadow shader on a hidden offscreen surface
+    //    so the user never sees the 30-80ms first-tap shader compile pause.
+    ShaderWarmup.warmUp();
+  });
+}

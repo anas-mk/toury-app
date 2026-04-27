@@ -20,6 +20,11 @@ class EventDedupCache {
   ///
   /// `null` or empty `eventId`s are NEVER considered duplicates — we can't
   /// dedupe them, so we let them through.
+  bool contains(String? eventId) {
+    if (eventId == null || eventId.isEmpty) return false;
+    return _seen.contains(eventId);
+  }
+
   bool isDuplicate(String? eventId) {
     if (eventId == null || eventId.isEmpty) return false;
     final hit = _seen.remove(eventId);

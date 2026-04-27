@@ -4,39 +4,40 @@ import 'dart:ui' as ui;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../../../../core/services/location/mapbox_geocoding_service.dart';
 import '../../../../../../../core/services/location/nominatim_service.dart';
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/services/location/recent_searches_store.dart';
+import '../../../../../../../core/services/location/search_debouncer.dart';
+import '../../../../../../../core/services/maps/cached_tile_provider.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
 import 'location_pick_result.dart';
 
-/// Fullscreen map picker shared by Pickup + Destination steps.
+/// Fullscreen map picker — Pass #5 (2026 redesign).
 ///
-/// Pass #2 hard requirements implemented here:
-///   - Page opens centred on the user's GPS (with permission flow + fallback).
-///   - Floating search bar at the top backed by Nominatim, debounced 350ms,
-///     with cancellation of stale requests.
-///   - Carto Voyager tiles, maxZoom 19, minZoom 3.
-///   - Pulsing teardrop pin (color depends on pickup vs destination).
-///   - Compass badge top-right (resets bearing on tap).
-///   - My-location FAB bottom-right above the sticky bottom sheet.
-///   - Sticky bottom sheet with reverse-geocoded address (debounced 400ms
-///     on MapEventMoveEnd) and a primary "Confirm" button.
-///   - Returns `LocationPickResult` whose `name` is never empty.
+/// Hard requirements:
+///  - Opens on the user's REAL current GPS position (never mock data).
+///    A blocking permission dialog with an "Open settings" CTA enforces
+///    the policy chosen by the team.
+///  - HOT (Humanitarian OSM) tile style for great Egyptian coverage.
+///  - Mapbox geocoding (when token configured) with transparent fallback
+///    to Nominatim — both biased to Egypt and Arabic-first.
+///  - Recent searches surfaced when the search field is empty.
+///  - Glass search bar, glass FABs, frosted bottom sheet — modern look.
+///  - Zero unmodifiable-map crashes (TileProvider headers fixed).
+///  - Smooth: only the small subtree affected by each notifier rebuilds.
 class LocationPickerPage extends StatefulWidget {
-  /// Title shown at the top of the picker (e.g. "Pickup point").
   final String title;
 
   /// `true` for the pickup screen, `false` for the destination screen.
-  /// Controls accent colour of the pin and CTA copy.
   final bool isPickup;
 
-  /// Optional initial position. If `null`, we try the device's current
-  /// location, falling back to a generic city view.
+  /// Optional seed position. If `null` we fetch the device's real GPS.
   final LocationPickResult? initial;
 
   const LocationPickerPage({
@@ -51,67 +52,83 @@ class LocationPickerPage extends StatefulWidget {
 }
 
 class _LocationPickerPageState extends State<LocationPickerPage> {
-  // Last-resort fallback used ONLY when every attempt to read a position
-  // (last-known + current + permissions) has failed. We never override what
-  // the device actually reports — emulator users wanting to test a real
-  // location should set it via Android Studio → Extended Controls → Location.
+  // Last-resort fallback (Tahrir Square, Cairo) used ONLY when every
+  // attempt to read a real position fails AND the user explicitly
+  // declined location services. We never substitute mock data for a
+  // working GPS reading.
   static const _cairoFallback = LatLng(30.0444, 31.2357);
 
   final MapController _mapController = MapController();
-  final NominatimService _nominatim = NominatimService();
+  final GeocodingService _geo = GeocodingService();
+  final RecentSearchesStore _recentStore = RecentSearchesStore();
+
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
-  Timer? _searchDebounce;
+  // Debouncer + LRU cache for autocomplete. 400ms is the sweet spot
+  // between responsiveness and API quota — see SearchDebouncer docs.
+  late final SearchDebouncer<NominatimResult> _searchDebouncer =
+      SearchDebouncer<NominatimResult>(
+    delay: const Duration(milliseconds: 400),
+    minLength: 3,
+    cacheSize: 32,
+    fetcher: (query, cancelToken) {
+      final c = _centerVN.value;
+      return _geo.search(
+        query: query,
+        limit: 8,
+        cancelToken: cancelToken,
+        nearLat: c.latitude,
+        nearLng: c.longitude,
+      );
+    },
+  );
+
   Timer? _reverseDebounce;
   Timer? _bootstrapTimeout;
-  CancelToken? _searchCancel;
   CancelToken? _reverseCancel;
   StreamSubscription<MapEvent>? _mapEventsSub;
 
-  // ── Live state. All transient state is held in ValueNotifiers (not
-  // setState fields) so that high-frequency events (drag, search keystrokes,
-  // reverse-geocode results) only rebuild the small subtree that listens to
-  // the specific notifier — never the whole Scaffold/FlutterMap tree. This
-  // is the single most important change for the "app hangs while typing /
-  // dragging" complaint.
+  // ── Live state in ValueNotifiers so high-frequency events (drag,
+  // typing, reverse-geocode arrivals) only rebuild the small subtree
+  // that listens to the specific notifier.
   final ValueNotifier<LatLng> _centerVN = ValueNotifier(_cairoFallback);
   final ValueNotifier<double> _bearingVN = ValueNotifier(0);
   final ValueNotifier<String?> _labelVN = ValueNotifier(null);
   final ValueNotifier<String?> _addressVN = ValueNotifier(null);
   final ValueNotifier<bool> _resolvingVN = ValueNotifier(false);
-  // Search-related transient state.
   final ValueNotifier<bool> _searchingVN = ValueNotifier(false);
   final ValueNotifier<String?> _searchErrorVN = ValueNotifier(null);
   final ValueNotifier<List<NominatimResult>> _suggestionsVN =
       ValueNotifier(const []);
   final ValueNotifier<bool> _hasTextVN = ValueNotifier(false);
-  // Misc UI flags.
   final ValueNotifier<bool> _myLocLoadingVN = ValueNotifier(false);
-  final ValueNotifier<bool> _showShimmerVN = ValueNotifier(true);
+  final ValueNotifier<bool> _focusedVN = ValueNotifier(false);
+  final ValueNotifier<List<NominatimResult>> _recentsVN =
+      ValueNotifier(const []);
 
   bool _initialised = false;
   // Once the user pans/zooms or searches, we stop auto-following any later
-  // higher-accuracy GPS fix that arrives in the background.
+  // GPS fix that arrives in the background.
   bool _userMovedMap = false;
 
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearchChanged);
-    _bootstrap();
-    _mapEventsSub = _mapController.mapEventStream.listen(_onMapEvent);
-    Future<void>.delayed(const Duration(milliseconds: 1100), () {
-      if (mounted) _showShimmerVN.value = false;
+    _searchFocus.addListener(() {
+      _focusedVN.value = _searchFocus.hasFocus;
     });
+    _mapEventsSub = _mapController.mapEventStream.listen(_onMapEvent);
+    unawaited(_loadRecents());
+    _bootstrap();
   }
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
+    _searchDebouncer.dispose();
     _reverseDebounce?.cancel();
     _bootstrapTimeout?.cancel();
-    _searchCancel?.cancel('disposed');
     _reverseCancel?.cancel('disposed');
     _mapEventsSub?.cancel();
     _searchCtrl.dispose();
@@ -127,24 +144,19 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     _suggestionsVN.dispose();
     _hasTextVN.dispose();
     _myLocLoadingVN.dispose();
-    _showShimmerVN.dispose();
+    _focusedVN.dispose();
+    _recentsVN.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRecents() async {
+    final list = await _recentStore.load();
+    if (!mounted) return;
+    _recentsVN.value = list;
   }
 
   // -------------------- bootstrap & permissions --------------------
 
-  /// Two-stage GPS bootstrap so the page renders ASAP:
-  /// 1. Read the OS's cached `getLastKnownPosition` (returns near-instantly)
-  ///    and render the map at that pin straight away.
-  /// 2. In the background, request a fresh high-accuracy fix; once it
-  ///    arrives, gently slide the map there if the user hasn't started
-  ///    picking yet.
-  ///
-  /// We never substitute "real" GPS readings for a hard-coded fallback — if
-  /// the device reports somewhere in California (e.g. an unconfigured
-  /// emulator) that's exactly what we show, because lying to the user about
-  /// their location is much worse than showing the unedited truth. The
-  /// Cairo fallback is only used if BOTH calls return null.
   Future<void> _bootstrap() async {
     if (widget.initial != null) {
       _centerVN.value =
@@ -156,8 +168,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       return;
     }
 
-    await _ensurePermissions();
-
+    // Try last-known fix first (instant) so the map is responsive
+    // immediately, then refine with a high-accuracy fix in the
+    // background.
     final lastKnown = await _safeLastKnown();
     if (!mounted) return;
     if (lastKnown != null) {
@@ -166,28 +179,96 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       _scheduleReverseGeocode(_centerVN.value, immediate: true);
     }
 
+    final granted = await _ensurePermissionsBlocking();
+    if (!mounted) return;
+
+    if (!granted) {
+      // User denied → fall back to Cairo only as a last resort so the
+      // page remains usable. We surface a snackbar with "Open settings".
+      if (!_initialised) {
+        _centerVN.value = _cairoFallback;
+        setState(() => _initialised = true);
+        _scheduleReverseGeocode(_cairoFallback, immediate: true);
+      }
+      _showLocationDeniedSnack();
+      return;
+    }
+
     unawaited(_fetchAndApplyCurrentPosition());
 
-    _bootstrapTimeout = Timer(const Duration(seconds: 6), () {
+    _bootstrapTimeout = Timer(const Duration(seconds: 8), () {
       if (!mounted || _initialised) return;
       _centerVN.value = _cairoFallback;
       setState(() => _initialised = true);
       _scheduleReverseGeocode(_cairoFallback, immediate: true);
-      _showLocationDeniedSnack();
     });
   }
 
-  Future<void> _ensurePermissions() async {
+  /// Returns `true` if we have permission to read the user's location.
+  /// Shows a blocking dialog with Open Settings when the OS dialog has
+  /// already been declined permanently.
+  Future<bool> _ensurePermissionsBlocking() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!serviceEnabled) {
+        if (!mounted) return false;
+        final ok = await _showServicesDisabledDialog();
+        if (!ok) return false;
+        // After the user opened settings, re-check.
+        final reEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!reEnabled) return false;
+      }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
+      if (permission == LocationPermission.denied) return false;
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return false;
+        await _showPermanentlyDeniedDialog();
+        return false;
+      }
+      return permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse;
     } catch (e) {
-      debugPrint('[LocationPicker] permission check failed: $e');
+      if (kDebugMode) debugPrint('[LocationPicker] permission check failed: $e');
+      return false;
     }
+  }
+
+  Future<bool> _showServicesDisabledDialog() async {
+    final res = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _PermissionDialog(
+        icon: Icons.location_disabled_rounded,
+        title: 'Location services are off',
+        message:
+            'Turn on Location to start from where you are. We use it only to set your pickup point — it never leaves your device unless you confirm.',
+        primaryLabel: 'Open settings',
+        onPrimary: () async {
+          await Geolocator.openLocationSettings();
+        },
+      ),
+    );
+    return res ?? false;
+  }
+
+  Future<void> _showPermanentlyDeniedDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _PermissionDialog(
+        icon: Icons.shield_outlined,
+        title: 'Location permission needed',
+        message:
+            'You\'ve disabled location for this app. Open settings and allow location access so we can drop your pickup pin where you actually are.',
+        primaryLabel: 'Open app settings',
+        onPrimary: () async {
+          await openAppSettings();
+        },
+      ),
+    );
   }
 
   Future<void> _fetchAndApplyCurrentPosition() async {
@@ -205,16 +286,21 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         _bootstrapTimeout?.cancel();
         _centerVN.value = next;
         setState(() => _initialised = true);
+        try {
+          _mapController.move(next, 16);
+        } catch (_) {/* mapController not ready yet */}
         _scheduleReverseGeocode(next, immediate: true);
         return;
       }
       if (!_userMovedMap) {
-        _mapController.move(next, _mapController.camera.zoom);
+        try {
+          _mapController.move(next, _mapController.camera.zoom);
+        } catch (_) {}
         _centerVN.value = next;
         _scheduleReverseGeocode(next, immediate: true);
       }
     } catch (e) {
-      debugPrint('[LocationPicker] getCurrentPosition failed: $e');
+      if (kDebugMode) debugPrint('[LocationPicker] getCurrentPosition: $e');
     }
   }
 
@@ -227,6 +313,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   }
 
   void _showLocationDeniedSnack() {
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.clearSnackBars();
     messenger.showSnackBar(
@@ -244,16 +331,14 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   // -------------------- map event handling --------------------
 
-  /// Strategy: do nothing during continuous events (drag, zoom-in-progress,
-  /// rotate-in-progress) other than tracking the live bearing for the
-  /// compass needle. All real work — coordinate snapshot, reverse geocode,
-  /// "user moved map" flag — happens only when the gesture ENDS. This keeps
-  /// the per-frame work during a drag at zero notifier writes, which is
-  /// what eliminates the perceived hang.
   void _onMapEvent(MapEvent event) {
     if (!mounted) return;
     if (event is MapEventRotate) {
       _bearingVN.value = event.camera.rotation;
+      return;
+    }
+    if (event is MapEventMoveStart) {
+      _userMovedMap = true;
       return;
     }
     if (event is MapEventMoveEnd ||
@@ -270,11 +355,11 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   Future<void> _onUseMyLocation() async {
     if (_myLocLoadingVN.value) return;
+    HapticFeedback.selectionClick();
     _myLocLoadingVN.value = true;
     try {
-      final status = await Permission.locationWhenInUse.request();
-      if (status.isPermanentlyDenied || status.isDenied) {
-        if (!mounted) return;
+      final granted = await _ensurePermissionsBlocking();
+      if (!granted) {
         _showLocationDeniedSnack();
         return;
       }
@@ -302,7 +387,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       }
       final next = LatLng(pos.latitude, pos.longitude);
       _userMovedMap = true;
-      _mapController.move(next, 16);
+      try {
+        _mapController.move(next, 16);
+      } catch (_) {}
       _centerVN.value = next;
       _scheduleReverseGeocode(next, immediate: true);
     } finally {
@@ -311,73 +398,111 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   }
 
   void _onResetBearing() {
-    _mapController.rotate(0);
+    HapticFeedback.selectionClick();
+    try {
+      _mapController.rotate(0);
+    } catch (_) {}
     _bearingVN.value = 0;
   }
 
-  // -------------------- search (Nominatim) --------------------
+  void _onZoom(double delta) {
+    HapticFeedback.selectionClick();
+    try {
+      final z = (_mapController.camera.zoom + delta).clamp(3.0, 19.0);
+      _mapController.move(_mapController.camera.center, z);
+    } catch (_) {}
+  }
 
+  // -------------------- search --------------------
+
+  /// Called on every keystroke. We:
+  ///   1. Update the "has text" flag (drives the X / search icon).
+  ///   2. Try the in-memory cache *synchronously* and render rows
+  ///      immediately on a hit — zero perceived latency.
+  ///   3. Hand the query to [SearchDebouncer], which:
+  ///        - waits 400ms after the last keystroke,
+  ///        - cancels any in-flight request when a new char arrives,
+  ///        - skips identical / too-short queries,
+  ///        - caches the result so the next time the user types the
+  ///          same prefix we don't hit the network at all.
   void _onSearchChanged() {
     final raw = _searchCtrl.text;
     final hasText = raw.isNotEmpty;
     if (_hasTextVN.value != hasText) _hasTextVN.value = hasText;
-    final value = raw.trim();
-    _searchDebounce?.cancel();
-    if (value.length < 2) {
-      _searchCancel?.cancel('typing');
-      _suggestionsVN.value = const [];
+
+    final trimmed = raw.trim();
+
+    // Instant cache rendering for repeat queries.
+    final cached = _searchDebouncer.cachedFor(trimmed);
+    if (cached != null) {
+      _suggestionsVN.value = cached;
       _searchingVN.value = false;
-      _searchErrorVN.value = null;
-      return;
+      _searchErrorVN.value = cached.isEmpty ? 'No results' : null;
     }
-    _searchDebounce =
-        Timer(const Duration(milliseconds: 350), () => _runSearch(value));
+
+    _searchDebouncer.schedule(
+      trimmed,
+      onResult: (key, results) {
+        if (!mounted || _normalisedQuery() != key) return;
+        _suggestionsVN.value = results;
+        _searchingVN.value = false;
+        _searchErrorVN.value = results.isEmpty ? 'No results' : null;
+      },
+      onError: (key, _) {
+        if (!mounted || _normalisedQuery() != key) return;
+        _suggestionsVN.value = const [];
+        _searchingVN.value = false;
+        _searchErrorVN.value = 'Search failed. Try again.';
+      },
+      onSkipped: (_, __) {
+        // Below threshold or duplicate → ensure spinner is off and
+        // suggestions are empty so the recents panel can show.
+        if (!mounted) return;
+        if (trimmed.length < 3) {
+          _suggestionsVN.value = const [];
+          _searchErrorVN.value = null;
+        }
+        _searchingVN.value = false;
+      },
+    );
+
+    // Show a spinner only if we're going to hit the network.
+    if (trimmed.length >= 3 && cached == null) {
+      _searchingVN.value = true;
+      _searchErrorVN.value = null;
+    } else {
+      _searchingVN.value = false;
+    }
   }
 
-  Future<void> _runSearch(String query) async {
-    _searchCancel?.cancel('superseded');
-    final token = CancelToken();
-    _searchCancel = token;
-    _searchingVN.value = true;
-    _searchErrorVN.value = null;
-    try {
-      final results = await _nominatim.search(
-        query: query,
-        limit: 6,
-        cancelToken: token,
-        acceptLanguage: 'en',
-      );
-      if (!mounted || token.isCancelled) return;
-      _suggestionsVN.value = results;
-      _searchingVN.value = false;
-      _searchErrorVN.value = results.isEmpty ? 'No results' : null;
-    } catch (_) {
-      if (!mounted || token.isCancelled) return;
-      _suggestionsVN.value = const [];
-      _searchingVN.value = false;
-      _searchErrorVN.value = 'Search failed. Try again.';
-    }
-  }
+  String _normalisedQuery() => _searchCtrl.text
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), ' ');
 
   void _onPickSuggestion(NominatimResult r) {
+    HapticFeedback.selectionClick();
     _searchFocus.unfocus();
     _searchCtrl.text = r.name;
     _searchCtrl.selection = TextSelection.collapsed(offset: r.name.length);
     _hasTextVN.value = r.name.isNotEmpty;
     final next = LatLng(r.lat, r.lng);
     _userMovedMap = true;
-    _mapController.move(next, 16);
+    try {
+      _mapController.move(next, 16);
+    } catch (_) {}
     _centerVN.value = next;
     _labelVN.value = r.name;
     _addressVN.value = r.displayName;
     _suggestionsVN.value = const [];
     _searchErrorVN.value = null;
+    unawaited(_recentStore.add(r).then((_) => _loadRecents()));
     _scheduleReverseGeocode(next, immediate: true);
   }
 
   void _clearSearch() {
     _searchCtrl.clear();
-    _searchCancel?.cancel('cleared');
+    _searchDebouncer.cancel();
     _hasTextVN.value = false;
     _suggestionsVN.value = const [];
     _searchErrorVN.value = null;
@@ -395,7 +520,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       return;
     }
     _reverseDebounce = Timer(
-      const Duration(milliseconds: 400),
+      const Duration(milliseconds: 350),
       () => _reverseGeocode(latLng),
     );
   }
@@ -404,11 +529,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     final token = CancelToken();
     _reverseCancel = token;
     try {
-      final r = await _nominatim.reverse(
+      final r = await _geo.reverse(
         lat: latLng.latitude,
         lng: latLng.longitude,
         cancelToken: token,
-        acceptLanguage: 'en',
       );
       if (!mounted || token.isCancelled) return;
       if (r != null) {
@@ -435,41 +559,46 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   // -------------------- confirm --------------------
 
   void _confirm() {
+    HapticFeedback.mediumImpact();
     final center = _centerVN.value;
     final cleanLabel = (_labelVN.value ?? '').trim();
     final addr = _addressVN.value;
     final fallback = '${center.latitude.toStringAsFixed(5)}, '
         '${center.longitude.toStringAsFixed(5)}';
-    Navigator.of(context).pop(
-      LocationPickResult(
-        name: cleanLabel.isNotEmpty ? cleanLabel : fallback,
-        address: (addr ?? '').isEmpty ? null : addr,
-        latitude: center.latitude,
-        longitude: center.longitude,
-      ),
+    final result = LocationPickResult(
+      name: cleanLabel.isNotEmpty ? cleanLabel : fallback,
+      address: (addr ?? '').isEmpty ? null : addr,
+      latitude: center.latitude,
+      longitude: center.longitude,
     );
+    // Save to recents on confirm too.
+    unawaited(_recentStore.add(NominatimResult(
+      lat: result.latitude,
+      lng: result.longitude,
+      name: result.name,
+      displayName: result.address ?? result.name,
+    )));
+    Navigator.of(context).pop(result);
   }
 
   // -------------------- build --------------------
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final pinColor =
-        widget.isPickup ? AppColor.accentColor : AppColor.errorColor;
+    final pinColor = widget.isPickup
+        ? BrandTokens.successGreen
+        : BrandTokens.dangerRed;
     final mediaTop = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: BrandTokens.bgSoft,
       resizeToAvoidBottomInset: false,
       body: !_initialised
           ? const _BootstrapShimmer()
           : Stack(
               children: [
-                // 1. The map. Wrapped in RepaintBoundary so that overlay
-                //    repaints (compass spin, suggestion list updates) do
-                //    NOT trigger a re-rasterisation of the tiles below.
+                // 1. The map.
                 RepaintBoundary(
                   child: FlutterMap(
                     mapController: _mapController,
@@ -479,89 +608,118 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                       minZoom: 3,
                       maxZoom: 19,
                       interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.all,
+                        flags: InteractiveFlag.all &
+                            ~InteractiveFlag.rotate,
                       ),
                     ),
                     children: [
                       TileLayer(
+                        // OSM Humanitarian — better Egyptian coverage
+                        // (district / village names) than Carto Voyager.
                         urlTemplate:
-                            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c', 'd'],
+                            'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                        subdomains: const ['a', 'b', 'c'],
                         userAgentPackageName: 'app.rafiq.user',
                         maxZoom: 19,
-                        // Keep more off-screen tiles cached so panning feels
-                        // instant instead of stuttering as new tiles fetch.
                         keepBuffer: 4,
-                        // Skip the per-tile cross-fade — pure repaint cost
-                        // for no UX benefit while panning aggressively.
                         tileDisplay: const TileDisplay.instantaneous(),
-                        tileProvider: NetworkTileProvider(),
+                        tileProvider: CachedTileProvider(),
                       ),
                     ],
                   ),
                 ),
 
-                // 2. Pulsing centre pin.
+                // 2. Subtle vignette to lift CTAs off bright tiles.
+                IgnorePointer(
+                  child: Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.05),
+                            Colors.transparent,
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.06),
+                          ],
+                          stops: const [0.0, 0.18, 0.7, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. Pulsing centre pin.
                 Center(child: _PulsingPin(color: pinColor)),
 
-                // 3. Attribution.
+                // 4. Attribution chip.
                 const Positioned(
-                  left: 6,
-                  bottom: 6,
-                  child: _OsmCartoAttribution(),
+                  left: 8,
+                  bottom: 8,
+                  child: _AttributionChip(),
                 ),
 
-                // 4. Initial 1s shimmer overlay — gated by a notifier so
-                //    toggling it off doesn't rebuild the page.
-                ValueListenableBuilder<bool>(
-                  valueListenable: _showShimmerVN,
-                  builder: (_, show, __) => show
-                      ? const Positioned.fill(
-                          child: IgnorePointer(child: _BootstrapShimmer()),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-
-                // 5. Floating search bar. The bar itself never rebuilds
-                //    while the user types — only the trailing affordance
-                //    and suggestions dropdown listen to specific
-                //    notifiers and rebuild in isolation.
+                // 5. Floating glass search bar.
                 Positioned(
-                  top: mediaTop + AppTheme.spaceSM,
-                  left: AppTheme.spaceMD,
-                  right: AppTheme.spaceMD,
-                  child: _SearchBar(
+                  top: mediaTop + 8,
+                  left: 12,
+                  right: 12,
+                  child: _GlassSearchBar(
                     controller: _searchCtrl,
                     focusNode: _searchFocus,
                     isSearchingVN: _searchingVN,
                     errorVN: _searchErrorVN,
                     suggestionsVN: _suggestionsVN,
                     hasTextVN: _hasTextVN,
+                    focusedVN: _focusedVN,
+                    recentsVN: _recentsVN,
                     onClear: _clearSearch,
                     onPick: _onPickSuggestion,
-                    onBack: () => Navigator.of(context).maybePop(),
+                    onBack: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.of(context).maybePop();
+                    },
                     title: widget.title,
                     isPickup: widget.isPickup,
                   ),
                 ),
 
-                // 6. Compass badge — listens to bearing only.
+                // 6. Right-side controls column (compass + zoom + my-location).
                 Positioned(
-                  top: mediaTop + 80,
-                  right: AppTheme.spaceMD,
-                  child: ValueListenableBuilder<double>(
-                    valueListenable: _bearingVN,
-                    builder: (_, bearing, __) => _CompassBadge(
-                      rotationRad: bearing,
-                      onTap: _onResetBearing,
-                    ),
+                  top: mediaTop + 96,
+                  right: 14,
+                  child: Column(
+                    children: [
+                      ValueListenableBuilder<double>(
+                        valueListenable: _bearingVN,
+                        builder: (_, bearing, __) => _GlassIconButton(
+                          icon: Icons.explore_rounded,
+                          rotationRad: bearing * (3.1415926535 / 180.0) * -1,
+                          onTap: _onResetBearing,
+                          color: BrandTokens.primaryBlue,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _GlassIconButton(
+                        icon: Icons.add_rounded,
+                        onTap: () => _onZoom(1),
+                        color: BrandTokens.textPrimary,
+                      ),
+                      const SizedBox(height: 6),
+                      _GlassIconButton(
+                        icon: Icons.remove_rounded,
+                        onTap: () => _onZoom(-1),
+                        color: BrandTokens.textPrimary,
+                      ),
+                    ],
                   ),
                 ),
 
-                // 7. My-location FAB — listens to its own loading flag.
+                // 7. My-location FAB (bottom right).
                 Positioned(
-                  right: AppTheme.spaceMD,
-                  bottom: 220,
+                  right: 14,
+                  bottom: 230,
                   child: ValueListenableBuilder<bool>(
                     valueListenable: _myLocLoadingVN,
                     builder: (_, loading, __) => _MyLocationFab(
@@ -571,15 +729,14 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                   ),
                 ),
 
-                // 8. Sticky bottom sheet — listens to label / address /
-                //    resolving / centre notifiers.
+                // 8. Frosted bottom sheet with confirm.
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: 0,
                   child: SafeArea(
                     top: false,
-                    child: _LiveBottomSheet(
+                    child: _FrostedBottomSheet(
                       isPickup: widget.isPickup,
                       labelVN: _labelVN,
                       addressVN: _addressVN,
@@ -595,30 +752,34 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   }
 }
 
-// ============================================================================
-// Search bar + dropdown
-// ============================================================================
+// =============================================================================
+// Glass Search Bar + Suggestions / Recents Panel
+// =============================================================================
 
-class _SearchBar extends StatelessWidget {
+class _GlassSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueListenable<bool> isSearchingVN;
   final ValueListenable<String?> errorVN;
   final ValueListenable<List<NominatimResult>> suggestionsVN;
   final ValueListenable<bool> hasTextVN;
+  final ValueListenable<bool> focusedVN;
+  final ValueListenable<List<NominatimResult>> recentsVN;
   final VoidCallback onClear;
   final ValueChanged<NominatimResult> onPick;
   final VoidCallback onBack;
   final String title;
   final bool isPickup;
 
-  const _SearchBar({
+  const _GlassSearchBar({
     required this.controller,
     required this.focusNode,
     required this.isSearchingVN,
     required this.errorVN,
     required this.suggestionsVN,
     required this.hasTextVN,
+    required this.focusedVN,
+    required this.recentsVN,
     required this.onClear,
     required this.onPick,
     required this.onBack,
@@ -628,81 +789,145 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final accent =
+        isPickup ? BrandTokens.successGreen : BrandTokens.dangerRed;
     return Material(
       color: Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
+          // Tiny top label ("PICKUP POINT" / "DESTINATION").
+          Padding(
+            padding: const EdgeInsets.only(left: 6, bottom: 6),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: onBack,
-                  splashRadius: 22,
-                ),
                 Container(
-                  width: 1,
-                  height: 22,
-                  color: theme.dividerColor.withValues(alpha: 0.5),
-                ),
-                const SizedBox(width: AppTheme.spaceSM),
-                Icon(
-                  isPickup ? Icons.trip_origin_rounded : Icons.flag_rounded,
-                  size: 18,
-                  color: isPickup
-                      ? AppColor.accentColor
-                      : AppColor.errorColor,
-                ),
-                const SizedBox(width: AppTheme.spaceSM),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => focusNode.unfocus(),
-                    // Tap outside the field (e.g. on the map) closes the
-                    // keyboard so the user is never trapped behind it.
-                    onTapOutside: (_) => focusNode.unfocus(),
-                    decoration: InputDecoration(
-                      hintText: isPickup
-                          ? 'Search pickup, e.g. Tahrir Square'
-                          : 'Search destination, e.g. Pyramids',
-                      hintStyle: const TextStyle(
-                        color: AppColor.lightTextSecondary,
-                        fontWeight: FontWeight.w500,
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.5),
+                        blurRadius: 6,
                       ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
+                    ],
                   ),
                 ),
-                _SearchTrailing(
-                  isSearchingVN: isSearchingVN,
-                  hasTextVN: hasTextVN,
-                  onClear: onClear,
+                const SizedBox(width: 8),
+                Text(
+                  isPickup ? 'PICKUP POINT' : 'DESTINATION',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    letterSpacing: 1.6,
+                    fontWeight: FontWeight.w800,
+                    shadows: [
+                      Shadow(
+                        color: Color(0x66000000),
+                        blurRadius: 6,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          _SuggestionsPanel(
+
+          // Frosted glass bar.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: BrandTokens.shadowSoft,
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: onBack,
+                      child: const SizedBox(
+                        width: 46,
+                        height: 52,
+                        child: Icon(Icons.arrow_back_rounded,
+                            color: BrandTokens.textPrimary, size: 22),
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 22,
+                      color: BrandTokens.borderSoft,
+                    ),
+                    const SizedBox(width: 10),
+                    Icon(
+                      isPickup
+                          ? Icons.trip_origin_rounded
+                          : Icons.flag_rounded,
+                      size: 18,
+                      color: accent,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => focusNode.unfocus(),
+                        onTapOutside: (_) => focusNode.unfocus(),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: BrandTokens.textPrimary,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: isPickup
+                              ? 'Search pickup, e.g. Tahrir Square'
+                              : 'Search destination, e.g. Pyramids',
+                          hintStyle: const TextStyle(
+                            color: BrandTokens.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                    _SearchTrailing(
+                      isSearchingVN: isSearchingVN,
+                      hasTextVN: hasTextVN,
+                      onClear: onClear,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          _ResultsPanel(
             suggestionsVN: suggestionsVN,
             errorVN: errorVN,
             controller: controller,
             onPick: onPick,
+            focusedVN: focusedVN,
+            recentsVN: recentsVN,
           ),
         ],
       ),
@@ -710,10 +935,6 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-/// Trailing affordance of the search bar. The X (clear) button is ALWAYS
-/// shown when there is any text — even while a request is in flight — so
-/// the user has an unmistakable escape hatch if Nominatim is slow. The
-/// spinner is rendered inline next to the X, never *instead* of it.
 class _SearchTrailing extends StatelessWidget {
   final ValueListenable<bool> isSearchingVN;
   final ValueListenable<bool> hasTextVN;
@@ -738,23 +959,28 @@ class _SearchTrailing extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 4),
                 child: SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        BrandTokens.primaryBlue),
+                  ),
                 ),
               ),
             if (hasText)
               IconButton(
-                icon: const Icon(Icons.close_rounded),
+                icon: const Icon(Icons.close_rounded,
+                    color: BrandTokens.textSecondary),
                 tooltip: 'Clear',
                 onPressed: onClear,
                 splashRadius: 22,
               )
             else if (!searching)
               const Padding(
-                padding: EdgeInsets.only(right: 6),
+                padding: EdgeInsets.only(right: 12),
                 child: Icon(Icons.search_rounded,
-                    color: AppColor.lightTextSecondary),
+                    color: BrandTokens.textSecondary),
               ),
           ],
         );
@@ -763,138 +989,225 @@ class _SearchTrailing extends StatelessWidget {
   }
 }
 
-/// Suggestions dropdown / "no results" pill below the search bar. Wired
-/// through ValueListenables so updating the search results does NOT
-/// rebuild the search bar tree (and therefore does not steal frames from
-/// the keyboard / TextField).
-class _SuggestionsPanel extends StatelessWidget {
+class _ResultsPanel extends StatelessWidget {
   final ValueListenable<List<NominatimResult>> suggestionsVN;
   final ValueListenable<String?> errorVN;
   final TextEditingController controller;
   final ValueChanged<NominatimResult> onPick;
+  final ValueListenable<bool> focusedVN;
+  final ValueListenable<List<NominatimResult>> recentsVN;
 
-  const _SuggestionsPanel({
+  const _ResultsPanel({
     required this.suggestionsVN,
     required this.errorVN,
     required this.controller,
     required this.onPick,
+    required this.focusedVN,
+    required this.recentsVN,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ValueListenableBuilder<List<NominatimResult>>(
-      valueListenable: suggestionsVN,
-      builder: (_, list, __) {
-        if (list.isNotEmpty) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 320),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+    return AnimatedBuilder(
+      animation: Listenable.merge([suggestionsVN, errorVN, focusedVN, recentsVN]),
+      builder: (_, __) {
+        final suggestions = suggestionsVN.value;
+        final err = errorVN.value;
+        final focused = focusedVN.value;
+        final recents = recentsVN.value;
+
+        // 1. Live results
+        if (suggestions.isNotEmpty) {
+          return _PanelCard(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              shrinkWrap: true,
+              itemCount: suggestions.length,
+              separatorBuilder: (_, __) => const Divider(
+                height: 1,
+                color: BrandTokens.borderSoft,
+                indent: 60,
               ),
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                shrinkWrap: true,
-                itemCount: list.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  color: theme.dividerColor.withValues(alpha: 0.5),
-                  indent: 52,
-                ),
-                itemBuilder: (context, i) {
-                  final s = list[i];
-                  return _SuggestionTile(
-                    result: s,
-                    onTap: () => onPick(s),
-                  );
-                },
+              itemBuilder: (context, i) => _ResultTile(
+                result: suggestions[i],
+                icon: _iconForCategory(suggestions[i].category),
+                onTap: () => onPick(suggestions[i]),
               ),
             ),
           );
         }
-        return ValueListenableBuilder<String?>(
-          valueListenable: errorVN,
-          builder: (_, err, __) {
-            if (err == null || controller.text.length < 2) {
-              return const SizedBox.shrink();
-            }
-            return Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spaceMD,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded,
-                        size: 18, color: AppColor.lightTextSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        err,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColor.lightTextSecondary,
-                        ),
+
+        // 2. Error pill
+        if (err != null && controller.text.length >= 2) {
+          return _PanelCard(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      size: 18, color: BrandTokens.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      err,
+                      style: const TextStyle(
+                        color: BrandTokens.textSecondary,
+                        fontSize: 13,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        );
+            ),
+          );
+        }
+
+        // 3. Recents (only when focused & no text)
+        if (focused && controller.text.isEmpty && recents.isNotEmpty) {
+          return _PanelCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+                  child: Text(
+                    'RECENT',
+                    style: TextStyle(
+                      color: BrandTokens.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.3,
+                    ),
+                  ),
+                ),
+                ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: recents.length,
+                  separatorBuilder: (_, __) => const Divider(
+                    height: 1,
+                    color: BrandTokens.borderSoft,
+                    indent: 60,
+                  ),
+                  itemBuilder: (context, i) => _ResultTile(
+                    result: recents[i],
+                    icon: Icons.history_rounded,
+                    onTap: () => onPick(recents[i]),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return const SizedBox.shrink();
       },
+    );
+  }
+
+  static IconData _iconForCategory(String? cat) {
+    if (cat == null) return Icons.place_rounded;
+    final lower = cat.toLowerCase();
+    if (lower.contains('road') || lower.contains('highway') ||
+        lower.contains('street')) {
+      return Icons.alt_route_rounded;
+    }
+    if (lower.contains('city') || lower.contains('town') ||
+        lower.contains('village') || lower.contains('place')) {
+      return Icons.location_city_rounded;
+    }
+    if (lower.contains('amenity') || lower.contains('shop') ||
+        lower.contains('poi') || lower.contains('tourism') ||
+        lower.contains('attraction')) {
+      return Icons.storefront_rounded;
+    }
+    if (lower.contains('neighbour') || lower.contains('district') ||
+        lower.contains('locality') || lower.contains('suburb')) {
+      return Icons.holiday_village_rounded;
+    }
+    return Icons.place_rounded;
+  }
+}
+
+class _PanelCard extends StatelessWidget {
+  final Widget child;
+  const _PanelCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 360),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.7),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: BrandTokens.shadowSoft,
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _SuggestionTile extends StatelessWidget {
+class _ResultTile extends StatelessWidget {
   final NominatimResult result;
+  final IconData icon;
   final VoidCallback onTap;
-  const _SuggestionTile({required this.result, required this.onTap});
+  const _ResultTile({
+    required this.result,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return InkWell(
-      borderRadius: BorderRadius.circular(AppTheme.radiusSM),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spaceMD,
-          vertical: 10,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: AppColor.secondaryColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                    BrandTokens.primaryBlue.withValues(alpha: 0.04),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.place_rounded,
-                color: AppColor.secondaryColor,
+              child: Icon(
+                icon,
+                color: BrandTokens.primaryBlue,
                 size: 20,
               ),
             ),
-            const SizedBox(width: AppTheme.spaceMD),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -902,19 +1215,23 @@ class _SuggestionTile extends StatelessWidget {
                 children: [
                   Text(
                     result.name,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: const TextStyle(
+                      color: BrandTokens.textPrimary,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (result.displayName.isNotEmpty)
+                  if (result.displayName.isNotEmpty &&
+                      result.displayName != result.name)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         result.displayName,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColor.lightTextSecondary,
+                        style: const TextStyle(
+                          color: BrandTokens.textSecondary,
+                          fontSize: 12,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -923,10 +1240,11 @@ class _SuggestionTile extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 6),
             const Icon(
               Icons.north_west_rounded,
-              size: 18,
-              color: AppColor.lightTextSecondary,
+              size: 16,
+              color: BrandTokens.textSecondary,
             ),
           ],
         ),
@@ -935,34 +1253,49 @@ class _SuggestionTile extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Compass badge + my-location FAB
-// ============================================================================
+// =============================================================================
+// Glass icon buttons / FAB
+// =============================================================================
 
-class _CompassBadge extends StatelessWidget {
-  final double rotationRad;
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
   final VoidCallback onTap;
-  const _CompassBadge({required this.rotationRad, required this.onTap});
+  final double rotationRad;
+  final Color color;
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    this.rotationRad = 0,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.95),
-      shape: const CircleBorder(),
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Transform.rotate(
-            angle: rotationRad * (3.1415926535 / 180.0) * -1,
-            child: const Icon(
-              Icons.explore_rounded,
-              color: AppColor.secondaryColor,
-              size: 22,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.92),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.7),
+              width: 1,
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: Center(
+                child: Transform.rotate(
+                  angle: rotationRad,
+                  child: Icon(icon, color: color, size: 20),
+                ),
+              ),
             ),
           ),
         ),
@@ -978,33 +1311,44 @@ class _MyLocationFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColor.secondaryColor,
-      shape: const CircleBorder(),
-      elevation: 6,
-      shadowColor: AppColor.secondaryColor.withValues(alpha: 0.4),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: isLoading ? null : onTap,
-        child: SizedBox(
-          width: 52,
-          height: 52,
-          child: Center(
-            child: isLoading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.white),
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: BrandTokens.primaryGradient,
+        boxShadow: [
+          BoxShadow(
+            color: BrandTokens.primaryBlue.withValues(alpha: 0.45),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: isLoading ? null : onTap,
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: Center(
+              child: isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.my_location_rounded,
+                      color: Colors.white,
+                      size: 24,
                     ),
-                  )
-                : const Icon(
-                    Icons.my_location_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
+            ),
           ),
         ),
       ),
@@ -1012,9 +1356,9 @@ class _MyLocationFab extends StatelessWidget {
   }
 }
 
-// ============================================================================
+// =============================================================================
 // Center pin (pulsing teardrop)
-// ============================================================================
+// =============================================================================
 
 class _PulsingPin extends StatefulWidget {
   final Color color;
@@ -1026,9 +1370,9 @@ class _PulsingPin extends StatefulWidget {
 
 class _PulsingPinState extends State<_PulsingPin>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
-        ..repeat();
+  late final AnimationController _ctrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1400))
+    ..repeat();
 
   @override
   void dispose() {
@@ -1041,27 +1385,27 @@ class _PulsingPinState extends State<_PulsingPin>
     return IgnorePointer(
       ignoring: true,
       child: SizedBox(
-        width: 80,
-        height: 96,
+        width: 90,
+        height: 110,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Pulse ring (animates 1.0 -> 1.4 scale, 0.4 -> 0 opacity).
+            // Pulse ring.
             Positioned(
-              bottom: 14,
+              bottom: 16,
               child: AnimatedBuilder(
                 animation: _ctrl,
                 builder: (_, __) {
                   final v = _ctrl.value;
                   return Opacity(
-                    opacity: (1 - v) * 0.4,
+                    opacity: (1 - v) * 0.45,
                     child: Transform.scale(
-                      scale: 1 + v * 0.4,
+                      scale: 1 + v * 0.6,
                       child: Container(
-                        width: 36,
-                        height: 36,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: widget.color.withValues(alpha: 0.6),
+                          color: widget.color.withValues(alpha: 0.55),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -1070,28 +1414,21 @@ class _PulsingPinState extends State<_PulsingPin>
                 },
               ),
             ),
-            // Solid base dot (so the user knows the exact point).
+            // Solid base dot.
             Positioned(
-              bottom: 18,
+              bottom: 22,
               child: Container(
-                width: 12,
-                height: 12,
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(
-                  color: widget.color,
+                  color: Colors.black.withValues(alpha: 0.35),
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
                 ),
               ),
             ),
-            // Teardrop shape with inner dot.
+            // Teardrop with inner gradient + dot.
             Positioned(
-              top: 6,
+              top: 0,
               child: _Teardrop(color: widget.color),
             ),
           ],
@@ -1108,33 +1445,32 @@ class _Teardrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 36,
-      height: 48,
+      width: 40,
+      height: 54,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Drop shadow.
           Positioned(
             top: 4,
             child: CustomPaint(
-              size: const Size(34, 46),
-              painter: _DropPainter(color: Colors.black.withValues(alpha: 0.18)),
+              size: const Size(38, 50),
+              painter: _DropPainter(
+                color: Colors.black.withValues(alpha: 0.20),
+              ),
             ),
           ),
-          // Filled teardrop.
           CustomPaint(
-            size: const Size(34, 46),
+            size: const Size(38, 50),
             painter: _DropPainter(color: color),
           ),
-          // White inner dot.
           const Positioned(
-            top: 12,
+            top: 13,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              child: SizedBox(width: 10, height: 10),
+              child: SizedBox(width: 12, height: 12),
             ),
           ),
         ],
@@ -1154,16 +1490,8 @@ class _DropPainter extends CustomPainter {
     final h = size.height;
     final path = ui.Path();
     path.moveTo(w / 2, h);
-    path.cubicTo(
-      w * 0.05, h * 0.62,
-      w * 0.0, h * 0.20,
-      w * 0.5, 0,
-    );
-    path.cubicTo(
-      w * 1.0, h * 0.20,
-      w * 0.95, h * 0.62,
-      w / 2, h,
-    );
+    path.cubicTo(w * 0.05, h * 0.62, w * 0.0, h * 0.20, w * 0.5, 0);
+    path.cubicTo(w * 1.0, h * 0.20, w * 0.95, h * 0.62, w / 2, h);
     path.close();
     canvas.drawPath(path, paint);
   }
@@ -1172,14 +1500,11 @@ class _DropPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ============================================================================
-// Bottom sheet (sticky address + Confirm)
-// ============================================================================
+// =============================================================================
+// Frosted bottom sheet
+// =============================================================================
 
-/// Bottom sheet that listens to the picker's ValueNotifiers, so only the
-/// dynamic bits (linear progress, label, address, lat/lng) rebuild as the
-/// user pans the map — the surrounding map and search list stay still.
-class _LiveBottomSheet extends StatelessWidget {
+class _FrostedBottomSheet extends StatelessWidget {
   final bool isPickup;
   final ValueListenable<String?> labelVN;
   final ValueListenable<String?> addressVN;
@@ -1187,7 +1512,7 @@ class _LiveBottomSheet extends StatelessWidget {
   final ValueListenable<LatLng> centerVN;
   final VoidCallback onConfirm;
 
-  const _LiveBottomSheet({
+  const _FrostedBottomSheet({
     required this.isPickup,
     required this.labelVN,
     required this.addressVN,
@@ -1198,99 +1523,107 @@ class _LiveBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppTheme.radiusXL),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 24,
-            offset: const Offset(0, -8),
+    final accent =
+        isPickup ? BrandTokens.successGreen : BrandTokens.dangerRed;
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.96),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.shadowDeep,
+                blurRadius: 28,
+                offset: const Offset(0, -10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ValueListenableBuilder<bool>(
-            valueListenable: resolvingVN,
-            builder: (_, resolving, __) => SizedBox(
-              height: 3,
-              child: resolving
-                  ? const LinearProgressIndicator(minHeight: 3)
-                  : const SizedBox.shrink(),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTheme.spaceMD,
-              AppTheme.spaceMD,
-              AppTheme.spaceMD,
-              AppTheme.spaceMD,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColor.lightBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: resolvingVN,
+                builder: (_, resolving, __) => SizedBox(
+                  height: 3,
+                  child: resolving
+                      ? const LinearProgressIndicator(
+                          minHeight: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              BrandTokens.primaryBlue),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-                const SizedBox(height: AppTheme.spaceMD),
-                Row(
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: (isPickup
-                                ? AppColor.accentColor
-                                : AppColor.errorColor)
-                            .withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        isPickup
-                            ? Icons.trip_origin_rounded
-                            : Icons.flag_rounded,
-                        color: isPickup
-                            ? AppColor.accentColor
-                            : AppColor.errorColor,
-                        size: 18,
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: BrandTokens.borderSoft,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: AppTheme.spaceMD),
-                    Expanded(
-                      child: _LiveAddressBlock(
-                        isPickup: isPickup,
-                        labelVN: labelVN,
-                        addressVN: addressVN,
-                        centerVN: centerVN,
-                      ),
+                    const SizedBox(height: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                accent.withValues(alpha: 0.18),
+                                accent.withValues(alpha: 0.06),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            isPickup
+                                ? Icons.trip_origin_rounded
+                                : Icons.flag_rounded,
+                            color: accent,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _LiveAddressBlock(
+                            isPickup: isPickup,
+                            labelVN: labelVN,
+                            addressVN: addressVN,
+                            centerVN: centerVN,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _ConfirmButton(
+                      label:
+                          isPickup ? 'Confirm pickup' : 'Confirm destination',
+                      onTap: onConfirm,
                     ),
                   ],
                 ),
-                const SizedBox(height: AppTheme.spaceMD),
-                _ConfirmButton(
-                  label: isPickup ? 'Confirm pickup' : 'Confirm destination',
-                  enabled: true,
-                  onTap: onConfirm,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1311,28 +1644,30 @@ class _LiveAddressBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           isPickup ? 'PICKUP POINT' : 'DESTINATION',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColor.lightTextSecondary,
-            letterSpacing: 1,
-            fontWeight: FontWeight.w600,
+          style: const TextStyle(
+            color: BrandTokens.textSecondary,
+            fontSize: 10,
+            letterSpacing: 1.3,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         ValueListenableBuilder<String?>(
           valueListenable: labelVN,
           builder: (_, label, __) => Text(
             (label == null || label.trim().isEmpty)
                 ? 'Move the map to choose a point'
                 : label,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+            style: const TextStyle(
+              color: BrandTokens.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -1345,11 +1680,13 @@ class _LiveAddressBlock extends StatelessWidget {
               return const SizedBox.shrink();
             }
             return Padding(
-              padding: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
                 address,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColor.lightTextSecondary,
+                style: const TextStyle(
+                  color: BrandTokens.textSecondary,
+                  fontSize: 12,
+                  height: 1.3,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -1357,17 +1694,16 @@ class _LiveAddressBlock extends StatelessWidget {
             );
           },
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         ValueListenableBuilder<LatLng>(
           valueListenable: centerVN,
           builder: (_, center, __) => Text(
             '${center.latitude.toStringAsFixed(5)}, '
             '${center.longitude.toStringAsFixed(5)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColor.lightTextSecondary,
-              fontFeatures: const [
-                FontFeature.tabularFigures(),
-              ],
+            style: const TextStyle(
+              color: BrandTokens.textSecondary,
+              fontSize: 11,
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
         ),
@@ -1378,59 +1714,49 @@ class _LiveAddressBlock extends StatelessWidget {
 
 class _ConfirmButton extends StatelessWidget {
   final String label;
-  final bool enabled;
   final VoidCallback onTap;
-  const _ConfirmButton({
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
+  const _ConfirmButton({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.45,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: BrandTokens.primaryGradient,
+        boxShadow: [
+          BoxShadow(
+            color: BrandTokens.primaryBlue.withValues(alpha: 0.36),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
       child: Material(
         color: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-            gradient: const LinearGradient(
-              colors: [AppColor.accentColor, AppColor.secondaryColor],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColor.secondaryColor.withValues(alpha: 0.30),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-            onTap: enabled ? onTap : null,
-            child: Container(
-              height: 56,
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.check_circle_rounded,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: SizedBox(
+            height: 56,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: const TextStyle(
                     color: Colors.white,
-                    size: 22,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1439,9 +1765,133 @@ class _ConfirmButton extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Bootstrap shimmer + attribution
-// ============================================================================
+// =============================================================================
+// Permission dialog + bootstrap shimmer + attribution chip
+// =============================================================================
+
+class _PermissionDialog extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String primaryLabel;
+  final Future<void> Function() onPrimary;
+
+  const _PermissionDialog({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.primaryLabel,
+    required this.onPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: BrandTokens.surfaceWhite,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    BrandTokens.primaryBlue.withValues(alpha: 0.14),
+                    BrandTokens.primaryBlue.withValues(alpha: 0.04),
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon,
+                  color: BrandTokens.primaryBlue, size: 30),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: const TextStyle(
+                color: BrandTokens.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              style: const TextStyle(
+                color: BrandTokens.textSecondary,
+                fontSize: 13,
+                height: 1.45,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: BrandTokens.primaryGradient,
+                  boxShadow: [
+                    BoxShadow(
+                      color: BrandTokens.primaryBlue
+                          .withValues(alpha: 0.32),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () async {
+                      await onPrimary();
+                      if (context.mounted) {
+                        Navigator.of(context).pop(true);
+                      }
+                    },
+                    child: Center(
+                      child: Text(
+                        primaryLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Not now',
+                style: TextStyle(
+                  color: BrandTokens.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _BootstrapShimmer extends StatelessWidget {
   const _BootstrapShimmer();
@@ -1449,23 +1899,43 @@ class _BootstrapShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFEFF1F4),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [BrandTokens.primaryBlue, BrandTokens.primaryBlueDark],
+        ),
+      ),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
-            width: 26,
-            height: 26,
-            child: CircularProgressIndicator(strokeWidth: 2.4),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.14),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.6,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ),
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Finding your location...',
+          const SizedBox(height: 18),
+          const Text(
+            'Finding your real location…',
             style: TextStyle(
-              color: AppColor.lightTextSecondary.withValues(alpha: 0.9),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -1474,20 +1944,26 @@ class _BootstrapShimmer extends StatelessWidget {
   }
 }
 
-class _OsmCartoAttribution extends StatelessWidget {
-  const _OsmCartoAttribution();
+class _AttributionChip extends StatelessWidget {
+  const _AttributionChip();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Text(
-        '\u00A9 OpenStreetMap contributors \u00A9 CARTO',
-        style: TextStyle(fontSize: 10, color: Colors.black87),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: const Text(
+            '\u00A9 OpenStreetMap contributors',
+            style: TextStyle(fontSize: 9.5, color: Colors.black87),
+          ),
+        ),
       ),
     );
   }

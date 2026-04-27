@@ -87,3 +87,13 @@ List<String> parseStringList(dynamic value) {
   }
   return const [];
 }
+
+/// First non-null keyed value (camelCase then PascalCase fallbacks).
+dynamic pickJsonKey(Map<String, dynamic> json, List<String> keys) {
+  for (final k in keys) {
+    if (!json.containsKey(k)) continue;
+    final v = json[k];
+    if (v != null) return v;
+  }
+  return null;
+}

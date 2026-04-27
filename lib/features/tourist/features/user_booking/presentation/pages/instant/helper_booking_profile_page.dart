@@ -1,13 +1,16 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/utils/responsive.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../../core/widgets/hero_header.dart';
+import '../../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../domain/entities/helper_booking_profile.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/helper_booking_profile_cubit.dart';
@@ -16,9 +19,13 @@ import '../../widgets/instant/empty_error_state.dart';
 import '../../widgets/instant/skeleton.dart';
 import 'location_pick_result.dart';
 
-/// Step 5 â€” full helper profile page. Sticky bottom bar shows the
-/// estimated price (taken from the search result we already have) and a
-/// "Request now" CTA â†’ BookingReviewPage.
+/// Step 5 — full helper profile page (Pass #5 redesign).
+///
+/// Layout pillars:
+///   • Mesh-gradient hero with frosted glass avatar plate
+///   • 3-up "trust strip" (trips, response, acceptance)
+///   • Section cards on a soft surface, never plain dividers
+///   • Sticky frosted CTA dock with `EGP …` + "Request now"
 class HelperBookingProfilePage extends StatelessWidget {
   final InstantBookingCubit cubit;
   final HelperSearchResult helper;
@@ -89,6 +96,7 @@ class _ProfileView extends StatelessWidget {
   });
 
   void _onRequest(BuildContext context) {
+    HapticFeedback.mediumImpact();
     context.push(
       AppRouter.instantBookingReview,
       extra: {
@@ -107,14 +115,9 @@ class _ProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final r = Responsive.of(context);
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      // Stack-based layout instead of `bottomNavigationBar` — the latter
-      // was producing weird placements (the action bar landed at the top
-      // of the screen) when the body collapsed. With a Stack we control
-      // the action-bar position explicitly via Positioned(bottom:0) and
-      // the body always fills the screen with `Positioned.fill`.
+      backgroundColor: BrandTokens.bgSoft,
       body: Stack(
         children: [
           Positioned.fill(
@@ -136,19 +139,16 @@ class _ProfileView extends StatelessWidget {
               },
             ),
           ),
-          // Always-reachable back button, regardless of state. Without
-          // this the user can be trapped during loading/error states
-          // (the in-hero back button only renders in Loaded state).
           Positioned(
-            top: MediaQuery.of(context).padding.top + 4,
-            left: 4,
-            child: const _OverlayBackButton(),
+            top: r.viewPadding.top + 6,
+            left: r.pagePadding - 8,
+            child: const _GlassBackButton(),
           ),
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: _ActionBar(
+            child: _CtaDock(
               priceLabel: 'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
               onRequest: () => _onRequest(context),
             ),
@@ -159,103 +159,203 @@ class _ProfileView extends StatelessWidget {
   }
 }
 
-class _OverlayBackButton extends StatelessWidget {
-  const _OverlayBackButton();
+class _GlassBackButton extends StatelessWidget {
+  const _GlassBackButton();
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.35),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () => Navigator.of(context).maybePop(),
-        child: const SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(Icons.arrow_back_rounded, color: Colors.white),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.22),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              Navigator.of(context).maybePop();
+            },
+            child: const SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Sticky bottom bar with the estimated total on the left and the
-/// "Request now" CTA on the right. Layout uses `Expanded` instead of a
-/// fixed 180px width so it never overflows on narrow screens.
-class _ActionBar extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+//                         STICKY CTA DOCK
+// ─────────────────────────────────────────────────────────────────────────────
+class _CtaDock extends StatelessWidget {
   final String priceLabel;
   final VoidCallback onRequest;
-  const _ActionBar({required this.priceLabel, required this.onRequest});
+  const _CtaDock({required this.priceLabel, required this.onRequest});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppTheme.spaceLG,
-          AppTheme.spaceMD,
-          AppTheme.spaceLG,
-          AppTheme.spaceMD,
-        ),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.07),
-              blurRadius: 18,
-              offset: const Offset(0, -4),
+    final r = Responsive.of(context);
+    return RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: BrandTokens.surfaceWhite.withValues(alpha: 0.92),
+              border: Border(
+                top: BorderSide(
+                  color: BrandTokens.borderSoft.withValues(alpha: 0.8),
+                ),
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: BrandTokens.shadowSoft,
+                  blurRadius: 32,
+                  offset: Offset(0, -8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Estimated total',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColor.lightTextSecondary,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  r.pagePadding,
+                  r.gap,
+                  r.pagePadding,
+                  r.gap,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Estimated total',
+                            style: BrandTokens.body(
+                              fontSize: r.fontSmall,
+                              color: BrandTokens.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            priceLabel,
+                            style: BrandTokens.numeric(
+                              fontSize: r.pick(
+                                  compact: 22.0, phone: 24.0, tablet: 28.0),
+                              fontWeight: FontWeight.w800,
+                              color: BrandTokens.primaryBlue,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    priceLabel,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColor.accentColor,
+                    SizedBox(width: r.gapSM),
+                    Expanded(
+                      flex: 5,
+                      child: _PrimaryCta(
+                        label: 'Request now',
+                        icon: Icons.send_rounded,
+                        onTap: onRequest,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: AppTheme.spaceMD),
-            Expanded(
-              flex: 5,
-              child: _GradientCta(
-                label: 'Request now',
-                icon: Icons.send_rounded,
-                onTap: onRequest,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
+class _PrimaryCta extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  const _PrimaryCta({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Ink(
+          height: r.ctaHeight,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                BrandTokens.successGreen,
+                BrandTokens.primaryBlue,
+              ],
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: BrandTokens.glowBlue,
+                blurRadius: 22,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white, size: r.fontTitle),
+                SizedBox(width: r.gapSM),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: BrandTokens.heading(
+                      fontSize: r.fontBody + 1,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                         BODY
+// ─────────────────────────────────────────────────────────────────────────────
 class _ProfileBody extends StatelessWidget {
   final HelperBookingProfile profile;
   final HelperSearchResult helper;
@@ -263,164 +363,121 @@ class _ProfileBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
       slivers: [
-        SliverPersistentHeader(
-          pinned: false,
-          delegate: _ProfileHeroDelegate(profile: profile),
+        SliverToBoxAdapter(
+          child: _Hero(profile: profile, helper: helper),
         ),
         SliverToBoxAdapter(
-          child: Transform.translate(
-            offset: const Offset(0, -36),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spaceLG,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _StatsRow(profile: profile),
-                  const SizedBox(height: AppTheme.spaceLG),
-                  if ((profile.bio ?? '').isNotEmpty) ...[
-                    SectionTitle('About'),
-                    const SizedBox(height: AppTheme.spaceSM),
-                    _SoftCard(
-                      child: Text(
-                        profile.bio!,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(height: 1.45),
-                      ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: r.contentMaxWidth),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Transform.translate(
+                      offset: Offset(0,
+                          -r.pick(compact: 28.0, phone: 34.0, tablet: 40.0)),
+                      child: _TrustStrip(profile: profile),
                     ),
-                    const SizedBox(height: AppTheme.spaceLG),
-                  ],
-                  if (profile.languages.isNotEmpty) ...[
-                    SectionTitle('Languages'),
-                    const SizedBox(height: AppTheme.spaceSM),
-                    _SoftCard(
-                      child: Wrap(
-                        spacing: AppTheme.spaceSM,
-                        runSpacing: AppTheme.spaceSM,
-                        children: [
-                          for (final l in profile.languages)
-                            _LanguageChip(language: l),
-                        ],
+                    SizedBox(height: r.gapSM),
+                    if ((profile.bio ?? '').isNotEmpty) ...[
+                      _SectionHeader(label: 'About'),
+                      SizedBox(height: r.gapSM),
+                      _GlassCard(
+                        child: Text(
+                          profile.bio!,
+                          style: BrandTokens.body(
+                            fontSize: r.fontBody,
+                            height: 1.55,
+                            color: BrandTokens.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppTheme.spaceLG),
-                  ],
-                  if (profile.hasCar && profile.car != null) ...[
-                    SectionTitle('Vehicle'),
-                    const SizedBox(height: AppTheme.spaceSM),
-                    _CarCard(car: profile.car!),
-                    const SizedBox(height: AppTheme.spaceLG),
-                  ],
-                  if (profile.serviceAreas.isNotEmpty) ...[
-                    SectionTitle('Service areas'),
-                    const SizedBox(height: AppTheme.spaceSM),
-                    _SoftCard(
-                      child: Wrap(
-                        spacing: AppTheme.spaceSM,
-                        runSpacing: AppTheme.spaceSM,
-                        children: [
-                          for (final a in profile.serviceAreas)
-                            _ServiceAreaChip(area: a),
-                        ],
+                      SizedBox(height: r.gap),
+                    ],
+                    if (profile.languages.isNotEmpty) ...[
+                      _SectionHeader(label: 'Languages'),
+                      SizedBox(height: r.gapSM),
+                      _GlassCard(
+                        child: Wrap(
+                          spacing: r.gapSM,
+                          runSpacing: r.gapSM,
+                          children: [
+                            for (final l in profile.languages)
+                              _LangPill(language: l),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppTheme.spaceLG),
-                  ],
-                  if (profile.certificates.isNotEmpty) ...[
-                    SectionTitle('Certificates'),
-                    const SizedBox(height: AppTheme.spaceSM),
-                    _SoftCard(
-                      child: Wrap(
-                        spacing: AppTheme.spaceSM,
-                        runSpacing: AppTheme.spaceSM,
-                        children: [
-                          for (final c in profile.certificates)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppTheme.spaceSM,
-                                vertical: 6,
+                      SizedBox(height: r.gap),
+                    ],
+                    if (profile.hasCar && profile.car != null) ...[
+                      _SectionHeader(label: 'Vehicle'),
+                      SizedBox(height: r.gapSM),
+                      _CarCard(car: profile.car!),
+                      SizedBox(height: r.gap),
+                    ],
+                    if (profile.serviceAreas.isNotEmpty) ...[
+                      _SectionHeader(label: 'Service areas'),
+                      SizedBox(height: r.gapSM),
+                      _GlassCard(
+                        child: Wrap(
+                          spacing: r.gapSM,
+                          runSpacing: r.gapSM,
+                          children: [
+                            for (final a in profile.serviceAreas)
+                              _AreaPill(area: a),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: r.gap),
+                    ],
+                    if (profile.certificates.isNotEmpty) ...[
+                      _SectionHeader(label: 'Certificates'),
+                      SizedBox(height: r.gapSM),
+                      _GlassCard(
+                        child: Wrap(
+                          spacing: r.gapSM,
+                          runSpacing: r.gapSM,
+                          children: [
+                            for (final c in profile.certificates)
+                              _CertPill(label: c),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: r.gap),
+                    ],
+                    if (helper.suitabilityReasons.isNotEmpty) ...[
+                      _SectionHeader(
+                        label: 'Why ${profile.fullName.split(' ').first}?',
+                      ),
+                      SizedBox(height: r.gapSM),
+                      _GlassCard(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: r.gap,
+                          vertical: r.gapSM + 2,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final reason in helper.suitabilityReasons)
+                              Padding(
+                                padding: EdgeInsets.symmetric(vertical: 6),
+                                child: _ReasonRow(text: reason),
                               ),
-                              decoration: BoxDecoration(
-                                color: AppColor.warningColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(
-                                  AppTheme.radiusFull,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.workspace_premium_rounded,
-                                    size: 14,
-                                    color: AppColor.warningColor,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    c,
-                                    style: const TextStyle(
-                                      color: AppColor.warningColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppTheme.spaceLG),
+                    ],
+                    SizedBox(
+                        height: r.pick(
+                            compact: 120.0, phone: 140.0, tablet: 160.0)),
                   ],
-                  if (helper.suitabilityReasons.isNotEmpty) ...[
-                    SectionTitle('Why ${profile.fullName.split(' ').first}?'),
-                    const SizedBox(height: AppTheme.spaceSM),
-                    _SoftCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final reason in helper.suitabilityReasons)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      color: AppColor.accentColor
-                                          .withValues(alpha: 0.15),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.check_rounded,
-                                      color: AppColor.accentColor,
-                                      size: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      reason,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  // Clearance under the sticky action bar at the bottom.
-                  const SizedBox(height: 140),
-                ],
+                ),
               ),
             ),
           ),
@@ -430,146 +487,111 @@ class _ProfileBody extends StatelessWidget {
   }
 }
 
-class _ProfileHeroDelegate extends SliverPersistentHeaderDelegate {
+// ─────────────────────────────────────────────────────────────────────────────
+//                         HERO
+// ─────────────────────────────────────────────────────────────────────────────
+class _Hero extends StatelessWidget {
   final HelperBookingProfile profile;
-  _ProfileHeroDelegate({required this.profile});
+  final HelperSearchResult helper;
+  const _Hero({required this.profile, required this.helper});
 
   @override
-  double get minExtent => 280;
-  @override
-  double get maxExtent => 280;
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    final topPad = r.viewPadding.top +
+        r.pick(compact: 50.0, phone: 56.0, tablet: 64.0);
+    final heroHeight = r.pick(compact: 280.0, phone: 310.0, tablet: 340.0);
 
-  @override
-  Widget build(BuildContext context, double shrink, bool overlap) {
-    final mediaTop = MediaQuery.of(context).padding.top;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: kBrandGradient,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: kBrandGradient.first.withValues(alpha: 0.28),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return SizedBox(
+      height: heroHeight,
       child: Stack(
         children: [
+          Positioned.fill(
+            child: ClipPath(
+              clipper: _HeroBlobClipper(),
+              child: const MeshGradientBackground(),
+            ),
+          ),
+          // Soft top vignette so the back button stays legible.
           Positioned(
-            top: mediaTop + 4,
-            left: 4,
-            child: Material(
-              color: Colors.white.withValues(alpha: 0.18),
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () => Navigator.of(context).maybePop(),
-                child: const SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: Icon(Icons.arrow_back_rounded, color: Colors.white),
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topPad + 16,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.18),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          Positioned.fill(
-            top: mediaTop + 32,
+          Positioned(
+            top: topPad,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
+                _AvatarPlate(profile: profile, size: r.heroAvatar),
+                SizedBox(height: r.gapSM + 2),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          profile.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: BrandTokens.heading(
+                            fontSize: r.pick(
+                                compact: 20.0, phone: 22.0, tablet: 26.0),
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.verified_rounded,
+                          color: Colors.white, size: r.fontTitle),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _RatingPill(
+                  rating: profile.rating,
+                  count: profile.ratingCount,
+                ),
+                SizedBox(height: r.gapSM),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      if ((profile.gender ?? '').isNotEmpty)
+                        _HeroChip(label: profile.gender!),
+                      if (profile.age != null)
+                        _HeroChip(label: '${profile.age} y/o'),
+                      _HeroChip(
+                        label: '${profile.experienceYears}y exp',
+                        icon: Icons.workspace_premium_rounded,
                       ),
                     ],
                   ),
-                  child: AppNetworkImage(
-                    imageUrl: profile.profileImageUrl,
-                    width: 100,
-                    height: 100,
-                    borderRadius: 50,
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spaceMD),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        profile.fullName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.verified_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      color: Color(0xFFFFD56B),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      profile.rating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      ' (${profile.ratingCount})',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppTheme.spaceSM),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    if ((profile.gender ?? '').isNotEmpty)
-                      _OnHeroPill(label: profile.gender!),
-                    if (profile.age != null)
-                      _OnHeroPill(label: '${profile.age} y/o'),
-                    _OnHeroPill(
-                      label: '${profile.experienceYears}y exp',
-                      icon: Icons.workspace_premium_rounded,
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -578,299 +600,138 @@ class _ProfileHeroDelegate extends SliverPersistentHeaderDelegate {
       ),
     );
   }
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
-      false;
 }
 
-class _SoftCard extends StatelessWidget {
-  final Widget child;
-  const _SoftCard({required this.child});
-
+class _HeroBlobClipper extends CustomClipper<Path> {
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
+  Path getClip(Size size) {
+    final p = Path();
+    p.lineTo(0, size.height - 36);
+    p.quadraticBezierTo(
+      size.width * 0.25,
+      size.height - 8,
+      size.width * 0.55,
+      size.height - 22,
     );
+    p.quadraticBezierTo(
+      size.width * 0.85,
+      size.height - 38,
+      size.width,
+      size.height - 12,
+    );
+    p.lineTo(size.width, 0);
+    p.close();
+    return p;
   }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
-class _StatsRow extends StatelessWidget {
+class _AvatarPlate extends StatelessWidget {
   final HelperBookingProfile profile;
-  const _StatsRow({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final acceptance = profile.acceptanceRate ?? 0;
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.task_alt_rounded,
-            label: 'Trips',
-            value: profile.completedTrips.toString(),
-            color: AppColor.accentColor,
-          ),
-        ),
-        const SizedBox(width: AppTheme.spaceSM),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.bolt_rounded,
-            label: 'Response',
-            value: _responseLabel(profile.averageResponseTimeSeconds),
-            color: AppColor.secondaryColor,
-          ),
-        ),
-        const SizedBox(width: AppTheme.spaceSM),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.verified_user_rounded,
-            label: 'Acceptance',
-            value: '${(acceptance * 100).round()}%',
-            color: acceptance >= 0.8
-                ? AppColor.accentColor
-                : (acceptance >= 0.5
-                    ? AppColor.warningColor
-                    : AppColor.errorColor),
-          ),
-        ),
-      ],
-    );
-  }
-
-  static String _responseLabel(int? seconds) {
-    if (seconds == null) return 'â€”';
-    if (seconds < 60) return '${seconds}s';
-    return '${seconds ~/ 60}m';
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+  final double size;
+  const _AvatarPlate({required this.profile, required this.size});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceMD,
-        vertical: AppTheme.spaceMD,
-      ),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFFFF), Color(0xFFFFE7A6)],
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Color(0x33000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSM),
+      child: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+        ),
+        padding: const EdgeInsets.all(3),
+        child: AppNetworkImage(
+          imageUrl: profile.profileImageUrl,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        ),
+      ),
+    );
+  }
+}
+
+class _RatingPill extends StatelessWidget {
+  final double rating;
+  final int count;
+  const _RatingPill({required this.rating, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(40),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.20),
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.35),
             ),
-            child: Icon(icon, color: color, size: 16),
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColor.lightTextSecondary,
-                ),
-          ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: color,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star_rounded,
+                  color: Color(0xFFFFD56B), size: 18),
+              const SizedBox(width: 4),
+              Text(
+                rating.toStringAsFixed(1),
+                style: BrandTokens.numeric(
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
+                  color: Colors.white,
                 ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LanguageChip extends StatelessWidget {
-  final HelperLanguage language;
-  const _LanguageChip({required this.language});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSM,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: AppColor.secondaryColor.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            language.isVerified
-                ? Icons.verified_rounded
-                : Icons.translate_rounded,
-            size: 14,
-            color: language.isVerified
-                ? AppColor.accentColor
-                : AppColor.secondaryColor,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '${language.languageName}'
-            '${language.level == null ? '' : ' Â· ${language.level}'}',
-            style: const TextStyle(
-              color: AppColor.secondaryColor,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ServiceAreaChip extends StatelessWidget {
-  final HelperServiceArea area;
-  const _ServiceAreaChip({required this.area});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = [
-      area.city,
-      if ((area.areaName ?? '').isNotEmpty) area.areaName,
-      area.country,
-    ].whereType<String>().join(', ');
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSM,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: AppColor.lightBorder,
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.place_rounded,
-            size: 14,
-            color: AppColor.lightTextSecondary,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColor.lightTextSecondary,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CarCard extends StatelessWidget {
-  final HelperCarInfo car;
-  const _CarCard({required this.car});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final desc = [car.brand, car.model, car.color, car.type]
-        .whereType<String>()
-        .where((s) => s.isNotEmpty)
-        .join(' Â· ');
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColor.warningColor.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-            ),
-            child: const Icon(
-              Icons.directions_car_rounded,
-              color: AppColor.warningColor,
-            ),
-          ),
-          const SizedBox(width: AppTheme.spaceMD),
-          Expanded(
-            child: Text(
-              desc.isEmpty ? 'Helper has a vehicle' : desc,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
               ),
-            ),
+              const SizedBox(width: 6),
+              Text(
+                '($count)',
+                style: BrandTokens.body(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _OnHeroPill extends StatelessWidget {
+class _HeroChip extends StatelessWidget {
   final String label;
   final IconData? icon;
-  const _OnHeroPill({required this.label, this.icon});
+  const _HeroChip({required this.label, this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.30),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -881,10 +742,10 @@ class _OnHeroPill extends StatelessWidget {
           ],
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: BrandTokens.body(
               fontSize: 11,
               fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           ),
         ],
@@ -893,79 +754,482 @@ class _OnHeroPill extends StatelessWidget {
   }
 }
 
-class _GradientCta extends StatelessWidget {
-  final String label;
+// ─────────────────────────────────────────────────────────────────────────────
+//                         TRUST STRIP
+// ─────────────────────────────────────────────────────────────────────────────
+class _TrustStrip extends StatelessWidget {
+  final HelperBookingProfile profile;
+  const _TrustStrip({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    final acc = profile.acceptanceRate ?? 0;
+    final accColor = acc >= 0.8
+        ? BrandTokens.successGreen
+        : acc >= 0.5
+            ? BrandTokens.warningAmber
+            : BrandTokens.dangerRed;
+
+    return _GlassCard(
+      padding: EdgeInsets.symmetric(
+        horizontal: r.gapSM + 2,
+        vertical: r.gap,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _TrustItem(
+              icon: Icons.task_alt_rounded,
+              label: 'Trips',
+              value: profile.completedTrips.toString(),
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+          _Divider(),
+          Expanded(
+            child: _TrustItem(
+              icon: Icons.bolt_rounded,
+              label: 'Response',
+              value: _responseLabel(profile.averageResponseTimeSeconds),
+              color: BrandTokens.accentAmber,
+            ),
+          ),
+          _Divider(),
+          Expanded(
+            child: _TrustItem(
+              icon: Icons.verified_user_rounded,
+              label: 'Acceptance',
+              value: '${(acc * 100).round()}%',
+              color: accColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _responseLabel(int? seconds) {
+    if (seconds == null) return '\u2014';
+    if (seconds < 60) return '${seconds}s';
+    return '${seconds ~/ 60}m';
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 32,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: BrandTokens.borderSoft,
+    );
+  }
+}
+
+class _TrustItem extends StatelessWidget {
   final IconData icon;
-  final VoidCallback onTap;
-  const _GradientCta({
-    required this.label,
+  final String label;
+  final String value;
+  final Color color;
+
+  const _TrustItem({
     required this.icon,
-    required this.onTap,
+    required this.label,
+    required this.value,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        onTap: onTap,
-        child: Container(
-          height: 52,
+    final r = Responsive.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            gradient: const LinearGradient(
-              colors: [AppColor.accentColor, AppColor.secondaryColor],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColor.accentColor.withValues(alpha: 0.32),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
           ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+          child: Icon(icon,
+              color: color,
+              size: r.pick(compact: 14.0, phone: 16.0, tablet: 18.0)),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BrandTokens.numeric(
+            fontSize: r.pick(compact: 15.0, phone: 17.0, tablet: 19.0),
+            fontWeight: FontWeight.w800,
+            color: BrandTokens.textPrimary,
           ),
         ),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BrandTokens.body(
+            fontSize: r.fontSmall,
+            color: BrandTokens.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                         SECTION HEADER + GLASS CARD
+// ─────────────────────────────────────────────────────────────────────────────
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 18,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  BrandTokens.successGreen,
+                  BrandTokens.primaryBlue,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BrandTokens.heading(
+                fontSize: r.fontTitle,
+                fontWeight: FontWeight.w800,
+                color: BrandTokens.textPrimary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
+class _GlassCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+  const _GlassCard({required this.child, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Container(
+      padding: padding ?? EdgeInsets.all(r.gap),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: BrandTokens.borderSoft.withValues(alpha: 0.7),
+        ),
+        boxShadow: BrandTokens.cardShadow,
+      ),
+      child: child,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                         PILLS
+// ─────────────────────────────────────────────────────────────────────────────
+class _LangPill extends StatelessWidget {
+  final HelperLanguage language;
+  const _LangPill({required this.language});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLevel = (language.level ?? '').isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(
+          color: BrandTokens.primaryBlue.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            language.isVerified
+                ? Icons.verified_rounded
+                : Icons.translate_rounded,
+            size: 14,
+            color: language.isVerified
+                ? BrandTokens.successGreen
+                : BrandTokens.primaryBlue,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            language.languageName,
+            style: BrandTokens.body(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+          if (hasLevel) ...[
+            Text(
+              ' \u00b7 ',
+              style: BrandTokens.body(
+                fontSize: 12,
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.55),
+              ),
+            ),
+            Text(
+              language.level!,
+              style: BrandTokens.body(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.85),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AreaPill extends StatelessWidget {
+  final HelperServiceArea area;
+  const _AreaPill({required this.area});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>[
+      area.city,
+      if ((area.areaName ?? '').isNotEmpty) area.areaName!,
+    ];
+    final label = parts.join(', ');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: BrandTokens.bgSoft,
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(color: BrandTokens.borderSoft),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.place_rounded,
+              size: 14, color: BrandTokens.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: BrandTokens.body(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: BrandTokens.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CertPill extends StatelessWidget {
+  final String label;
+  const _CertPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: BrandTokens.accentAmberSoft,
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(color: BrandTokens.accentAmberBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.workspace_premium_rounded,
+              size: 14, color: BrandTokens.accentAmberText),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BrandTokens.body(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: BrandTokens.accentAmberText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                         CAR + REASON
+// ─────────────────────────────────────────────────────────────────────────────
+class _CarCard extends StatelessWidget {
+  final HelperCarInfo car;
+  const _CarCard({required this.car});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    final desc = [car.brand, car.model, car.color, car.type]
+        .whereType<String>()
+        .where((s) => s.trim().isNotEmpty)
+        .join(' \u00b7 ');
+    return _GlassCard(
+      padding: EdgeInsets.all(r.gap),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: BrandTokens.amberGradient,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                  color: BrandTokens.glowAmber,
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.directions_car_rounded,
+              color: Colors.white,
+            ),
+          ),
+          SizedBox(width: r.gap),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  desc.isEmpty ? 'Helper has a vehicle' : desc,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: BrandTokens.heading(
+                    fontSize: r.fontBody + 1,
+                    fontWeight: FontWeight.w700,
+                    color: BrandTokens.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Personal vehicle included',
+                  style: BrandTokens.body(
+                    fontSize: r.fontSmall,
+                    color: BrandTokens.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReasonRow extends StatelessWidget {
+  final String text;
+  const _ReasonRow({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: BrandTokens.successGreen.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.check_rounded,
+            color: BrandTokens.successGreen,
+            size: 13,
+          ),
+        ),
+        SizedBox(width: r.gapSM),
+        Expanded(
+          child: Text(
+            text,
+            style: BrandTokens.body(
+              fontSize: r.fontBody,
+              color: BrandTokens.textPrimary,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//                         SKELETON
+// ─────────────────────────────────────────────────────────────────────────────
 class _ProfileSkeleton extends StatelessWidget {
   const _ProfileSkeleton();
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     return ListView(
-      padding: const EdgeInsets.all(AppTheme.spaceLG),
-      children: const [
-        SizedBox(height: 60),
+      padding: EdgeInsets.fromLTRB(
+        r.pagePadding,
+        r.viewPadding.top + 80,
+        r.pagePadding,
+        r.gap,
+      ),
+      children: [
         Center(
-          child: SkeletonBox(width: 100, height: 100, borderRadius: 50),
+          child: SkeletonBox(
+            width: r.heroAvatar,
+            height: r.heroAvatar,
+            borderRadius: r.heroAvatar / 2,
+          ),
         ),
-        SizedBox(height: AppTheme.spaceMD),
-        Center(child: SkeletonBox(height: 22, width: 180)),
-        SizedBox(height: 8),
-        Center(child: SkeletonBox(height: 14, width: 120)),
-        SizedBox(height: AppTheme.spaceLG),
-        Row(
+        SizedBox(height: r.gap),
+        const Center(child: SkeletonBox(height: 22, width: 180)),
+        const SizedBox(height: 8),
+        const Center(child: SkeletonBox(height: 14, width: 120)),
+        SizedBox(height: r.gapLG),
+        const Row(
           children: [
             Expanded(child: SkeletonBox(height: 80, width: double.infinity)),
             SizedBox(width: 8),
@@ -974,12 +1238,10 @@ class _ProfileSkeleton extends StatelessWidget {
             Expanded(child: SkeletonBox(height: 80, width: double.infinity)),
           ],
         ),
-        SizedBox(height: AppTheme.spaceLG),
-        SkeletonBox(height: 60, width: double.infinity),
-        SizedBox(height: AppTheme.spaceLG),
-        SkeletonBox(height: 40, width: 200),
-        SizedBox(height: 12),
-        SkeletonBox(height: 60, width: double.infinity),
+        SizedBox(height: r.gapLG),
+        const SkeletonBox(height: 60, width: double.infinity),
+        SizedBox(height: r.gap),
+        const SkeletonBox(height: 60, width: double.infinity),
       ],
     );
   }

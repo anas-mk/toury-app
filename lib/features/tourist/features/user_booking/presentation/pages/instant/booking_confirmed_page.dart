@@ -94,7 +94,12 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
       child: BlocBuilder<InstantBookingCubit, InstantBookingState>(
         builder: (context, state) {
           final booking = _bookingFrom(state);
-          return Scaffold(
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) context.go(AppRouter.home);
+            },
+            child: Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             extendBodyBehindAppBar: true,
             body: CustomScrollView(
@@ -152,6 +157,7 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
                   ),
                 ),
               ],
+            ),
             ),
           );
         },

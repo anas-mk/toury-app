@@ -997,20 +997,65 @@ Dio _createDio() {
   // ── 401 / 403 global handler + token attachment ──────────────────────────
   dio.interceptors.add(AuthInterceptor());
 
-  // ── Debug-only request/response logger ───────────────────────────────────
+  // ── Debug-only request/response logger (truncating; Pass #4 perf) ───────
+  // The default `LogInterceptor` dumps the full body of every request and
+  // response, which on a large helpers-list response (or an OSM tile) is
+  // measurable overhead even in debug. We cap to 200 chars and skip bodies
+  // larger than 50 KB entirely. Wrapped in `kDebugMode` so it's tree-shaken
+  // out of release.
   if (kDebugMode) {
-    dio.interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: false,
-        responseBody: true,
-        error: true,
-        logPrint: (obj) => debugPrint('🌐 DIO: $obj'),
-      ),
-    );
+    dio.interceptors.add(_TruncatingDioLogger());
   }
 
   return dio;
+}
+
+/// Lightweight Dio logger used only in debug builds.
+///
+/// Compared to the stock `LogInterceptor`:
+///   * Body preview capped at 200 chars
+///   * Bodies > 50 KB are not stringified at all (just size logged)
+///   * Single-line summary per request/response (much easier to scan)
+class _TruncatingDioLogger extends Interceptor {
+  static const int _bodyPreviewChars = 200;
+  static const int _bodyMaxBytes = 50 * 1024;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final body = _previewBody(options.data);
+    debugPrint(
+      '➡️ ${options.method} ${options.uri}'
+      '${body == null ? '' : '  body=$body'}',
+    );
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final body = _previewBody(response.data);
+    debugPrint(
+      '⬅️ ${response.statusCode} ${response.requestOptions.uri}'
+      '${body == null ? '' : '  body=$body'}',
+    );
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final body = _previewBody(err.response?.data);
+    debugPrint(
+      '❌ ${err.response?.statusCode ?? '-'} ${err.requestOptions.uri}'
+      '  ${err.type}'
+      '${body == null ? '' : '  body=$body'}',
+    );
+    handler.next(err);
+  }
+
+  String? _previewBody(Object? data) {
+    if (data == null) return null;
+    final s = data.toString();
+    if (s.length > _bodyMaxBytes) return '<${s.length} bytes — skipped>';
+    if (s.length <= _bodyPreviewChars) return s;
+    return '${s.substring(0, _bodyPreviewChars)}…(+${s.length - _bodyPreviewChars})';
+  }
 }

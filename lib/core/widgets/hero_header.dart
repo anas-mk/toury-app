@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_color.dart';
 import '../theme/app_theme.dart';
+import '../theme/brand_tokens.dart';
+import 'brand/brand_kit.dart';
 
 /// Brand gradient pair shared by every screen that shows a "hero" band.
 ///
-/// The two ends are the brand accent (Egyptian-tourism leaning teal-green)
-/// and our secondary action blue. We avoid using black gradients on hero
-/// surfaces because they look like an admin tool, not a tourism product.
+/// Pass #4: the colors here are now informational only — the actual hero
+/// canvas is a MeshGradientBackground from the brand kit. We keep this
+/// constant exported because some legacy callers still pass it through.
 const List<Color> kBrandGradient = [
   AppColor.accentColor,
   AppColor.secondaryColor,
@@ -107,35 +109,32 @@ class HeroBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaTop = MediaQuery.of(context).padding.top;
-    return SizedBox(
-      height: height,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: gradient,
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(28),
-                bottomRight: Radius.circular(28),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: gradient.first.withValues(alpha: 0.28),
-                  blurRadius: 22,
-                  offset: const Offset(0, 8),
+    // Pass #4 — replace the legacy linear-gradient banner with the brand
+    // MeshGradientBackground clipped by HeroBlobShape. The hero now has an
+    // organic bottom edge instead of the old rounded-rect cut.
+    return ClipPath(
+      clipper: const _HeroBandBlobClipper(),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const RepaintBoundary(child: MeshGradientBackground()),
+            // Subtle vignette so white text reads against the brightest
+            // mesh blobs.
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    BrandTokens.primaryBlueDark.withValues(alpha: 0.12),
+                    BrandTokens.primaryBlueDark.withValues(alpha: 0.32),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-          Positioned.fill(
-            child: CustomPaint(painter: _HeroDotsPainter()),
-          ),
-          if (showBack)
+            if (showBack)
             Positioned(
               top: mediaTop + 4,
               left: 4,
@@ -228,26 +227,39 @@ class HeroBand extends StatelessWidget {
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _HeroDotsPainter extends CustomPainter {
+// Bottom-edge blob clipper used by HeroBand. Shape is a single cubic-
+// bezier dip-and-rise so the hero never has a straight bottom line.
+class _HeroBandBlobClipper extends CustomClipper<Path> {
+  const _HeroBandBlobClipper();
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withValues(alpha: 0.06);
-    const step = 28.0;
-    for (double y = 0; y < size.height; y += step) {
-      for (double x = 0; x < size.width; x += step) {
-        canvas.drawCircle(Offset(x, y), 1.5, paint);
-      }
-    }
+  Path getClip(Size size) {
+    final p = Path();
+    p.lineTo(0, size.height - 32);
+    p.cubicTo(
+      size.width * 0.25, size.height - 4,
+      size.width * 0.55, size.height - 60,
+      size.width * 0.78, size.height - 28,
+    );
+    p.cubicTo(
+      size.width * 0.92, size.height - 14,
+      size.width, size.height - 36,
+      size.width, size.height - 56,
+    );
+    p.lineTo(size.width, 0);
+    p.close();
+    return p;
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 /// Section title pattern: small uppercase eyebrow + bold title.
