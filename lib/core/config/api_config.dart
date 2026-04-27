@@ -202,6 +202,16 @@ class ApiConfig {
   static String markChatAsRead(String bookingId) => '/user/bookings/$bookingId/chat/read';
 
   // ==========================================================================
+  // NOTIFICATIONS / DEVICE TOKEN Endpoints
+  // ==========================================================================
+  static const String registerDevice    = '/notifications/devices';
+  static String unregisterDevice(String fcmToken) =>
+      '/notifications/devices?fcmToken=${Uri.encodeQueryComponent(fcmToken)}';
+  static const String unregisterAllDevices = '/notifications/devices/all';
+  static const String listMyDevices        = '/notifications/devices/me';
+  static const String testDevicePush       = '/notifications/devices/test';
+
+  // ==========================================================================
   // TRACKING Endpoints
   // ==========================================================================
   static const String trackingHubUrl = '/hubs/booking';

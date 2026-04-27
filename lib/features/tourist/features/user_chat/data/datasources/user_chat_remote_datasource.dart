@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/errors/exceptions.dart';
+import '../../../../../../core/services/signalr/booking_hub_events.dart';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../models/chat_models.dart';
 
 abstract class UserChatRemoteDataSource {
@@ -14,42 +17,97 @@ abstract class UserChatRemoteDataSource {
 
 class UserChatRemoteDataSourceImpl implements UserChatRemoteDataSource {
   final Dio dio;
-  // SignalR hub connection would be here in a real implementation
-  // final HubConnection _hubConnection;
-  
+  final BookingTrackingHubService hubService;
+
   final _messageStreamController = StreamController<ChatMessageModel>.broadcast();
+  StreamSubscription<ChatMessagePushEvent>? _hubSub;
 
-  UserChatRemoteDataSourceImpl({required this.dio}) {
-    // _initializeSignalR();
+  UserChatRemoteDataSourceImpl({
+    required this.dio,
+    required this.hubService,
+  }) {
+    _hubSub = hubService.chatMessageStream.listen(_onChatPush);
+    unawaited(_ensureHubConnected());
   }
 
-  /*
-  Future<void> _initializeSignalR() async {
-    _hubConnection = HubConnectionBuilder()
-        .withUrl('${ApiConfig.baseUrl}/chatHub')
-        .withAutomaticReconnect()
-        .build();
+  Future<void> _ensureHubConnected() async {
+    try {
+      await hubService.ensureConnected();
+    } catch (e) {
+      debugPrint('💬 UserChatRemoteDataSource: hub ensureConnected failed → $e');
+    }
+  }
 
-    _hubConnection.on('ChatMessage', (arguments) {
-      if (arguments != null && arguments.isNotEmpty) {
-        final messageJson = arguments[0] as Map<String, dynamic>;
-        _messageStreamController.add(ChatMessageModel.fromJson(messageJson));
+  void _onChatPush(ChatMessagePushEvent event) {
+    final id = event.messageId;
+    if (id == null || id.isEmpty) return;
+    final senderId = event.senderId ?? '';
+    final senderType = event.senderType ?? 'User';
+    final messageType = event.messageType ?? 'Text';
+    final preview = event.preview ?? '';
+    final sentAt = event.sentAt ?? DateTime.now().toUtc();
+    _messageStreamController.add(
+      ChatMessageModel(
+        id: id,
+        senderId: senderId,
+        senderType: senderType,
+        messageType: messageType,
+        text: preview,
+        sentAt: sentAt,
+        isRead: false,
+      ),
+    );
+  }
+
+  void dispose() {
+    _hubSub?.cancel();
+    _messageStreamController.close();
+  }
+
+  Map<String, dynamic> _unwrap(dynamic raw) {
+    if (raw is Map<String, dynamic>) {
+      final data = raw['data'];
+      if (data is Map<String, dynamic>) return data;
+      if (data == null) return raw;
+    }
+    return raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+  }
+
+  List<dynamic> _unwrapList(dynamic raw) {
+    if (raw is Map<String, dynamic>) {
+      final data = raw['data'];
+      if (data is List) return data;
+      if (data is Map<String, dynamic> && data['items'] is List) {
+        return data['items'] as List;
       }
-    });
-
-    await _hubConnection.start();
+      if (raw['items'] is List) return raw['items'] as List;
+    }
+    if (raw is List) return raw;
+    return const [];
   }
-  */
+
+  Never _throwFromDio(DioException e, String label) {
+    if (e.error is UnauthorizedException) throw e.error as UnauthorizedException;
+    if (e.error is ForbiddenException) throw e.error as ForbiddenException;
+    final code = e.response?.statusCode;
+    final body = e.response?.data;
+    String? msg;
+    if (body is Map && body['message'] is String) {
+      msg = body['message'] as String;
+    }
+    debugPrint('💬 [$label] HTTP $code → ${msg ?? e.message}');
+    if (code == 401) throw UnauthorizedException(msg ?? 'Unauthorized');
+    if (code == 403) throw ForbiddenException(msg ?? 'Forbidden');
+    throw ServerException(msg ?? e.message ?? 'Network error');
+  }
 
   @override
   Future<ChatConversationModel> getConversation(String bookingId) async {
     try {
       final response = await dio.get(ApiConfig.getChatConversation(bookingId));
-      return ChatConversationModel.fromJson(response.data);
+      return ChatConversationModel.fromJson(_unwrap(response.data));
     } on DioException catch (e) {
-      throw ServerException(e.response?.data?['message'] ?? e.message ?? 'Server error');
-    } catch (e) {
-      throw ServerException(e.toString());
+      _throwFromDio(e, 'getConversation');
     }
   }
 
@@ -59,12 +117,13 @@ class UserChatRemoteDataSourceImpl implements UserChatRemoteDataSource {
       final response = await dio.get(
         ApiConfig.getChatMessages(bookingId, page: page, beforeDate: beforeDate?.toIso8601String()),
       );
-      final List<dynamic> items = response.data['items'] ?? [];
-      return items.map((json) => ChatMessageModel.fromJson(json)).toList();
+      final items = _unwrapList(response.data);
+      return items
+          .whereType<Map<String, dynamic>>()
+          .map(ChatMessageModel.fromJson)
+          .toList();
     } on DioException catch (e) {
-      throw ServerException(e.response?.data?['message'] ?? e.message ?? 'Server error');
-    } catch (e) {
-      throw ServerException(e.toString());
+      _throwFromDio(e, 'getMessages');
     }
   }
 
@@ -78,11 +137,9 @@ class UserChatRemoteDataSourceImpl implements UserChatRemoteDataSource {
           'messageType': type,
         },
       );
-      return ChatMessageModel.fromJson(response.data);
+      return ChatMessageModel.fromJson(_unwrap(response.data));
     } on DioException catch (e) {
-      throw ServerException(e.response?.data?['message'] ?? e.message ?? 'Server error');
-    } catch (e) {
-      throw ServerException(e.toString());
+      _throwFromDio(e, 'sendMessage');
     }
   }
 
@@ -91,9 +148,7 @@ class UserChatRemoteDataSourceImpl implements UserChatRemoteDataSource {
     try {
       await dio.post(ApiConfig.markChatAsRead(bookingId));
     } on DioException catch (e) {
-      throw ServerException(e.response?.data?['message'] ?? e.message ?? 'Server error');
-    } catch (e) {
-      throw ServerException(e.toString());
+      _throwFromDio(e, 'markAsRead');
     }
   }
 

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_button.dart';
-import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entity.dart';
 import '../../domain/entities/search_params.dart';
@@ -26,7 +25,6 @@ class BookingConfirmPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return BlocProvider(
@@ -34,18 +32,13 @@ class BookingConfirmPage extends StatelessWidget {
       child: BlocListener<BookingCubit, BookingState>(
         listener: (context, state) {
           if (state is BookingCreated) {
-            if (isInstant) {
-              context.goNamed(
-                'waiting-helper',
-                pathParameters: {'id': state.booking.id},
-                extra: {'booking': state.booking},
-              );
-            } else {
-              context.goNamed(
-                'payment-method',
-                pathParameters: {'bookingId': state.booking.id},
-              );
-            }
+            // Instant flow has been moved to InstantBookingCubit and
+            // its dedicated screens — this page only handles Scheduled
+            // bookings now. Route straight to payment.
+            context.goNamed(
+              'payment-method',
+              pathParameters: {'bookingId': state.booking.id},
+            );
           } else if (state is BookingError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),
@@ -80,27 +73,17 @@ class BookingConfirmPage extends StatelessWidget {
                 BlocBuilder<BookingCubit, BookingState>(
                   builder: (context, state) {
                     return CustomButton(
-                      text: isInstant ? 'Request Now' : 'Proceed to Payment',
+                      text: 'Proceed to Payment',
                       isLoading: state is BookingLoading,
                       onPressed: () {
-                        if (isInstant) {
-                          final params = searchParams as InstantSearchParams;
-                          context.read<BookingCubit>().createInstant(
-                            helperId: helper.id,
-                            pickupLocationName: params.pickupLocationName,
-                            pickupLatitude: params.pickupLatitude,
-                            pickupLongitude: params.pickupLongitude,
-                          );
-                        } else {
-                          final params = searchParams as ScheduledSearchParams;
-                          context.read<BookingCubit>().createScheduled(
-                                helperId: helper.id,
-                                destinationCity: params.destinationCity,
-                                requestedDate: params.requestedDate,
-                                startTime: params.startTime,
-                                durationInMinutes: params.durationInMinutes,
-                              );
-                        }
+                        final params = searchParams as ScheduledSearchParams;
+                        context.read<BookingCubit>().createScheduled(
+                              helperId: helper.id,
+                              destinationCity: params.destinationCity,
+                              requestedDate: params.requestedDate,
+                              startTime: params.startTime,
+                              durationInMinutes: params.durationInMinutes,
+                            );
                       },
                     );
                   },

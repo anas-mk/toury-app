@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
+import '../../../../../../core/widgets/booking_status_chip.dart';
+import '../../domain/entities/booking_detail_entity.dart';
 import '../../domain/usecases/get_booking_details_usecase.dart';
 import '../../domain/usecases/get_my_bookings_usecase.dart';
 import '../../domain/usecases/booking_actions_usecase.dart';
@@ -21,18 +23,34 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
     required this.hubService,
   }) : super(BookingStatusInitial());
 
+  /// Look for the most recent active booking and surface it on the home
+  /// screen as the "Your active trip" banner.
+  ///
+  /// IMPORTANT: the previous version of this code sent `?status=Active`
+  /// to the backend, but the API only accepts the concrete BookingStatus
+  /// values (`PendingHelperResponse`, `AcceptedByHelper`, ...). The server
+  /// responded with 400. We now fetch a small page of recent bookings and
+  /// filter client-side using [BookingStatusChip.isActive], which keeps the
+  /// definition of "active" in one place.
   Future<void> startPollingForActive() async {
     emit(BookingStatusLoading());
-    
-    // First, check if there's any active booking using the usecase
-    // We can use getMyBookings with 'Active' status or similar
-    final result = await getMyBookingsUseCase(status: 'Active', pageSize: 1);
-    
+    final result = await getMyBookingsUseCase(pageSize: 10);
     result.fold(
       (failure) => emit(BookingStatusError(failure.message)),
       (pagedResponse) {
-        if (pagedResponse.items.isNotEmpty) {
-          final activeBooking = pagedResponse.items.first;
+        final activeList = pagedResponse.items
+            .where((b) => BookingStatusChip.isActive(b.status))
+            .toList()
+          ..sort(
+            (a, b) {
+              final ar = _activeRank(a.status);
+              final br = _activeRank(b.status);
+              if (ar != br) return ar.compareTo(br);
+              return b.requestedDate.compareTo(a.requestedDate);
+            },
+          );
+        if (activeList.isNotEmpty) {
+          final activeBooking = activeList.first;
           emit(BookingStatusActive(activeBooking));
           _subscribeToStatusChanges(activeBooking.id);
         } else {
@@ -40,6 +58,27 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
         }
       },
     );
+  }
+
+  /// Lower rank wins: in-progress trips beat upcoming trips beat pending.
+  static int _activeRank(BookingStatus s) {
+    switch (s) {
+      case BookingStatus.inProgress:
+        return 0;
+      case BookingStatus.acceptedByHelper:
+      case BookingStatus.confirmedPaid:
+        return 1;
+      case BookingStatus.confirmedAwaitingPayment:
+        return 2;
+      case BookingStatus.upcoming:
+        return 3;
+      case BookingStatus.pendingHelperResponse:
+      case BookingStatus.reassignmentInProgress:
+      case BookingStatus.waitingForUserAction:
+        return 4;
+      default:
+        return 99;
+    }
   }
 
   void _subscribeToStatusChanges(String bookingId) {

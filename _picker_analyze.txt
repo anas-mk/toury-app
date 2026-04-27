@@ -1,0 +1,39 @@
+﻿Analyzing location_picker_page.dart...                          
+
+  error - Undefined class 'NominatimService' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:56:9 - undefined_class
+  error - The method 'NominatimService' isn't defined for the type '_LocationPickerPageState' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:56:39 - undefined_method
+  error - The name 'NominatimResult' isn't a type, so it can't be used as a type argument - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:75:8 - non_type_as_type_argument
+warning - The value of the field '_lastPosition' isn't used - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:76:13 - unused_field
+  error - Undefined class 'NominatimResult' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:308:26 - undefined_class
+  error - The name 'NominatimResult' isn't a type, so it can't be used as a type argument - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:534:14 - non_type_as_type_argument
+  error - The name 'NominatimResult' isn't a type, so it can't be used as a type argument - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:536:22 - non_type_as_type_argument
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:569:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:585:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:649:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:661:45 - deprecated_member_use
+  error - Undefined class 'NominatimResult' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:706:9 - undefined_class
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:727:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:789:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:792:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:824:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:903:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:923:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:960:57 - deprecated_member_use
+  error - The method 'moveTo' isn't defined for the type 'Path' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:995:10 - undefined_method
+  error - The method 'cubicTo' isn't defined for the type 'Path' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:996:10 - undefined_method
+  error - The method 'cubicTo' isn't defined for the type 'Path' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1001:10 - undefined_method
+  error - The method 'close' isn't defined for the type 'Path' - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1006:10 - undefined_method
+  error - The argument type 'Path<LatLng>' can't be assigned to the parameter type 'Path'.  - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1007:21 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1046:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1096:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1200:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1263:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\instant\location_picker_page.dart:1282:29 - deprecated_member_use
+
+flutter : 29 issues found. (ran in 1.9s)
+At C:\Users\eslam\AppData\Local\Temp\ps-script-5de99edd-3c70-413e-87de-a49896a3e261.ps1:87 char:1
++ flutter analyze lib/features/tourist/features/user_booking/presentati ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (29 issues found. (ran in 1.9s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

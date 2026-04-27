@@ -1,98 +1,381 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/localization/app_localizations.dart';
-import '../../../../../../core/router/app_router.dart';
+import '../../../../../../core/widgets/hero_header.dart';
 
+/// Step 1 - booking entry point.
+///
+/// Visual hierarchy (Pass #2):
+///   - Hero band reused from `core/widgets/hero_header.dart`.
+///   - Big primary "Instant" card (gradient, dominant).
+///   - Softer "Plan ahead" card (outlined, secondary).
+///   - "Why RAFIQ" trust strip (3 chips).
 class BookingHomePage extends StatelessWidget {
   const BookingHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final loc = AppLocalizations.of(context);
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(loc.translate('book_a_helper')),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          HeroBand(
+            title: 'Book a helper',
+            subtitle: 'Pick instant for now, or plan ahead.',
+            leadingIcon: Icons.travel_explore_rounded,
+            onBack: () => Navigator.of(context).maybePop(),
+            height: 200,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTheme.spaceLG,
+              AppTheme.spaceLG,
+              AppTheme.spaceLG,
+              AppTheme.space2XL,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _PrimaryInstantCard(
+                  onTap: () => context.push(AppRouter.instantTripDetails),
+                ),
+                const SizedBox(height: AppTheme.spaceMD),
+                _SecondaryScheduledCard(
+                  onTap: () => context.push(AppRouter.scheduledSearch),
+                ),
+                const SizedBox(height: AppTheme.spaceLG),
+                const _WhyStrip(),
+              ],
+            ),
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceLG),
-        child: Column(
-          children: [
-            const SizedBox(height: AppTheme.spaceXL),
-            _buildTypeCard(
-              context,
-              title: loc.translate('instant'),
-              subtitle: 'Find an available helper right now',
-              icon: Icons.bolt_rounded,
-              color: AppColor.accentColor,
-              onTap: () => context.push(AppRouter.instantSearch),
+    );
+  }
+}
+
+// ============================================================================
+// Primary Instant card (dominant)
+// ============================================================================
+
+class _PrimaryInstantCard extends StatefulWidget {
+  final VoidCallback onTap;
+  const _PrimaryInstantCard({required this.onTap});
+
+  @override
+  State<_PrimaryInstantCard> createState() => _PrimaryInstantCardState();
+}
+
+class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _down ? 0.97 : 1.0,
+      duration: const Duration(milliseconds: 110),
+      curve: Curves.easeOut,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.all(AppTheme.spaceLG),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColor.accentColor, AppColor.secondaryColor],
             ),
-            const SizedBox(height: AppTheme.spaceLG),
-            _buildTypeCard(
-              context,
-              title: loc.translate('scheduled'),
-              subtitle: 'Plan ahead and book for a future date',
-              icon: Icons.calendar_today_rounded,
-              color: AppColor.secondaryColor,
-              onTap: () => context.push(AppRouter.scheduledSearch),
-            ),
-          ],
+            borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+            boxShadow: [
+              BoxShadow(
+                color: AppColor.secondaryColor.withValues(alpha: 0.35),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusFull),
+                    ),
+                    child: const Text(
+                      'INSTANT',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                    ),
+                    child: const Icon(
+                      Icons.bolt_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spaceMD),
+              const Text(
+                'Book a helper now',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Match instantly with a verified local helper near you. '
+                'Most helpers respond in under 5 minutes.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.4,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spaceMD),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceMD,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusFull),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Find helpers',
+                          style: TextStyle(
+                            color: AppColor.secondaryColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                        SizedBox(width: 6),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: AppColor.secondaryColor,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildTypeCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
+// ============================================================================
+// Secondary Scheduled card (softer outlined card)
+// ============================================================================
+
+class _SecondaryScheduledCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SecondaryScheduledCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.cardColor,
       borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spaceLG),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppTheme.spaceMD),
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+        child: Container(
+          padding: const EdgeInsets.all(AppTheme.spaceMD),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+            border: Border.all(color: AppColor.lightBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColor.secondaryColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                ),
+                child: const Icon(
+                  Icons.event_rounded,
+                  color: AppColor.secondaryColor,
+                  size: 24,
+                ),
               ),
-              child: Icon(icon, color: Colors.white, size: 32),
-            ),
-            const SizedBox(width: AppTheme.spaceLG),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTheme.headlineMedium.copyWith(color: color),
-                  ),
-                  const SizedBox(height: AppTheme.spaceXS),
-                  Text(
-                    subtitle,
-                    style: AppTheme.bodyMedium.copyWith(color: AppColor.lightTextSecondary),
-                  ),
-                ],
+              const SizedBox(width: AppTheme.spaceMD),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Plan ahead',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Pick a future date and confirm a helper.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColor.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, color: color, size: 16),
-          ],
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColor.lightTextSecondary,
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Why RAFIQ strip
+// ============================================================================
+
+class _WhyStrip extends StatelessWidget {
+  const _WhyStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    final items = const [
+      _WhyChipData(
+        icon: Icons.verified_user_rounded,
+        title: 'Verified',
+        subtitle: 'Helpers',
+        color: AppColor.accentColor,
+      ),
+      _WhyChipData(
+        icon: Icons.location_on_rounded,
+        title: 'Live',
+        subtitle: 'Tracking',
+        color: AppColor.secondaryColor,
+      ),
+      _WhyChipData(
+        icon: Icons.public_rounded,
+        title: 'Local',
+        subtitle: 'Expertise',
+        color: AppColor.warningColor,
+      ),
+    ];
+    return Row(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          Expanded(child: _WhyChip(data: items[i])),
+          if (i != items.length - 1) const SizedBox(width: AppTheme.spaceSM),
+        ],
+      ],
+    );
+  }
+}
+
+class _WhyChipData {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  const _WhyChipData({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+}
+
+class _WhyChip extends StatelessWidget {
+  final _WhyChipData data;
+  const _WhyChip({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spaceSM,
+        vertical: AppTheme.spaceMD,
+      ),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+        border: Border.all(color: AppColor.lightBorder),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: data.color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(data.icon, color: data.color, size: 18),
+          ),
+          const SizedBox(height: AppTheme.spaceSM),
+          Text(
+            data.title,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            data.subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColor.lightTextSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
