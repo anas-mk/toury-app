@@ -15,6 +15,8 @@ import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
+import '../../../../../../../core/services/sos/active_sos_state.dart';
+import '../../../../../../../core/services/sos/sos_service.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
@@ -24,6 +26,9 @@ import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
 import '../../cubits/instant_booking_state.dart';
 import '../../widgets/instant/cancel_reason_sheet.dart';
+import '../../widgets/sos/sos_active_banner.dart';
+import '../../widgets/sos/sos_floating_button.dart';
+import '../../widgets/sos/sos_sheet.dart';
 
 /// Step 10 â€” live tracking screen. Listens to `HelperLocationUpdate` for
 /// helper position + ETA, and to `BookingTripEnded` for completion.
@@ -45,23 +50,39 @@ class TripTrackingPage extends StatefulWidget {
 
 class _TripTrackingPageState extends State<TripTrackingPage> {
   late final BookingTrackingHubService _hub;
+  late final SosService _sosService;
   late final MapController _mapController;
   StreamSubscription<HelperLocationUpdateEvent>? _locationSub;
   StreamSubscription<BookingTripEndedEvent>? _tripEndedSub;
+  StreamSubscription<ActiveSosState?>? _sosSub;
 
   HelperLocationUpdateEvent? _latest;
+  ActiveSosState? _activeSos;
+  bool _tripEnded = false;
+  bool _cancelingSos = false;
 
   @override
   void initState() {
     super.initState();
     _hub = sl<BookingTrackingHubService>();
+    _sosService = sl<SosService>();
     _mapController = MapController();
+    _activeSos = _sosService.activeSos;
     _locationSub = _hub.helperLocationUpdateStream
         .where((e) => e.bookingId == widget.bookingId)
         .listen(_onLocation);
     _tripEndedSub = _hub.bookingTripEndedStream
         .where((e) => e.bookingId == widget.bookingId)
         .listen(_onTripEnded);
+    _sosSub = _sosService.activeSosStream.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _activeSos = state?.bookingId == widget.bookingId ? state : null;
+        if (_activeSos == null) {
+          _cancelingSos = false;
+        }
+      });
+    });
     _ensureConnected();
   }
 
@@ -79,6 +100,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   void dispose() {
     _locationSub?.cancel();
     _tripEndedSub?.cancel();
+    _sosSub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -90,6 +112,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   void _onTripEnded(BookingTripEndedEvent event) {
     if (!mounted) return;
+    setState(() {
+      _tripEnded = true;
+    });
     if (widget.cubit.selectedPaymentMethod == AppPaymentMethod.mockCard) {
       _showMandatoryRating();
       return;
@@ -165,6 +190,53 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     context.push(AppRouter.userChat.replaceFirst(':id', widget.bookingId));
   }
 
+  Future<void> _openSosSheet() async {
+    final ok = await showSosSheet(
+      context,
+      onTrigger: (result) async {
+        final trigger = await _sosService.trigger(
+          bookingId: widget.bookingId,
+          reason: result.reason.apiValue,
+          note: result.note,
+        );
+        if (trigger.success) {
+          return null;
+        }
+        return trigger.message ?? 'Could not trigger SOS. Please try again.';
+      },
+    );
+    if (ok != true || !mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Support has been alerted')));
+  }
+
+  Future<void> _cancelSos() async {
+    if (_cancelingSos) return;
+    setState(() {
+      _cancelingSos = true;
+    });
+    final result = await _sosService.cancel();
+    if (!mounted) return;
+    if (result.success) {
+      setState(() {
+        _cancelingSos = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('SOS cancelled')));
+      return;
+    }
+    setState(() {
+      _cancelingSos = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message ?? 'Could not cancel SOS. Please retry.'),
+      ),
+    );
+  }
+
   void _recenter() {
     if (_latest != null) {
       _mapController.move(LatLng(_latest!.latitude, _latest!.longitude), 16);
@@ -200,6 +272,8 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                   (_latest != null
                       ? LatLng(_latest!.latitude, _latest!.longitude)
                       : const LatLng(0, 0));
+              final sosButtonBottom =
+                  MediaQuery.of(context).size.height * 0.32 + AppTheme.spaceMD;
 
               return Stack(
                 children: [
@@ -296,6 +370,22 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                     bottom: 6,
                     child: _OsmAttribution(),
                   ),
+                  if (_activeSos != null)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: SosActiveBanner(
+                        onCancel: _cancelSos,
+                        isCancelling: _cancelingSos,
+                      ),
+                    ),
+                  if (!_tripEnded)
+                    Positioned(
+                      right: AppTheme.spaceMD,
+                      bottom: sosButtonBottom,
+                      child: SosFloatingButton(onPressed: _openSosSheet),
+                    ),
                   // Draggable bottom sheet.
                   DraggableScrollableSheet(
                     initialChildSize: 0.32,

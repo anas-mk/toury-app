@@ -438,10 +438,19 @@ class _PrimaryActions extends StatelessWidget {
             label: canTrack ? 'Track helper' : 'Trip route',
             icon: Icons.map_rounded,
             enabled: canTrack,
-            onTap: () => context.pushNamed(
-              'user-tracking',
-              pathParameters: {'id': booking.id},
-            ),
+            onTap: () {
+              if (booking.status == BookingStatus.inProgress) {
+                context.pushNamed(
+                  'trip-live',
+                  pathParameters: {'id': booking.id},
+                );
+                return;
+              }
+              context.pushNamed(
+                'user-tracking',
+                pathParameters: {'id': booking.id},
+              );
+            },
           ),
         ),
         const SizedBox(width: AppTheme.spaceSM),

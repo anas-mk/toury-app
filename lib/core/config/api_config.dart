@@ -126,7 +126,7 @@ class ApiConfig {
   static const String helperLocationEligibility = '/helper/location/instant-eligibility';
 
   // SignalR Hub URL (strips /api suffix from baseUrl)
-  static String get bookingHub => baseUrl.replaceAll('/api', '') + '/hubs/booking';
+  static String get bookingHub => '${baseUrl.replaceAll('/api', '')}/hubs/booking';
 
   // ==========================================================================
   // HELPER - Invoices Endpoints
@@ -210,6 +210,14 @@ class ApiConfig {
   static const String unregisterAllDevices = '/notifications/devices/all';
   static const String listMyDevices        = '/notifications/devices/me';
   static const String testDevicePush       = '/notifications/devices/test';
+
+  // ==========================================================================
+  // SOS Endpoints
+  // ==========================================================================
+  static String triggerSos(String bookingId) => '/sos/bookings/$bookingId';
+  static String cancelSos(String sosId) => '/sos/$sosId/cancel';
+  static String getMySos(String sosId) => '/sos/mine/$sosId';
+  static String postSosLocation(String sosId) => '/sos/$sosId/location';
 
   // ==========================================================================
   // TRACKING Endpoints

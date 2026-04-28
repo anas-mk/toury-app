@@ -12,6 +12,7 @@ import '../../core/services/notifications/device_token_service.dart';
 import '../../core/services/notifications/messaging_service.dart';
 import '../../core/services/realtime/hub_lifecycle_observer.dart';
 import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
+import '../../core/services/sos/sos_service.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 
 // ============================================================
@@ -959,13 +960,18 @@ Future<void> init() async {
     () => MessagingService(deviceTokenService: sl()),
   );
 
-  // 7️⃣  HubLifecycleObserver — re-opens the SignalR connection when the
+  // 7️⃣  SOS service — trigger/cancel API + active SOS state.
+  sl.registerLazySingleton(
+    () => SosService(dio: sl(), prefs: sl()),
+  );
+
+  // 8️⃣  HubLifecycleObserver — re-opens the SignalR connection when the
   //     OS resumes the app after a long backgrounding. Attached from main().
   sl.registerLazySingleton(
     () => HubLifecycleObserver(hubService: sl(), authService: sl()),
   );
 
-  // 8️⃣  Bind the AuthService into the hub so accessTokenFactory can resolve
+  // 9️⃣  Bind the AuthService into the hub so accessTokenFactory can resolve
   //     the LATEST JWT on every reconnect (not the one captured at first
   //     connect). Done after both singletons are registered.
   sl<BookingTrackingHubService>().bindAuthService(sl<AuthService>());
