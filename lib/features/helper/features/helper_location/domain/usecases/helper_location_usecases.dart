@@ -5,7 +5,7 @@ class UpdateLocationUseCase {
   final HelperLocationRepository repository;
   UpdateLocationUseCase(this.repository);
 
-  Future<void> execute(HelperLocation location) => repository.updateLocation(location);
+  Future<LocationUpdateResponse> execute(HelperLocation location) => repository.updateLocation(location);
 }
 
 class GetLocationStatusUseCase {
@@ -19,7 +19,17 @@ class GetInstantEligibilityUseCase {
   final HelperLocationRepository repository;
   GetInstantEligibilityUseCase(this.repository);
 
-  Future<InstantEligibility> execute() => repository.getInstantEligibility();
+  Future<InstantEligibility> execute({
+    double? pickupLat,
+    double? pickupLng,
+    String? language,
+    bool? requiresCar,
+  }) => repository.getInstantEligibility(
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        language: language,
+        requiresCar: requiresCar,
+      );
 }
 
 class StreamLocationUseCase {

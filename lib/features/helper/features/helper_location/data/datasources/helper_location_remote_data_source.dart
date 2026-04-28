@@ -3,9 +3,14 @@ import '../../../../../../core/config/api_config.dart';
 import '../models/helper_location_models.dart';
 
 abstract class HelperLocationRemoteDataSource {
-  Future<void> updateLocation(HelperLocationModel location);
+  Future<LocationUpdateResponseModel> updateLocation(HelperLocationModel location);
   Future<LocationStatusModel> getLocationStatus();
-  Future<InstantEligibilityModel> getInstantEligibility();
+  Future<InstantEligibilityModel> getInstantEligibility({
+    double? pickupLat,
+    double? pickupLng,
+    String? language,
+    bool? requiresCar,
+  });
 }
 
 class HelperLocationRemoteDataSourceImpl implements HelperLocationRemoteDataSource {
@@ -14,8 +19,9 @@ class HelperLocationRemoteDataSourceImpl implements HelperLocationRemoteDataSour
   HelperLocationRemoteDataSourceImpl(this.dio);
 
   @override
-  Future<void> updateLocation(HelperLocationModel location) async {
-    await dio.post(ApiConfig.helperLocationUpdate, data: location.toJson());
+  Future<LocationUpdateResponseModel> updateLocation(HelperLocationModel location) async {
+    final response = await dio.post(ApiConfig.helperLocationUpdate, data: location.toJson());
+    return LocationUpdateResponseModel.fromJson(response.data['data'] ?? response.data);
   }
 
   @override
@@ -25,8 +31,22 @@ class HelperLocationRemoteDataSourceImpl implements HelperLocationRemoteDataSour
   }
 
   @override
-  Future<InstantEligibilityModel> getInstantEligibility() async {
-    final response = await dio.get(ApiConfig.helperLocationEligibility);
+  Future<InstantEligibilityModel> getInstantEligibility({
+    double? pickupLat,
+    double? pickupLng,
+    String? language,
+    bool? requiresCar,
+  }) async {
+    final Map<String, dynamic> queryParams = {};
+    if (pickupLat != null) queryParams['pickupLatitude'] = pickupLat;
+    if (pickupLng != null) queryParams['pickupLongitude'] = pickupLng;
+    if (language != null) queryParams['requestedLanguage'] = language;
+    if (requiresCar != null) queryParams['requiresCar'] = requiresCar;
+
+    final response = await dio.get(
+      ApiConfig.helperLocationEligibility,
+      queryParameters: queryParams,
+    );
     return InstantEligibilityModel.fromJson(response.data['data'] ?? response.data);
   }
 }

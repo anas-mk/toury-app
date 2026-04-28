@@ -58,33 +58,24 @@ class BookingConfirmPage extends StatelessWidget {
                 const SizedBox(height: AppTheme.spaceMD),
                 _buildHelperSummary(theme),
                 const SizedBox(height: AppTheme.spaceXL),
-                
+
                 _buildSectionTitle(theme, 'Trip Details'),
                 const SizedBox(height: AppTheme.spaceMD),
                 _buildTripDetails(theme),
                 const SizedBox(height: AppTheme.spaceXL),
-                
+
                 _buildSectionTitle(theme, 'Payment Summary'),
                 const SizedBox(height: AppTheme.spaceMD),
                 _buildPaymentSummary(theme),
-                
+
                 const Spacer(),
-                
+
                 BlocBuilder<BookingCubit, BookingState>(
                   builder: (context, state) {
                     return CustomButton(
                       text: 'Proceed to Payment',
                       isLoading: state is BookingLoading,
-                      onPressed: () {
-                        final params = searchParams as ScheduledSearchParams;
-                        context.read<BookingCubit>().createScheduled(
-                              helperId: helper.id,
-                              destinationCity: params.destinationCity,
-                              requestedDate: params.requestedDate,
-                              startTime: params.startTime,
-                              durationInMinutes: params.durationInMinutes,
-                            );
-                      },
+                      onPressed: () => _onConfirm(context),
                     );
                   },
                 ),
@@ -94,6 +85,16 @@ class BookingConfirmPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _onConfirm(BuildContext context) {
+    // Instant bookings now flow through InstantBookingCubit on the
+    // dedicated /instant/* screens. This page is scheduled-only.
+    final params = searchParams as ScheduledSearchParams;
+    context.read<BookingCubit>().createScheduled(
+      helperId: helper.id,
+      params: params,
     );
   }
 
@@ -121,7 +122,8 @@ class BookingConfirmPage extends StatelessWidget {
           const SizedBox(width: AppTheme.spaceMD),
           Text(helper.name, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
           const Spacer(),
-          Text('${helper.hourlyRate ?? 0} USD/hr'),
+          if (helper.hourlyRate != null)
+            Text('${helper.hourlyRate!.toStringAsFixed(0)} EGP/hr'),
         ],
       ),
     );
@@ -130,22 +132,31 @@ class BookingConfirmPage extends StatelessWidget {
   Widget _buildTripDetails(ThemeData theme) {
     String city = '';
     String time = '';
+    int duration = 0;
+
     if (isInstant) {
-      city = (searchParams as InstantSearchParams).pickupLocationName;
+      final params = searchParams as InstantSearchParams;
+      city = params.pickupLocationName;
       time = 'Starting Now';
+      duration = params.durationInMinutes;
     } else {
       final params = searchParams as ScheduledSearchParams;
       city = params.destinationCity;
-      time = '${DateFormat('MMM dd').format(params.requestedDate)} at ${params.startTime}';
+      time = '${DateFormat('MMM dd, yyyy').format(params.requestedDate)} at ${params.startTime}';
+      duration = params.durationInMinutes;
     }
+
+    final durationText = duration >= 60
+        ? '${duration ~/ 60}h ${duration % 60 > 0 ? "${duration % 60}m" : ""}'.trim()
+        : '${duration}m';
 
     return Column(
       children: [
-        _buildDetailRow(Icons.location_on_rounded, 'City', city),
+        _buildDetailRow(Icons.location_on_rounded, 'City / Pickup', city),
         const SizedBox(height: AppTheme.spaceSM),
         _buildDetailRow(Icons.access_time_rounded, 'Time', time),
         const SizedBox(height: AppTheme.spaceSM),
-        _buildDetailRow(Icons.hourglass_bottom_rounded, 'Duration', '4 Hours'),
+        _buildDetailRow(Icons.hourglass_bottom_rounded, 'Duration', durationText),
       ],
     );
   }
@@ -157,14 +168,21 @@ class BookingConfirmPage extends StatelessWidget {
         const SizedBox(width: 8),
         Text('$label:', style: const TextStyle(color: AppColor.lightTextSecondary)),
         const SizedBox(width: 8),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+        Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
       ],
     );
   }
 
   Widget _buildPaymentSummary(ThemeData theme) {
+    // Prefer the API-calculated estimated price; fall back to computing from hourly rate
+    final estimatedPrice = helper.estimatedPrice;
     final hourlyRate = helper.hourlyRate ?? 0;
-    final total = hourlyRate * 4;
+    final duration = isInstant
+        ? (searchParams as InstantSearchParams).durationInMinutes
+        : (searchParams as ScheduledSearchParams).durationInMinutes;
+    final computedTotal = hourlyRate * (duration / 60);
+    final displayTotal = estimatedPrice ?? computedTotal;
+
     return Container(
       padding: const EdgeInsets.all(AppTheme.spaceMD),
       decoration: BoxDecoration(
@@ -176,8 +194,8 @@ class BookingConfirmPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Hourly Rate x 4'),
-              Text('${hourlyRate * 4} USD'),
+              Text(estimatedPrice != null ? 'Estimated Price' : 'Approx. Price'),
+              Text('${displayTotal.toStringAsFixed(2)} EGP'),
             ],
           ),
           const Divider(height: AppTheme.spaceLG),
@@ -186,10 +204,15 @@ class BookingConfirmPage extends StatelessWidget {
             children: [
               const Text('Total Amount', style: TextStyle(fontWeight: FontWeight.bold)),
               Text(
-                '$total USD',
+                '${displayTotal.toStringAsFixed(2)} EGP',
                 style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppColor.accentColor),
               ),
             ],
+          ),
+          const SizedBox(height: AppTheme.spaceSM),
+          const Text(
+            '* Final price confirmed after helper acceptance.',
+            style: TextStyle(fontSize: 11, color: AppColor.lightTextSecondary),
           ),
         ],
       ),

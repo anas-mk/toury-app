@@ -14,15 +14,25 @@ class HelperLocationRepositoryImpl implements HelperLocationRepository {
   });
 
   @override
-  Future<void> updateLocation(HelperLocation location) async {
-    await remoteDataSource.updateLocation(HelperLocationModel.fromEntity(location));
+  Future<LocationUpdateResponse> updateLocation(HelperLocation location) async {
+    return await remoteDataSource.updateLocation(HelperLocationModel.fromEntity(location));
   }
 
   @override
   Future<LocationStatus> getLocationStatus() => remoteDataSource.getLocationStatus();
 
   @override
-  Future<InstantEligibility> getInstantEligibility() => remoteDataSource.getInstantEligibility();
+  Future<InstantEligibility> getInstantEligibility({
+    double? pickupLat,
+    double? pickupLng,
+    String? language,
+    bool? requiresCar,
+  }) => remoteDataSource.getInstantEligibility(
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        language: language,
+        requiresCar: requiresCar,
+      );
 
   @override
   Future<void> connectSignalR(String token) => signalRService.connect(token);
@@ -36,7 +46,8 @@ class HelperLocationRepositoryImpl implements HelperLocationRepository {
       lat: location.latitude,
       lng: location.longitude,
       heading: location.heading,
-      speed: location.speed,
+      speedKmh: location.speedKmh,
+      accuracyMeters: location.accuracyMeters,
     );
   }
 

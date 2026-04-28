@@ -13,6 +13,7 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/booking_status_cubit.dart';
 import '../cubits/booking_status_state.dart';
+import '../cubits/cancel_booking_cubit.dart';
 
 class BookingDetailsPage extends StatefulWidget {
   final String bookingId;
@@ -43,35 +44,57 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) {
-        final cubit = sl<BookingStatusCubit>()
-          ..refreshActiveBooking(widget.bookingId);
-        // Register with the app-wide realtime orchestrator so this
-        // screen's status auto-refreshes on bus events.
-        _registeredCubit = cubit;
-        sl<AppRealtimeCubit>().registerBookingStatus(cubit);
-        return cubit;
-      },
-      child: Scaffold(
-        backgroundColor: BrandTokens.bgSoft,
-        body: BlocBuilder<BookingStatusCubit, BookingStatusState>(
-          builder: (context, state) {
-            if (state is BookingStatusLoading &&
-                widget.initialBooking == null) {
-              return const _BookingDetailsSkeleton();
-            }
-
-            final booking = (state is BookingStatusActive)
-                ? state.booking
-                : widget.initialBooking;
-
-            if (booking == null) {
-              return const _BookingNotFound();
-            }
-
-            return _BookingDetailsView(booking: booking);
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) {
+            final cubit = sl<BookingStatusCubit>()
+              ..refreshActiveBooking(widget.bookingId);
+            // Register with the app-wide realtime orchestrator so this
+            // screen's status auto-refreshes on bus events.
+            _registeredCubit = cubit;
+            sl<AppRealtimeCubit>().registerBookingStatus(cubit);
+            return cubit;
           },
+        ),
+        BlocProvider(create: (_) => sl<CancelBookingCubit>()),
+      ],
+      child: BlocListener<CancelBookingCubit, CancelBookingState>(
+        listener: (context, state) {
+          if (state is CancelBookingSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Booking cancelled successfully.')),
+            );
+            context.go(AppRouter.home);
+          } else if (state is CancelBookingError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: AppColor.errorColor,
+              ),
+            );
+          }
+        },
+        child: Scaffold(
+          backgroundColor: BrandTokens.bgSoft,
+          body: BlocBuilder<BookingStatusCubit, BookingStatusState>(
+            builder: (context, state) {
+              if (state is BookingStatusLoading &&
+                  widget.initialBooking == null) {
+                return const _BookingDetailsSkeleton();
+              }
+
+              final booking = (state is BookingStatusActive)
+                  ? state.booking
+                  : widget.initialBooking;
+
+              if (booking == null) {
+                return const _BookingNotFound();
+              }
+
+              return _BookingDetailsView(booking: booking);
+            },
+          ),
         ),
       ),
     );
@@ -955,22 +978,46 @@ Color _statusColor(BookingStatus status) {
 }
 
 void _showCancelDialog(BuildContext context, String bookingId) {
+  // Capture the cancel cubit from the outer page-level provider so it stays
+  // reachable from inside the dialog (the dialog builds with a separate
+  // BuildContext that does not see it).
+  final cancelCubit = context.read<CancelBookingCubit>();
+  final reasonController = TextEditingController();
+
   showDialog(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (dialogContext) => AlertDialog(
       title: const Text('Cancel booking?'),
-      content: const Text(
-        'Are you sure you want to cancel this trip? A cancellation fee may apply.',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Are you sure you want to cancel this trip? '
+            'A cancellation fee may apply.',
+          ),
+          const SizedBox(height: AppTheme.spaceMD),
+          TextField(
+            controller: reasonController,
+            maxLines: 2,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              hintText: 'Reason (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(dialogContext),
           child: const Text('Keep booking'),
         ),
         TextButton(
           onPressed: () {
-            Navigator.pop(context);
-            context.go(AppRouter.home);
+            final reason = reasonController.text.trim();
+            Navigator.pop(dialogContext);
+            cancelCubit.cancel(bookingId, reason);
           },
           child: const Text(
             'Cancel',

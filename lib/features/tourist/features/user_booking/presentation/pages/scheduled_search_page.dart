@@ -6,7 +6,6 @@ import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/localization/app_localizations.dart';
-import '../../../../../../core/router/app_router.dart';
 import '../../domain/entities/search_params.dart';
 import '../cubits/search_helpers_cubit.dart';
 import '../cubits/search_helpers_state.dart';

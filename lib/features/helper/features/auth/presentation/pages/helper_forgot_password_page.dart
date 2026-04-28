@@ -2,22 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../../../../../core/widgets/custom_button.dart';
-import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/router/app_router.dart';
-import '../cubit/auth_cubit.dart';
-import '../cubit/auth_state.dart';
+import '../cubit/helper_auth_cubit.dart';
+import '../cubit/helper_auth_state.dart';
 
-class ForgotPasswordPage extends StatefulWidget {
-  const ForgotPasswordPage({super.key});
+class HelperForgotPasswordPage extends StatefulWidget {
+  const HelperForgotPasswordPage({super.key});
 
   @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+  State<HelperForgotPasswordPage> createState() => _HelperForgotPasswordPageState();
 }
 
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+class _HelperForgotPasswordPageState extends State<HelperForgotPasswordPage> {
   final TextEditingController emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -39,16 +37,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         ),
         backgroundColor: Colors.transparent,
       ),
-      body: BlocConsumer<AuthCubit, AuthState>(
+      body: BlocConsumer<HelperAuthCubit, HelperAuthState>(
         listener: (context, state) {
-          if (state is AuthError) {
+          if (state is HelperAuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
                 backgroundColor: theme.colorScheme.error,
               ),
             );
-          } else if (state is AuthForgotPasswordSent) {
+          } else if (state is HelperAuthForgotPasswordSent) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
@@ -56,7 +54,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
             );
             context.push(
-              '${AppRouter.login}/${AppRouter.forgotPassword}/${AppRouter.resetPassword}',
+              '${AppRouter.helperLogin}/${AppRouter.forgotPassword}/${AppRouter.resetPassword}',
               extra: state.email,
             );
           }
@@ -68,7 +66,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: AppTheme.spaceLG),
-                // Logo
                 Center(
                   child: Hero(
                     tag: 'app-logo',
@@ -81,7 +78,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: AppTheme.spaceXL),
 
-                // Title
                 Text(
                   "Forgot Password?",
                   style: theme.textTheme.displaySmall?.copyWith(
@@ -91,7 +87,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: AppTheme.spaceSM),
                 Text(
-                  "Enter your email address and we'll send you a code to reset your password.",
+                  "Enter your helper email and we'll send you a code to reset your password.",
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.6),
                   ),
@@ -99,7 +95,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
                 const SizedBox(height: AppTheme.space2XL),
 
-                // Form
                 Form(
                   key: _formKey,
                   child: Column(
@@ -114,14 +109,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       CustomButton(
                         text: "Send Reset Code",
                         onPressed: _handleSendCode,
-                        isLoading: state is AuthLoading,
+                        isLoading: state is HelperAuthLoading,
                       ),
 
                       const SizedBox(height: AppTheme.spaceLG),
 
                       Center(
                         child: TextButton(
-                          onPressed: state is AuthLoading ? null : () => context.go(AppRouter.login),
+                          onPressed: state is HelperAuthLoading ? null : () => context.go(AppRouter.helperLogin),
                           child: Text(
                             "Back to Login",
                             style: theme.textTheme.labelLarge?.copyWith(
@@ -145,6 +140,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   void _handleSendCode() {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    context.read<AuthCubit>().forgotPassword(emailController.text.trim());
+    context.read<HelperAuthCubit>().forgotPassword(emailController.text.trim());
   }
 }

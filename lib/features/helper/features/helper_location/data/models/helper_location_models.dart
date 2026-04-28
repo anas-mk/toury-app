@@ -5,7 +5,8 @@ class HelperLocationModel extends HelperLocation {
     required super.latitude,
     required super.longitude,
     super.heading,
-    super.speed,
+    super.speedKmh,
+    super.accuracyMeters,
     required super.timestamp,
   });
 
@@ -14,8 +15,8 @@ class HelperLocationModel extends HelperLocation {
       'latitude': latitude,
       'longitude': longitude,
       'heading': heading,
-      'speed': speed,
-      'timestamp': timestamp.toIso8601String(),
+      'speedKmh': speedKmh,
+      'accuracyMeters': accuracyMeters,
     };
   }
 
@@ -24,28 +25,71 @@ class HelperLocationModel extends HelperLocation {
       latitude: entity.latitude,
       longitude: entity.longitude,
       heading: entity.heading,
-      speed: entity.speed,
+      speedKmh: entity.speedKmh,
+      accuracyMeters: entity.accuracyMeters,
       timestamp: entity.timestamp,
+    );
+  }
+}
+
+class LocationUpdateResponseModel extends LocationUpdateResponse {
+  const LocationUpdateResponseModel({
+    required super.latitude,
+    required super.longitude,
+    required super.updatedAt,
+    required super.isLocationFresh,
+    required super.availabilityState,
+    required super.canReceiveInstantRequests,
+  });
+
+  factory LocationUpdateResponseModel.fromJson(Map<String, dynamic> json) {
+    return LocationUpdateResponseModel(
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      updatedAt: DateTime.parse(json['updatedAt']),
+      isLocationFresh: json['isLocationFresh'] ?? false,
+      availabilityState: json['availabilityState'] ?? '',
+      canReceiveInstantRequests: json['canReceiveInstantRequests'] ?? false,
     );
   }
 }
 
 class LocationStatusModel extends LocationStatus {
   const LocationStatusModel({
-    required super.isOnline,
-    super.lastUpdate,
+    super.currentLatitude,
+    super.currentLongitude,
+    super.currentLocationUpdatedAt,
+    required super.isLocationFresh,
     required super.secondsSinceLastUpdate,
-    required super.isFresh,
-    required super.warnings,
+    required super.availabilityState,
+    required super.canReceiveInstantRequests,
+    super.defaultLatitude,
+    super.defaultLongitude,
+    required super.defaultRadiusKm,
+    required super.recommendedUpdateIntervalSeconds,
+    required super.freshnessThresholdMinutes,
+    required super.effectiveInstantRadiusKm,
+    required super.eligibilityWarnings,
   });
 
   factory LocationStatusModel.fromJson(Map<String, dynamic> json) {
     return LocationStatusModel(
-      isOnline: json['isOnline'] ?? false,
-      lastUpdate: json['lastUpdate'] != null ? DateTime.parse(json['lastUpdate']) : null,
+      currentLatitude: (json['currentLatitude'] as num?)?.toDouble(),
+      currentLongitude: (json['currentLongitude'] as num?)?.toDouble(),
+      currentLocationUpdatedAt: json['currentLocationUpdatedAt'] != null 
+          ? DateTime.parse(json['currentLocationUpdatedAt']) 
+          : null,
+      isLocationFresh: json['isLocationFresh'] ?? false,
       secondsSinceLastUpdate: json['secondsSinceLastUpdate'] ?? 0,
-      isFresh: json['isFresh'] ?? false,
-      warnings: List<String>.from(json['warnings'] ?? []),
+      availabilityState: json['availabilityState'] ?? '',
+      canReceiveInstantRequests: json['canReceiveInstantRequests'] ?? false,
+      defaultLatitude: (json['defaultLatitude'] as num?)?.toDouble(),
+      defaultLongitude: (json['defaultLongitude'] as num?)?.toDouble(),
+      defaultRadiusKm: (json['defaultRadiusKm'] as num? ?? 0).toDouble(),
+      recommendedUpdateIntervalSeconds: json['recommendedUpdateIntervalSeconds'] ?? 30,
+      freshnessThresholdMinutes: json['freshnessThresholdMinutes'] ?? 5,
+      effectiveInstantRadiusKm: (json['effectiveInstantRadiusKm'] as num? ?? 0).toDouble(),
+      eligibilityWarnings: List<String>.from(json['eligibilityWarnings'] ?? []),
     );
   }
 }
@@ -53,33 +97,15 @@ class LocationStatusModel extends LocationStatus {
 class InstantEligibilityModel extends InstantEligibility {
   const InstantEligibilityModel({
     required super.isEligible,
-    required super.warnings,
-    required super.debugInfo,
+    required super.eligibilityWarnings,
+    super.debugDetails,
   });
 
   factory InstantEligibilityModel.fromJson(Map<String, dynamic> json) {
     return InstantEligibilityModel(
       isEligible: json['isEligible'] ?? false,
-      warnings: (json['warnings'] as List? ?? [])
-          .map((e) => EligibilityWarningModel.fromJson(e))
-          .toList(),
-      debugInfo: Map<String, dynamic>.from(json['debugInfo'] ?? {}),
-    );
-  }
-}
-
-class EligibilityWarningModel extends EligibilityWarning {
-  const EligibilityWarningModel({
-    required super.code,
-    required super.message,
-    required super.severity,
-  });
-
-  factory EligibilityWarningModel.fromJson(Map<String, dynamic> json) {
-    return EligibilityWarningModel(
-      code: json['code'] ?? '',
-      message: json['message'] ?? '',
-      severity: json['severity'] ?? 'info',
+      eligibilityWarnings: List<String>.from(json['eligibilityWarnings'] ?? []),
+      debugDetails: json['debugDetails'],
     );
   }
 }

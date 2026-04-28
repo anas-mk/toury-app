@@ -149,14 +149,13 @@ import '../../features/tourist/features/user_booking_tracking/domain/repositorie
 import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_latest_location_usecase.dart';
 import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_tracking_history_usecase.dart';
 import '../../core/services/signalr/booking_tracking_hub_service.dart';
-import '../../features/tourist/features/user_chat/data/datasources/user_chat_remote_datasource.dart';
+import '../../core/services/location_service.dart';
+import '../../core/services/location_cubit_impl.dart';
+import '../../features/tourist/features/user_chat/data/datasources/user_chat_remote_data_source.dart';
 import '../../features/tourist/features/user_chat/data/repositories/user_chat_repository_impl.dart';
 import '../../features/tourist/features/user_chat/domain/repositories/user_chat_repository.dart';
-import '../../features/tourist/features/user_chat/domain/usecases/get_chat_conversation_usecase.dart';
-import '../../features/tourist/features/user_chat/domain/usecases/get_chat_messages_usecase.dart';
-import '../../features/tourist/features/user_chat/domain/usecases/listen_to_messages_usecase.dart';
-import '../../features/tourist/features/user_chat/domain/usecases/mark_chat_as_read_usecase.dart';
-import '../../features/tourist/features/user_chat/domain/usecases/send_chat_message_usecase.dart';
+import '../../features/tourist/features/user_chat/domain/usecases/user_chat_usecases.dart';
+import '../../features/tourist/features/user_chat/data/services/user_chat_signalr_service.dart';
 
 // ============================================================
 // Helper Bookings Feature Imports
@@ -416,9 +415,14 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
+  // Shared location infrastructure (singleton — one GPS session per app)
+  sl.registerLazySingleton(() => LocationService());
+  sl.registerFactory(() => LocationCubit(locationService: sl()));
+
   sl.registerFactory(() => SearchHelpersCubit(
     searchScheduledHelpersUseCase: sl(),
     searchInstantHelpersUseCase: sl(),
+    locationCubit: sl<LocationCubit>(),
   ));
   sl.registerFactory(() => InstantBookingCubit(
     searchInstantHelpersUC: sl(),
@@ -873,10 +877,7 @@ Future<void> init() async {
 
   // Data sources
   sl.registerLazySingleton<UserChatRemoteDataSource>(
-    () => UserChatRemoteDataSourceImpl(
-      dio: sl(),
-      hubService: sl<BookingTrackingHubService>(),
-    ),
+    () => UserChatRemoteDataSourceImpl(sl()),
   );
 
   // Repositories
@@ -889,14 +890,18 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetChatMessagesUseCase(sl()));
   sl.registerLazySingleton(() => SendChatMessageUseCase(sl()));
   sl.registerLazySingleton(() => MarkChatAsReadUseCase(sl()));
-  sl.registerLazySingleton(() => ListenToMessagesUseCase(sl()));
+
+  // Services
+  sl.registerLazySingleton(() => UserChatSignalRService());
 
   // Cubits
   sl.registerFactory(
     () => UserChatCubit(
+      getConversationUseCase: sl(),
       getMessagesUseCase: sl(),
       sendMessageUseCase: sl(),
-      hubService: sl(),
+      markReadUseCase: sl(),
+      signalRService: sl(),
     ),
   );
 

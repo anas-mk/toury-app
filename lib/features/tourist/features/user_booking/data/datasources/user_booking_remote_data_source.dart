@@ -13,7 +13,12 @@ abstract class UserBookingRemoteDataSource {
   Future<BookingDetailModel> createScheduledBooking(Map<String, dynamic> bookingData);
   Future<BookingDetailModel> createInstantBooking(Map<String, dynamic> bookingData);
   Future<BookingDetailModel> getBookingDetails(String bookingId);
-  Future<PagedResponse<BookingDetailModel>> getMyBookings({int page = 1, int pageSize = 10, String? status});
+  Future<PagedResponse<BookingDetailModel>> getMyBookings({
+    int page = 1,
+    int pageSize = 10,
+    String? status,
+    String? type,
+  });
   Future<void> cancelBooking(String bookingId, String reason);
   Future<List<HelperBookingModel>> getAlternatives(String bookingId);
   Future<String> getBookingStatus(String bookingId);
@@ -111,7 +116,12 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
   }
 
   @override
-  Future<PagedResponse<BookingDetailModel>> getMyBookings({int page = 1, int pageSize = 10, String? status}) async {
+  Future<PagedResponse<BookingDetailModel>> getMyBookings({
+    int page = 1,
+    int pageSize = 10,
+    String? status,
+    String? type,
+  }) async {
     try {
       final Map<String, dynamic> queryParams = {
         'page': page,
@@ -119,6 +129,9 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
       };
       if (status != null && status != 'All') {
         queryParams['status'] = status;
+      }
+      if (type != null && type != 'All') {
+        queryParams['type'] = type;
       }
       final response = await dio.get(ApiConfig.getMyBookings, queryParameters: queryParams);
       if (response.statusCode == 200) {

@@ -63,6 +63,9 @@ class AppTheme {
       headlineLarge: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w600, color: textColor),
       headlineMedium: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w600, color: textColor),
       headlineSmall: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
+      titleLarge: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
+      titleMedium: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: textColor),
+      titleSmall: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
       bodyLarge: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w400, height: 1.5, color: textColor),
       bodyMedium: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5, color: textColor),
       bodySmall: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w400, height: 1.5, color: textColor),
@@ -71,7 +74,7 @@ class AppTheme {
     );
   }
 
-  // Backward compatibility getters for typography
+  // Backward compatibility getters for typography (Theme-aware versions should be used instead)
   static TextStyle get displayLarge => GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.5);
   static TextStyle get headlineMedium => GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w600);
   static TextStyle get bodyLarge => GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w400, height: 1.5);
@@ -144,7 +147,7 @@ class AppTheme {
       // Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColor.lightBackground,
+        fillColor: AppColor.lightSurface,
         contentPadding: const EdgeInsets.symmetric(horizontal: spaceMD, vertical: spaceMD),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMD),
@@ -162,6 +165,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusMD),
           borderSide: const BorderSide(color: AppColor.errorColor),
         ),
+        hintStyle: GoogleFonts.inter(color: AppColor.lightTextSecondary, fontSize: 14),
+        labelStyle: GoogleFonts.inter(color: AppColor.lightTextSecondary, fontSize: 14),
       ),
 
       // Elevated Button
@@ -236,7 +241,9 @@ class AppTheme {
         onPrimary: Colors.black,
         onSecondary: Colors.white,
         onSurface: AppColor.darkText,
+        onSurfaceVariant: AppColor.darkTextSecondary,
         onError: Colors.white,
+        outline: AppColor.darkBorder,
       ),
 
       scaffoldBackgroundColor: AppColor.darkBackground,
@@ -281,6 +288,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusMD),
           borderSide: const BorderSide(color: AppColor.errorColor),
         ),
+        hintStyle: GoogleFonts.inter(color: AppColor.darkTextSecondary, fontSize: 14),
+        labelStyle: GoogleFonts.inter(color: AppColor.darkTextSecondary, fontSize: 14),
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(

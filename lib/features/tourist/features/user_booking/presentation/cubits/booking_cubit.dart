@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/usecases/create_booking_usecase.dart';
 import '../../domain/usecases/get_booking_details_usecase.dart';
 import '../../domain/usecases/booking_actions_usecase.dart';
+import '../../domain/entities/search_params.dart';
 import 'booking_state.dart';
 
 /// Scheduled-flow cubit only.
@@ -26,22 +27,37 @@ class BookingCubit extends Cubit<BookingState> {
 
   Future<void> createScheduled({
     required String helperId,
-    required String destinationCity,
-    required DateTime requestedDate,
-    required String startTime,
-    required int durationInMinutes,
+    required ScheduledSearchParams params,
+    String? pickupLocationName,
+    double? pickupLatitude,
+    double? pickupLongitude,
+    String? destinationName,
+    double? destinationLatitude,
+    double? destinationLongitude,
+    double? distanceKm,
+    String? notes,
   }) async {
+    if (isClosed) return;
     emit(BookingLoading());
     final result = await createScheduledBookingUseCase({
       'helperId': helperId,
-      'destinationCity': destinationCity,
-      'requestedDate': requestedDate.toIso8601String(),
-      'startTime': startTime,
-      'durationInMinutes': durationInMinutes,
-      'requestedLanguage': 'English',
-      'requiresCar': false,
-      'travelersCount': 1,
+      'destinationCity': params.destinationCity,
+      'requestedDate': params.requestedDate.toIso8601String(),
+      'startTime': params.startTime,
+      'durationInMinutes': params.durationInMinutes,
+      'requestedLanguage': params.requestedLanguage,
+      'requiresCar': params.requiresCar,
+      'travelersCount': params.travelersCount,
+      if (pickupLocationName != null) 'pickupLocationName': pickupLocationName,
+      if (pickupLatitude != null) 'pickupLatitude': pickupLatitude,
+      if (pickupLongitude != null) 'pickupLongitude': pickupLongitude,
+      if (destinationName != null) 'destinationName': destinationName,
+      if (destinationLatitude != null) 'destinationLatitude': destinationLatitude,
+      if (destinationLongitude != null) 'destinationLongitude': destinationLongitude,
+      if (distanceKm != null) 'distanceKm': distanceKm,
+      if (notes != null) 'notes': notes,
     });
+    if (isClosed) return;
     result.fold(
       (failure) => emit(BookingError(failure.message)),
       (booking) => emit(BookingCreated(booking)),
@@ -49,8 +65,10 @@ class BookingCubit extends Cubit<BookingState> {
   }
 
   Future<void> cancelBooking(String bookingId, String reason) async {
+    if (isClosed) return;
     emit(BookingLoading());
     final result = await cancelBookingUseCase(bookingId, reason);
+    if (isClosed) return;
     result.fold(
       (failure) => emit(BookingError(failure.message)),
       (_) => emit(BookingCancelled()),

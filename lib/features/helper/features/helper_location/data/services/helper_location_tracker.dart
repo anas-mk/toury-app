@@ -50,7 +50,7 @@ class HelperLocationTracker {
           latitude: position.latitude,
           longitude: position.longitude,
           heading: position.heading,
-          speed: position.speed,
+          speedKmh: position.speed,
           timestamp: DateTime.now(),
         ));
       },
@@ -74,7 +74,7 @@ class HelperLocationTracker {
       latitude: position.latitude,
       longitude: position.longitude,
       heading: position.heading,
-      speed: position.speed,
+      speedKmh: position.speed,
       timestamp: DateTime.now(),
     );
   }

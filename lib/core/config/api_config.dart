@@ -193,9 +193,9 @@ class ApiConfig {
   // CHAT Endpoints
   // ==========================================================================
   static String getChatConversation(String bookingId) => '/user/bookings/$bookingId/chat';
-  static String getChatMessages(String bookingId, {int page = 1, String? beforeDate}) {
-    String url = '/user/bookings/$bookingId/chat/messages?page=$page';
-    if (beforeDate != null) url += '&beforeDate=$beforeDate';
+  static String getChatMessages(String bookingId, {int page = 1, int pageSize = 50, String? beforeDateTime}) {
+    String url = '/user/bookings/$bookingId/chat/messages?page=$page&pageSize=$pageSize';
+    if (beforeDateTime != null) url += '&beforeDateTime=$beforeDateTime';
     return url;
   }
   static String sendChatMessage(String bookingId) => '/user/bookings/$bookingId/chat/messages';

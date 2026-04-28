@@ -9,7 +9,17 @@ class GetMyBookingsUseCase {
 
   GetMyBookingsUseCase(this.repository);
 
-  Future<Either<Failure, PagedResponse<BookingDetailEntity>>> call({int page = 1, int pageSize = 10, String? status}) async {
-    return await repository.getMyBookings(page: page, pageSize: pageSize, status: status);
+  Future<Either<Failure, PagedResponse<BookingDetailEntity>>> call({
+    int page = 1,
+    int pageSize = 10,
+    String? status,
+    String? type,
+  }) async {
+    return await repository.getMyBookings(
+      page: page,
+      pageSize: pageSize,
+      status: status,
+      type: type,
+    );
   }
 }

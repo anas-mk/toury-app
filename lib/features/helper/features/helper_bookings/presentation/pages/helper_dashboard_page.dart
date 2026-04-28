@@ -8,7 +8,6 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../domain/entities/helper_booking_entities.dart';

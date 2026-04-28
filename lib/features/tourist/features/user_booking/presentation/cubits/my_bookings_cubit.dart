@@ -13,7 +13,12 @@ class MyBookingsCubit extends Cubit<MyBookingsState> {
 
   MyBookingsCubit({required this.getMyBookingsUseCase}) : super(MyBookingsInitial());
 
-  Future<void> getBookings({int pageSize = 10, String? status, bool refresh = false}) async {
+  Future<void> getBookings({
+    int pageSize = 10,
+    String? status,
+    String? type,
+    bool refresh = false,
+  }) async {
     if (_inFlight) return;
     if (state is MyBookingsLoading && !refresh) return;
 
@@ -36,6 +41,7 @@ class MyBookingsCubit extends Cubit<MyBookingsState> {
         page: pageToFetch,
         pageSize: pageSize,
         status: status,
+        type: type,
       );
 
       result.fold(
@@ -77,7 +83,7 @@ class MyBookingsCubit extends Cubit<MyBookingsState> {
     }
   }
 
-  Future<void> refreshBookings({int pageSize = 10, String? status}) async {
-    await getBookings(pageSize: pageSize, status: status, refresh: true);
+  Future<void> refreshBookings({int pageSize = 10, String? status, String? type}) async {
+    await getBookings(pageSize: pageSize, status: status, type: type, refresh: true);
   }
 }

@@ -47,39 +47,12 @@ class CustomTextField extends StatefulWidget {
   State<CustomTextField> createState() => _CustomTextFieldState();
 }
 
-class _CustomTextFieldState extends State<CustomTextField>
-    with SingleTickerProviderStateMixin {
+class _CustomTextFieldState extends State<CustomTextField> with SingleTickerProviderStateMixin {
   bool _obscureText = true;
-  late AnimationController _animController;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeInOut,
-    );
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // 💡 تحديد نمط رمادي افتراضي للـ hint text
-    final defaultHintStyle = AppTheme.bodyLarge.copyWith(
-      color: theme.colorScheme.onSurface.withOpacity(0.5),
-    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,11 +60,12 @@ class _CustomTextFieldState extends State<CustomTextField>
         if (widget.label != null) ...[
           Text(
             widget.label!,
-            style: AppTheme.labelMedium.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: AppTheme.spaceXS),
+          const SizedBox(height: AppTheme.spaceSM),
         ],
         TextFormField(
           controller: widget.controller,
@@ -106,18 +80,16 @@ class _CustomTextFieldState extends State<CustomTextField>
           onTap: widget.onTap,
           focusNode: widget.focusNode,
           textInputAction: widget.textInputAction,
-          style: AppTheme.bodyLarge.copyWith(
-            color: theme.colorScheme.onSurface,
-          ),
+          style: theme.textTheme.bodyLarge,
           decoration: InputDecoration(
             hintText: widget.hintText,
-            // 💡 استخدام النمط المخصص إذا وجد، أو النمط الرمادي الافتراضي
-            hintStyle: widget.hintStyle ?? defaultHintStyle,
+            hintStyle: widget.hintStyle ?? theme.inputDecorationTheme.hintStyle,
             prefixIcon: widget.prefixIcon != null
                 ? Icon(
-              widget.prefixIcon,
-              color: theme.iconTheme.color?.withOpacity(0.6),
-            )
+                    widget.prefixIcon,
+                    size: 20,
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  )
                 : null,
             suffixIcon: _buildSuffixIcon(theme),
             counterText: '',
@@ -130,22 +102,10 @@ class _CustomTextFieldState extends State<CustomTextField>
   Widget? _buildSuffixIcon(ThemeData theme) {
     if (widget.isPassword) {
       return IconButton(
-        icon: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          transitionBuilder: (child, animation) {
-            return ScaleTransition(
-              scale: animation,
-              child: FadeTransition(
-                opacity: animation,
-                child: child,
-              ),
-            );
-          },
-          child: Icon(
-            _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            key: ValueKey<bool>(_obscureText),
-            color: theme.iconTheme.color?.withOpacity(0.6),
-          ),
+        icon: Icon(
+          _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
+          size: 20,
         ),
         onPressed: () {
           setState(() {
@@ -154,46 +114,40 @@ class _CustomTextFieldState extends State<CustomTextField>
         },
       );
     }
-
     return widget.suffixWidget;
   }
 }
 
-// ============================================
-// 🎯 Specialized Text Fields
-// ============================================
-
 class EmailTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? label;
+  final String? hintText;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   const EmailTextField({
     super.key,
     this.controller,
     this.label,
+    this.hintText,
     this.validator,
     this.onChanged,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return CustomTextField(
-      hintText: "Enter Your Email",
       label: label ?? 'Email',
+      hintText: hintText ?? 'Enter your email',
       controller: controller,
       keyboardType: TextInputType.emailAddress,
       prefixIcon: Icons.email_outlined,
       textInputAction: TextInputAction.next,
       validator: validator ?? _defaultEmailValidator,
       onChanged: onChanged,
-      // ترك هذا الكود هنا يضمن لون رمادي (حتى لو تم إزالته سيبقى رمادي بسبب التعديل في CustomTextField)
-      hintStyle: AppTheme.bodyLarge.copyWith(
-        color: theme.colorScheme.onSurface.withOpacity(0.5),
-      ),
+      enabled: enabled,
     );
   }
 
@@ -211,30 +165,35 @@ class EmailTextField extends StatelessWidget {
 class PasswordTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? label;
+  final String? hintText;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final TextInputAction? textInputAction;
+  final bool enabled;
 
   const PasswordTextField({
     super.key,
     this.controller,
     this.label,
+    this.hintText,
     this.validator,
     this.onChanged,
     this.textInputAction,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    // سيستخدم هذا الحقل اللون الرمادي الافتراضي للـ hint text الآن
     return CustomTextField(
       label: label ?? 'Password',
+      hintText: hintText ?? 'Enter your password',
       controller: controller,
       isPassword: true,
-      prefixIcon: Icons.lock_outline,
+      prefixIcon: Icons.lock_outline_rounded,
       textInputAction: textInputAction ?? TextInputAction.done,
       validator: validator ?? _defaultPasswordValidator,
       onChanged: onChanged,
+      enabled: enabled,
     );
   }
 
@@ -252,21 +211,26 @@ class PasswordTextField extends StatelessWidget {
 class PhoneTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? label;
+  final String? hintText;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   const PhoneTextField({
     super.key,
     this.controller,
     this.label,
+    this.hintText,
     this.validator,
     this.onChanged,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return CustomTextField(
       label: label ?? 'Phone Number',
+      hintText: hintText ?? 'Enter phone number',
       controller: controller,
       keyboardType: TextInputType.phone,
       prefixIcon: Icons.phone_outlined,
@@ -276,6 +240,7 @@ class PhoneTextField extends StatelessWidget {
       ],
       validator: validator,
       onChanged: onChanged,
+      enabled: enabled,
     );
   }
 }

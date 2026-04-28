@@ -112,21 +112,28 @@ class BookingStatusCubit extends Cubit<BookingStatusState> {
     _statusSubscription?.cancel();
     _statusSubscription = hubService.statusStream.listen((event) {
       final String? eventBookingId = event['bookingId']?.toString();
-      if (eventBookingId == bookingId) {
-        // Refresh booking details when status changes
+      if (eventBookingId == bookingId && !isClosed) {
         refreshActiveBooking(bookingId);
       }
     });
   }
 
   Future<void> refreshActiveBooking(String bookingId) async {
+    if (isClosed) return;
     final result = await getBookingDetailsUseCase(bookingId);
+    if (isClosed) return;
     result.fold(
       (failure) => emit(BookingStatusError(failure.message)),
       (booking) {
-        // Check if booking is still active/upcoming
-        const inactiveStatuses = ['Completed', 'Cancelled', 'Declined', 'Expired'];
-        if (inactiveStatuses.contains(booking.status.name)) {
+        const terminalStatuses = [
+          'completed',
+          'cancelledByUser',
+          'cancelledByHelper',
+          'cancelledBySystem',
+          'declinedByHelper',
+          'expiredNoResponse',
+        ];
+        if (terminalStatuses.contains(booking.status.name)) {
           emit(BookingStatusNoActive());
           _statusSubscription?.cancel();
         } else {

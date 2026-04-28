@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
 
 class DocumentPickerWidget extends StatelessWidget {
   final String title;
@@ -22,47 +22,52 @@ class DocumentPickerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : Colors.black87,
-          ),
+        Row(
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (file != null) ...[
+              const SizedBox(width: AppTheme.spaceSM),
+              const Icon(Icons.check_circle, color: Colors.green, size: 16),
+            ],
+          ],
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
           Text(
             subtitle!,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: isDark ? Colors.white70 : Colors.black54,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: AppTheme.spaceMD),
         GestureDetector(
           onTap: file == null ? onPickPressed : null,
-          child: Container(
-            height: 120,
-            width: double.infinity,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: 140,
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[850] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(16),
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(AppTheme.radiusLG),
               border: Border.all(
-                color: file != null ? AppColor.primaryColor : Colors.grey[400]!,
+                color: file != null ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.1),
                 width: file != null ? 2 : 1,
-                style: file != null ? BorderStyle.solid : BorderStyle.none,
               ),
             ),
             child: file != null
                 ? Stack(
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusLG - 2),
                         child: Image.file(
                           File(file!.path),
                           width: double.infinity,
@@ -73,18 +78,19 @@ class DocumentPickerWidget extends StatelessWidget {
                       Positioned(
                         top: 8,
                         right: 8,
-                        child: GestureDetector(
-                          onTap: onRemovePressed,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black54,
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 20,
+                        child: Material(
+                          color: Colors.black.withOpacity(0.6),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            onTap: onRemovePressed,
+                            customBorder: const CircleBorder(),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -94,16 +100,24 @@ class DocumentPickerWidget extends StatelessWidget {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.cloud_upload_outlined,
-                        size: 40,
-                        color: isDark ? Colors.white54 : Colors.grey[600],
+                      Container(
+                        padding: const EdgeInsets.all(AppTheme.spaceMD),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 28,
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppTheme.spaceMD),
                       Text(
-                        'Tap to upload file',
-                        style: TextStyle(
-                          color: isDark ? Colors.white54 : Colors.grey[600],
+                        'Tap to Upload',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],

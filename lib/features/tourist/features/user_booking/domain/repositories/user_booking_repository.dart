@@ -12,7 +12,12 @@ abstract class UserBookingRepository {
   Future<Either<Failure, BookingDetailEntity>> createScheduledBooking(Map<String, dynamic> bookingData);
   Future<Either<Failure, BookingDetailEntity>> createInstantBooking(Map<String, dynamic> bookingData);
   Future<Either<Failure, BookingDetailEntity>> getBookingDetails(String bookingId);
-  Future<Either<Failure, PagedResponse<BookingDetailEntity>>> getMyBookings({int page = 1, int pageSize = 10, String? status});
+  Future<Either<Failure, PagedResponse<BookingDetailEntity>>> getMyBookings({
+    int page = 1,
+    int pageSize = 10,
+    String? status,
+    String? type,
+  });
   Future<Either<Failure, void>> cancelBooking(String bookingId, String reason);
   Future<Either<Failure, List<HelperBookingEntity>>> getAlternatives(String bookingId);
   Future<Either<Failure, String>> getBookingStatus(String bookingId);

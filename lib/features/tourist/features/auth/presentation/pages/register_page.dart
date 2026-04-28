@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
+import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';
@@ -18,8 +19,8 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage>
     with SingleTickerProviderStateMixin {
-  final _formKey1 = GlobalKey<FormState>(); // Tab 1 - Account Info
-  final _formKey2 = GlobalKey<FormState>(); // Tab 2 - Personal Info
+  final _formKey1 = GlobalKey<FormState>();
+  final _formKey2 = GlobalKey<FormState>();
 
   final emailController = TextEditingController();
   final userNameController = TextEditingController();
@@ -62,6 +63,7 @@ class _RegisterPageState extends State<RegisterPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
   }
 
   @override
@@ -89,26 +91,12 @@ class _RegisterPageState extends State<RegisterPage>
     if (!_formKey2.currentState!.validate()) return;
 
     if (selectedBirthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            loc.translate("select_birth_date") ?? 'Please select your birth date',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showError(context, loc.translate("select_birth_date") ?? 'Please select your birth date');
       return;
     }
 
     if (selectedCountry == null || selectedCountry!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            loc.translate("select_country") ?? 'Please select your country',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showError(context, loc.translate("select_country") ?? 'Please select your country');
       return;
     }
 
@@ -123,9 +111,19 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
   void _showCountryPicker(bool isDark, AppLocalizations loc) {
     final searchController = TextEditingController();
     List<String> filteredCountries = List.from(_countries);
+    final theme = Theme.of(context);
 
     showModalBottomSheet(
       context: context,
@@ -135,63 +133,45 @@ class _RegisterPageState extends State<RegisterPage>
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
+              height: MediaQuery.of(context).size.height * 0.8,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.radius2XL)),
               ),
               child: Column(
                 children: [
+                  const SizedBox(height: AppTheme.spaceSM),
                   Container(
-                    margin: const EdgeInsets.only(top: 12),
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(4),
+                      color: theme.colorScheme.onSurface.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppTheme.spaceLG),
                   Text(
                     loc.translate("select_country") ?? 'Select Country',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTheme.spaceLG),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
                     child: TextField(
                       controller: searchController,
-                      autofocus: true,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      style: theme.textTheme.bodyLarge,
                       decoration: InputDecoration(
-                        hintText: loc.translate("search_country") ?? 'Search...',
-                        hintStyle: const TextStyle(color: Colors.grey),
-                        prefixIcon: const Icon(Icons.search, color: AppColor.primaryColor),
+                        hintText: loc.translate("search_country") ?? 'Search country...',
+                        prefixIcon: const Icon(Icons.search_rounded),
                         suffixIcon: searchController.text.isNotEmpty
                             ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
-                          onPressed: () {
-                            searchController.clear();
-                            setModalState(() => filteredCountries = List.from(_countries));
-                          },
-                        )
+                                icon: const Icon(Icons.clear_rounded, size: 20),
+                                onPressed: () {
+                                  searchController.clear();
+                                  setModalState(() => filteredCountries = List.from(_countries));
+                                },
+                              )
                             : null,
-                        filled: true,
-                        fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: AppColor.primaryColor, width: 1.5),
-                        ),
                       ),
                       onChanged: (value) {
                         setModalState(() {
@@ -202,44 +182,42 @@ class _RegisterPageState extends State<RegisterPage>
                       },
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppTheme.spaceSM),
                   Expanded(
                     child: filteredCountries.isEmpty
                         ? Center(
-                      child: Text(
-                        loc.translate("no_results") ?? 'No results found',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    )
-                        : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      itemCount: filteredCountries.length,
-                      itemBuilder: (context, index) {
-                        final country = filteredCountries[index];
-                        final isSelected = country == selectedCountry;
-                        return ListTile(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          title: Text(
-                            country,
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            child: Text(
+                              loc.translate("no_results") ?? 'No results found',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                              ),
                             ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceSM),
+                            itemCount: filteredCountries.length,
+                            itemBuilder: (context, index) {
+                              final country = filteredCountries[index];
+                              final isSelected = country == selectedCountry;
+                              return ListTile(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+                                title: Text(
+                                  country,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected ? theme.colorScheme.primary : null,
+                                  ),
+                                ),
+                                trailing: isSelected
+                                    ? Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary)
+                                    : null,
+                                onTap: () {
+                                  setState(() => selectedCountry = country);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
                           ),
-                          trailing: isSelected
-                              ? const Icon(Icons.check_circle, color: AppColor.primaryColor)
-                              : null,
-                          tileColor: isSelected
-                              ? AppColor.primaryColor.withOpacity(0.1)
-                              : null,
-                          onTap: () {
-                            setState(() => selectedCountry = country);
-                            Navigator.pop(context);
-                          },
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),
@@ -253,479 +231,309 @@ class _RegisterPageState extends State<RegisterPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0E0E0E)
-          : AppColor.primaryColor.withOpacity(0.95),
-      appBar: const BasicAppBar(),
-      body: SafeArea(
-        child: BlocConsumer<AuthCubit, AuthState>(
-          listener: (context, state) {
-            if (state is AuthError) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message), backgroundColor: Colors.redAccent),
-              );
-            } else if (state is AuthRegistrationVerificationNeeded) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message), backgroundColor: Colors.blue),
-              );
-              Future.delayed(const Duration(milliseconds: 100), () {
-                if (mounted) {
-                  context.go('${AppRouter.verifyCode}?email=${Uri.encodeComponent(state.email)}');
-                }
-              });
-            } else if (state is AuthAuthenticated) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(loc.translate("register_success") ?? "Registration successful ✅"),
+      appBar: AppBar(
+        title: Text(loc.translate("register") ?? "Create Account"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: BlocConsumer<AuthCubit, AuthState>(
+        listener: (context, state) {
+          if (state is AuthError) {
+            _showError(context, state.message);
+          } else if (state is AuthRegistrationVerificationNeeded) {
+            context.go('${AppRouter.verifyCode}?email=${Uri.encodeComponent(state.email)}');
+          } else if (state is AuthAuthenticated) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(loc.translate("register_success") ?? "Registration successful ✅")),
+            );
+            context.go(AppRouter.login);
+          }
+        },
+        builder: (context, state) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildStepsIndicator(theme),
+                const SizedBox(height: AppTheme.spaceXL),
+                AnimatedBuilder(
+                  animation: _tabController,
+                  builder: (context, _) {
+                    return IndexedStack(
+                      index: _tabController.index,
+                      children: [
+                        _buildAccountInfoForm(loc, theme),
+                        _buildPersonalInfoForm(loc, theme, state),
+                      ],
+                    );
+                  },
                 ),
-              );
-              Future.delayed(const Duration(milliseconds: 100), () {
-                if (mounted) context.go(AppRouter.login);
-              });
-            }
-          },
-          builder: (context, state) {
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                const SizedBox(height: AppTheme.spaceXL),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // ── Title ──
                     Text(
-                      loc.translate("register") ?? "Register",
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                      loc.translate("already_have_account") ?? "Already have an account?",
+                      style: theme.textTheme.bodyMedium,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      loc.translate("register_subtitle") ?? "Create your account to get started",
-                      style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // ── Card ──
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[900] : Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: isDark
-                            ? []
-                            : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // ── Tab Bar (Modern Icon-Only Pill Style) ──
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-                            child: AnimatedBuilder(
-                              animation: _tabController,
-                              builder: (context, _) {
-                                return Container(
-                                  height: 52,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? Colors.grey[850] : Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Row(
-                                    children: List.generate(2, (index) {
-                                      final isSelected = _tabController.index == index;
-                                      final icons = [Icons.lock_outline, Icons.person_outline];
-                                      return Expanded(
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            if (index == 1) {
-                                              _goToNextTab();
-                                            } else {
-                                              _goToPreviousTab();
-                                            }
-                                          },
-                                          child: AnimatedContainer(
-                                            duration: const Duration(milliseconds: 250),
-                                            curve: Curves.easeInOut,
-                                            margin: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: isSelected
-                                                  ? AppColor.primaryColor
-                                                  : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(12),
-                                              boxShadow: isSelected
-                                                  ? [
-                                                BoxShadow(
-                                                  color: AppColor.primaryColor.withOpacity(0.35),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 3),
-                                                )
-                                              ]
-                                                  : [],
-                                            ),
-                                            child: Center(
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  AnimatedContainer(
-                                                    duration: const Duration(milliseconds: 250),
-                                                    child: Icon(
-                                                      icons[index],
-                                                      size: 20,
-                                                      color: isSelected
-                                                          ? Colors.white
-                                                          : (isDark ? Colors.white38 : Colors.grey),
-                                                    ),
-                                                  ),
-
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-
-                          // ── Tab Views ──
-                          SizedBox(
-                            height: 430,
-                            child: TabBarView(
-                              controller: _tabController,
-                              // ✅ منع السحب اليدوي - لازم يعدي Tab 1 validation الأول
-                              physics: const NeverScrollableScrollPhysics(),
-                              children: [
-                                // ── Tab 1: Account Info ──
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                                  child: Form(
-                                    key: _formKey1,
-                                    child: Column(
-                                      children: [
-                                        CustomTextField(
-                                          hintText: loc.translate("email") ?? "Email",
-                                          controller: emailController,
-                                          keyboardType: TextInputType.emailAddress,
-                                          prefixIcon: Icons.email_outlined,
-                                          validator: (v) {
-                                            if (v == null || v.isEmpty) {
-                                              return loc.translate("field_required") ??
-                                                  'This field is required';
-                                            }
-                                            if (!v.contains('@')) {
-                                              return loc.translate("invalid_email") ??
-                                                  'Enter a valid email';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const SizedBox(height: 14),
-                                        CustomTextField(
-                                          hintText: loc.translate("name") ?? "Username",
-                                          controller: userNameController,
-                                          prefixIcon: Icons.person_outline,
-                                          validator: (v) => v == null || v.isEmpty
-                                              ? loc.translate("field_required") ??
-                                              'This field is required'
-                                              : null,
-                                        ),
-                                        const SizedBox(height: 14),
-                                        CustomTextField(
-                                          hintText: loc.translate("password") ?? "Password",
-                                          controller: passwordController,
-                                          isPassword: true,
-                                          prefixIcon: Icons.lock_outline,
-                                          validator: (v) => v == null || v.isEmpty
-                                              ? loc.translate("field_required") ??
-                                              'This field is required'
-                                              : null,
-                                        ),
-                                        const SizedBox(height: 14),
-                                        CustomTextField(
-                                          hintText: loc.translate("confirm_password") ??
-                                              "Confirm Password",
-                                          controller: confirmPasswordController,
-                                          isPassword: true,
-                                          prefixIcon: Icons.lock_outline,
-                                          validator: (v) {
-                                            if (v == null || v.isEmpty) {
-                                              return loc.translate("field_required") ??
-                                                  'This field is required';
-                                            }
-                                            if (v != passwordController.text) {
-                                              return loc.translate("passwords_dont_match") ??
-                                                  'Passwords do not match';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const Spacer(),
-                                        // ── Next Button ──
-                                        ElevatedButton(
-                                          onPressed: _goToNextTab,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColor.primaryColor,
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size(double.infinity, 50),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(16),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                loc.translate("next") ?? 'Next',
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              const Icon(Icons.arrow_forward_rounded),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-
-                                // ── Tab 2: Personal Info ──
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                                  child: Form(
-                                    key: _formKey2,
-                                    child: Column(
-                                      children: [
-                                        CustomTextField(
-                                          hintText: loc.translate("phone_number") ?? "Phone Number",
-                                          controller: phoneNumberController,
-                                          keyboardType: TextInputType.phone,
-                                          prefixIcon: Icons.phone_outlined,
-                                          validator: (v) => v == null || v.isEmpty
-                                              ? loc.translate("field_required") ??
-                                              'This field is required'
-                                              : null,
-                                        ),
-                                        const SizedBox(height: 14),
-                                        _buildGenderField(isDark, loc),
-                                        const SizedBox(height: 14),
-                                        _buildBirthDateField(isDark, loc),
-                                        const SizedBox(height: 14),
-                                        _buildCountryField(isDark, loc),
-                                        const Spacer(),
-                                        // ── Back + Register Buttons ──
-                                        Row(
-                                          children: [
-                                            // Back button
-                                            OutlinedButton(
-                                              onPressed: _goToPreviousTab,
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: AppColor.primaryColor,
-                                                side: const BorderSide(
-                                                    color: AppColor.primaryColor),
-                                                minimumSize: const Size(50, 50),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(16),
-                                                ),
-                                              ),
-                                              child: const Icon(Icons.arrow_back_rounded),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            // Register button
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                onPressed: state is AuthLoading
-                                                    ? null
-                                                    : () => _submitForm(context, state, loc),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: AppColor.primaryColor,
-                                                  foregroundColor: Colors.white,
-                                                  minimumSize: const Size(double.infinity, 50),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
-                                                ),
-                                                child: state is AuthLoading
-                                                    ? const SizedBox(
-                                                  height: 22,
-                                                  width: 22,
-                                                  child: CircularProgressIndicator(
-                                                    color: Colors.white,
-                                                    strokeWidth: 2,
-                                                  ),
-                                                )
-                                                    : Text(
-                                                  loc.translate("register_button") ??
-                                                      'Register',
-                                                  style: const TextStyle(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // ── Login Link ──
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  loc.translate("already_have_account") ??
-                                      "Already have an account?",
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: isDark ? Colors.white70 : Colors.black87,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () => context.go(AppRouter.login),
-                                  child: Text(
-                                    loc.translate("login") ?? "Login",
-                                    style: const TextStyle(
-                                      color: AppColor.primaryColor,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                    TextButton(
+                      onPressed: () => context.go(AppRouter.login),
+                      child: Text(
+                        loc.translate("login") ?? "Login",
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCountryField(bool isDark, AppLocalizations loc) {
-    return InkWell(
-      onTap: () => _showCountryPicker(isDark, loc),
-      borderRadius: BorderRadius.circular(16),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: loc.translate("country") ?? 'Country',
-          prefixIcon: Icon(
-            Icons.location_on_outlined,
-            color: isDark ? Colors.white70 : Colors.grey[700],
-          ),
-          suffixIcon: Icon(
-            Icons.arrow_drop_down,
-            color: isDark ? Colors.white70 : Colors.grey[700],
-          ),
-          filled: true,
-          fillColor: isDark ? Colors.grey[850] : Colors.grey.shade100,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: selectedCountry == null
-                  ? Colors.grey.shade300
-                  : AppColor.primaryColor,
-              width: selectedCountry == null ? 1 : 1.5,
+              ],
             ),
-          ),
-        ),
-        child: Text(
-          selectedCountry ?? (loc.translate("select_country") ?? 'Select Country'),
-          style: TextStyle(
-            color: selectedCountry != null
-                ? (isDark ? Colors.white : Colors.black87)
-                : Colors.grey,
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildGenderField(bool isDark, AppLocalizations loc) {
-    return DropdownButtonFormField<String>(
-      value: selectedGender,
-      decoration: InputDecoration(
-        labelText: loc.translate("gender") ?? 'Gender',
-        prefixIcon: Icon(
-          Icons.person_2_outlined,
-          color: isDark ? Colors.white70 : Colors.grey[700],
+  Widget _buildStepsIndicator(ThemeData theme) {
+    return Row(
+      children: [
+        _buildStepItem(0, "Account", theme),
+        Expanded(
+          child: Container(
+            height: 2,
+            margin: const EdgeInsets.symmetric(horizontal: AppTheme.spaceSM),
+            color: _tabController.index >= 1 
+                ? theme.colorScheme.primary 
+                : theme.colorScheme.onSurface.withOpacity(0.1),
+          ),
         ),
-        filled: true,
-        fillColor: isDark ? Colors.grey[850] : Colors.grey.shade100,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      dropdownColor: isDark ? Colors.grey[900] : Colors.white,
-      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-      items: [
-        DropdownMenuItem(value: 'Male', child: Text(loc.translate("male") ?? "Male")),
-        DropdownMenuItem(value: 'Female', child: Text(loc.translate("female") ?? "Female")),
+        _buildStepItem(1, "Personal", theme),
       ],
-      onChanged: (val) => setState(() => selectedGender = val ?? 'Male'),
-      validator: (v) => v == null
-          ? loc.translate("field_required") ?? 'This field is required'
-          : null,
     );
   }
 
-  Widget _buildBirthDateField(bool isDark, AppLocalizations loc) {
+  Widget _buildStepItem(int index, String label, ThemeData theme) {
+    final isActive = _tabController.index >= index;
+    final isCurrent = _tabController.index == index;
+
+    return Column(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.1),
+          ),
+          child: Center(
+            child: isActive 
+                ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                : Text("${index + 1}", style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  )),
+          ),
+        ),
+        const SizedBox(height: AppTheme.spaceXS),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+            color: isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.5),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountInfoForm(AppLocalizations loc, ThemeData theme) {
+    return Form(
+      key: _formKey1,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CustomTextField(
+            label: loc.translate("email") ?? "Email",
+            controller: emailController,
+          ),
+          const SizedBox(height: AppTheme.spaceLG),
+          CustomTextField(
+            label: loc.translate("name") ?? "Username",
+            controller: userNameController,
+            prefixIcon: Icons.person_outline_rounded,
+          ),
+          const SizedBox(height: AppTheme.spaceLG),
+          CustomTextField(
+            label: loc.translate("password") ?? "Password",
+            controller: passwordController,
+            isPassword: true,
+          ),
+          const SizedBox(height: AppTheme.spaceLG),
+          CustomTextField(
+            label: loc.translate("confirm_password") ?? "Confirm Password",
+            controller: confirmPasswordController,
+            isPassword: true,
+          ),
+          const SizedBox(height: AppTheme.space2XL),
+          CustomButton(
+            text: loc.translate("next") ?? 'Continue',
+            onPressed: _goToNextTab,
+            icon: Icons.arrow_forward_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalInfoForm(AppLocalizations loc, ThemeData theme, AuthState state) {
+    return Form(
+      key: _formKey2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CustomTextField(
+            label: loc.translate("phone_number") ?? "Phone Number",
+            controller: phoneNumberController,
+            prefixIcon: Icons.phone_outlined,
+          ),
+          const SizedBox(height: AppTheme.spaceLG),
+          _buildGenderSelector(loc, theme),
+          const SizedBox(height: AppTheme.spaceLG),
+          _buildBirthDatePicker(loc, theme),
+          const SizedBox(height: AppTheme.spaceLG),
+          _buildCountrySelector(loc, theme),
+          const SizedBox(height: AppTheme.space2XL),
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: CustomButton(
+                  text: "",
+                  variant: ButtonVariant.outlined,
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: _goToPreviousTab,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spaceMD),
+              Expanded(
+                flex: 3,
+                child: CustomButton(
+                  text: loc.translate("register_button") ?? 'Create Account',
+                  onPressed: () => _submitForm(context, state, loc),
+                  isLoading: state is AuthLoading,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenderSelector(AppLocalizations loc, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          loc.translate("gender") ?? "Gender",
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface.withOpacity(0.8),
+          ),
+        ),
+        const SizedBox(height: AppTheme.spaceSM),
+        Row(
+          children: [
+            Expanded(
+              child: _buildGenderOption("Male", Icons.male_rounded, theme),
+            ),
+            const SizedBox(width: AppTheme.spaceMD),
+            Expanded(
+              child: _buildGenderOption("Female", Icons.female_rounded, theme),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderOption(String value, IconData icon, ThemeData theme) {
+    final isSelected = selectedGender == value;
+    return InkWell(
+      onTap: () => setState(() => selectedGender = value),
+      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMD),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          border: Border.all(
+            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.5)),
+            const SizedBox(width: AppTheme.spaceSM),
+            Text(
+              value,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBirthDatePicker(AppLocalizations loc, ThemeData theme) {
     return InkWell(
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
-          initialDate: selectedBirthDate ??
-              DateTime.now().subtract(const Duration(days: 365 * 18)),
+          initialDate: selectedBirthDate ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
           firstDate: DateTime(1900),
           lastDate: DateTime.now(),
         );
         if (picked != null) setState(() => selectedBirthDate = picked);
       },
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: loc.translate("birth_date") ?? 'Birth Date',
-          prefixIcon: Icon(
-            Icons.calendar_month_rounded,
-            color: isDark ? Colors.white70 : Colors.grey[700],
-          ),
-          filled: true,
-          fillColor: isDark ? Colors.grey[850] : Colors.grey.shade100,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+      child: CustomTextField(
+        label: loc.translate("birth_date") ?? "Birth Date",
+        hintText: selectedBirthDate != null
+            ? '${selectedBirthDate!.day}/${selectedBirthDate!.month}/${selectedBirthDate!.year}'
+            : "Select your birthday",
+        enabled: false,
+        prefixIcon: Icons.calendar_today_rounded,
+        controller: TextEditingController(
+          text: selectedBirthDate != null 
+              ? '${selectedBirthDate!.day}/${selectedBirthDate!.month}/${selectedBirthDate!.year}' 
+              : ""
         ),
-        child: Text(
-          selectedBirthDate != null
-              ? '${selectedBirthDate!.day}/${selectedBirthDate!.month}/${selectedBirthDate!.year}'
-              : loc.translate("select_birth_date") ?? 'Select your birth date',
-          style: TextStyle(
-            color: selectedBirthDate != null
-                ? (isDark ? Colors.white : Colors.black87)
-                : Colors.grey,
-          ),
-        ),
+      ),
+    );
+  }
+
+  Widget _buildCountrySelector(AppLocalizations loc, ThemeData theme) {
+    return InkWell(
+      onTap: () => _showCountryPicker(theme.brightness == Brightness.dark, loc),
+      child: CustomTextField(
+        label: loc.translate("country") ?? "Country",
+        hintText: selectedCountry ?? "Select your country",
+        enabled: false,
+        prefixIcon: Icons.public_rounded,
+        controller: TextEditingController(text: selectedCountry ?? ""),
       ),
     );
   }
