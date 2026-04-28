@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/hero_header.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../../domain/entities/instant_search_request.dart';
@@ -102,12 +103,12 @@ class _HelpersListView extends StatelessWidget {
 
   HeroSliverHeader _buildHeader({required int count, required bool isLoading}) {
     return HeroSliverHeader(
-      title: isLoading ? 'Finding your best helper' : 'Available helpers',
+      title: isLoading ? 'Finding your helper' : 'Pick your helper',
       subtitle: isLoading
-          ? "We're ranking nearby helpers by trust, distance, price and fit."
-          : '$count curated match${count == 1 ? '' : 'es'} ready for your trip',
+          ? 'Ranking nearby helpers by trust, distance, language and price.'
+          : '$count match${count == 1 ? '' : 'es'} ready for your trip',
       leadingIcon: Icons.travel_explore_rounded,
-      height: 250,
+      height: 240,
       trailing: _MatchCountBadge(count: count, isLoading: isLoading),
       footer: _TripSummaryPills(
         pickupName: pickup.name,
@@ -331,70 +332,7 @@ class _MatchCountBadge extends StatelessWidget {
       ),
       child: Text(
         isLoading ? 'Live' : '$count found',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _RankingExplainer extends StatelessWidget {
-  final int count;
-
-  const _RankingExplainer({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-        border: Border.all(color: BrandTokens.borderSoft),
-        boxShadow: BrandTokens.cardShadow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              gradient: BrandTokens.successGradient,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(
-                  color: BrandTokens.glowBlue,
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
-          ),
-          const SizedBox(width: AppTheme.spaceMD),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Smart-ranked for this trip',
-                  style: BrandTokens.heading(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'We found $count helpers and sorted them by match, arrival time, reviews and total price.',
-                  style: BrandTokens.body(fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ],
+        style: BrandTypography.overline(color: Colors.white),
       ),
     );
   }
@@ -442,8 +380,6 @@ class _HelpersRevealPanelState extends State<_HelpersRevealPanel> {
           ? Column(
               key: const ValueKey('helpers'),
               children: [
-                _RankingExplainer(count: widget.helpers.length),
-                const SizedBox(height: AppTheme.spaceMD),
                 for (var i = 0; i < widget.helpers.length; i++)
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0, end: 1),
@@ -514,18 +450,19 @@ class _RankingWarmup extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ranking $count helpers',
-                          style: BrandTokens.heading(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
+                          count > 0
+                              ? 'Ranking $count helpers'
+                              : 'Searching helpers',
+                          style: BrandTypography.title(
                             color: Colors.white,
+                            weight: FontWeight.w700,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          'Matching trust, arrival time, language and total price.',
-                          style: BrandTokens.body(
-                            fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.78),
+                          'Matching trust, arrival time, language and price.',
+                          style: BrandTypography.caption(
+                            color: Colors.white.withValues(alpha: 0.82),
                           ),
                         ),
                       ],

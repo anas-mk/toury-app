@@ -24,13 +24,19 @@ class MyApp extends StatelessWidget {
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         buildWhen: (previous, current) => previous != current,
-        builder: (context, themeMode) {
+        builder: (context, _) {
+          // Tourist redesign is light-only; ThemeCubit is still listened to
+          // in case it controls other branches (e.g. system overlay style).
           return BlocBuilder<LocalizationCubit, Locale>(
             buildWhen: (previous, current) => previous != current,
             builder: (context, locale) {
               return MaterialApp.router(
                 title: 'Tour Meta',
-                themeMode: themeMode,
+                // Phase 1 (Tourist UI redesign): the brief is light-only.
+                // The dark theme block stays in `AppTheme` so a future flag
+                // is trivial, but every screen renders against the brand
+                // light palette regardless of the cubit's state.
+                themeMode: ThemeMode.light,
                 theme: AppTheme.lightTheme,
                 darkTheme: AppTheme.darkTheme,
                 locale: locale,

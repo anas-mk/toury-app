@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../router/brand_page_route.dart';
 import 'app_color.dart';
+import 'brand_tokens.dart';
 
 // Pass #4 — global page-transition theme: replaces the default Material
 // zoom with our brand parallax slide on every platform. The map is
@@ -84,24 +85,39 @@ class AppTheme {
   // ============================================
   static ThemeData get lightTheme {
     final base = ThemeData.light();
+    // Phase 1: seed the scheme from the RAFIQ Nile Blue, then override the
+    // surface/background tokens to match the brief exactly. The accent
+    // (Pyramid Yellow) flows through `secondary`/`tertiary` for chips and
+    // amber CTAs.
+    final scheme = ColorScheme.fromSeed(
+      seedColor: BrandTokens.primaryBlue,
+      brightness: Brightness.light,
+    ).copyWith(
+      primary: BrandTokens.primaryBlue,
+      onPrimary: Colors.white,
+      secondary: BrandTokens.accentAmber,
+      onSecondary: Colors.white,
+      tertiary: BrandTokens.accentAmber,
+      onTertiary: BrandTokens.accentAmberText,
+      error: BrandTokens.dangerSos,
+      onError: Colors.white,
+      surface: BrandTokens.surfaceWhite,
+      onSurface: BrandTokens.textPrimary,
+      surfaceContainerLowest: BrandTokens.surfaceWhite,
+      surfaceContainerLow: BrandTokens.surfaceWhite,
+      surfaceContainer: BrandTokens.bgSoft,
+      surfaceContainerHigh: BrandTokens.bgSoft,
+      surfaceContainerHighest: BrandTokens.bgSoft,
+      outline: BrandTokens.borderSoft,
+      outlineVariant: BrandTokens.borderTinted,
+    );
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       pageTransitionsTheme: _brandPageTransitions,
+      colorScheme: scheme,
 
-      // Color Scheme
-      colorScheme: const ColorScheme.light(
-        primary: AppColor.primaryColor,
-        secondary: AppColor.secondaryColor,
-        error: AppColor.errorColor,
-        surface: AppColor.lightSurface,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
-        onSurface: AppColor.lightText,
-        onError: Colors.white,
-      ),
-
-      scaffoldBackgroundColor: AppColor.lightBackground,
+      scaffoldBackgroundColor: BrandTokens.bgSoft,
 
       // AppBar
       appBarTheme: AppBarTheme(

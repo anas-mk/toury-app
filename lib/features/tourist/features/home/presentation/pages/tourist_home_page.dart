@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/services/realtime/app_realtime_cubit.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/utils/jwt_payload.dart';
 import '../../../../../../core/widgets/booking_status_chip.dart';
@@ -55,6 +56,8 @@ class TouristHomePage extends StatefulWidget {
 
 class _TouristHomePageState extends State<TouristHomePage> {
   String? _firstName;
+  BookingStatusCubit? _registeredStatusCubit;
+  MyBookingsCubit? _registeredMyBookings;
 
   @override
   void initState() {
@@ -75,7 +78,25 @@ class _TouristHomePageState extends State<TouristHomePage> {
       if (myBookings.state is MyBookingsInitial) {
         myBookings.getBookings(pageSize: 5);
       }
+      // Phase 3: register both home cubits with the app-wide realtime
+      // orchestrator so trip-status / cancellation / trip-end events
+      // refresh the home screen automatically.
+      final rt = sl<AppRealtimeCubit>();
+      rt.registerBookingStatus(statusCubit);
+      rt.registerMyBookings(myBookings);
+      _registeredStatusCubit = statusCubit;
+      _registeredMyBookings = myBookings;
     });
+  }
+
+  @override
+  void dispose() {
+    final rt = sl<AppRealtimeCubit>();
+    final s = _registeredStatusCubit;
+    if (s != null) rt.unregisterBookingStatus(s);
+    final m = _registeredMyBookings;
+    if (m != null) rt.unregisterMyBookings(m);
+    super.dispose();
   }
 
   String? _resolveFirstName() {

@@ -14,8 +14,10 @@ import 'core/localization/cubit/localization_cubit.dart';
 import 'core/router/app_router.dart';
 import 'core/services/notifications/messaging_service.dart';
 import 'core/services/notifications/notification_router.dart';
+import 'core/services/realtime/app_realtime_cubit.dart';
 import 'core/services/realtime/booking_realtime_event_bus.dart';
 import 'core/services/realtime/hub_lifecycle_observer.dart';
+import 'features/tourist/features/user_ratings/presentation/widgets/mandatory_rating_overlay.dart';
 import 'core/services/signalr/booking_tracking_hub_service.dart';
 import 'core/services/realtime/realtime_logger.dart';
 import 'core/theme/shader_warmup.dart';
@@ -186,6 +188,11 @@ void main() async {
   BookingRealtimeEventBus.instance.onEventPublished =
       (e) => di.sl<MessagingService>().maybeInAppBannerFromBusEvent(e);
 
+  // Phase 3: attach the app-wide realtime orchestrator. It subscribes to
+  // the same bus and propagates relevant events to currently-mounted
+  // page cubits via their existing public refresh APIs.
+  di.sl<AppRealtimeCubit>().attach();
+
   // Bind the GoRouter to the NotificationRouter so FCM taps and SignalR
   // navigation triggers can reach the same routes the rest of the app uses.
   NotificationRouter.instance.bind(
@@ -193,6 +200,11 @@ void main() async {
     navigatorKey: AppRouter.rootNavigatorKey,
   );
   RealtimeLogger.instance.log('Router', 'main.bind', 'GoRouter wired');
+
+  // Phase 4: bind the global mandatory rating overlay. Listens to the
+  // pending-ratings tracker and re-shows on cold start if anything is
+  // pending.
+  MandatoryRatingOverlay.bind(AppRouter.rootNavigatorKey);
 
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('isDark') ?? false;

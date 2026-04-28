@@ -10,6 +10,8 @@ import '../../core/services/auth_service.dart';
 import '../../core/services/notifications/device_info_helper.dart';
 import '../../core/services/notifications/device_token_service.dart';
 import '../../core/services/notifications/messaging_service.dart';
+import '../../core/services/ratings/pending_rating_tracker.dart';
+import '../../core/services/realtime/app_realtime_cubit.dart';
 import '../../core/services/realtime/hub_lifecycle_observer.dart';
 import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
 import '../../core/services/sos/sos_service.dart';
@@ -963,6 +965,17 @@ Future<void> init() async {
   // 7️⃣  SOS service — trigger/cancel API + active SOS state.
   sl.registerLazySingleton(
     () => SosService(dio: sl(), prefs: sl()),
+  );
+
+  // 7️⃣b  AppRealtimeCubit — phase 3 app-wide realtime orchestrator.
+  //      Subscribes to the existing event bus and refreshes page-level
+  //      cubits on relevant events. No second SignalR connection.
+  sl.registerLazySingleton(() => AppRealtimeCubit());
+
+  // 7️⃣c  PendingRatingTracker — phase 4 SharedPreferences-backed set
+  //      of bookings whose rating is still pending. Survives cold start.
+  sl.registerLazySingleton(
+    () => PendingRatingTracker(prefs: sl<SharedPreferences>()),
   );
 
   // 8️⃣  HubLifecycleObserver — re-opens the SignalR connection when the

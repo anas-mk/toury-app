@@ -228,12 +228,10 @@ class _PayNowPageState extends State<PayNowPage> {
   }
 
   void _finishPaymentFlow(BuildContext context) {
-    if (widget.requireRating) {
-      context.go(
-        AppRouter.rateBooking.replaceFirst(':bookingId', widget.bookingId),
-      );
-      return;
-    }
+    // Phase 4: do NOT route to /rate-booking anymore. The global
+    // MandatoryRatingOverlay (bound from main.dart) shows the popup
+    // automatically because BusBookingTripEnded already marked this
+    // booking as pending-rating. We simply go home.
     context.go(AppRouter.home);
   }
 }

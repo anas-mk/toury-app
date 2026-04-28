@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/services/maps/cached_tile_provider.dart';
+import '../../../../../../../core/services/ratings/pending_rating_tracker.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../../core/services/sos/active_sos_state.dart';
@@ -115,48 +116,19 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     setState(() {
       _tripEnded = true;
     });
+    // Phase 4: mark this booking as pending-rating BEFORE we navigate
+    // away. Even if the user kills the app the global overlay will
+    // re-show it on next launch.
+    unawaited(sl<PendingRatingTracker>().markPending(widget.bookingId));
     if (widget.cubit.selectedPaymentMethod == AppPaymentMethod.mockCard) {
-      _showMandatoryRating();
+      // Mock-card payment was already collected up front. Just go home;
+      // the global mandatory rating overlay will handle the popup.
+      context.go(AppRouter.bookingHome);
       return;
     }
     context.go(
       AppRouter.instantPayNow.replaceFirst(':id', widget.bookingId),
       extra: {'cubit': widget.cubit, 'requireRating': true},
-    );
-  }
-
-  Future<void> _showMandatoryRating() async {
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: const Text('Rate your helper'),
-          content: const Text(
-            'Your trip is complete. Please rate your helper to finish the booking.',
-          ),
-          actions: [
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                context.go(
-                  AppRouter.rateBooking.replaceFirst(
-                    ':bookingId',
-                    widget.bookingId,
-                  ),
-                );
-              },
-              icon: const Icon(Icons.star_rounded),
-              label: const Text('Rate now'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

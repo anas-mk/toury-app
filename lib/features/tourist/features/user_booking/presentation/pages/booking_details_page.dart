@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/services/realtime/app_realtime_cubit.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
 import '../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../../../../core/router/app_router.dart';
@@ -28,11 +29,30 @@ class BookingDetailsPage extends StatefulWidget {
 }
 
 class _BookingDetailsPageState extends State<BookingDetailsPage> {
+  BookingStatusCubit? _registeredCubit;
+
+  @override
+  void dispose() {
+    final c = _registeredCubit;
+    if (c != null) {
+      sl<AppRealtimeCubit>().unregisterBookingStatus(c);
+      _registeredCubit = null;
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) =>
-          sl<BookingStatusCubit>()..refreshActiveBooking(widget.bookingId),
+      create: (_) {
+        final cubit = sl<BookingStatusCubit>()
+          ..refreshActiveBooking(widget.bookingId);
+        // Register with the app-wide realtime orchestrator so this
+        // screen's status auto-refreshes on bus events.
+        _registeredCubit = cubit;
+        sl<AppRealtimeCubit>().registerBookingStatus(cubit);
+        return cubit;
+      },
       child: Scaffold(
         backgroundColor: BrandTokens.bgSoft,
         body: BlocBuilder<BookingStatusCubit, BookingStatusState>(
