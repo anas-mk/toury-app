@@ -3,6 +3,7 @@ import '../../../../../../core/errors/exceptions.dart';
 import '../../../../../../core/errors/failures.dart';
 import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import 'package:toury/core/models/tracking/tracking_point_entity.dart';
+import 'package:toury/core/models/tracking/tracking_point_model.dart';
 import 'package:toury/core/models/tracking/tracking_update.dart';
 import '../../domain/repositories/tracking_repository.dart';
 import '../datasources/tracking_remote_datasource.dart';
@@ -17,7 +18,9 @@ class TrackingRepositoryImpl implements TrackingRepository {
   });
 
   @override
-  Future<Either<Failure, TrackingPointEntity>> getLatestLocation(String bookingId) async {
+  Future<Either<Failure, TrackingPointEntity>> getLatestLocation(
+    String bookingId,
+  ) async {
     try {
       final point = await remoteDataSource.getLatestLocation(bookingId);
       return Right(point);
@@ -29,7 +32,9 @@ class TrackingRepositoryImpl implements TrackingRepository {
   }
 
   @override
-  Future<Either<Failure, List<TrackingPointEntity>>> getTrackingHistory(String bookingId) async {
+  Future<Either<Failure, List<TrackingPointEntity>>> getTrackingHistory(
+    String bookingId,
+  ) async {
     try {
       final history = await remoteDataSource.getTrackingHistory(bookingId);
       return Right(history);
@@ -41,9 +46,27 @@ class TrackingRepositoryImpl implements TrackingRepository {
   }
 
   @override
-  Stream<TrackingUpdate> listenToTrackingUpdates(String bookingId) {
-    // Note: In a real app, we might want to ensure connection is established
-    // but the Cubit will handle the connect() call.
-    return hubService.locationStream;
+  Stream<TrackingUpdate> listenToTrackingUpdates(String bookingId) async* {
+    await hubService.ensureConnected();
+    yield* hubService.helperLocationUpdateStream
+        .where((event) => event.bookingId == bookingId)
+        .map((event) {
+          final point = TrackingPointModel(
+            latitude: event.latitude,
+            longitude: event.longitude,
+            heading: event.heading,
+            speed: event.speedKmh,
+            timestamp:
+                event.capturedAt ?? event.occurredAt ?? DateTime.now().toUtc(),
+          );
+          return TrackingUpdate(
+            point: point,
+            status: event.phase,
+            distanceToTarget:
+                event.distanceToDestinationKm ?? event.distanceToPickupKm,
+            etaMinutes:
+                event.etaToDestinationMinutes ?? event.etaToPickupMinutes,
+          );
+        });
   }
 }

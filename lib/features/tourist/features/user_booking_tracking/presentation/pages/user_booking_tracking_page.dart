@@ -7,6 +7,7 @@ import 'package:toury/features/tourist/features/user_booking/presentation/cubits
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_state.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
 import '../../../../../../core/di/injection_container.dart';
@@ -19,14 +20,15 @@ class UserBookingTrackingPage extends StatefulWidget {
   final LatLng? destinationLocation;
 
   const UserBookingTrackingPage({
-    super.key, 
+    super.key,
     required this.bookingId,
     this.pickupLocation,
     this.destinationLocation,
   });
 
   @override
-  State<UserBookingTrackingPage> createState() => _UserBookingTrackingPageState();
+  State<UserBookingTrackingPage> createState() =>
+      _UserBookingTrackingPageState();
 }
 
 class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
@@ -35,12 +37,15 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => sl<TrackingCubit>()..startTracking(widget.bookingId)),
-        BlocProvider(create: (_) => sl<BookingStatusCubit>()..refreshActiveBooking(widget.bookingId)),
+        BlocProvider(
+          create: (_) => sl<TrackingCubit>()..startTracking(widget.bookingId),
+        ),
+        BlocProvider(
+          create: (_) =>
+              sl<BookingStatusCubit>()..refreshActiveBooking(widget.bookingId),
+        ),
       ],
       child: Scaffold(
         body: Stack(
@@ -48,17 +53,28 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
             // ── Map Layer ────────────────────────────────────────────────────────
             BlocConsumer<TrackingCubit, TrackingState>(
               listener: (context, state) {
-                if (state is TrackingActive && state.latestPoint != null && _following) {
+                if (state is TrackingActive &&
+                    state.latestPoint != null &&
+                    _following) {
                   _mapController.move(
-                    LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude),
+                    LatLng(
+                      state.latestPoint!.latitude,
+                      state.latestPoint!.longitude,
+                    ),
                     _mapController.camera.zoom,
                   );
                 }
               },
               builder: (context, state) {
-                LatLng initialCenter = const LatLng(30.0444, 31.2357); // Default Cairo
+                LatLng initialCenter = const LatLng(
+                  30.0444,
+                  31.2357,
+                ); // Default Cairo
                 if (state is TrackingActive && state.latestPoint != null) {
-                  initialCenter = LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude);
+                  initialCenter = LatLng(
+                    state.latestPoint!.latitude,
+                    state.latestPoint!.longitude,
+                  );
                 }
 
                 return FlutterMap(
@@ -72,17 +88,24 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                      urlTemplate:
+                          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
                       subdomains: const ['a', 'b', 'c', 'd'],
                     ),
-                    if (state is TrackingActive && state.latestPoint != null) ...[
+                    if (state is TrackingActive &&
+                        state.latestPoint != null) ...[
                       MarkerLayer(
                         markers: [
                           Marker(
-                            point: LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude),
+                            point: LatLng(
+                              state.latestPoint!.latitude,
+                              state.latestPoint!.longitude,
+                            ),
                             width: 60,
                             height: 60,
-                            child: _HelperMarker(heading: state.latestPoint!.heading ?? 0),
+                            child: _HelperMarker(
+                              heading: state.latestPoint!.heading ?? 0,
+                            ),
                           ),
                         ],
                       ),
@@ -99,7 +122,11 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
               child: CircleAvatar(
                 backgroundColor: Colors.white,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColor.primaryColor, size: 20),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: AppColor.primaryColor,
+                    size: 20,
+                  ),
                   onPressed: () => context.pop(),
                 ),
               ),
@@ -125,7 +152,10 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
                   final state = context.read<TrackingCubit>().state;
                   if (state is TrackingActive && state.latestPoint != null) {
                     _mapController.move(
-                      LatLng(state.latestPoint!.latitude, state.latestPoint!.longitude),
+                      LatLng(
+                        state.latestPoint!.latitude,
+                        state.latestPoint!.longitude,
+                      ),
                       15,
                     );
                   }
@@ -154,7 +184,7 @@ class _HelperMarker extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColor.primaryColor.withOpacity(0.2),
+              color: AppColor.primaryColor.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
           ),
@@ -184,19 +214,18 @@ class _StatusBadge extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: BrandTokens.surfaceWhite,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: AppTheme.shadowLight(context),
-            border: Border.all(color: AppColor.lightBorder),
+            boxShadow: BrandTokens.cardShadow,
+            border: Border.all(color: BrandTokens.borderSoft),
           ),
           child: Text(
-            status.toUpperCase(),
+            status.toUpperCase().replaceAll('_', ' '),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColor.primaryColor,
-              fontWeight: FontWeight.bold,
+            style: BrandTokens.body(
+              color: BrandTokens.primaryBlue,
+              fontWeight: FontWeight.w900,
               fontSize: 12,
-              letterSpacing: 1.1,
             ),
           ),
         );
@@ -209,19 +238,24 @@ class _TrackingBottomPanel extends StatelessWidget {
   final bool following;
   final VoidCallback onRecenter;
 
-  const _TrackingBottomPanel({required this.following, required this.onRecenter});
+  const _TrackingBottomPanel({
+    required this.following,
+    required this.onRecenter,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Container(
       padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: BrandTokens.surfaceWhite,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5)),
+          BoxShadow(
+            color: BrandTokens.primaryBlue.withValues(alpha: 0.12),
+            blurRadius: 28,
+            offset: const Offset(0, -8),
+          ),
         ],
       ),
       child: Column(
@@ -237,61 +271,232 @@ class _TrackingBottomPanel extends StatelessWidget {
                 onPressed: onRecenter,
               ),
             ),
-          
-          BlocBuilder<BookingStatusCubit, BookingStatusState>(
-            builder: (context, state) {
-              if (state is BookingStatusActive) {
-                final booking = state.booking;
-                return Column(
-                  children: [
-                    Row(
+
+          BlocBuilder<TrackingCubit, TrackingState>(
+            builder: (context, trackingState) {
+              if (trackingState is TrackingError) {
+                return _TrackingMessage(
+                  icon: Icons.wifi_off_rounded,
+                  title: 'Tracking is not connected',
+                  message: trackingState.message,
+                );
+              }
+              if (trackingState is TrackingLoading) {
+                return const _TrackingMessage(
+                  icon: Icons.radar_rounded,
+                  title: 'Connecting to helper location',
+                  message:
+                      'Fetching the latest location and opening realtime updates.',
+                  loading: true,
+                );
+              }
+              return BlocBuilder<BookingStatusCubit, BookingStatusState>(
+                builder: (context, state) {
+                  if (state is BookingStatusActive) {
+                    final booking = state.booking;
+                    final active = trackingState is TrackingActive
+                        ? trackingState
+                        : null;
+                    return Column(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: AppNetworkImage(
-                            imageUrl: booking.helper?.profileImageUrl ?? '',
-                            width: 50,
-                            height: 50,
-                          ),
+                        Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: AppNetworkImage(
+                                imageUrl: booking.helper?.profileImageUrl ?? '',
+                                width: 50,
+                                height: 50,
+                              ),
+                            ),
+                            const SizedBox(width: AppTheme.spaceMD),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    booking.helper?.name ?? 'Helper',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: BrandTokens.heading(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Text(
+                                    _trackingSubtitle(active),
+                                    style: BrandTokens.body(
+                                      color: BrandTokens.primaryBlue,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton.filled(
+                              onPressed: () => context.pushNamed(
+                                'user-chat',
+                                pathParameters: {'id': booking.id},
+                              ),
+                              icon: const Icon(Icons.chat_bubble_rounded),
+                              style: IconButton.styleFrom(
+                                backgroundColor: AppColor.primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: AppTheme.spaceMD),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(height: AppTheme.spaceLG),
+                        if (active != null)
+                          Row(
                             children: [
-                              Text(booking.helper?.name ?? 'Helper', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                              BlocBuilder<TrackingCubit, TrackingState>(
-                                builder: (context, state) {
-                                  if (state is TrackingActive && state.tracking.etaMinutes != null) {
-                                    return Text(
-                                      'Arriving in ${state.tracking.etaMinutes} mins',
-                                      style: const TextStyle(color: AppColor.accentColor, fontWeight: FontWeight.bold),
-                                    );
-                                  }
-                                  return const Text('Calculating ETA...', style: TextStyle(color: AppColor.lightTextSecondary));
-                                },
+                              Expanded(
+                                child: _MetricChip(
+                                  icon: Icons.schedule_rounded,
+                                  label: 'ETA',
+                                  value: active.tracking.etaMinutes == null
+                                      ? '--'
+                                      : '${active.tracking.etaMinutes} min',
+                                ),
+                              ),
+                              const SizedBox(width: AppTheme.spaceSM),
+                              Expanded(
+                                child: _MetricChip(
+                                  icon: Icons.near_me_rounded,
+                                  label: 'Distance',
+                                  value:
+                                      active.tracking.distanceToTarget == null
+                                      ? '--'
+                                      : '${active.tracking.distanceToTarget!.toStringAsFixed(1)} km',
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                        IconButton.filled(
-                          onPressed: () => context.pushNamed('user-chat', pathParameters: {'id': booking.id}),
-                          icon: const Icon(Icons.chat_bubble_rounded),
-                          style: IconButton.styleFrom(backgroundColor: AppColor.primaryColor),
+                        if (active != null)
+                          const SizedBox(height: AppTheme.spaceMD),
+                        CustomButton(
+                          text: 'Booking Details',
+                          variant: ButtonVariant.text,
+                          onPressed: () => context.pushNamed(
+                            'booking-details',
+                            pathParameters: {'id': booking.id},
+                          ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: AppTheme.spaceLG),
-                    CustomButton(
-                      text: 'Booking Details',
-                      variant: ButtonVariant.text,
-                      onPressed: () => context.pushNamed('booking-details', pathParameters: {'id': booking.id}),
-                    ),
-                  ],
-                );
-              }
-              return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+                    );
+                  }
+                  return const _TrackingMessage(
+                    icon: Icons.route_rounded,
+                    title: 'Loading booking',
+                    message: 'Preparing helper and trip details.',
+                    loading: true,
+                  );
+                },
+              );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _trackingSubtitle(TrackingActive? active) {
+    if (active?.tracking.etaMinutes != null) {
+      return 'Arriving in ${active!.tracking.etaMinutes} mins';
+    }
+    if (active?.latestPoint != null) {
+      return 'Live location connected';
+    }
+    return 'Waiting for first live location';
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MetricChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceSM),
+      decoration: BoxDecoration(
+        color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: BrandTokens.primaryBlue, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: BrandTokens.body(fontSize: 11)),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: BrandTokens.numeric(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: BrandTokens.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrackingMessage extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final bool loading;
+
+  const _TrackingMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 130,
+      child: Row(
+        children: [
+          loading
+              ? const CircularProgressIndicator(color: BrandTokens.primaryBlue)
+              : Icon(icon, color: BrandTokens.primaryBlue, size: 34),
+          const SizedBox(width: AppTheme.spaceMD),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: BrandTokens.heading(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(message, style: BrandTokens.body(fontSize: 12)),
+              ],
+            ),
           ),
         ],
       ),

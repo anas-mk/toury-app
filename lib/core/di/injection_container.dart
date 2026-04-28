@@ -1,9 +1,20 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:get_it/get_it.dart';
+import 'dart:async';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/network/auth_interceptor.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/notifications/device_info_helper.dart';
+import '../../core/services/notifications/device_token_service.dart';
+import '../../core/services/notifications/messaging_service.dart';
+import '../../core/services/ratings/pending_rating_tracker.dart';
+import '../../core/services/realtime/app_realtime_cubit.dart';
+import '../../core/services/realtime/hub_lifecycle_observer.dart';
+import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
+import '../../core/services/sos/sos_service.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 
 // ============================================================
@@ -72,24 +83,35 @@ import '../../features/helper/features/profile/domain/usecases/delete_car_usecas
 import '../../features/helper/features/profile/domain/usecases/add_certificate_usecase.dart';
 import '../../features/helper/features/profile/domain/usecases/delete_certificate_usecase.dart';
 import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart' as helper_profile;
+import '../../features/tourist/features/user_booking/data/datasources/instant_booking_remote_data_source.dart';
 import '../../features/tourist/features/user_booking/data/datasources/user_booking_remote_data_source.dart';
+import '../../features/tourist/features/user_booking/data/repositories/instant_booking_repository_impl.dart';
 import '../../features/tourist/features/user_booking/data/repositories/user_booking_repository_impl.dart';
+import '../../features/tourist/features/user_booking/domain/repositories/instant_booking_repository.dart';
 import '../../features/tourist/features/user_booking/domain/repositories/user_booking_repository.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/booking_actions_usecase.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/create_booking_usecase.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/get_booking_details_usecase.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/get_helper_profile_usecase.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/get_my_bookings_usecase.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/cancel_instant_booking_uc.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/create_instant_booking_uc.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/get_alternatives_uc.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/get_booking_detail_uc.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/get_booking_status_uc.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/get_helper_profile_uc.dart';
+import '../../features/tourist/features/user_booking/domain/usecases/instant/search_instant_helpers_uc.dart';
 import '../../features/tourist/features/user_booking/domain/usecases/search_helpers_usecase.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/scheduled_booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_details_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/cancel_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/alternatives_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_details_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/cancel_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/helper_booking_profile_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/scheduled_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
 import '../../features/tourist/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
 import '../../features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
 import '../../features/tourist/features/user_chat/presentation/cubit/user_chat_cubit.dart';
@@ -202,6 +224,8 @@ import '../config/api_config.dart';
 
 final sl = GetIt.instance;
 
+StreamSubscription<String>? _authTokenHubReconnectSub;
+
 Future<void> init() async {
   // ============================================================
   // Features - Auth
@@ -219,6 +243,9 @@ Future<void> init() async {
       resetPasswordUseCase: sl(),
       verifyCodeUseCase: sl(),
       resendVerificationCodeUseCase: sl(),
+      authService: sl(),
+      hubService: sl(),
+      messagingService: sl(),
     ),
   );
 
@@ -398,9 +425,16 @@ Future<void> init() async {
     locationCubit: sl<LocationCubit>(),
   ));
   sl.registerFactory(() => InstantBookingCubit(
-    createInstantBookingUseCase: sl(),
-    getBookingStatusUseCase: sl(),
+    searchInstantHelpersUC: sl(),
+    createInstantBookingUC: sl(),
+    cancelInstantBookingUC: sl(),
+    getBookingDetailUC: sl(),
+    getAlternativesUC: sl(),
+    hubService: sl(),
   ));
+  sl.registerFactory(() => HelperBookingProfileCubit(
+        getHelperBookingProfileUC: sl(),
+      ));
   sl.registerFactory(() => ScheduledBookingCubit(
     createScheduledBookingUseCase: sl(),
   ));
@@ -421,7 +455,6 @@ Future<void> init() async {
     cancelBookingUseCase: sl(),
   ));
   sl.registerFactory(() => BookingCubit(
-    createInstantBookingUseCase: sl(),
     createScheduledBookingUseCase: sl(),
     getBookingDetailsUseCase: sl(),
     cancelBookingUseCase: sl(),
@@ -452,6 +485,29 @@ Future<void> init() async {
   // Data Source
   sl.registerLazySingleton<UserBookingRemoteDataSource>(
     () => UserBookingRemoteDataSourceImpl(sl()),
+  );
+
+  // ============================================================
+  // Features - Instant Booking (parallel clean stack — see PHASE 1 of rebuild)
+  // ============================================================
+
+  // Use cases
+  sl.registerLazySingleton(() => SearchInstantHelpersUC(sl()));
+  sl.registerLazySingleton(() => GetHelperBookingProfileUC(sl()));
+  sl.registerLazySingleton(() => CreateInstantBookingUC(sl()));
+  sl.registerLazySingleton(() => GetBookingStatusUC(sl()));
+  sl.registerLazySingleton(() => GetBookingDetailUC(sl()));
+  sl.registerLazySingleton(() => GetAlternativesUC(sl()));
+  sl.registerLazySingleton(() => CancelInstantBookingUC(sl()));
+
+  // Repository
+  sl.registerLazySingleton<InstantBookingRepository>(
+    () => InstantBookingRepositoryImpl(sl()),
+  );
+
+  // Data source
+  sl.registerLazySingleton<InstantBookingRemoteDataSource>(
+    () => InstantBookingRemoteDataSourceImpl(sl()),
   );
 
   // ============================================================
@@ -853,8 +909,11 @@ Future<void> init() async {
   // User Booking Tracking Feature
   // ============================================================
 
-  // SignalR Service
-  sl.registerLazySingleton(() => BookingTrackingHubService());
+  // SignalR Service (+ optional auth-drop banner)
+  sl.registerLazySingleton(() => RealtimeConnectionIssueNotifier());
+  sl.registerLazySingleton(
+    () => BookingTrackingHubService(connectionIssues: sl()),
+  );
 
   // Data sources
   sl.registerLazySingleton<TrackingRemoteDataSource>(
@@ -895,6 +954,51 @@ Future<void> init() async {
 
   // 4️⃣  AuthService
   sl.registerLazySingleton(() => AuthService(sl()));
+
+  // 5️⃣  Device-info + FCM device-token registration service
+  sl.registerLazySingleton(() => DeviceInfoHelper(sl()));
+  sl.registerLazySingleton(
+    () => DeviceTokenService(dio: sl(), deviceInfo: sl()),
+  );
+
+  // 6️⃣  MessagingService — coordinates FCM permissions, foreground heads-up,
+  //     tap routing, and delegates token registration to DeviceTokenService.
+  sl.registerLazySingleton(
+    () => MessagingService(deviceTokenService: sl()),
+  );
+
+  // 7️⃣  SOS service — trigger/cancel API + active SOS state.
+  sl.registerLazySingleton(
+    () => SosService(dio: sl(), prefs: sl()),
+  );
+
+  // 7️⃣b  AppRealtimeCubit — phase 3 app-wide realtime orchestrator.
+  //      Subscribes to the existing event bus and refreshes page-level
+  //      cubits on relevant events. No second SignalR connection.
+  sl.registerLazySingleton(() => AppRealtimeCubit());
+
+  // 7️⃣c  PendingRatingTracker — phase 4 SharedPreferences-backed set
+  //      of bookings whose rating is still pending. Survives cold start.
+  sl.registerLazySingleton(
+    () => PendingRatingTracker(prefs: sl<SharedPreferences>()),
+  );
+
+  // 8️⃣  HubLifecycleObserver — re-opens the SignalR connection when the
+  //     OS resumes the app after a long backgrounding. Attached from main().
+  sl.registerLazySingleton(
+    () => HubLifecycleObserver(hubService: sl(), authService: sl()),
+  );
+
+  // 9️⃣  Bind the AuthService into the hub so accessTokenFactory can resolve
+  //     the LATEST JWT on every reconnect (not the one captured at first
+  //     connect). Done after both singletons are registered.
+  sl<BookingTrackingHubService>().bindAuthService(sl<AuthService>());
+
+  _authTokenHubReconnectSub?.cancel();
+  _authTokenHubReconnectSub =
+      sl<AuthService>().authTokenChanges.listen((token) {
+    unawaited(sl<BookingTrackingHubService>().onAccessTokenPersisted(token));
+  });
 }
 
 // ============================================================
@@ -917,20 +1021,65 @@ Dio _createDio() {
   // ── 401 / 403 global handler + token attachment ──────────────────────────
   dio.interceptors.add(AuthInterceptor());
 
-  // ── Debug-only request/response logger ───────────────────────────────────
+  // ── Debug-only request/response logger (truncating; Pass #4 perf) ───────
+  // The default `LogInterceptor` dumps the full body of every request and
+  // response, which on a large helpers-list response (or an OSM tile) is
+  // measurable overhead even in debug. We cap to 200 chars and skip bodies
+  // larger than 50 KB entirely. Wrapped in `kDebugMode` so it's tree-shaken
+  // out of release.
   if (kDebugMode) {
-    dio.interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: false,
-        responseBody: true,
-        error: true,
-        logPrint: (obj) => print('🌐 DIO: $obj'), // ignore: avoid_print
-      ),
-    );
+    dio.interceptors.add(_TruncatingDioLogger());
   }
 
   return dio;
+}
+
+/// Lightweight Dio logger used only in debug builds.
+///
+/// Compared to the stock `LogInterceptor`:
+///   * Body preview capped at 200 chars
+///   * Bodies > 50 KB are not stringified at all (just size logged)
+///   * Single-line summary per request/response (much easier to scan)
+class _TruncatingDioLogger extends Interceptor {
+  static const int _bodyPreviewChars = 200;
+  static const int _bodyMaxBytes = 50 * 1024;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final body = _previewBody(options.data);
+    debugPrint(
+      '➡️ ${options.method} ${options.uri}'
+      '${body == null ? '' : '  body=$body'}',
+    );
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final body = _previewBody(response.data);
+    debugPrint(
+      '⬅️ ${response.statusCode} ${response.requestOptions.uri}'
+      '${body == null ? '' : '  body=$body'}',
+    );
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final body = _previewBody(err.response?.data);
+    debugPrint(
+      '❌ ${err.response?.statusCode ?? '-'} ${err.requestOptions.uri}'
+      '  ${err.type}'
+      '${body == null ? '' : '  body=$body'}',
+    );
+    handler.next(err);
+  }
+
+  String? _previewBody(Object? data) {
+    if (data == null) return null;
+    final s = data.toString();
+    if (s.length > _bodyMaxBytes) return '<${s.length} bytes — skipped>';
+    if (s.length <= _bodyPreviewChars) return s;
+    return '${s.substring(0, _bodyPreviewChars)}…(+${s.length - _bodyPreviewChars})';
+  }
 }

@@ -5,46 +5,26 @@ import '../../domain/usecases/booking_actions_usecase.dart';
 import '../../domain/entities/search_params.dart';
 import 'booking_state.dart';
 
+/// Scheduled-flow cubit only.
+///
+/// The Instant flow now lives in [`InstantBookingCubit`] with a proper
+/// state machine and SignalR wiring. The old `createInstant` method on
+/// this cubit was deleted (it hardcoded language/duration in violation
+/// of the rebuild contract) — see `InstantBookingCubit.createBooking`
+/// for the replacement.
 class BookingCubit extends Cubit<BookingState> {
-  final CreateInstantBookingUseCase createInstantBookingUseCase;
   final CreateScheduledBookingUseCase createScheduledBookingUseCase;
   final GetBookingDetailsUseCase getBookingDetailsUseCase;
   final CancelBookingUseCase cancelBookingUseCase;
   final GetAlternativesUseCase getAlternativesUseCase;
 
   BookingCubit({
-    required this.createInstantBookingUseCase,
     required this.createScheduledBookingUseCase,
     required this.getBookingDetailsUseCase,
     required this.cancelBookingUseCase,
     required this.getAlternativesUseCase,
   }) : super(BookingInitial());
 
-  /// Create an instant booking using full search params from the user.
-  Future<void> createInstant({
-    required InstantSearchParams params,
-    String? helperId,
-  }) async {
-    if (isClosed) return;
-    emit(BookingLoading());
-    final result = await createInstantBookingUseCase({
-      if (helperId != null) 'helperId': helperId,
-      'pickupLocationName': params.pickupLocationName,
-      'pickupLatitude': params.pickupLatitude,
-      'pickupLongitude': params.pickupLongitude,
-      'durationInMinutes': params.durationInMinutes,
-      'requestedLanguage': params.requestedLanguage,
-      'requiresCar': params.requiresCar,
-      'travelersCount': params.travelersCount,
-    });
-    if (isClosed) return;
-    result.fold(
-      (failure) => emit(BookingError(failure.message)),
-      (booking) => emit(BookingCreated(booking)),
-    );
-  }
-
-  /// Create a scheduled booking using full search params from the user.
   Future<void> createScheduled({
     required String helperId,
     required ScheduledSearchParams params,

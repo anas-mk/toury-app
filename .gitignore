@@ -43,3 +43,33 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Secrets — NEVER commit. If you find one of these in `git status`, stop and
+# rotate the credential before proceeding (see SECURITY.md if present).
+# ─────────────────────────────────────────────────────────────────────────────
+# Firebase Admin SDK service-account private keys (backend use only — they
+# should never live in the Flutter repo, but this catches accidents).
+**/firebase-service-account*.json
+**/firebase-adminsdk*.json
+secrets/
+**/secrets/
+
+# Generic credential / env files
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+
+# Firebase client config — contains the public Android API key. Less
+# sensitive than the service-account JSON above, but we keep it out of
+# version control so each environment provides its own and we don't leak
+# Sender IDs across builds. If you need to share with the team, use a
+# password manager / 1Password vault instead.
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart

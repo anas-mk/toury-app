@@ -136,4 +136,46 @@ class AppLocalizations {
 
   // ========== App ==========
   String get appTitle => translate('app_title');
+
+  // ========== Instant booking (tourist) ==========
+  String get bookingInstantPlanTitle => translate('booking_instant_plan_title');
+  String get bookingInstantPlanSubtitle =>
+      translate('booking_instant_plan_subtitle');
+  String get bookingInstantFindHelpers =>
+      translate('booking_instant_find_helpers');
+  String get bookingInstantValidationSnackbar =>
+      translate('booking_instant_validation_snackbar');
+
+  String get bookingReviewTitle => translate('booking_review_title');
+  String get bookingReviewSubtitle => translate('booking_review_subtitle');
+  String get bookingReviewPaymentTitle =>
+      translate('booking_review_payment_title');
+  String get bookingReviewPayCash => translate('booking_review_pay_cash');
+  String get bookingReviewPayCard => translate('booking_review_pay_card');
+  String get bookingReviewValidationSnackbar =>
+      translate('booking_review_validation_snackbar');
+  String get bookingReviewConfirm => translate('booking_review_confirm');
+  String get bookingReviewConfirmLoading =>
+      translate('booking_review_confirm_loading');
+  String get bookingReviewItinerary => translate('booking_review_itinerary');
+  String get bookingReviewTripDetails =>
+      translate('booking_review_trip_details');
+  String get bookingReviewPriceBreakdown =>
+      translate('booking_review_price_breakdown');
+  String get bookingReviewEstimatedTotal =>
+      translate('booking_review_estimated_total');
+  String get bookingReviewNotes => translate('booking_review_notes');
+  String get bookingReviewPickupLabel =>
+      translate('booking_review_pickup_label');
+  String get bookingReviewDestinationLabel =>
+      translate('booking_review_destination_label');
+  String get bookingReviewDuration => translate('booking_review_duration');
+  String get bookingReviewTravelers => translate('booking_review_travelers');
+  String get bookingReviewLanguage => translate('booking_review_language');
+  String get bookingReviewCar => translate('booking_review_car');
+  String get bookingReviewYes => translate('booking_review_yes');
+  String get bookingReviewNo => translate('booking_review_no');
+  String get bookingReviewPriceRetry => translate('booking_review_price_retry');
+  String get bookingReviewPriceUnavailable =>
+      translate('booking_review_price_unavailable');
 }

@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+
+import '../theme/brand_tokens.dart';
 
 class AppNetworkImage extends StatelessWidget {
   final String? imageUrl;
@@ -8,6 +10,11 @@ class AppNetworkImage extends StatelessWidget {
   final BoxFit fit;
   final double? borderRadius;
 
+  /// Optional explicit memory-cache width in physical pixels.
+  /// Falls back to `width * MediaQuery.devicePixelRatio` when null.
+  final int? memCacheWidth;
+  final int? memCacheHeight;
+
   const AppNetworkImage({
     super.key,
     required this.imageUrl,
@@ -15,6 +22,8 @@ class AppNetworkImage extends StatelessWidget {
     this.height,
     this.fit = BoxFit.cover,
     this.borderRadius,
+    this.memCacheWidth,
+    this.memCacheHeight,
   });
 
   String _optimizeCloudinaryUrl(String url) {
@@ -33,21 +42,26 @@ class AppNetworkImage extends StatelessWidget {
     }
 
     final optimizedUrl = _optimizeCloudinaryUrl(imageUrl!);
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+
+    final effectiveMemW = memCacheWidth ??
+        (width != null ? (width! * dpr).round() : null);
+    final effectiveMemH = memCacheHeight ??
+        (height != null ? (height! * dpr).round() : null);
 
     Widget image = CachedNetworkImage(
       imageUrl: optimizedUrl,
       width: width,
       height: height,
       fit: fit,
-      placeholder: (context, url) => Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.0,
-            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-          ),
-        ),
+      memCacheWidth: effectiveMemW,
+      memCacheHeight: effectiveMemH,
+      fadeInDuration: const Duration(milliseconds: 120),
+      fadeOutDuration: Duration.zero,
+      placeholder: (context, url) => _ShimmerPlaceholder(
+        width: width,
+        height: height,
+        borderRadius: borderRadius,
       ),
       errorWidget: (context, url, error) => _buildPlaceholder(),
     );
@@ -67,14 +81,35 @@ class AppNetworkImage extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: BrandTokens.bgSoft,
         borderRadius: borderRadius != null ? BorderRadius.circular(borderRadius!) : null,
       ),
       child: const Center(
         child: Icon(
-          Icons.broken_image_rounded,
-          color: Colors.grey,
+          Icons.person_rounded,
+          color: BrandTokens.borderSoft,
         ),
+      ),
+    );
+  }
+}
+
+class _ShimmerPlaceholder extends StatelessWidget {
+  final double? width;
+  final double? height;
+  final double? borderRadius;
+  const _ShimmerPlaceholder({this.width, this.height, this.borderRadius});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: BrandTokens.bgSoft,
+        borderRadius: borderRadius != null
+            ? BorderRadius.circular(borderRadius!)
+            : null,
       ),
     );
   }

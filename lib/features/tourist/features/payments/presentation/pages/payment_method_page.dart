@@ -28,12 +28,14 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
 
     return BlocListener<PaymentCubit, PaymentState>(
       listener: (context, state) {
-        if (state is PaymentInitiated) {
-          if (_selectedMethod == 'Cash') {
-            context.go(AppRouter.paymentSuccess, extra: widget.bookingId);
-          } else {
-            context.push(AppRouter.paymentProcessing, extra: state.payment);
-          }
+        // Cash settles synchronously: backend returns `status: Paid` directly,
+        // the cubit emits `PaymentSuccess`, we navigate without WebView.
+        if (state is PaymentSuccess) {
+          context.go(AppRouter.paymentSuccess, extra: widget.bookingId);
+        } else if (state is PaymentInitiated) {
+          // Online methods (MockCard etc.) — open the gateway WebView and
+          // wait for SignalR `BookingPaymentChanged` → Paid|Failed.
+          context.push(AppRouter.paymentProcessing, extra: state.payment);
         } else if (state is PaymentFailed) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),

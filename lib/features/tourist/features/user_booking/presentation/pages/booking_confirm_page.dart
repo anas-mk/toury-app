@@ -32,18 +32,13 @@ class BookingConfirmPage extends StatelessWidget {
       child: BlocListener<BookingCubit, BookingState>(
         listener: (context, state) {
           if (state is BookingCreated) {
-            if (isInstant) {
-              context.goNamed(
-                'waiting-helper',
-                pathParameters: {'id': state.booking.id},
-                extra: {'booking': state.booking},
-              );
-            } else {
-              context.goNamed(
-                'payment-method',
-                pathParameters: {'bookingId': state.booking.id},
-              );
-            }
+            // Instant flow has been moved to InstantBookingCubit and
+            // its dedicated screens — this page only handles Scheduled
+            // bookings now. Route straight to payment.
+            context.goNamed(
+              'payment-method',
+              pathParameters: {'bookingId': state.booking.id},
+            );
           } else if (state is BookingError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),
@@ -78,7 +73,7 @@ class BookingConfirmPage extends StatelessWidget {
                 BlocBuilder<BookingCubit, BookingState>(
                   builder: (context, state) {
                     return CustomButton(
-                      text: isInstant ? 'Request Now' : 'Proceed to Payment',
+                      text: 'Proceed to Payment',
                       isLoading: state is BookingLoading,
                       onPressed: () => _onConfirm(context),
                     );
@@ -94,19 +89,13 @@ class BookingConfirmPage extends StatelessWidget {
   }
 
   void _onConfirm(BuildContext context) {
-    if (isInstant) {
-      final params = searchParams as InstantSearchParams;
-      context.read<BookingCubit>().createInstant(
-        params: params,
-        helperId: helper.id,
-      );
-    } else {
-      final params = searchParams as ScheduledSearchParams;
-      context.read<BookingCubit>().createScheduled(
-        helperId: helper.id,
-        params: params,
-      );
-    }
+    // Instant bookings now flow through InstantBookingCubit on the
+    // dedicated /instant/* screens. This page is scheduled-only.
+    final params = searchParams as ScheduledSearchParams;
+    context.read<BookingCubit>().createScheduled(
+      helperId: helper.id,
+      params: params,
+    );
   }
 
   Widget _buildSectionTitle(ThemeData theme, String title) {

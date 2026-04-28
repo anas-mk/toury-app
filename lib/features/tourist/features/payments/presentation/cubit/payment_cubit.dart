@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/payment_entity.dart';
 import '../../domain/usecases/initiate_payment_usecase.dart';
 import '../../domain/usecases/get_payment_usecase.dart';
 import '../../domain/usecases/get_latest_payment_usecase.dart';
@@ -18,12 +19,30 @@ class PaymentCubit extends Cubit<PaymentState> {
     required this.mockPaymentCompleteUseCase,
   }) : super(PaymentInitial());
 
+  /// Initiate payment.
+  ///
+  /// The backend resolves Cash synchronously: the `initiate` response will
+  /// already carry `status: Paid` and no `paymentUrl`, so we MUST NOT open the
+  /// WebView and MUST NOT wait for a SignalR push — we emit success directly.
+  /// Online methods (MockCard, etc.) come back as `PaymentPending` with a
+  /// `paymentUrl`; the WebView page subscribes to BookingPaymentChanged and
+  /// only completes when SignalR delivers `Paid` or `Failed`.
   Future<void> initiatePayment(String bookingId, String method) async {
     emit(PaymentLoading());
-    final result = await initiatePaymentUseCase(InitiatePaymentParams(bookingId: bookingId, method: method));
+    final result = await initiatePaymentUseCase(
+      InitiatePaymentParams(bookingId: bookingId, method: method),
+    );
     result.fold(
       (failure) => emit(PaymentFailed(failure.message)),
-      (payment) => emit(PaymentInitiated(payment)),
+      (payment) {
+        if (payment.status == PaymentStatus.paid) {
+          emit(PaymentSuccess(payment));
+        } else if (payment.status == PaymentStatus.failed) {
+          emit(PaymentFailed('Payment failed'));
+        } else {
+          emit(PaymentInitiated(payment));
+        }
+      },
     );
   }
 
@@ -32,9 +51,9 @@ class PaymentCubit extends Cubit<PaymentState> {
     result.fold(
       (failure) => emit(PaymentFailed(failure.message)),
       (payment) {
-        if (payment.status.name == 'paid') {
+        if (payment.status == PaymentStatus.paid) {
           emit(PaymentSuccess(payment));
-        } else if (payment.status.name == 'failed') {
+        } else if (payment.status == PaymentStatus.failed) {
           emit(PaymentFailed('Payment failed'));
         }
       },
@@ -43,12 +62,16 @@ class PaymentCubit extends Cubit<PaymentState> {
 
   Future<void> completeMockPayment(String paymentId, bool success) async {
     emit(PaymentLoading());
-    final result = await mockPaymentCompleteUseCase(MockPaymentCompleteParams(paymentId: paymentId, action: success ? 'approve' : 'reject'));
+    final result = await mockPaymentCompleteUseCase(
+      MockPaymentCompleteParams(
+        paymentId: paymentId,
+        action: success ? 'approve' : 'reject',
+      ),
+    );
     result.fold(
       (failure) => emit(PaymentFailed(failure.message)),
       (_) async {
         if (success) {
-          // Fetch updated payment
           final paymentResult = await getPaymentUseCase(paymentId);
           paymentResult.fold(
             (failure) => emit(PaymentFailed(failure.message)),

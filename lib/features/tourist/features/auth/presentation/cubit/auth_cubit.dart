@@ -1,4 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/services/notifications/messaging_service.dart';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../domain/usecases/check_email_usecas.dart';
 import '../../domain/usecases/register_usecase.dart';
 import '../../domain/usecases/resend_verification_code_usecase.dart';
@@ -21,6 +26,9 @@ class AuthCubit extends Cubit<AuthState> {
   final AuthRepository authRepository;
 
   final ResendVerificationCodeUseCase resendVerificationCodeUseCase;
+  final AuthService authService;
+  final BookingTrackingHubService hubService;
+  final MessagingService messagingService;
 
   AuthCubit({
     required this.checkEmailUseCase,
@@ -32,7 +40,53 @@ class AuthCubit extends Cubit<AuthState> {
     required this.verifyCodeUseCase,
     required this.resendVerificationCodeUseCase,
     required this.authRepository,
+    required this.authService,
+    required this.hubService,
+    required this.messagingService,
   }) : super(AuthInitial());
+
+  /// Side effects that run every time the user becomes authenticated:
+  ///   1. Open the SignalR `/hubs/booking` connection (token is resolved
+  ///      fresh from [AuthService] on every reconnect via the factory).
+  ///   2. Start FCM (permissions, token register, foreground heads-up,
+  ///      tap-routing).
+  ///
+  /// Both calls are best-effort — if FCM is unavailable (desktop, no
+  /// google-services config, …) we still want SignalR up and the rest of
+  /// the app to work.
+  Future<void> _onAuthenticated() async {
+    final token = authService.getToken();
+    if (token == null || token.isEmpty) {
+      debugPrint('⚠️ AuthCubit: no token after auth — skipping side-effects');
+      return;
+    }
+    try {
+      await hubService.start();
+    } catch (e) {
+      debugPrint('⚠️ AuthCubit: SignalR start failed: $e');
+    }
+    try {
+      await messagingService.start();
+    } catch (e) {
+      debugPrint('⚠️ AuthCubit: MessagingService.start failed: $e');
+    }
+  }
+
+  /// Mirror of [_onAuthenticated] for logout. ORDER MATTERS — the device-
+  /// token unregister call needs the bearer to authenticate, so it MUST run
+  /// before the JWT is cleared.
+  Future<void> _onUnauthenticated() async {
+    try {
+      await messagingService.stop();
+    } catch (e) {
+      debugPrint('⚠️ AuthCubit: MessagingService.stop failed: $e');
+    }
+    try {
+      await hubService.stop();
+    } catch (e) {
+      debugPrint('⚠️ AuthCubit: SignalR stop failed: $e');
+    }
+  }
 
   /// Check for cached user on app start
   Future<void> checkAuthStatus() async {
@@ -40,11 +94,12 @@ class AuthCubit extends Cubit<AuthState> {
 
     final result = await authRepository.getCachedUser();
 
-    result.fold(
-          (failure) => emit(AuthUnauthenticated()),
-          (user) {
+    await result.fold(
+          (failure) async => emit(AuthUnauthenticated()),
+          (user) async {
         if (user != null) {
           emit(AuthAuthenticated(user));
+          await _onAuthenticated();
         } else {
           emit(AuthUnauthenticated());
         }
@@ -78,9 +133,12 @@ class AuthCubit extends Cubit<AuthState> {
 
     final result = await verifyPasswordUseCase(email, password);
 
-    result.fold(
-          (failure) => emit(AuthError(failure.message)),
-          (user) => emit(AuthAuthenticated(user)),
+    await result.fold(
+          (failure) async => emit(AuthError(failure.message)),
+          (user) async {
+        emit(AuthAuthenticated(user));
+        await _onAuthenticated();
+      },
     );
   }
 
@@ -106,35 +164,31 @@ class AuthCubit extends Cubit<AuthState> {
       country: country,
     );
 
-    result.fold(
-          (failure) {
+    await result.fold(
+          (failure) async {
         final errorMessage = failure.message
             .replaceAll('Exception: ', '')
             .replaceAll('exception: ', '');
 
-        print('🔍 Cubit received failure: $errorMessage');
+        debugPrint('🔍 Cubit received failure: $errorMessage');
 
         if (errorMessage.contains('VERIFICATION_NEEDED:')) {
           final parts = errorMessage.split(':');
           final emailFromError = parts.length > 1 ? parts[1] : email;
           final message = parts.length > 2 ? parts.sublist(2).join(':') : 'Please verify your email';
 
-          print('✅ Emitting verification needed state');
-          print('📧 Email: $emailFromError');
-          print('💬 Message: $message');
-
           emit(AuthRegistrationVerificationNeeded(
             email: emailFromError,
             message: message,
           ));
         } else {
-          print('❌ Emitting error state: $errorMessage');
           emit(AuthError(errorMessage));
         }
       },
-          (user) {
-        print('✅ Registration successful, emitting authenticated');
+          (user) async {
+        debugPrint('✅ Registration successful');
         emit(AuthAuthenticated(user));
+        await _onAuthenticated();
       },
     );
   }
@@ -247,6 +301,10 @@ class AuthCubit extends Cubit<AuthState> {
   // ---------------- LOGOUT ----------------
   Future<void> logout() async {
     emit(AuthLoading());
+
+    // Best-effort side-effects BEFORE we drop the token: the device-token
+    // unregister call needs the bearer to authenticate.
+    await _onUnauthenticated();
 
     final result = await authRepository.logout();
 
