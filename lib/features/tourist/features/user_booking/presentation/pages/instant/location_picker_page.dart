@@ -483,8 +483,11 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   void _onPickSuggestion(NominatimResult r) {
     HapticFeedback.selectionClick();
     _searchFocus.unfocus();
-    _searchCtrl.text = r.name;
-    _searchCtrl.selection = TextSelection.collapsed(offset: r.name.length);
+    _searchCtrl.value = TextEditingValue(
+      text: r.name,
+      selection: TextSelection.collapsed(offset: r.name.length),
+      composing: TextRange.empty,
+    );
     _hasTextVN.value = r.name.isNotEmpty;
     final next = LatLng(r.lat, r.lng);
     _userMovedMap = true;

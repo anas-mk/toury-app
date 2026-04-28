@@ -49,6 +49,10 @@ class BookingTrackingHubService {
   String? _lastTokenSnapshot;
   Future<void>? _connectInFlight;
 
+  // Diagnostics: tracks the previous connection state so we can log
+  // `old → new` transitions on every change. Step 1 of the realtime audit.
+  HubConnectionState _lastLoggedState = HubConnectionState.Disconnected;
+
   /// Names of the server-method handlers we have registered. Surfaced to
   /// the diagnostics page so we can verify nothing was forgotten.
   final Set<String> _registeredHandlers = <String>{};
@@ -237,7 +241,7 @@ class BookingTrackingHubService {
     } finally {
       _hubConnection = null;
       _lastTokenSnapshot = null;
-      _connectionStateController.add(HubConnectionState.Disconnected);
+      _emitState(HubConnectionState.Disconnected);
     }
   }
 
@@ -290,6 +294,27 @@ class BookingTrackingHubService {
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
+  /// Pushes [next] onto the connection-state stream AND logs the
+  /// `old → new` transition exactly once. All state changes go through this
+  /// so we have a single grep-able line per transition (`📡 RT: SignalR
+  /// state.transition Disconnected → Connected`).
+  void _emitState(HubConnectionState next) {
+    final prev = _lastLoggedState;
+    if (prev == next) {
+      // Don't spam the log when signalr_netcore re-emits the same state
+      // (it sometimes fires Connected twice during fast reconnects).
+      _connectionStateController.add(next);
+      return;
+    }
+    _lastLoggedState = next;
+    RealtimeLogger.instance.log(
+      'SignalR',
+      'state.transition',
+      '${prev.name} → ${next.name}',
+    );
+    _connectionStateController.add(next);
+  }
+
   Future<void> _connect(String token) async {
     _lastTokenSnapshot = token;
     final hubUrl = ApiConfig.bookingHub;
@@ -321,7 +346,7 @@ class BookingTrackingHubService {
         isError: error != null,
       );
       _connectionIssues?.reportHubClosedWithPossibleAuthIssue(error);
-      _connectionStateController.add(HubConnectionState.Disconnected);
+      _emitState(HubConnectionState.Disconnected);
     });
     _hubConnection?.onreconnecting(({error}) {
       RealtimeLogger.instance.log(
@@ -329,7 +354,7 @@ class BookingTrackingHubService {
         'onreconnecting',
         error?.toString() ?? 'reconnecting',
       );
-      _connectionStateController.add(HubConnectionState.Reconnecting);
+      _emitState(HubConnectionState.Reconnecting);
     });
     _hubConnection?.onreconnected(({connectionId}) {
       RealtimeLogger.instance.log(
@@ -338,20 +363,34 @@ class BookingTrackingHubService {
         'id=$connectionId',
       );
       _connectionIssues?.clear();
-      _connectionStateController.add(HubConnectionState.Connected);
+      _emitState(HubConnectionState.Connected);
     });
 
     _registerHandlers();
 
     try {
       await _hubConnection?.start();
-      _connectionStateController.add(HubConnectionState.Connected);
+      _emitState(HubConnectionState.Connected);
       _connectionIssues?.clear();
       RealtimeLogger.instance.log(
         'SignalR',
         'connected',
         'Connected to /hubs/booking — RT: registered ${_registeredHandlers.length} handlers',
       );
+      // Step 1 diagnostic: dump the full handler-name list so we can sanity
+      // check casing without re-reading the source. Sorted for stable diff.
+      final sortedHandlers = _registeredHandlers.toList()..sort();
+      RealtimeLogger.instance.log(
+        'SignalR',
+        'handlers',
+        sortedHandlers.join(', '),
+      );
+      // Step 1 diagnostic: one-shot Ping → Pong RTT measurement. Cheap signal
+      // for which transport the negotiate landed on:
+      //   <50ms  ≈ WebSocket
+      //   100–500ms ≈ SSE
+      //   >1000ms ≈ long-polling (or server cold-start on runasp.net free tier)
+      unawaited(_runStartupPingDiagnostic());
     } catch (e) {
       RealtimeLogger.instance.log(
         'SignalR',
@@ -360,6 +399,52 @@ class BookingTrackingHubService {
         isError: true,
       );
       rethrow;
+    }
+  }
+
+  /// Sends a single `Ping()` and logs the RTT to the first matching `Pong`.
+  /// Times out at 5s so a stalled long-polling transport surfaces clearly.
+  /// Errors here are diagnostic-only and never propagate.
+  Future<void> _runStartupPingDiagnostic() async {
+    final hub = _hubConnection;
+    if (hub == null || hub.state != HubConnectionState.Connected) return;
+    final completer = Completer<void>();
+    StreamSubscription<PongEvent>? sub;
+    sub = _pong.stream.listen((_) {
+      if (!completer.isCompleted) completer.complete();
+    });
+    final sentAt = DateTime.now();
+    try {
+      await hub.invoke('Ping');
+      RealtimeLogger.instance.log('SignalR', 'ping.diag.sent', '');
+      await completer.future.timeout(const Duration(seconds: 5));
+      final rttMs = DateTime.now().difference(sentAt).inMilliseconds;
+      final transportHint = rttMs < 50
+          ? 'likely WebSocket'
+          : rttMs < 500
+              ? 'likely SSE'
+              : 'likely long-polling or cold start';
+      RealtimeLogger.instance.log(
+        'SignalR',
+        'ping.diag.rtt',
+        '${rttMs}ms ($transportHint)',
+      );
+    } on TimeoutException {
+      RealtimeLogger.instance.log(
+        'SignalR',
+        'ping.diag.timeout',
+        'no Pong within 5s — transport may be stalled',
+        isError: true,
+      );
+    } catch (e) {
+      RealtimeLogger.instance.log(
+        'SignalR',
+        'ping.diag.error',
+        '$e',
+        isError: true,
+      );
+    } finally {
+      await sub.cancel();
     }
   }
 
@@ -623,30 +708,44 @@ class BookingTrackingHubService {
   }
 
   // Compact one-liner used in the realtime log.
+  // Reads keys via [_pick] so we tolerate both camelCase (signalr_netcore
+  // default) and PascalCase (raw .NET) wire shapes — mirrors the leniency
+  // already in `booking_hub_events.dart` so the log matches the parsed event.
   String _summarize(String name, Map<String, dynamic> raw) {
-    final id = raw['bookingId'] ?? raw['BookingId'];
+    final id = _pick(raw, 'bookingId');
     switch (name) {
       case 'BookingStatusChanged':
-        return 'booking=$id ${raw['oldStatus']}→${raw['newStatus']}';
+        return 'booking=$id ${_pick(raw, 'oldStatus')}→${_pick(raw, 'newStatus')}';
       case 'BookingCancelled':
-        return 'booking=$id by=${raw['cancelledBy']} reason=${raw['reason']}';
+        return 'booking=$id by=${_pick(raw, 'cancelledBy')} reason=${_pick(raw, 'reason')}';
       case 'BookingPaymentChanged':
-        return 'booking=$id status=${raw['status']} amount=${raw['amount']}${raw['currency']}';
+        return 'booking=$id status=${_pick(raw, 'status')} amount=${_pick(raw, 'amount')}${_pick(raw, 'currency')}';
       case 'BookingTripStarted':
-        return 'booking=$id startedAt=${raw['startedAt']}';
+        return 'booking=$id startedAt=${_pick(raw, 'startedAt')}';
       case 'BookingTripEnded':
-        return 'booking=$id final=${raw['finalPrice']} pay=${raw['paymentStatus']}';
+        return 'booking=$id final=${_pick(raw, 'finalPrice')} pay=${_pick(raw, 'paymentStatus')}';
       case 'ChatMessage':
-        return 'booking=$id from=${raw['senderName']}';
+        return 'booking=$id from=${_pick(raw, 'senderName')}';
       case 'HelperReportResolved':
       case 'ReportResolved':
-        return 'reportId=${raw['reportId']} resolution=${raw['resolution']}';
+        return 'reportId=${_pick(raw, 'reportId')} resolution=${_pick(raw, 'resolution')}';
       case 'SosTriggered':
-        return 'sosId=${raw['sosId']} by=${raw['triggeredBy']}';
+        return 'sosId=${_pick(raw, 'sosId')} by=${_pick(raw, 'triggeredBy')}';
       case 'SosResolved':
-        return 'sosId=${raw['sosId']} resolution=${raw['resolution']}';
+        return 'sosId=${_pick(raw, 'sosId')} resolution=${_pick(raw, 'resolution')}';
     }
     return raw.keys.take(4).join(',');
+  }
+
+  /// camelCase-or-PascalCase tolerant scalar lookup, used only by
+  /// [_summarize] so log lines stay readable regardless of wire casing.
+  Object? _pick(Map raw, String camel) {
+    if (raw.containsKey(camel)) return raw[camel];
+    final pascal = camel.isEmpty
+        ? camel
+        : '${camel[0].toUpperCase()}${camel.substring(1)}';
+    if (raw.containsKey(pascal)) return raw[pascal];
+    return null;
   }
 
   // ── Adapters between typed events and the legacy Map-based streams ────────

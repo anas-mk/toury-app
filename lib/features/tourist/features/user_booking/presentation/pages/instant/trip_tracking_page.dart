@@ -18,6 +18,7 @@ import '../../../../../../../core/services/signalr/booking_tracking_hub_service.
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../domain/entities/app_payment_method.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
@@ -89,14 +90,57 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   void _onTripEnded(BookingTripEndedEvent event) {
     if (!mounted) return;
+    if (widget.cubit.selectedPaymentMethod == AppPaymentMethod.mockCard) {
+      _showMandatoryRating();
+      return;
+    }
     context.go(
       AppRouter.instantPayNow.replaceFirst(':id', widget.bookingId),
-      extra: {'cubit': widget.cubit},
+      extra: {'cubit': widget.cubit, 'requireRating': true},
+    );
+  }
+
+  Future<void> _showMandatoryRating() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text('Rate your helper'),
+          content: const Text(
+            'Your trip is complete. Please rate your helper to finish the booking.',
+          ),
+          actions: [
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                context.go(
+                  AppRouter.rateBooking.replaceFirst(
+                    ':bookingId',
+                    widget.bookingId,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.star_rounded),
+              label: const Text('Rate now'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Future<void> _onCancel(BuildContext ctx) async {
-    final reason = await showCancelReasonSheet(ctx);
+    final reason = await showCancelReasonSheet(
+      ctx,
+      refundToWallet:
+          widget.cubit.selectedPaymentMethod == AppPaymentMethod.mockCard,
+    );
     if (reason == null || !mounted) return;
     final ok = await widget.cubit.cancelBooking(widget.bookingId, reason);
     if (!ok || !mounted) return;
@@ -123,10 +167,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   void _recenter() {
     if (_latest != null) {
-      _mapController.move(
-        LatLng(_latest!.latitude, _latest!.longitude),
-        16,
-      );
+      _mapController.move(LatLng(_latest!.latitude, _latest!.longitude), 16);
     }
   }
 
@@ -140,142 +181,150 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
           if (!didPop) context.go(AppRouter.home);
         },
         child: Scaffold(
-        body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
-          builder: (context, state) {
-            final booking = _bookingFrom(state);
-            final pickup = booking == null
-                ? null
-                : LatLng(booking.pickupLatitude, booking.pickupLongitude);
-            final destination = booking?.destinationLatitude != null &&
-                    booking?.destinationLongitude != null
-                ? LatLng(
-                    booking!.destinationLatitude!,
-                    booking.destinationLongitude!,
-                  )
-                : null;
-            final initialCenter = pickup ??
-                (_latest != null
-                    ? LatLng(_latest!.latitude, _latest!.longitude)
-                    : const LatLng(0, 0));
+          body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
+            builder: (context, state) {
+              final booking = _bookingFrom(state);
+              final pickup = booking == null
+                  ? null
+                  : LatLng(booking.pickupLatitude, booking.pickupLongitude);
+              final destination =
+                  booking?.destinationLatitude != null &&
+                      booking?.destinationLongitude != null
+                  ? LatLng(
+                      booking!.destinationLatitude!,
+                      booking.destinationLongitude!,
+                    )
+                  : null;
+              final initialCenter =
+                  pickup ??
+                  (_latest != null
+                      ? LatLng(_latest!.latitude, _latest!.longitude)
+                      : const LatLng(0, 0));
 
-            return Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: initialCenter,
-                    initialZoom: pickup == null ? 3 : 15,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.toury.app',
-                      tileProvider: CachedTileProvider(),
+              return Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: initialCenter,
+                      initialZoom: pickup == null ? 3 : 15,
                     ),
-                    if (pickup != null && destination != null)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: [pickup, destination],
-                            color: AppColor.accentColor.withValues(alpha: 0.4),
-                            strokeWidth: 4,
-                            pattern: StrokePattern.dashed(
-                              segments: const [10.0, 6.0],
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.toury.app',
+                        tileProvider: CachedTileProvider(),
+                      ),
+                      if (pickup != null && destination != null)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: [pickup, destination],
+                              color: AppColor.accentColor.withValues(
+                                alpha: 0.4,
+                              ),
+                              strokeWidth: 4,
+                              pattern: StrokePattern.dashed(
+                                segments: const [10.0, 6.0],
+                              ),
                             ),
-                          ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          if (pickup != null)
+                            Marker(
+                              point: pickup,
+                              width: 44,
+                              height: 44,
+                              child: const _PinDot(
+                                color: AppColor.accentColor,
+                                icon: Icons.trip_origin_rounded,
+                              ),
+                            ),
+                          if (destination != null)
+                            Marker(
+                              point: destination,
+                              width: 44,
+                              height: 44,
+                              child: const _PinDot(
+                                color: AppColor.errorColor,
+                                icon: Icons.flag_rounded,
+                              ),
+                            ),
+                          if (_latest != null)
+                            Marker(
+                              point: LatLng(
+                                _latest!.latitude,
+                                _latest!.longitude,
+                              ),
+                              width: 60,
+                              height: 60,
+                              child: _HelperMarker(
+                                imageUrl:
+                                    widget.helper?.profileImageUrl ??
+                                    booking?.helper?.profileImageUrl,
+                                heading: _latest!.heading ?? 0,
+                              ),
+                            ),
                         ],
                       ),
-                    MarkerLayer(
-                      markers: [
-                        if (pickup != null)
-                          Marker(
-                            point: pickup,
-                            width: 44,
-                            height: 44,
-                            child: const _PinDot(
-                              color: AppColor.accentColor,
-                              icon: Icons.trip_origin_rounded,
-                            ),
-                          ),
-                        if (destination != null)
-                          Marker(
-                            point: destination,
-                            width: 44,
-                            height: 44,
-                            child: const _PinDot(
-                              color: AppColor.errorColor,
-                              icon: Icons.flag_rounded,
-                            ),
-                          ),
-                        if (_latest != null)
-                          Marker(
-                            point: LatLng(
-                              _latest!.latitude,
-                              _latest!.longitude,
-                            ),
-                            width: 60,
-                            height: 60,
-                            child: _HelperMarker(
-                              imageUrl: widget.helper?.profileImageUrl ??
-                                  booking?.helper?.profileImageUrl,
-                              heading: _latest!.heading ?? 0,
-                            ),
-                          ),
-                      ],
+                    ],
+                  ),
+                  // Top-left circular blurred back button.
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    left: AppTheme.spaceMD,
+                    child: _BlurredCircleButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: () => context.go(AppRouter.home),
                     ),
-                  ],
-                ),
-                // Top-left circular blurred back button.
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 8,
-                  left: AppTheme.spaceMD,
-                  child: _BlurredCircleButton(
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () => context.go(AppRouter.home),
                   ),
-                ),
-                // Top-right recenter.
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 8,
-                  right: AppTheme.spaceMD,
-                  child: _BlurredCircleButton(
-                    icon: Icons.my_location_rounded,
-                    onTap: _recenter,
+                  // Top-right recenter.
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    right: AppTheme.spaceMD,
+                    child: _BlurredCircleButton(
+                      icon: Icons.my_location_rounded,
+                      onTap: _recenter,
+                    ),
                   ),
-                ),
-                // OSM attribution.
-                const Positioned(
-                  right: 6,
-                  bottom: 6,
-                  child: _OsmAttribution(),
-                ),
-                // Draggable bottom sheet.
-                DraggableScrollableSheet(
-                  initialChildSize: 0.32,
-                  minChildSize: 0.18,
-                  maxChildSize: 0.62,
-                  builder: (context, scrollController) {
-                    return _TrackingSheet(
-                      scrollController: scrollController,
-                      latest: _latest,
-                      booking: booking,
-                      helperImageUrl: widget.helper?.profileImageUrl ??
-                          booking?.helper?.profileImageUrl,
-                      helperName: widget.helper?.fullName ??
-                          booking?.helper?.fullName ??
-                          'Your helper',
-                      onCall: () => _callHelper(booking?.helper?.phoneNumber),
-                      onChat: _openChat,
-                      onCancel:
-                          (booking?.canCancel ?? false) ? () => _onCancel(context) : null,
-                    );
-                  },
-                ),
-              ],
-            );
-          },
-        ),
+                  // OSM attribution.
+                  const Positioned(
+                    right: 6,
+                    bottom: 6,
+                    child: _OsmAttribution(),
+                  ),
+                  // Draggable bottom sheet.
+                  DraggableScrollableSheet(
+                    initialChildSize: 0.32,
+                    minChildSize: 0.18,
+                    maxChildSize: 0.62,
+                    builder: (context, scrollController) {
+                      return _TrackingSheet(
+                        scrollController: scrollController,
+                        latest: _latest,
+                        booking: booking,
+                        helperImageUrl:
+                            widget.helper?.profileImageUrl ??
+                            booking?.helper?.profileImageUrl,
+                        helperName:
+                            widget.helper?.fullName ??
+                            booking?.helper?.fullName ??
+                            'Your helper',
+                        onCall: () => _callHelper(booking?.helper?.phoneNumber),
+                        onChat: _openChat,
+                        onCancel: (booking?.canCancel ?? false)
+                            ? () => _onCancel(context)
+                            : null,
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -396,11 +445,7 @@ class _HelperMarker extends StatelessWidget {
           ),
           padding: const EdgeInsets.all(2),
           child: ClipOval(
-            child: AppNetworkImage(
-              imageUrl: imageUrl,
-              width: 36,
-              height: 36,
-            ),
+            child: AppNetworkImage(imageUrl: imageUrl, width: 36, height: 36),
           ),
         ),
       ],
@@ -443,8 +488,8 @@ class _TrackingSheet extends StatelessWidget {
     final phaseLabel = latest == null
         ? 'Connectingâ€¦'
         : isDestPhase
-            ? 'Heading to destination'
-            : 'On the way to pickup';
+        ? 'Heading to destination'
+        : 'On the way to pickup';
 
     return Container(
       decoration: BoxDecoration(
@@ -541,10 +586,7 @@ class _TrackingSheet extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [
-                        AppColor.accentColor,
-                        AppColor.secondaryColor,
-                      ],
+                      colors: [AppColor.accentColor, AppColor.secondaryColor],
                     ),
                     borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                   ),
@@ -561,10 +603,7 @@ class _TrackingSheet extends StatelessWidget {
                       ),
                       const Text(
                         'min',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 10),
                       ),
                     ],
                   ),
@@ -650,10 +689,7 @@ class _TrackingSheet extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
                 foregroundColor: AppColor.errorColor,
-                side: const BorderSide(
-                  color: AppColor.errorColor,
-                  width: 1.4,
-                ),
+                side: const BorderSide(color: AppColor.errorColor, width: 1.4),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppTheme.radiusMD),
                 ),
@@ -699,10 +735,7 @@ class _SheetActionBtn extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(color: color, fontWeight: FontWeight.w800),
               ),
             ],
           ),

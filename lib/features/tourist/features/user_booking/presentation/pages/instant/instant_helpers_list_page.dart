@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/hero_header.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../../domain/entities/instant_search_request.dart';
@@ -99,21 +100,21 @@ class _HelpersListView extends StatelessWidget {
     context.read<InstantBookingCubit>().searchHelpers(searchRequest);
   }
 
-  HeroSliverHeader _buildHeader({
-    required int count,
-    required bool isLoading,
-  }) {
+  HeroSliverHeader _buildHeader({required int count, required bool isLoading}) {
     return HeroSliverHeader(
-      title: isLoading ? 'Searching nearby helpers...' : 'Available helpers',
+      title: isLoading ? 'Finding your best helper' : 'Available helpers',
       subtitle: isLoading
-          ? "We're ranking matches by rating, distance and price"
-          : '$count match${count == 1 ? '' : 'es'} for your trip',
+          ? "We're ranking nearby helpers by trust, distance, price and fit."
+          : '$count curated match${count == 1 ? '' : 'es'} ready for your trip',
       leadingIcon: Icons.travel_explore_rounded,
-      height: 220,
+      height: 250,
+      trailing: _MatchCountBadge(count: count, isLoading: isLoading),
       footer: _TripSummaryPills(
         pickupName: pickup.name,
+        destinationName: destination.name,
         durationInMinutes: durationInMinutes,
         travelers: travelers,
+        requiresCar: requiresCar,
       ),
     );
   }
@@ -121,7 +122,7 @@ class _HelpersListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: BrandTokens.bgSoft,
       extendBodyBehindAppBar: true,
       body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
         builder: (context, state) {
@@ -176,24 +177,18 @@ class _HelpersListView extends StatelessWidget {
                       isLoading: false,
                     ),
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppTheme.spaceLG,
-                      AppTheme.spaceMD,
-                      AppTheme.spaceLG,
-                      AppTheme.spaceLG,
-                    ),
-                    sliver: SliverList.separated(
-                      itemCount: state.helpers.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: AppTheme.spaceMD),
-                      itemBuilder: (_, i) {
-                        final h = state.helpers[i];
-                        return HelperSuitabilityCard(
-                          helper: h,
-                          onTap: () => _onTap(context, h),
-                        );
-                      },
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppTheme.spaceLG,
+                        AppTheme.spaceLG,
+                        AppTheme.spaceLG,
+                        AppTheme.spaceLG,
+                      ),
+                      child: _HelpersRevealPanel(
+                        helpers: state.helpers,
+                        onTap: (h) => _onTap(context, h),
+                      ),
                     ),
                   ),
                 ],
@@ -234,13 +229,17 @@ class _HelpersListView extends StatelessWidget {
 /// Compact pickup + duration + travelers strip rendered as the hero's footer.
 class _TripSummaryPills extends StatelessWidget {
   final String pickupName;
+  final String destinationName;
   final int durationInMinutes;
   final int travelers;
+  final bool requiresCar;
 
   const _TripSummaryPills({
     required this.pickupName,
+    required this.destinationName,
     required this.durationInMinutes,
     required this.travelers,
+    required this.requiresCar,
   });
 
   static String _formatDuration(int m) {
@@ -255,37 +254,22 @@ class _TripSummaryPills extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Icon(
-            Icons.trip_origin_rounded,
-            color: Colors.white,
-            size: 16,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              pickupName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
+          _Pill(icon: Icons.trip_origin_rounded, label: pickupName, wide: true),
+          _Pill(icon: Icons.flag_rounded, label: destinationName, wide: true),
           _Pill(
             icon: Icons.schedule_rounded,
             label: _formatDuration(durationInMinutes),
           ),
-          const SizedBox(width: 6),
-          _Pill(
-            icon: Icons.group_rounded,
-            label: '$travelers',
-          ),
+          _Pill(icon: Icons.group_rounded, label: '$travelers'),
+          if (requiresCar)
+            const _Pill(icon: Icons.directions_car_rounded, label: 'Car'),
         ],
       ),
     );
@@ -295,31 +279,277 @@ class _TripSummaryPills extends StatelessWidget {
 class _Pill extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _Pill({required this.icon, required this.label});
+  final bool wide;
+  const _Pill({required this.icon, required this.label, this.wide = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: wide ? 150 : 96),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.20),
+          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 13),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MatchCountBadge extends StatelessWidget {
+  final int count;
+  final bool isLoading;
+
+  const _MatchCountBadge({required this.count, required this.isLoading});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.20),
+        color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.26)),
+      ),
+      child: Text(
+        isLoading ? 'Live' : '$count found',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _RankingExplainer extends StatelessWidget {
+  final int count;
+
+  const _RankingExplainer({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+        border: Border.all(color: BrandTokens.borderSoft),
+        boxShadow: BrandTokens.cardShadow,
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 13),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: BrandTokens.successGradient,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                  color: BrandTokens.glowBlue,
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: AppTheme.spaceMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Smart-ranked for this trip',
+                  style: BrandTokens.heading(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'We found $count helpers and sorted them by match, arrival time, reviews and total price.',
+                  style: BrandTokens.body(fontSize: 12),
+                ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HelpersRevealPanel extends StatefulWidget {
+  final List<HelperSearchResult> helpers;
+  final ValueChanged<HelperSearchResult> onTap;
+
+  const _HelpersRevealPanel({required this.helpers, required this.onTap});
+
+  @override
+  State<_HelpersRevealPanel> createState() => _HelpersRevealPanelState();
+}
+
+class _HelpersRevealPanelState extends State<_HelpersRevealPanel> {
+  bool _revealed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(milliseconds: 950), () {
+      if (mounted) setState(() => _revealed = true);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _HelpersRevealPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.helpers != widget.helpers) {
+      _revealed = false;
+      Future<void>.delayed(const Duration(milliseconds: 950), () {
+        if (mounted) setState(() => _revealed = true);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 420),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _revealed
+          ? Column(
+              key: const ValueKey('helpers'),
+              children: [
+                _RankingExplainer(count: widget.helpers.length),
+                const SizedBox(height: AppTheme.spaceMD),
+                for (var i = 0; i < widget.helpers.length; i++)
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: Duration(
+                      milliseconds: 360 + (i * 70).clamp(0, 420),
+                    ),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, 18 * (1 - value)),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: AppTheme.spaceMD),
+                      child: HelperSuitabilityCard(
+                        helper: widget.helpers[i],
+                        onTap: () => widget.onTap(widget.helpers[i]),
+                      ),
+                    ),
+                  ),
+              ],
+            )
+          : _RankingWarmup(count: widget.helpers.length),
+    );
+  }
+}
+
+class _RankingWarmup extends StatelessWidget {
+  final int count;
+
+  const _RankingWarmup({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const ValueKey('ranking'),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppTheme.spaceLG),
+          decoration: BoxDecoration(
+            gradient: BrandTokens.primaryGradient,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: BrandTokens.ctaBlueGlow,
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: BrandTokens.accentAmber,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: BrandTokens.primaryBlue,
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spaceMD),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ranking $count helpers',
+                          style: BrandTokens.heading(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Matching trust, arrival time, language and total price.',
+                          style: BrandTokens.body(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.78),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spaceLG),
+              const LinearProgressIndicator(
+                color: BrandTokens.accentAmber,
+                backgroundColor: Color(0x33FFFFFF),
+                minHeight: 6,
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppTheme.spaceMD),
+        for (var i = 0; i < 3; i++)
+          const Padding(
+            padding: EdgeInsets.only(bottom: AppTheme.spaceMD),
+            child: HelperCardSkeleton(),
+          ),
+      ],
     );
   }
 }

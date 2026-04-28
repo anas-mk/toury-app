@@ -12,7 +12,8 @@ import '../../features/helper/features/helper_location/presentation/pages/helper
 import '../../features/helper/features/helper_location/presentation/pages/eligibility_debug_page.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/service_areas_page.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/add_edit_service_area_page.dart';
-import '../../features/helper/features/helper_service_areas/domain/entities/service_area_entities.dart' as helper_sa;
+import '../../features/helper/features/helper_service_areas/domain/entities/service_area_entities.dart'
+    as helper_sa;
 import '../../features/helper/features/helper_invoices/presentation/pages/invoices_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/invoice_detail_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/invoice_view_page.dart';
@@ -29,6 +30,7 @@ import '../../features/tourist/features/user_booking/presentation/cubits/search_
 import '../../features/helper/features/helper_ratings/presentation/pages/helper_ratings_page.dart';
 import '../../features/helper/features/helper_ratings/presentation/pages/rate_user_page.dart';
 import '../di/injection_container.dart';
+import '../services/notifications/notification_router.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
 import '../diagnostics/realtime_diagnostics_page.dart';
@@ -60,10 +62,14 @@ import '../../features/tourist/features/user_booking/presentation/pages/instant/
 import '../../features/tourist/features/user_booking/presentation/pages/instant/trip_tracking_entry_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant/pay_now_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant/location_pick_result.dart';
-import '../../features/tourist/features/user_booking/domain/entities/alternatives_response.dart' as instant_alt;
-import '../../features/tourist/features/user_booking/domain/entities/booking_detail.dart' as instant_booking;
-import '../../features/tourist/features/user_booking/domain/entities/helper_search_result.dart' as instant_helper;
-import '../../features/tourist/features/user_booking/domain/entities/instant_search_request.dart' as instant_req;
+import '../../features/tourist/features/user_booking/domain/entities/alternatives_response.dart'
+    as instant_alt;
+import '../../features/tourist/features/user_booking/domain/entities/booking_detail.dart'
+    as instant_booking;
+import '../../features/tourist/features/user_booking/domain/entities/helper_search_result.dart'
+    as instant_helper;
+import '../../features/tourist/features/user_booking/domain/entities/instant_search_request.dart'
+    as instant_req;
 import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/domain/entities/helper_booking_entity.dart';
 import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
@@ -121,7 +127,11 @@ class GoogleVerifyCodePage extends StatelessWidget {
   final String email;
   const GoogleVerifyCodePage({super.key, required this.email});
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Text('Google Verify Code Page for $email (Placeholder)')));
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: Text('Google Verify Code Page for $email (Placeholder)'),
+    ),
+  );
 }
 
 class HelperOnboardingPage extends StatelessWidget {
@@ -129,7 +139,11 @@ class HelperOnboardingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Helper Onboarding')),
-    body: const Center(child: Text('Onboarding Status: Incomplete\nComplete your profile settings.')),
+    body: const Center(
+      child: Text(
+        'Onboarding Status: Incomplete\nComplete your profile settings.',
+      ),
+    ),
   );
 }
 
@@ -138,7 +152,11 @@ class WaitingApprovalPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Account Pending')),
-    body: const Center(child: Text('Your account is waiting for admin approval.\nWe will notify you soon.')),
+    body: const Center(
+      child: Text(
+        'Your account is waiting for admin approval.\nWe will notify you soon.',
+      ),
+    ),
   );
 }
 
@@ -168,13 +186,13 @@ class AccountInactivePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Account Inactive')),
-    body: const Center(child: Text('Your account has been deactivated.\nPlease contact support.')),
+    body: const Center(
+      child: Text(
+        'Your account has been deactivated.\nPlease contact support.',
+      ),
+    ),
   );
 }
-
-
-
-
 
 class AppRouter {
   // ----------------------------------------
@@ -185,7 +203,8 @@ class AppRouter {
   static const String home = '/home';
   static const String login = '/login';
   static const String register = 'register';
-  static const String verifyCode = '/verify-code'; // ✨ Added this route constant
+  static const String verifyCode =
+      '/verify-code'; // ✨ Added this route constant
   static const String enterPassword = 'enter-password/:email';
   static const String forgotPassword = 'forgot-password';
   static const String resetPassword = 'reset-password';
@@ -209,9 +228,11 @@ class AppRouter {
   static const String instantAlternatives = '/instant/alternatives/:id';
   static const String instantConfirmed = '/instant/confirmed/:id';
   static const String instantTripTracking = '/instant/tracking/:id';
+
   /// Push contract alias — same live map as [instantTripTracking].
   static const String tripLive = '/trip/:id';
   static const String instantPayNow = '/instant/pay-now/:id';
+
   /// Push contract — `id` is booking / conversation id on the wire.
   static const String chatByConversation = '/chat/:id';
   static const String reports = '/reports';
@@ -242,9 +263,7 @@ class AppRouter {
   // Hidden diagnostics
   static const String devRealtime = '/dev/realtime';
 
-
-
-// Helper Constants
+  // Helper Constants
   static const String helperLogin = '/helper-login';
   static const String helperRegister = 'helper-register';
   static const String helperEnterPassword = 'enter-password/:email';
@@ -260,35 +279,37 @@ class AppRouter {
   static const String interviewPending = '/interview-pending';
 
   // Helper Shell Routes
-  static const String helperHome      = '/helper/home';
-  static const String helperBookings  = '/helper/bookings';
-  static const String helperMessages  = '/helper/messages';
-  static const String helperWallet    = '/helper/wallet';
-  static const String helperAccount   = '/helper/account';
+  static const String helperHome = '/helper/home';
+  static const String helperBookings = '/helper/bookings';
+  static const String helperMessages = '/helper/messages';
+  static const String helperWallet = '/helper/wallet';
+  static const String helperAccount = '/helper/account';
 
   // Helper Sub-Routes
-  static const String helperDashboard       = helperHome; // For backward compatibility if needed
-  static const String helperRequests        = '/helper/requests';
-  static const String helperRequestDetails  = '/helper/request-details/:id';
-  static const String helperUpcoming        = '/helper/upcoming';
-  static const String helperActiveBooking   = '/helper/active-booking';
-  static const String helperBookingDetails  = '/helper/booking-details/:id';
-  static const String helperHistory         = '/helper/history';
-  static const String helperEarnings        = '/helper/earnings';
-  static const String helperLocation         = '/helper/location';
+  static const String helperDashboard =
+      helperHome; // For backward compatibility if needed
+  static const String helperRequests = '/helper/requests';
+  static const String helperRequestDetails = '/helper/request-details/:id';
+  static const String helperUpcoming = '/helper/upcoming';
+  static const String helperActiveBooking = '/helper/active-booking';
+  static const String helperBookingDetails = '/helper/booking-details/:id';
+  static const String helperHistory = '/helper/history';
+  static const String helperEarnings = '/helper/earnings';
+  static const String helperLocation = '/helper/location';
   static const String helperEligibilityDebug = '/helper/eligibility-debug';
-  static const String helperServiceAreas     = '/helper/service-areas';
-  static const String helperAddServiceArea   = '/helper/add-service-area';
-  static const String helperEditServiceArea  = '/helper/edit-service-area';
-  static const String helperInvoices         = '/helper/invoices';
-  static const String helperInvoiceDetail    = '/helper/invoice-detail/:id';
-  static const String helperInvoiceView      = '/helper/invoice-view/:id';
-  static const String helperRatings          = '/helper/ratings';
-  static const String rateUser               = '/helper/rate-user/:id';
-  static const String helperReports          = '/helper/reports';
-  static const String helperSos              = '/helper/sos';
+  static const String helperServiceAreas = '/helper/service-areas';
+  static const String helperAddServiceArea = '/helper/add-service-area';
+  static const String helperEditServiceArea = '/helper/edit-service-area';
+  static const String helperInvoices = '/helper/invoices';
+  static const String helperInvoiceDetail = '/helper/invoice-detail/:id';
+  static const String helperInvoiceView = '/helper/invoice-view/:id';
+  static const String helperRatings = '/helper/ratings';
+  static const String rateUser = '/helper/rate-user/:id';
+  static const String helperReports = '/helper/reports';
+  static const String helperSos = '/helper/sos';
 
-  static final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> _rootNavigatorKey =
+      GlobalKey<NavigatorState>();
 
   static GlobalKey<NavigatorState> get rootNavigatorKey => _rootNavigatorKey;
 
@@ -304,7 +325,8 @@ class AppRouter {
 
       final localDataSource = sl<HelperLocalDataSource>();
       final helper = await localDataSource.getCurrentHelper();
-      final isAuthenticated = helper != null && helper.token != null && helper.token!.isNotEmpty;
+      final isAuthenticated =
+          helper != null && helper.token != null && helper.token!.isNotEmpty;
 
       final publicRoutes = [
         splash,
@@ -319,11 +341,7 @@ class AppRouter {
         devRealtime,
       ];
 
-      final authRoutes = [
-        roleSelection,
-        login,
-        helperLogin,
-      ];
+      final authRoutes = [roleSelection, login, helperLogin];
 
       final isPublic = publicRoutes.any((path) => matchedPath.startsWith(path));
       final isAuthRoute = authRoutes.contains(matchedPath);
@@ -343,6 +361,23 @@ class AppRouter {
 
       if (isAuthenticated && isAuthRoute) {
         return helperHome;
+      }
+
+      // Cold-start FCM deep-link consumption.
+      //
+      // If main() captured an initialMessage from getInitialMessage() and
+      // the user is authenticated AND we're being routed to a non-public
+      // screen, that's our cue: the splash → auth dance is done and the
+      // navigator is ready to land somewhere real. Consume the pending
+      // link and redirect there instead of the original target.
+      //
+      // Done LAST so we don't race the role-based redirects above.
+      if (isAuthenticated && !isPublic) {
+        final pendingRoute =
+            NotificationRouter.instance.consumePendingDeepLink();
+        if (pendingRoute != null && pendingRoute != matchedPath) {
+          return pendingRoute;
+        }
       }
 
       return null;
@@ -438,7 +473,8 @@ class AppRouter {
             path: helperRegisterVerifyOtp,
             name: 'helper-register-verify-otp',
             builder: (context, state) {
-              final email = state.uri.queryParameters['email'] ?? 'mock@example.com';
+              final email =
+                  state.uri.queryParameters['email'] ?? 'mock@example.com';
               return HelperVerifyEmailOtpPage(email: email);
             },
           ),
@@ -535,7 +571,8 @@ class AppRouter {
         name: 'helper-active-booking',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
-          final id = state.pathParameters['id'] ?? (state.extra as String? ?? '');
+          final id =
+              state.pathParameters['id'] ?? (state.extra as String? ?? '');
           return ActiveBookingPage(bookingId: id);
         },
       ),
@@ -560,7 +597,6 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const EarningsPage(),
       ),
-
 
       // 5. Tourist Home & Flow (Shell Route)
       StatefulShellRoute.indexedStack(
@@ -661,7 +697,9 @@ class AppRouter {
           final cubit = sl<ExamsCubit>();
           return BlocProvider.value(
             value: cubit,
-            child: InterviewScreen(interviewId: cubit.state.interview?.id ?? ''),
+            child: InterviewScreen(
+              interviewId: cubit.state.interview?.id ?? '',
+            ),
           );
         },
       ),
@@ -670,11 +708,6 @@ class AppRouter {
         name: 'interview-pending',
         builder: (context, state) => const InterviewPendingScreen(),
       ),
-
-
-
-
-
 
       // 7. User Booking Routes
       GoRoute(
@@ -755,7 +788,8 @@ class AppRouter {
           final extra = state.extra as Map<String, dynamic>;
           return InstantHelpersListPage(
             cubit: extra['cubit'] as InstantBookingCubit,
-            searchRequest: extra['searchRequest'] as instant_req.InstantSearchRequest,
+            searchRequest:
+                extra['searchRequest'] as instant_req.InstantSearchRequest,
             pickup: extra['pickup'] as LocationPickResult,
             destination: extra['destination'] as LocationPickResult,
             travelers: extra['travelers'] as int,
@@ -869,10 +903,16 @@ class AppRouter {
           final id = state.pathParameters['id']!;
           final extra = state.extra;
           InstantBookingCubit? cubit;
+          var requireRating = false;
           if (extra is Map<String, dynamic>) {
             cubit = extra['cubit'] as InstantBookingCubit?;
+            requireRating = extra['requireRating'] == true;
           }
-          return PayNowPage(bookingId: id, instantCubit: cubit);
+          return PayNowPage(
+            bookingId: id,
+            instantCubit: cubit,
+            requireRating: requireRating,
+          );
         },
       ),
 
@@ -1018,11 +1058,19 @@ class AppRouter {
         name: 'user-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final pickupLat = double.parse(state.uri.queryParameters['pickupLat'] ?? '0');
-          final pickupLng = double.parse(state.uri.queryParameters['pickupLng'] ?? '0');
-          final destLat = double.parse(state.uri.queryParameters['destLat'] ?? '0');
-          final destLng = double.parse(state.uri.queryParameters['destLng'] ?? '0');
-          
+          final pickupLat = double.parse(
+            state.uri.queryParameters['pickupLat'] ?? '0',
+          );
+          final pickupLng = double.parse(
+            state.uri.queryParameters['pickupLng'] ?? '0',
+          );
+          final destLat = double.parse(
+            state.uri.queryParameters['destLat'] ?? '0',
+          );
+          final destLng = double.parse(
+            state.uri.queryParameters['destLng'] ?? '0',
+          );
+
           return UserBookingTrackingPage(
             bookingId: id,
             pickupLocation: LatLng(pickupLat, pickupLng),
@@ -1037,11 +1085,19 @@ class AppRouter {
         name: 'helper-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final pickupLat = double.parse(state.uri.queryParameters['pickupLat'] ?? '0');
-          final pickupLng = double.parse(state.uri.queryParameters['pickupLng'] ?? '0');
-          final destLat = double.parse(state.uri.queryParameters['destLat'] ?? '0');
-          final destLng = double.parse(state.uri.queryParameters['destLng'] ?? '0');
-          
+          final pickupLat = double.parse(
+            state.uri.queryParameters['pickupLat'] ?? '0',
+          );
+          final pickupLng = double.parse(
+            state.uri.queryParameters['pickupLng'] ?? '0',
+          );
+          final destLat = double.parse(
+            state.uri.queryParameters['destLat'] ?? '0',
+          );
+          final destLng = double.parse(
+            state.uri.queryParameters['destLng'] ?? '0',
+          );
+
           return BlocProvider(
             create: (context) => sl<HelperTrackingCubit>()..startTracking(id),
             child: HelperBookingTrackingPage(
@@ -1178,13 +1234,25 @@ class AppRouter {
           children: [
             const Icon(Icons.error_outline, size: 64, color: Color(0xFFFF6B6B)),
             const SizedBox(height: 16),
-            const Text('Page not found', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+              'Page not found',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(state.uri.toString(), style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text(
+              state.uri.toString(),
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go(splash),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6C63FF),
+              ),
               child: const Text('Go to Start'),
             ),
           ],
@@ -1204,8 +1272,10 @@ class AppRouter {
     return FadeTransition(
       opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
       child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0.04, 0), end: Offset.zero)
-            .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+        position: Tween<Offset>(
+          begin: const Offset(0.04, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
         child: child,
       ),
     );
@@ -1218,8 +1288,10 @@ class AppRouter {
     Widget child,
   ) {
     return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.08),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
       child: FadeTransition(
         opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
         child: child,

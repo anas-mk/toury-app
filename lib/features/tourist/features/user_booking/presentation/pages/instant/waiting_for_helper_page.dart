@@ -10,6 +10,7 @@ import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
+import '../../../domain/entities/app_payment_method.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
@@ -78,7 +79,11 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
   }
 
   Future<void> _onCancel(BuildContext ctx) async {
-    final reason = await showCancelReasonSheet(ctx);
+    final reason = await showCancelReasonSheet(
+      ctx,
+      refundToWallet:
+          widget.cubit.selectedPaymentMethod == AppPaymentMethod.mockCard,
+    );
     if (reason == null || !mounted) return;
     final ok = await widget.cubit.cancelBooking(widget.bookingId, reason);
     if (!ok || !mounted) return;
@@ -102,12 +107,13 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
           final booking = _bookingFrom(state);
           final helperName =
               booking?.currentAssignment?.helperName ?? widget.helper?.fullName;
-          final helperAvatar = widget.helper?.profileImageUrl ??
+          final helperAvatar =
+              widget.helper?.profileImageUrl ??
               booking?.helper?.profileImageUrl;
           final attempt = booking?.assignmentAttemptCount ?? 0;
 
           return Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            backgroundColor: BrandTokens.bgSoft,
             body: Stack(
               children: [
                 ClipPath(
@@ -125,10 +131,12 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                BrandTokens.primaryBlueDark
-                                    .withValues(alpha: 0.05),
-                                BrandTokens.primaryBlueDark
-                                    .withValues(alpha: 0.30),
+                                BrandTokens.primaryBlueDark.withValues(
+                                  alpha: 0.05,
+                                ),
+                                BrandTokens.primaryBlueDark.withValues(
+                                  alpha: 0.30,
+                                ),
                               ],
                             ),
                           ),
@@ -148,17 +156,18 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                           0,
                         ),
                         child: Row(
-                          children: const [
+                          children: [
                             Expanded(
                               child: Text(
                                 'Looking for your helper',
-                                style: TextStyle(
+                                style: BrandTokens.heading(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 20,
                                 ),
                               ),
                             ),
+                            const _LiveRequestBadge(),
                           ],
                         ),
                       ),
@@ -191,10 +200,10 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                       const SizedBox(height: AppTheme.spaceLG),
                       Text(
                         helperName == null
-                            ? 'Looking for an available helperâ€¦'
-                            : 'Waiting for $helperNameâ€¦',
+                            ? 'Matching you with a nearby helper...'
+                            : 'Waiting for $helperName...',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: BrandTokens.heading(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -206,9 +215,9 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                           horizontal: AppTheme.spaceLG,
                         ),
                         child: Text(
-                          'They\'ll respond shortly. We\'ll auto-suggest others if needed.',
+                          'We are keeping the request live and will suggest another trusted helper if this one is busy.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: BrandTokens.body(
                             color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 13,
                           ),
@@ -225,12 +234,16 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                         child: Container(
                           padding: const EdgeInsets.all(AppTheme.spaceMD),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).cardColor,
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusXL),
+                            color: BrandTokens.surfaceWhite,
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusXL,
+                            ),
+                            border: Border.all(color: BrandTokens.borderSoft),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.10),
+                                color: BrandTokens.primaryBlue.withValues(
+                                  alpha: 0.10,
+                                ),
                                 blurRadius: 24,
                                 offset: const Offset(0, 8),
                               ),
@@ -238,6 +251,46 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                           ),
                           child: Column(
                             children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      gradient: BrandTokens.primaryGradient,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: BrandTokens.ctaBlueGlow,
+                                    ),
+                                    child: const Icon(
+                                      Icons.radar_rounded,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppTheme.spaceMD),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Request is live',
+                                          style: BrandTokens.heading(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        Text(
+                                          'We are watching helper responses in realtime.',
+                                          style: BrandTokens.body(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppTheme.spaceMD),
+                              const _SearchStageRow(),
+                              const SizedBox(height: AppTheme.spaceMD),
                               if (_remaining > Duration.zero)
                                 _CountdownPill(
                                   text: _formatRemaining(_remaining),
@@ -260,8 +313,9 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
                                       width: 1.4,
                                     ),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(AppTheme.radiusMD),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.radiusMD,
+                                      ),
                                     ),
                                   ),
                                   icon: const Icon(Icons.close_rounded),
@@ -299,17 +353,15 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
   void _onState(BuildContext context, InstantBookingState state) {
     if (state is InstantBookingAccepted) {
       context.go(
-        AppRouter.instantConfirmed
-            .replaceFirst(':id', state.booking.bookingId),
-        extra: {
-          'cubit': widget.cubit,
-          'helper': widget.helper,
-        },
+        AppRouter.instantConfirmed.replaceFirst(':id', state.booking.bookingId),
+        extra: {'cubit': widget.cubit, 'helper': widget.helper},
       );
     } else if (state is InstantBookingDeclined) {
       context.pushReplacement(
-        AppRouter.instantAlternatives
-            .replaceFirst(':id', state.booking.bookingId),
+        AppRouter.instantAlternatives.replaceFirst(
+          ':id',
+          state.booking.bookingId,
+        ),
         extra: {
           'cubit': widget.cubit,
           'booking': state.booking,
@@ -329,6 +381,44 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
         ),
       );
     }
+  }
+}
+
+class _LiveRequestBadge extends StatelessWidget {
+  const _LiveRequestBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: BrandTokens.successGreen,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'LIVE',
+            style: BrandTokens.body(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -366,6 +456,99 @@ class _CountdownPill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SearchStageRow extends StatelessWidget {
+  const _SearchStageRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Expanded(
+          child: _SearchStage(
+            icon: Icons.radar_rounded,
+            label: 'Searching',
+            active: true,
+          ),
+        ),
+        _StageLine(),
+        Expanded(
+          child: _SearchStage(
+            icon: Icons.touch_app_rounded,
+            label: 'Waiting',
+            active: true,
+          ),
+        ),
+        _StageLine(),
+        Expanded(
+          child: _SearchStage(
+            icon: Icons.verified_rounded,
+            label: 'Confirm',
+            active: false,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchStage extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+
+  const _SearchStage({
+    required this.icon,
+    required this.label,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? BrandTokens.primaryBlue : BrandTokens.textSecondary;
+    return Column(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: active ? 0.12 : 0.08),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 19),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BrandTokens.body(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StageLine extends StatelessWidget {
+  const _StageLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 26,
+      height: 2,
+      margin: const EdgeInsets.only(bottom: 18),
+      decoration: BoxDecoration(
+        color: BrandTokens.borderSoft,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }
@@ -417,14 +600,20 @@ class _WaitingHeroBlobClipper extends CustomClipper<Path> {
     final p = Path();
     p.lineTo(0, size.height - 50);
     p.cubicTo(
-      size.width * 0.25, size.height - 10,
-      size.width * 0.55, size.height - 80,
-      size.width * 0.78, size.height - 40,
+      size.width * 0.25,
+      size.height - 10,
+      size.width * 0.55,
+      size.height - 80,
+      size.width * 0.78,
+      size.height - 40,
     );
     p.cubicTo(
-      size.width * 0.92, size.height - 20,
-      size.width, size.height - 50,
-      size.width, size.height - 80,
+      size.width * 0.92,
+      size.height - 20,
+      size.width,
+      size.height - 50,
+      size.width,
+      size.height - 80,
     );
     p.lineTo(size.width, 0);
     p.close();
@@ -434,4 +623,3 @@ class _WaitingHeroBlobClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
-

@@ -6,12 +6,16 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <!-- Android 13+ runtime notification permission. Requested at runtime via
+         flutter_local_notifications + permission_handler in DeviceTokenService. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
 
     <application
         android:label="toury"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
             android:name=".MainActivity"
@@ -36,6 +40,34 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+
+        <!-- ── FCM background/killed-state notification rendering ─────────────
+             These three meta-data entries control how Android renders an
+             OS-level notification when the app is NOT in the foreground
+             (the OS handles the notification, not Dart).
+
+             Channel id: must match the channel created in MessagingService
+             (lib/core/services/notifications/messaging_service.dart →
+             _androidChannelId = 'rafiq_default'). Without this, FCM falls
+             back to a low-importance system channel → no heads-up, no sound.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="rafiq_default"/>
+
+        <!-- TODO(notification-icon): Replace placeholder with proper
+             white-silhouette PNG generated from Android Asset Studio.
+             Current placeholder is the colored launcher logo, which
+             Android 5+ will render as a white square in the status bar.
+             See Problem 3 follow-up + NOTIFICATION_ICON_TODO.md. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify"/>
+
+        <!-- Tint applied to the silhouette icon + lock-screen accent dot. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color"/>
 
     </application>
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Tint applied by the Android system to the notification icon and to the
+        small accent dot on the lock screen. Matches AppColor.secondaryColor in
+        lib/core/theme/app_color.dart so OS pushes feel branded.
+    -->
+    <color name="notification_color">#FF276EF1</color>
+</resources>

@@ -11,8 +11,9 @@ import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../../core/widgets/hero_header.dart';
+import '../../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
@@ -59,10 +60,7 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     if (!mounted) return;
     context.pushReplacement(
       AppRouter.instantTripTracking.replaceFirst(':id', widget.bookingId),
-      extra: {
-        'cubit': widget.cubit,
-        'helper': widget.helper,
-      },
+      extra: {'cubit': widget.cubit, 'helper': widget.helper},
     );
   }
 
@@ -100,64 +98,72 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
               if (!didPop) context.go(AppRouter.home);
             },
             child: Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            extendBodyBehindAppBar: true,
-            body: CustomScrollView(
-              slivers: [
-                SliverPersistentHeader(
-                  pinned: false,
-                  delegate: HeroSliverHeader(
-                    title: 'Helper accepted!',
-                    subtitle:
-                        'Your trip is confirmed. Chat with your helper or pay now.',
-                    leadingIcon: Icons.check_circle_rounded,
-                    height: 200,
+              backgroundColor: BrandTokens.bgSoft,
+              body: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _ConfirmedHero(
+                      onBack: () => context.go(AppRouter.home),
+                    ),
                   ),
-                ),
-                SliverToBoxAdapter(
-                  child: Transform.translate(
-                    offset: const Offset(0, -32),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spaceLG,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _HelperCard(
-                            booking: booking,
-                            helper: widget.helper,
-                            onCall: _callHelper,
-                            onChat: _openChat,
-                            onPay: _openPayment,
-                          ),
-                          if (booking != null) ...[
+                  SliverToBoxAdapter(
+                    child: Transform.translate(
+                      offset: const Offset(0, -48),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spaceLG,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _HelperCard(
+                              booking: booking,
+                              helper: widget.helper,
+                              onCall: _callHelper,
+                              onChat: _openChat,
+                              onPay: _openPayment,
+                            ),
+                            const SizedBox(height: AppTheme.spaceMD),
+                            _NextMoveCard(
+                              paymentRequired:
+                                  booking?.paymentRequired ?? false,
+                              onChat: _openChat,
+                              onPay: _openPayment,
+                            ),
+                            if (booking != null) ...[
+                              const SizedBox(height: AppTheme.spaceMD),
+                              _TripSummary(booking: booking),
+                            ],
                             const SizedBox(height: AppTheme.spaceLG),
-                            SectionTitle('Trip summary'),
-                            const SizedBox(height: AppTheme.spaceSM),
-                            _TripSummary(booking: booking),
-                          ],
-                          const SizedBox(height: AppTheme.spaceXL),
-                          OutlinedButton.icon(
-                            onPressed: () => context.go(AppRouter.bookingHome),
-                            icon: const Icon(Icons.home_rounded),
-                            label: const Text('Back to home'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppTheme.radiusMD),
+                            OutlinedButton.icon(
+                              onPressed: () =>
+                                  context.go(AppRouter.bookingHome),
+                              icon: const Icon(Icons.home_rounded),
+                              label: const Text('Back to home'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(54),
+                                foregroundColor: BrandTokens.primaryBlue,
+                                side: BorderSide(
+                                  color: BrandTokens.primaryBlue.withValues(
+                                    alpha: 0.16,
+                                  ),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusLG,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: AppTheme.spaceLG),
-                        ],
+                            const SizedBox(height: AppTheme.space2XL),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             ),
           );
         },
@@ -170,6 +176,155 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     if (s is InstantBookingWaiting) return s.booking;
     return null;
   }
+}
+
+class _ConfirmedHero extends StatelessWidget {
+  final VoidCallback onBack;
+
+  const _ConfirmedHero({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+    return SizedBox(
+      height: 300,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipPath(
+            clipper: _ConfirmedHeroClipper(),
+            child: const MeshGradientBackground(),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  BrandTokens.primaryBlueDark.withValues(alpha: 0.08),
+                  BrandTokens.primaryBlueDark.withValues(alpha: 0.44),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: top + 8,
+            left: AppTheme.spaceMD,
+            child: _GlassCircleButton(
+              icon: Icons.arrow_back_rounded,
+              onTap: onBack,
+            ),
+          ),
+          Positioned(
+            left: AppTheme.spaceLG,
+            right: AppTheme.spaceLG,
+            top: top + 72,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: BrandTokens.accentAmber,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'HELPER ACCEPTED',
+                        style: BrandTokens.body(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppTheme.spaceMD),
+                Text(
+                  'Your trip is locked in',
+                  style: BrandTokens.heading(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    height: 1.02,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Chat with your helper, finish payment, and follow realtime trip updates from here.',
+                  style: BrandTokens.body(
+                    fontSize: 14,
+                    color: Colors.white.withValues(alpha: 0.84),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlassCircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GlassCircleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.18),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfirmedHeroClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.lineTo(0, size.height - 58);
+    p.cubicTo(
+      size.width * 0.22,
+      size.height - 12,
+      size.width * 0.58,
+      size.height - 96,
+      size.width,
+      size.height - 46,
+    );
+    p.lineTo(size.width, 0);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _HelperCard extends StatelessWidget {
@@ -188,7 +343,6 @@ class _HelperCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final summary = booking?.helper;
     final name = summary?.fullName ?? helper?.fullName ?? 'Your helper';
     final avatar = summary?.profileImageUrl ?? helper?.profileImageUrl;
@@ -196,15 +350,27 @@ class _HelperCard extends StatelessWidget {
     final paymentRequired = booking?.paymentRequired ?? false;
 
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            BrandTokens.surfaceWhite,
+            BrandTokens.primaryBlue.withValues(alpha: 0.035),
+            BrandTokens.accentAmber.withValues(alpha: 0.06),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+            color: BrandTokens.shadowDeep,
+            blurRadius: 38,
+            spreadRadius: -14,
+            offset: Offset(0, 20),
           ),
         ],
       ),
@@ -213,20 +379,41 @@ class _HelperCard extends StatelessWidget {
           Row(
             children: [
               Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  AppNetworkImage(
-                    imageUrl: avatar,
-                    width: 64,
-                    height: 64,
-                    borderRadius: 32,
+                  Hero(
+                    tag:
+                        'helper-avatar-${summary?.helperId ?? helper?.helperId ?? 'confirmed'}',
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: BrandTokens.amberGradient,
+                      ),
+                      child: AppNetworkImage(
+                        imageUrl: avatar,
+                        width: 72,
+                        height: 72,
+                        borderRadius: 36,
+                      ),
+                    ),
                   ),
                   const Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: Icon(
-                      Icons.verified_rounded,
-                      color: AppColor.accentColor,
-                      size: 20,
+                    right: -3,
+                    bottom: -3,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: BrandTokens.successGreen,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.verified_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -238,18 +425,24 @@ class _HelperCard extends StatelessWidget {
                   children: [
                     Text(
                       name,
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BrandTokens.heading(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Verified guide is ready for your trip',
+                      style: BrandTokens.body(
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     if ((phone ?? '').isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        phone!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColor.lightTextSecondary,
-                        ),
-                      ),
+                      Text(phone!, style: BrandTokens.body(fontSize: 12)),
                     ],
                   ],
                 ),
@@ -294,6 +487,79 @@ class _HelperCard extends StatelessWidget {
   }
 }
 
+class _NextMoveCard extends StatelessWidget {
+  final bool paymentRequired;
+  final VoidCallback onChat;
+  final VoidCallback onPay;
+
+  const _NextMoveCard({
+    required this.paymentRequired,
+    required this.onChat,
+    required this.onPay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      decoration: BoxDecoration(
+        color: BrandTokens.primaryBlue,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: BrandTokens.ctaBlueGlow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: BrandTokens.accentAmber,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              paymentRequired ? Icons.payments_rounded : Icons.chat_rounded,
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+          const SizedBox(width: AppTheme.spaceMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  paymentRequired ? 'Payment is next' : 'You are ready to go',
+                  style: BrandTokens.heading(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  paymentRequired
+                      ? 'Finish payment now or chat with your helper first.'
+                      : 'Open chat for pickup notes and live coordination.',
+                  style: BrandTokens.body(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.78),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton.filled(
+            onPressed: paymentRequired ? onPay : onChat,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.arrow_forward_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -320,8 +586,14 @@ class _ActionButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: highlighted ? color : color.withValues(alpha: 0.10),
+            gradient: highlighted
+                ? const LinearGradient(
+                    colors: [BrandTokens.accentAmber, Color(0xFFFFC04A)],
+                  )
+                : null,
+            color: highlighted ? null : color.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+            border: Border.all(color: color.withValues(alpha: 0.12)),
           ),
           child: Opacity(
             opacity: disabled ? 0.4 : 1,
@@ -329,13 +601,13 @@ class _ActionButton extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: highlighted ? Colors.white : color,
+                  color: highlighted ? BrandTokens.primaryBlue : color,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
-                    color: highlighted ? Colors.white : color,
+                    color: highlighted ? BrandTokens.primaryBlue : color,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
                   ),

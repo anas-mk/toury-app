@@ -9,8 +9,8 @@ import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../../../../../core/widgets/brand_widgets.dart';
-import '../../../../../../../core/widgets/hero_header.dart';
 import '../../../domain/entities/app_payment_method.dart';
 import '../../../domain/entities/create_instant_booking_request.dart';
 import '../../../domain/entities/helper_search_result.dart';
@@ -96,6 +96,7 @@ class _ReviewView extends StatefulWidget {
 
 class _ReviewViewState extends State<_ReviewView> {
   late AppPaymentMethod _paymentMethod;
+  bool _mockCardAuthorized = false;
 
   @override
   void initState() {
@@ -134,13 +135,18 @@ class _ReviewViewState extends State<_ReviewView> {
     context.read<InstantBookingCubit>().createBooking(request);
   }
 
-  void _onConfirmPressed(BuildContext context) {
+  Future<void> _onConfirmPressed(BuildContext context) async {
     final loc = AppLocalizations.of(context);
     if (!_canConfirm) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(loc.bookingReviewValidationSnackbar)),
       );
       return;
+    }
+    if (_paymentMethod == AppPaymentMethod.mockCard && !_mockCardAuthorized) {
+      final ok = await _showMockCardPrepaySheet(context);
+      if (!ok || !context.mounted) return;
+      setState(() => _mockCardAuthorized = true);
     }
     _fireCreate(context);
   }
@@ -178,7 +184,7 @@ class _ReviewViewState extends State<_ReviewView> {
       builder: (context, state) {
         final loading = state is InstantBookingCreating;
         return Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
+          backgroundColor: BrandTokens.bgSoft,
           extendBodyBehindAppBar: true,
           bottomNavigationBar: SafeArea(
             child: Padding(
@@ -201,144 +207,149 @@ class _ReviewViewState extends State<_ReviewView> {
           ),
           body: CustomScrollView(
             slivers: [
-              SliverPersistentHeader(
-                pinned: false,
-                delegate: HeroSliverHeader(
+              SliverToBoxAdapter(
+                child: _ReviewHero(
                   title: loc.bookingReviewTitle,
                   subtitle: loc.bookingReviewSubtitle,
-                  leadingIcon: Icons.fact_check_rounded,
-                  height: 200,
-                  gradient: const [
-                    BrandTokens.primaryBlue,
-                    BrandTokens.primaryBlueDark,
-                  ],
                 ),
               ),
               SliverToBoxAdapter(
-                child: Transform.translate(
-                  offset: const Offset(0, -28),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceLG,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _HelperMiniCard(helper: widget.helper),
-                        const SizedBox(height: AppTheme.spaceLG),
-                        BrandSectionTitle(loc.bookingReviewPaymentTitle),
-                        const SizedBox(height: AppTheme.spaceSM),
-                        BrandCard(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: SegmentedButton<AppPaymentMethod>(
-                              segments: [
-                                ButtonSegment(
-                                  value: AppPaymentMethod.cash,
-                                  label: Text(loc.bookingReviewPayCash),
-                                  icon: const Icon(Icons.payments_outlined, size: 18),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spaceLG,
+                    AppTheme.spaceMD,
+                    AppTheme.spaceLG,
+                    0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _HelperMiniCard(helper: widget.helper),
+                      const SizedBox(height: AppTheme.spaceLG),
+                      BrandSectionTitle(loc.bookingReviewPaymentTitle),
+                      const SizedBox(height: AppTheme.spaceSM),
+                      BrandCard(
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<AppPaymentMethod>(
+                            segments: [
+                              ButtonSegment(
+                                value: AppPaymentMethod.cash,
+                                label: Text(loc.bookingReviewPayCash),
+                                icon: const Icon(
+                                  Icons.payments_outlined,
+                                  size: 18,
                                 ),
-                                ButtonSegment(
-                                  value: AppPaymentMethod.mockCard,
-                                  label: Text(loc.bookingReviewPayCard),
-                                  icon: const Icon(Icons.credit_card, size: 18),
-                                ),
-                              ],
-                              selected: {_paymentMethod},
-                              onSelectionChanged: (s) {
-                                final m = s.first;
-                                setState(() => _paymentMethod = m);
-                                widget.cubit.setPaymentMethod(m);
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.spaceLG),
-                        BrandSectionTitle(loc.bookingReviewItinerary),
-                        const SizedBox(height: AppTheme.spaceSM),
-                        _ItineraryCard(
-                          pickup: widget.pickup,
-                          destination: widget.destination,
-                          pickupLabel: loc.bookingReviewPickupLabel,
-                          destinationLabel: loc.bookingReviewDestinationLabel,
-                          durationLabel: formatDurationMinutes(
-                            widget.durationInMinutes,
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.spaceLG),
-                        BrandSectionTitle(loc.bookingReviewTripDetails),
-                        const SizedBox(height: AppTheme.spaceSM),
-                        _DetailsCard(
-                          rows: [
-                            _DetailRow(
-                              icon: Icons.schedule_rounded,
-                              label: loc.bookingReviewDuration,
-                              value: formatDurationMinutes(
-                                widget.durationInMinutes,
                               ),
-                              color: AppColor.secondaryColor,
-                            ),
-                            _DetailRow(
-                              icon: Icons.group_rounded,
-                              label: loc.bookingReviewTravelers,
-                              value: '${widget.travelers}',
-                              color: AppColor.accentColor,
-                            ),
-                            _DetailRow(
-                              icon: Icons.translate_rounded,
-                              label: loc.bookingReviewLanguage,
-                              value: language.name,
-                              color: AppColor.secondaryColor,
-                            ),
-                            _DetailRow(
-                              icon: Icons.directions_car_rounded,
-                              label: loc.bookingReviewCar,
-                              value: widget.requiresCar
-                                  ? loc.bookingReviewYes
-                                  : loc.bookingReviewNo,
-                              color: AppColor.warningColor,
-                            ),
-                          ],
+                              ButtonSegment(
+                                value: AppPaymentMethod.mockCard,
+                                label: Text(loc.bookingReviewPayCard),
+                                icon: const Icon(Icons.credit_card, size: 18),
+                              ),
+                            ],
+                            selected: {_paymentMethod},
+                            onSelectionChanged: (s) {
+                              final m = s.first;
+                              setState(() {
+                                _paymentMethod = m;
+                                if (m == AppPaymentMethod.cash) {
+                                  _mockCardAuthorized = false;
+                                }
+                              });
+                              widget.cubit.setPaymentMethod(m);
+                            },
+                          ),
                         ),
-                        if ((widget.notes ?? '').isNotEmpty) ...[
-                          const SizedBox(height: AppTheme.spaceLG),
-                          BrandSectionTitle(loc.bookingReviewNotes),
-                          const SizedBox(height: AppTheme.spaceSM),
-                          BrandCard(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.note_alt_rounded,
-                                  color: AppColor.lightTextSecondary,
-                                ),
-                                const SizedBox(width: AppTheme.spaceSM),
-                                Expanded(
-                                  child: Text(
-                                    widget.notes!,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      ),
+                      if (_paymentMethod == AppPaymentMethod.mockCard) ...[
+                        const SizedBox(height: AppTheme.spaceSM),
+                        _PrepayStatusCard(authorized: _mockCardAuthorized),
+                      ],
+                      const SizedBox(height: AppTheme.spaceLG),
+                      BrandSectionTitle(loc.bookingReviewItinerary),
+                      const SizedBox(height: AppTheme.spaceSM),
+                      _ItineraryCard(
+                        pickup: widget.pickup,
+                        destination: widget.destination,
+                        pickupLabel: loc.bookingReviewPickupLabel,
+                        destinationLabel: loc.bookingReviewDestinationLabel,
+                        durationLabel: formatDurationMinutes(
+                          widget.durationInMinutes,
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spaceLG),
+                      BrandSectionTitle(loc.bookingReviewTripDetails),
+                      const SizedBox(height: AppTheme.spaceSM),
+                      _DetailsCard(
+                        rows: [
+                          _DetailRow(
+                            icon: Icons.schedule_rounded,
+                            label: loc.bookingReviewDuration,
+                            value: formatDurationMinutes(
+                              widget.durationInMinutes,
                             ),
+                            color: AppColor.secondaryColor,
+                          ),
+                          _DetailRow(
+                            icon: Icons.group_rounded,
+                            label: loc.bookingReviewTravelers,
+                            value: '${widget.travelers}',
+                            color: AppColor.accentColor,
+                          ),
+                          _DetailRow(
+                            icon: Icons.translate_rounded,
+                            label: loc.bookingReviewLanguage,
+                            value: language.name,
+                            color: AppColor.secondaryColor,
+                          ),
+                          _DetailRow(
+                            icon: Icons.directions_car_rounded,
+                            label: loc.bookingReviewCar,
+                            value: widget.requiresCar
+                                ? loc.bookingReviewYes
+                                : loc.bookingReviewNo,
+                            color: AppColor.warningColor,
                           ),
                         ],
+                      ),
+                      if ((widget.notes ?? '').isNotEmpty) ...[
                         const SizedBox(height: AppTheme.spaceLG),
-                        BrandSectionTitle(loc.bookingReviewPriceBreakdown),
+                        BrandSectionTitle(loc.bookingReviewNotes),
                         const SizedBox(height: AppTheme.spaceSM),
-                        if (breakdown != null)
-                          PriceBreakdownCard(breakdown: breakdown)
-                        else
-                          _PriceEstimateFallback(
-                            theme: theme,
-                            loc: loc,
-                            estimatedPrice: widget.helper.estimatedPrice,
+                        BrandCard(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.note_alt_rounded,
+                                color: AppColor.lightTextSecondary,
+                              ),
+                              const SizedBox(width: AppTheme.spaceSM),
+                              Expanded(
+                                child: Text(
+                                  widget.notes!,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        const SizedBox(height: 110),
+                        ),
                       ],
-                    ),
+                      const SizedBox(height: AppTheme.spaceLG),
+                      BrandSectionTitle(loc.bookingReviewPriceBreakdown),
+                      const SizedBox(height: AppTheme.spaceSM),
+                      if (breakdown != null)
+                        PriceBreakdownCard(breakdown: breakdown)
+                      else
+                        _PriceEstimateFallback(
+                          theme: theme,
+                          loc: loc,
+                          estimatedPrice: widget.helper.estimatedPrice,
+                        ),
+                      const SizedBox(height: 110),
+                    ],
                   ),
                 ),
               ),
@@ -348,6 +359,302 @@ class _ReviewViewState extends State<_ReviewView> {
       },
     );
   }
+}
+
+Future<bool> _showMockCardPrepaySheet(BuildContext context) async {
+  return await showModalBottomSheet<bool>(
+        context: context,
+        isDismissible: false,
+        enableDrag: false,
+        backgroundColor: Colors.transparent,
+        builder: (_) => const _MockCardPrepaySheet(),
+      ) ??
+      false;
+}
+
+class _PrepayStatusCard extends StatelessWidget {
+  final bool authorized;
+
+  const _PrepayStatusCard({required this.authorized});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      decoration: BoxDecoration(
+        color: authorized
+            ? BrandTokens.successGreen.withValues(alpha: 0.09)
+            : BrandTokens.accentAmber.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: authorized
+              ? BrandTokens.successGreen.withValues(alpha: 0.22)
+              : BrandTokens.accentAmber.withValues(alpha: 0.24),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            authorized ? Icons.verified_rounded : Icons.lock_clock_rounded,
+            color: authorized
+                ? BrandTokens.successGreen
+                : BrandTokens.accentAmberText,
+          ),
+          const SizedBox(width: AppTheme.spaceSM),
+          Expanded(
+            child: Text(
+              authorized
+                  ? 'Mock card authorized. Your request can now be sent.'
+                  : 'Mock card must be authorized before we send the request to the helper.',
+              style: BrandTokens.body(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: BrandTokens.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MockCardPrepaySheet extends StatefulWidget {
+  const _MockCardPrepaySheet();
+
+  @override
+  State<_MockCardPrepaySheet> createState() => _MockCardPrepaySheetState();
+}
+
+class _MockCardPrepaySheetState extends State<_MockCardPrepaySheet> {
+  bool _processing = false;
+
+  Future<void> _authorize() async {
+    setState(() => _processing = true);
+    await Future<void>.delayed(const Duration(milliseconds: 950));
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceLG),
+        child: Container(
+          padding: const EdgeInsets.all(AppTheme.spaceLG),
+          decoration: BoxDecoration(
+            color: BrandTokens.surfaceWhite,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: const [
+              BoxShadow(
+                color: BrandTokens.shadowDeep,
+                blurRadius: 40,
+                spreadRadius: -12,
+                offset: Offset(0, 20),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  gradient: BrandTokens.primaryGradient,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: BrandTokens.ctaBlueGlow,
+                ),
+                child: const Icon(
+                  Icons.credit_card_rounded,
+                  color: Colors.white,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spaceLG),
+              Text(
+                'Authorize mock card first',
+                textAlign: TextAlign.center,
+                style: BrandTokens.heading(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'For card bookings, the user must pay before the helper receives the request. If the trip is cancelled later, this amount will be refunded to the wallet when backend wallet support is ready.',
+                textAlign: TextAlign.center,
+                style: BrandTokens.body(fontSize: 13, height: 1.55),
+              ),
+              const SizedBox(height: AppTheme.spaceLG),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: _processing ? null : _authorize,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: BrandTokens.primaryBlue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  icon: _processing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.lock_open_rounded),
+                  label: Text(
+                    _processing ? 'Authorizing...' : 'Authorize & continue',
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: _processing
+                    ? null
+                    : () => Navigator.of(context).pop(false),
+                child: const Text('Choose another payment method'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewHero extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _ReviewHero({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+    return ClipPath(
+      clipper: _ReviewHeroClipper(),
+      child: SizedBox(
+        height: 250,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const MeshGradientBackground(),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    BrandTokens.primaryBlueDark.withValues(alpha: 0.05),
+                    BrandTokens.primaryBlueDark.withValues(alpha: 0.45),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              top: top + 8,
+              left: AppTheme.spaceMD,
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.18),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => Navigator.of(context).maybePop(),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(Icons.arrow_back_rounded, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: AppTheme.spaceLG,
+              right: AppTheme.spaceLG,
+              bottom: 46,
+              child: Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.fact_check_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spaceMD),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: BrandTokens.heading(
+                            fontSize: 27,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: BrandTokens.body(
+                            fontSize: 13,
+                            color: Colors.white.withValues(alpha: 0.82),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewHeroClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.lineTo(0, size.height - 42);
+    p.cubicTo(
+      size.width * 0.22,
+      size.height - 8,
+      size.width * 0.54,
+      size.height - 76,
+      size.width,
+      size.height - 42,
+    );
+    p.lineTo(size.width, 0);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _PriceEstimateFallback extends StatelessWidget {
@@ -449,17 +756,28 @@ class _HelperMiniCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            BrandTokens.surfaceWhite,
+            BrandTokens.primaryBlue.withValues(alpha: 0.035),
+            BrandTokens.accentAmber.withValues(alpha: 0.055),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: BrandTokens.shadowSoft,
+            blurRadius: 30,
+            spreadRadius: -10,
+            offset: Offset(0, 16),
           ),
         ],
       ),
@@ -467,11 +785,21 @@ class _HelperMiniCard extends StatelessWidget {
         children: [
           Stack(
             children: [
-              AppNetworkImage(
-                imageUrl: helper.profileImageUrl,
-                width: 56,
-                height: 56,
-                borderRadius: 28,
+              Hero(
+                tag: 'helper-avatar-${helper.helperId}',
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: BrandTokens.amberGradient,
+                  ),
+                  child: AppNetworkImage(
+                    imageUrl: helper.profileImageUrl,
+                    width: 62,
+                    height: 62,
+                    borderRadius: 31,
+                  ),
+                ),
               ),
               const Positioned(
                 right: -2,
@@ -491,8 +819,11 @@ class _HelperMiniCard extends StatelessWidget {
               children: [
                 Text(
                   helper.fullName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: BrandTokens.heading(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -506,15 +837,24 @@ class _HelperMiniCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Text(
                       helper.rating.toStringAsFixed(1),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                      style: BrandTokens.body(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: BrandTokens.textPrimary,
                       ),
                     ),
                     const SizedBox(width: AppTheme.spaceSM),
                     Text(
                       '${helper.completedTrips} trips',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColor.lightTextSecondary,
+                      style: BrandTokens.body(fontSize: 12),
+                    ),
+                    const SizedBox(width: AppTheme.spaceSM),
+                    Text(
+                      '${helper.matchScore}% match',
+                      style: BrandTokens.body(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: BrandTokens.successGreen,
                       ),
                     ),
                   ],
@@ -544,17 +884,20 @@ class _ItineraryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      padding: const EdgeInsets.all(AppTheme.spaceLG),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: BrandTokens.borderSoft.withValues(alpha: 0.8),
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: BrandTokens.shadowSoft,
+            blurRadius: 28,
+            spreadRadius: -10,
+            offset: Offset(0, 16),
           ),
         ],
       ),
@@ -744,11 +1087,7 @@ class _DetailsCard extends StatelessWidget {
                       color: rows[i].color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppTheme.radiusSM),
                     ),
-                    child: Icon(
-                      rows[i].icon,
-                      color: rows[i].color,
-                      size: 18,
-                    ),
+                    child: Icon(rows[i].icon, color: rows[i].color, size: 18),
                   ),
                   const SizedBox(width: AppTheme.spaceMD),
                   Expanded(

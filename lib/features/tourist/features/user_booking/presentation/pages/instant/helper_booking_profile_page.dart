@@ -56,8 +56,7 @@ class HelperBookingProfilePage extends StatelessWidget {
       providers: [
         BlocProvider.value(value: cubit),
         BlocProvider(
-          create: (_) =>
-              sl<HelperBookingProfileCubit>()..load(helper.helperId),
+          create: (_) => sl<HelperBookingProfileCubit>()..load(helper.helperId),
         ),
       ],
       child: _ProfileView(
@@ -122,22 +121,34 @@ class _ProfileView extends StatelessWidget {
         children: [
           Positioned.fill(
             child:
-                BlocBuilder<HelperBookingProfileCubit, HelperBookingProfileState>(
-              builder: (context, state) {
-                if (state is HelperBookingProfileLoaded) {
-                  return _ProfileBody(profile: state.profile, helper: helper);
-                }
-                if (state is HelperBookingProfileError) {
-                  return ErrorRetryState(
-                    message: state.message,
-                    onRetry: () => context
-                        .read<HelperBookingProfileCubit>()
-                        .load(helper.helperId),
-                  );
-                }
-                return const _ProfileSkeleton();
-              },
-            ),
+                BlocBuilder<
+                  HelperBookingProfileCubit,
+                  HelperBookingProfileState
+                >(
+                  builder: (context, state) {
+                    if (state is HelperBookingProfileLoaded) {
+                      return _ProfileBody(
+                        profile: state.profile,
+                        helper: helper,
+                        pickup: pickup,
+                        destination: destination,
+                        travelers: travelers,
+                        durationInMinutes: durationInMinutes,
+                        languageCode: languageCode,
+                        requiresCar: requiresCar,
+                      );
+                    }
+                    if (state is HelperBookingProfileError) {
+                      return ErrorRetryState(
+                        message: state.message,
+                        onRetry: () => context
+                            .read<HelperBookingProfileCubit>()
+                            .load(helper.helperId),
+                      );
+                    }
+                    return const _ProfileSkeleton();
+                  },
+                ),
           ),
           Positioned(
             top: r.viewPadding.top + 6,
@@ -256,7 +267,10 @@ class _CtaDock extends StatelessWidget {
                             priceLabel,
                             style: BrandTokens.numeric(
                               fontSize: r.pick(
-                                  compact: 22.0, phone: 24.0, tablet: 28.0),
+                                compact: 22.0,
+                                phone: 24.0,
+                                tablet: 28.0,
+                              ),
                               fontWeight: FontWeight.w800,
                               color: BrandTokens.primaryBlue,
                             ),
@@ -312,10 +326,7 @@ class _PrimaryCta extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                BrandTokens.successGreen,
-                BrandTokens.primaryBlue,
-              ],
+              colors: [BrandTokens.successGreen, BrandTokens.primaryBlue],
             ),
             boxShadow: const [
               BoxShadow(
@@ -359,7 +370,23 @@ class _PrimaryCta extends StatelessWidget {
 class _ProfileBody extends StatelessWidget {
   final HelperBookingProfile profile;
   final HelperSearchResult helper;
-  const _ProfileBody({required this.profile, required this.helper});
+  final LocationPickResult pickup;
+  final LocationPickResult destination;
+  final int travelers;
+  final int durationInMinutes;
+  final String? languageCode;
+  final bool requiresCar;
+
+  const _ProfileBody({
+    required this.profile,
+    required this.helper,
+    required this.pickup,
+    required this.destination,
+    required this.travelers,
+    required this.durationInMinutes,
+    required this.languageCode,
+    required this.requiresCar,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -379,12 +406,21 @@ class _ProfileBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Transform.translate(
-                      offset: Offset(0,
-                          -r.pick(compact: 28.0, phone: 34.0, tablet: 40.0)),
-                      child: _TrustStrip(profile: profile),
-                    ),
+                    SizedBox(height: r.gap),
+                    _TrustStrip(profile: profile),
+                    SizedBox(height: r.gap),
+                    _SectionHeader(label: 'Trip fit'),
                     SizedBox(height: r.gapSM),
+                    _TripFitCard(
+                      helper: helper,
+                      pickup: pickup,
+                      destination: destination,
+                      travelers: travelers,
+                      durationInMinutes: durationInMinutes,
+                      languageCode: languageCode,
+                      requiresCar: requiresCar,
+                    ),
+                    SizedBox(height: r.gap),
                     if ((profile.bio ?? '').isNotEmpty) ...[
                       _SectionHeader(label: 'About'),
                       SizedBox(height: r.gapSM),
@@ -474,8 +510,12 @@ class _ProfileBody extends StatelessWidget {
                       ),
                     ],
                     SizedBox(
-                        height: r.pick(
-                            compact: 120.0, phone: 140.0, tablet: 160.0)),
+                      height: r.pick(
+                        compact: 120.0,
+                        phone: 140.0,
+                        tablet: 160.0,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -498,8 +538,8 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = Responsive.of(context);
-    final topPad = r.viewPadding.top +
-        r.pick(compact: 50.0, phone: 56.0, tablet: 64.0);
+    final topPad =
+        r.viewPadding.top + r.pick(compact: 50.0, phone: 56.0, tablet: 64.0);
     final heroHeight = r.pick(compact: 280.0, phone: 310.0, tablet: 340.0);
 
     return SizedBox(
@@ -541,7 +581,10 @@ class _Hero extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _AvatarPlate(profile: profile, size: r.heroAvatar),
+                Hero(
+                  tag: 'helper-avatar-${profile.helperId}',
+                  child: _AvatarPlate(profile: profile, size: r.heroAvatar),
+                ),
                 SizedBox(height: r.gapSM + 2),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
@@ -557,23 +600,26 @@ class _Hero extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: BrandTokens.heading(
                             fontSize: r.pick(
-                                compact: 20.0, phone: 22.0, tablet: 26.0),
+                              compact: 20.0,
+                              phone: 22.0,
+                              tablet: 26.0,
+                            ),
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                           ),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Icon(Icons.verified_rounded,
-                          color: Colors.white, size: r.fontTitle),
+                      Icon(
+                        Icons.verified_rounded,
+                        color: Colors.white,
+                        size: r.fontTitle,
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 6),
-                _RatingPill(
-                  rating: profile.rating,
-                  count: profile.ratingCount,
-                ),
+                _RatingPill(rating: profile.rating, count: profile.ratingCount),
                 SizedBox(height: r.gapSM),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
@@ -590,6 +636,20 @@ class _Hero extends StatelessWidget {
                         label: '${profile.experienceYears}y exp',
                         icon: Icons.workspace_premium_rounded,
                       ),
+                      _HeroChip(
+                        label: profile.availabilityState,
+                        icon: Icons.bolt_rounded,
+                      ),
+                      if (profile.canAcceptInstant)
+                        const _HeroChip(
+                          label: 'Instant',
+                          icon: Icons.flash_on_rounded,
+                        ),
+                      if (profile.canAcceptScheduled)
+                        const _HeroChip(
+                          label: 'Scheduled',
+                          icon: Icons.event_available_rounded,
+                        ),
                     ],
                   ),
                 ),
@@ -683,15 +743,16 @@ class _RatingPill extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.20),
             borderRadius: BorderRadius.circular(40),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.35),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.star_rounded,
-                  color: Color(0xFFFFD56B), size: 18),
+              const Icon(
+                Icons.star_rounded,
+                color: Color(0xFFFFD56B),
+                size: 18,
+              ),
               const SizedBox(width: 4),
               Text(
                 rating.toStringAsFixed(1),
@@ -729,9 +790,7 @@ class _HeroChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(40),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.30),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -768,41 +827,80 @@ class _TrustStrip extends StatelessWidget {
     final accColor = acc >= 0.8
         ? BrandTokens.successGreen
         : acc >= 0.5
-            ? BrandTokens.warningAmber
-            : BrandTokens.dangerRed;
+        ? BrandTokens.warningAmber
+        : BrandTokens.dangerRed;
 
     return _GlassCard(
-      padding: EdgeInsets.symmetric(
-        horizontal: r.gapSM + 2,
-        vertical: r.gap,
-      ),
-      child: Row(
+      padding: EdgeInsets.all(r.gap),
+      child: Column(
         children: [
-          Expanded(
-            child: _TrustItem(
-              icon: Icons.task_alt_rounded,
-              label: 'Trips',
-              value: profile.completedTrips.toString(),
-              color: BrandTokens.primaryBlue,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: BrandTokens.primaryGradient,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: BrandTokens.ctaBlueGlow,
+                ),
+                child: const Icon(
+                  Icons.verified_user_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              SizedBox(width: r.gapSM),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Verified RAFIQ helper',
+                      style: BrandTokens.heading(
+                        fontSize: r.fontBody + 1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'Profile, service quality and response history reviewed.',
+                      style: BrandTokens.body(fontSize: r.fontSmall),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          _Divider(),
-          Expanded(
-            child: _TrustItem(
-              icon: Icons.bolt_rounded,
-              label: 'Response',
-              value: _responseLabel(profile.averageResponseTimeSeconds),
-              color: BrandTokens.accentAmber,
-            ),
-          ),
-          _Divider(),
-          Expanded(
-            child: _TrustItem(
-              icon: Icons.verified_user_rounded,
-              label: 'Acceptance',
-              value: '${(acc * 100).round()}%',
-              color: accColor,
-            ),
+          SizedBox(height: r.gap),
+          Row(
+            children: [
+              Expanded(
+                child: _TrustItem(
+                  icon: Icons.task_alt_rounded,
+                  label: 'Trips',
+                  value: profile.completedTrips.toString(),
+                  color: BrandTokens.primaryBlue,
+                ),
+              ),
+              _Divider(),
+              Expanded(
+                child: _TrustItem(
+                  icon: Icons.bolt_rounded,
+                  label: 'Response',
+                  value: _responseLabel(profile.averageResponseTimeSeconds),
+                  color: BrandTokens.accentAmber,
+                ),
+              ),
+              _Divider(),
+              Expanded(
+                child: _TrustItem(
+                  icon: Icons.verified_user_rounded,
+                  label: 'Acceptance',
+                  value: '${(acc * 100).round()}%',
+                  color: accColor,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -853,9 +951,11 @@ class _TrustItem extends StatelessWidget {
             color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon,
-              color: color,
-              size: r.pick(compact: 14.0, phone: 16.0, tablet: 18.0)),
+          child: Icon(
+            icon,
+            color: color,
+            size: r.pick(compact: 14.0, phone: 16.0, tablet: 18.0),
+          ),
         ),
         const SizedBox(height: 6),
         Text(
@@ -882,6 +982,302 @@ class _TrustItem extends StatelessWidget {
   }
 }
 
+class _TripFitCard extends StatelessWidget {
+  final HelperSearchResult helper;
+  final LocationPickResult pickup;
+  final LocationPickResult destination;
+  final int travelers;
+  final int durationInMinutes;
+  final String? languageCode;
+  final bool requiresCar;
+
+  const _TripFitCard({
+    required this.helper,
+    required this.pickup,
+    required this.destination,
+    required this.travelers,
+    required this.durationInMinutes,
+    required this.languageCode,
+    required this.requiresCar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    final languageLabel = languageCode == null || languageCode!.isEmpty
+        ? 'Any language'
+        : languageCode!.toUpperCase();
+    return _GlassCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _FitMetric(
+                  icon: Icons.auto_awesome_rounded,
+                  label: 'Match',
+                  value: '${helper.matchScore}%',
+                  color: BrandTokens.successGreen,
+                ),
+              ),
+              SizedBox(width: r.gapSM),
+              Expanded(
+                child: _FitMetric(
+                  icon: Icons.payments_rounded,
+                  label: 'Total',
+                  value: 'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
+                  color: BrandTokens.primaryBlue,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: r.gapSM),
+          Row(
+            children: [
+              Expanded(
+                child: _FitMetric(
+                  icon: Icons.schedule_rounded,
+                  label: 'Duration',
+                  value: _formatDuration(durationInMinutes),
+                  color: BrandTokens.accentAmberText,
+                ),
+              ),
+              SizedBox(width: r.gapSM),
+              Expanded(
+                child: _FitMetric(
+                  icon: Icons.group_rounded,
+                  label: 'Travelers',
+                  value: '$travelers',
+                  color: BrandTokens.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: r.gapSM),
+          _RoutePreview(pickup: pickup.name, destination: destination.name),
+          SizedBox(height: r.gapSM),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniChip(
+                icon: Icons.translate_rounded,
+                label: languageLabel,
+                color: BrandTokens.primaryBlue,
+              ),
+              if (helper.distanceKm != null)
+                _MiniChip(
+                  icon: Icons.near_me_rounded,
+                  label: _formatDistance(helper.distanceKm!),
+                  color: BrandTokens.successGreen,
+                ),
+              if (requiresCar)
+                _MiniChip(
+                  icon: Icons.directions_car_rounded,
+                  label: helper.hasCar ? 'Car available' : 'Car requested',
+                  color: BrandTokens.accentAmberText,
+                ),
+              _MiniChip(
+                icon: Icons.payments_outlined,
+                label: 'EGP ${helper.hourlyRate.toStringAsFixed(0)}/hr',
+                color: BrandTokens.textSecondary,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(int m) {
+    if (m % 60 == 0) return '${m ~/ 60}h';
+    return '${m ~/ 60}h ${m % 60}m';
+  }
+
+  static String _formatDistance(double km) {
+    if (km < 1) return '${(km * 1000).round()} m away';
+    return '${km.toStringAsFixed(1)} km away';
+  }
+}
+
+class _FitMetric extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _FitMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Container(
+      padding: EdgeInsets.all(r.gapSM),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: r.fontTitle),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: BrandTokens.body(
+                    fontSize: r.fontSmall,
+                    color: BrandTokens.textSecondary,
+                  ),
+                ),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: BrandTokens.numeric(
+                    fontSize: r.fontBody + 1,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutePreview extends StatelessWidget {
+  final String pickup;
+  final String destination;
+
+  const _RoutePreview({required this.pickup, required this.destination});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Container(
+      padding: EdgeInsets.all(r.gapSM),
+      decoration: BoxDecoration(
+        color: BrandTokens.bgSoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BrandTokens.borderSoft),
+      ),
+      child: Column(
+        children: [
+          _RouteLine(
+            icon: Icons.trip_origin_rounded,
+            label: 'Pickup',
+            value: pickup,
+            color: BrandTokens.successGreen,
+          ),
+          const SizedBox(height: 8),
+          _RouteLine(
+            icon: Icons.flag_rounded,
+            label: 'Destination',
+            value: destination,
+            color: BrandTokens.primaryBlue,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RouteLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _RouteLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = Responsive.of(context);
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: BrandTokens.body(
+            fontSize: r.fontSmall,
+            fontWeight: FontWeight.w700,
+            color: BrandTokens.textSecondary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: BrandTokens.body(
+              fontSize: r.fontSmall + 1,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _MiniChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(40),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: BrandTokens.body(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //                         SECTION HEADER + GLASS CARD
 // ─────────────────────────────────────────────────────────────────────────────
@@ -903,10 +1299,7 @@ class _SectionHeader extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  BrandTokens.successGreen,
-                  BrandTokens.primaryBlue,
-                ],
+                colors: [BrandTokens.successGreen, BrandTokens.primaryBlue],
               ),
               borderRadius: BorderRadius.circular(3),
             ),
@@ -1037,8 +1430,11 @@ class _AreaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.place_rounded,
-              size: 14, color: BrandTokens.textSecondary),
+          const Icon(
+            Icons.place_rounded,
+            size: 14,
+            color: BrandTokens.textSecondary,
+          ),
           const SizedBox(width: 6),
           Text(
             label,
@@ -1070,8 +1466,11 @@ class _CertPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.workspace_premium_rounded,
-              size: 14, color: BrandTokens.accentAmberText),
+          const Icon(
+            Icons.workspace_premium_rounded,
+            size: 14,
+            color: BrandTokens.accentAmberText,
+          ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
@@ -1101,10 +1500,12 @@ class _CarCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = Responsive.of(context);
-    final desc = [car.brand, car.model, car.color, car.type]
-        .whereType<String>()
-        .where((s) => s.trim().isNotEmpty)
-        .join(' \u00b7 ');
+    final desc = [
+      car.brand,
+      car.model,
+      car.color,
+      car.type,
+    ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' \u00b7 ');
     return _GlassCard(
       padding: EdgeInsets.all(r.gap),
       child: Row(

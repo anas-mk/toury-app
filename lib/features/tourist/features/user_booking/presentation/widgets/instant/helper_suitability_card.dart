@@ -30,30 +30,40 @@ class HelperSuitabilityCard extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(28),
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
         },
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(28),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Container(
-              padding: EdgeInsets.fromLTRB(
-                r.gap,
-                r.gap,
-                r.gap,
-                r.gapSM + 2,
-              ),
+              padding: EdgeInsets.fromLTRB(r.gap, r.gap, r.gap, r.gapSM + 2),
               decoration: BoxDecoration(
-                color: BrandTokens.surfaceWhite,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: BrandTokens.borderSoft.withValues(alpha: 0.7),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    BrandTokens.surfaceWhite,
+                    BrandTokens.primaryBlue.withValues(alpha: 0.035),
+                    BrandTokens.successGreen.withValues(alpha: 0.045),
+                  ],
                 ),
-                boxShadow: BrandTokens.cardShadow,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.09),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: BrandTokens.shadowSoft,
+                    blurRadius: 34,
+                    spreadRadius: -10,
+                    offset: Offset(0, 16),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,6 +73,7 @@ class HelperSuitabilityCard extends StatelessWidget {
                     children: [
                       _Avatar(
                         imageUrl: helper.profileImageUrl,
+                        heroTag: 'helper-avatar-${helper.helperId}',
                         size: r.pick(compact: 52.0, phone: 60.0, tablet: 68.0),
                       ),
                       SizedBox(width: r.gapSM + 2),
@@ -87,6 +98,8 @@ class HelperSuitabilityCard extends StatelessWidget {
                             ),
                             SizedBox(height: r.gapXS),
                             _StatsRow(helper: helper),
+                            SizedBox(height: r.gapXS),
+                            _AvailabilityPill(helper: helper),
                           ],
                         ),
                       ),
@@ -102,13 +115,26 @@ class HelperSuitabilityCard extends StatelessWidget {
                   ],
                   if (helper.suitabilityReasons.isNotEmpty) ...[
                     SizedBox(height: r.gapSM),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final reason in helper.suitabilityReasons.take(2))
-                          _ReasonChip(text: reason),
-                      ],
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(r.gapSM),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.68),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: BrandTokens.borderSoft.withValues(alpha: 0.8),
+                        ),
+                      ),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final reason in helper.suitabilityReasons.take(
+                            2,
+                          ))
+                            _ReasonChip(text: reason),
+                        ],
+                      ),
                     ),
                   ],
                   SizedBox(height: r.gapSM + 2),
@@ -122,6 +148,25 @@ class HelperSuitabilityCard extends StatelessWidget {
               right: 14,
               child: _MatchBadge(score: helper.matchScore, color: scoreColor),
             ),
+            Positioned(
+              left: 18,
+              top: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Container(
+                  width: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 22),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [scoreColor, scoreColor.withValues(alpha: 0.08)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -131,26 +176,32 @@ class HelperSuitabilityCard extends StatelessWidget {
   List<Widget> _capabilityChips(BuildContext context) {
     final chips = <Widget>[];
     for (final lang in helper.languages.take(3)) {
-      chips.add(_CapChip(
-        icon: Icons.translate_rounded,
-        label: lang.toUpperCase(),
-        color: BrandTokens.primaryBlue,
-      ));
+      chips.add(
+        _CapChip(
+          icon: Icons.translate_rounded,
+          label: lang.toUpperCase(),
+          color: BrandTokens.primaryBlue,
+        ),
+      );
     }
     if (helper.hasCar) {
-      chips.add(const _CapChip(
-        icon: Icons.directions_car_rounded,
-        label: 'Has car',
-        color: BrandTokens.accentAmberText,
-        background: BrandTokens.accentAmberSoft,
-      ));
+      chips.add(
+        const _CapChip(
+          icon: Icons.directions_car_rounded,
+          label: 'Has car',
+          color: BrandTokens.accentAmberText,
+          background: BrandTokens.accentAmberSoft,
+        ),
+      );
     }
     if (helper.averageResponseTimeSeconds != null) {
-      chips.add(_CapChip(
-        icon: Icons.bolt_rounded,
-        label: _responseLabel(helper.averageResponseTimeSeconds!),
-        color: BrandTokens.successGreen,
-      ));
+      chips.add(
+        _CapChip(
+          icon: Icons.bolt_rounded,
+          label: _responseLabel(helper.averageResponseTimeSeconds!),
+          color: BrandTokens.successGreen,
+        ),
+      );
     }
     return chips;
   }
@@ -168,10 +219,48 @@ class HelperSuitabilityCard extends StatelessWidget {
   }
 }
 
+class _AvailabilityPill extends StatelessWidget {
+  final HelperSearchResult helper;
+
+  const _AvailabilityPill({required this.helper});
+
+  @override
+  Widget build(BuildContext context) {
+    final isFast = (helper.averageResponseTimeSeconds ?? 9999) <= 120;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: isFast ? BrandTokens.successGreen : BrandTokens.warningAmber,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          isFast ? 'Fast responder' : 'Available now',
+          style: BrandTokens.body(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: BrandTokens.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Avatar extends StatelessWidget {
   final String? imageUrl;
+  final String heroTag;
   final double size;
-  const _Avatar({required this.imageUrl, required this.size});
+  const _Avatar({
+    required this.imageUrl,
+    required this.heroTag,
+    required this.size,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -190,27 +279,27 @@ class _Avatar extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  BrandTokens.successGreen,
-                  BrandTokens.primaryBlue,
-                ],
+                colors: [BrandTokens.successGreen, BrandTokens.primaryBlue],
               ),
             ),
           ),
           Positioned(
             top: 3,
             left: 3,
-            child: Container(
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-              ),
-              padding: const EdgeInsets.all(2),
-              child: AppNetworkImage(
-                imageUrl: imageUrl,
-                width: size - 4,
-                height: size - 4,
-                borderRadius: (size - 4) / 2,
+            child: Hero(
+              tag: heroTag,
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                ),
+                padding: const EdgeInsets.all(2),
+                child: AppNetworkImage(
+                  imageUrl: imageUrl,
+                  width: size - 4,
+                  height: size - 4,
+                  borderRadius: (size - 4) / 2,
+                ),
               ),
             ),
           ),
@@ -251,8 +340,7 @@ class _StatsRow extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.star_rounded,
-                size: 16, color: Color(0xFFF5A623)),
+            const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF5A623)),
             const SizedBox(width: 2),
             Text(
               helper.rating.toStringAsFixed(1),
@@ -280,8 +368,11 @@ class _StatsRow extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.location_on_outlined,
-                  size: 13, color: BrandTokens.textSecondary),
+              const Icon(
+                Icons.location_on_outlined,
+                size: 13,
+                color: BrandTokens.textSecondary,
+              ),
               const SizedBox(width: 2),
               Text(
                 _formatDistance(helper.distanceKm!),
@@ -316,10 +407,7 @@ class _MatchBadge extends StatelessWidget {
           colors: [color, color.withValues(alpha: 0.78)],
         ),
         borderRadius: BorderRadius.circular(40),
-        border: Border.all(
-          color: Colors.white,
-          width: 2,
-        ),
+        border: Border.all(color: Colors.white, width: 2),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.4),
@@ -440,31 +528,27 @@ class _PriceStrip extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: r.gapSM + 2,
-        vertical: r.gapSM + 2,
+        vertical: r.gapSM + 4,
       ),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            BrandTokens.primaryBlue.withValues(alpha: 0.08),
-            BrandTokens.successGreen.withValues(alpha: 0.10),
-          ],
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [BrandTokens.primaryBlue, BrandTokens.primaryBlueDark],
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: BrandTokens.ctaBlueGlow,
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.payments_rounded,
-            color: BrandTokens.primaryBlue,
-            size: 18,
-          ),
+          const Icon(Icons.payments_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 8),
           Text(
             'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
             style: BrandTokens.numeric(
               fontSize: r.fontTitle,
-              fontWeight: FontWeight.w800,
-              color: BrandTokens.primaryBlue,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
             ),
           ),
           const SizedBox(width: 6),
@@ -475,7 +559,7 @@ class _PriceStrip extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: BrandTokens.body(
                 fontSize: r.fontSmall,
-                color: BrandTokens.textSecondary,
+                color: Colors.white.withValues(alpha: 0.78),
               ),
             ),
           ),

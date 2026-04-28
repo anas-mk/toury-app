@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
@@ -46,6 +47,7 @@ class MessagingService {
 
   StreamSubscription<RemoteMessage>? _onMessageSub;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
+  StreamSubscription<String>? _onTokenRefreshSub;
 
   String? get lastFcmToken => _lastFcmToken;
   String get deviceIdSync => '—';
@@ -73,22 +75,34 @@ class MessagingService {
       );
 
       if (!kIsWeb && Platform.isAndroid) {
+        // High-importance channel ↔ heads-up + sound + lock-screen body.
+        // MUST stay in sync with the channel id referenced by
+        // AndroidManifest's `default_notification_channel_id` meta-data,
+        // otherwise OS-rendered FCM pushes fall back to a low-importance
+        // system channel (silent, no heads-up). Lock-screen visibility is
+        // configured per-notification via AndroidNotificationDetails.visibility
+        // below — the channel itself doesn't expose that field in
+        // flutter_local_notifications v21.
         const channel = AndroidNotificationChannel(
           _androidChannelId,
           _androidChannelName,
           description: _androidChannelDescription,
           importance: Importance.high,
           enableVibration: true,
+          playSound: true,
+          showBadge: true,
+          enableLights: true,
+          ledColor: Color(0xFF276EF1),
         );
         await _localNotifications
             .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
+              AndroidFlutterLocalNotificationsPlugin
+            >()
             ?.createNotificationChannel(channel);
       }
 
       _initialised = true;
-      RealtimeLogger.instance
-          .log('FCM', 'init', 'local-notifications ready');
+      RealtimeLogger.instance.log('FCM', 'init', 'local-notifications ready');
     } catch (e, st) {
       RealtimeLogger.instance.log(
         'FCM',
@@ -102,10 +116,19 @@ class MessagingService {
   Future<void> start() async {
     if (_started) return;
     if (!_isFirebaseSupported()) {
+      RealtimeLogger.instance.log('FCM', 'start.skip', 'platform unsupported');
+      return;
+    }
+    if (!_isFirebaseReady()) {
+      // Firebase.initializeApp() failed in main() (usually because
+      // google-services.json / GoogleService-Info.plist is missing). Calling
+      // FirebaseMessaging.instance here would just throw the same native
+      // error every time. Skip with a clear log instead.
       RealtimeLogger.instance.log(
         'FCM',
         'start.skip',
-        'platform unsupported',
+        'Firebase not initialized — push notifications disabled',
+        isError: true,
       );
       return;
     }
@@ -137,16 +160,20 @@ class MessagingService {
       _onMessageSub = FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
       _onMessageOpenedAppSub?.cancel();
-      _onMessageOpenedAppSub =
-          FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
+      _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen(
+        _onMessageOpenedApp,
+      );
 
-      final initialMessage =
-          await FirebaseMessaging.instance.getInitialMessage();
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
       if (initialMessage != null) {
         _onMessageOpenedApp(initialMessage);
       }
 
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+      await _onTokenRefreshSub?.cancel();
+      _onTokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
+        newToken,
+      ) async {
         _lastFcmToken = newToken;
         RealtimeLogger.instance.log(
           'FCM',
@@ -182,6 +209,8 @@ class MessagingService {
     _onMessageSub = null;
     await _onMessageOpenedAppSub?.cancel();
     _onMessageOpenedAppSub = null;
+    await _onTokenRefreshSub?.cancel();
+    _onTokenRefreshSub = null;
     try {
       await deviceTokenService.unregisterCurrentDevice();
     } catch (e) {
@@ -223,7 +252,11 @@ class MessagingService {
     }
   }
 
-  void showInAppBanner(String title, String body, [Map<String, dynamic>? data]) {
+  void showInAppBanner(
+    String title,
+    String body, [
+    Map<String, dynamic>? data,
+  ]) {
     final line = title.isEmpty
         ? body
         : (body.isEmpty ? title : '$title: $body');
@@ -264,9 +297,9 @@ class MessagingService {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = NotificationRouter.instance.navigatorContext;
       if (ctx == null || !ctx.mounted) return;
-      ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
-        SnackBar(content: Text(text)),
-      );
+      ScaffoldMessenger.maybeOf(
+        ctx,
+      )?.showSnackBar(SnackBar(content: Text(text)));
     });
   }
 
@@ -351,6 +384,22 @@ class MessagingService {
         importance: Importance.high,
         priority: Priority.high,
         playSound: true,
+        // Brand tint applied to the silhouette icon and the lock-screen
+        // accent dot. Same hex as `notification_color` in
+        // android/app/src/main/res/values/colors.xml so foreground
+        // (Dart-rendered) and background (OS-rendered) pushes match.
+        color: Color(0xFF276EF1),
+        // Show full title + body on the lock screen. Switch to
+        // NotificationVisibility.secret if a future privacy audit
+        // decides chat previews / booking ids are too revealing on
+        // a locked device.
+        visibility: NotificationVisibility.public,
+        // TODO(notification-icon): Replace placeholder with proper
+        // white-silhouette PNG generated from Android Asset Studio.
+        // Current placeholder is the colored launcher logo, which
+        // Android 5+ will render as a white square in the status bar.
+        // See Problem 3 follow-up + NOTIFICATION_ICON_TODO.md.
+        icon: 'ic_stat_notify',
       );
       const iosDetails = DarwinNotificationDetails(
         presentAlert: true,
@@ -416,11 +465,7 @@ class MessagingService {
     if (!kIsWeb && Platform.isAndroid) {
       try {
         final s = await Permission.notification.request();
-        RealtimeLogger.instance.log(
-          'FCM',
-          'androidPermission',
-          s.toString(),
-        );
+        RealtimeLogger.instance.log('FCM', 'androidPermission', s.toString());
       } catch (e) {
         RealtimeLogger.instance.log(
           'FCM',
@@ -449,12 +494,7 @@ class MessagingService {
         isError: apns == null,
       );
     } catch (e) {
-      RealtimeLogger.instance.log(
-        'FCM',
-        'apns.error',
-        '$e',
-        isError: true,
-      );
+      RealtimeLogger.instance.log('FCM', 'apns.error', '$e', isError: true);
     }
   }
 
@@ -462,18 +502,21 @@ class MessagingService {
     try {
       return await FirebaseMessaging.instance.getToken();
     } catch (e) {
-      RealtimeLogger.instance.log(
-        'FCM',
-        'getToken.error',
-        '$e',
-        isError: true,
-      );
+      RealtimeLogger.instance.log('FCM', 'getToken.error', '$e', isError: true);
       return null;
     }
   }
 
-  bool _isFirebaseSupported() =>
-      kIsWeb || Platform.isAndroid || Platform.isIOS;
+  bool _isFirebaseSupported() => kIsWeb || Platform.isAndroid || Platform.isIOS;
+
+  bool _isFirebaseReady() {
+    try {
+      // Firebase.apps is empty when initializeApp() failed or was never run.
+      return Firebase.apps.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Map<String, dynamic> _stringifyData(Map<String, dynamic> data) {
     return data.map((k, v) => MapEntry(k, v?.toString()));
@@ -520,5 +563,4 @@ class MessagingService {
       ),
     );
   }
-
 }
