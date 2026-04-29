@@ -36,6 +36,7 @@ class BookingCubit extends Cubit<BookingState> {
     double? destinationLongitude,
     double? distanceKm,
     String? notes,
+    String? meetingPointType,
   }) async {
     if (isClosed) return;
     emit(BookingLoading());
@@ -56,6 +57,7 @@ class BookingCubit extends Cubit<BookingState> {
       if (destinationLongitude != null) 'destinationLongitude': destinationLongitude,
       if (distanceKm != null) 'distanceKm': distanceKm,
       if (notes != null) 'notes': notes,
+      if (meetingPointType != null) 'meetingPointType': meetingPointType,
     });
     if (isClosed) return;
     result.fold(

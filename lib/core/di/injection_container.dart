@@ -14,6 +14,7 @@ import '../../core/services/ratings/pending_rating_tracker.dart';
 import '../../core/services/realtime/app_realtime_cubit.dart';
 import '../../core/services/realtime/hub_lifecycle_observer.dart';
 import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
+import '../../core/services/directions/directions_service.dart';
 import '../../core/services/sos/sos_service.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 
@@ -110,7 +111,8 @@ import '../../features/tourist/features/user_booking/presentation/cubits/cancel_
 import '../../features/tourist/features/user_booking/presentation/cubits/helper_booking_profile_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/scheduled_booking_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/scheduled/scheduled_alternatives_cubit.dart';
+import '../../features/tourist/features/user_booking/presentation/cubits/scheduled/scheduled_booking_detail_cubit.dart';
 import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
 import '../../features/tourist/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
 import '../../features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
@@ -419,6 +421,12 @@ Future<void> init() async {
   sl.registerLazySingleton(() => LocationService());
   sl.registerFactory(() => LocationCubit(locationService: sl()));
 
+  // Directions service (Fix 13) — best-effort routing for distanceKm.
+  // Uses its own Dio so OSRM doesn't pick up our auth interceptor.
+  if (!sl.isRegistered<DirectionsService>()) {
+    sl.registerLazySingleton(() => DirectionsService());
+  }
+
   sl.registerFactory(() => SearchHelpersCubit(
     searchScheduledHelpersUseCase: sl(),
     searchInstantHelpersUseCase: sl(),
@@ -435,9 +443,22 @@ Future<void> init() async {
   sl.registerFactory(() => HelperBookingProfileCubit(
         getHelperBookingProfileUC: sl(),
       ));
-  sl.registerFactory(() => ScheduledBookingCubit(
-    createScheduledBookingUseCase: sl(),
-  ));
+
+  // Scheduled-flow cubits. We deliberately reuse:
+  //   * SearchHelpersCubit            (already supports searchScheduled)
+  //   * HelperBookingProfileCubit     (endpoint shared with instant)
+  //   * BookingCubit.createScheduled  (already does the create call)
+  //   * UserRatingsCubit / UserInvoicesCubit (shared per guardrails)
+  // and only add the two cubits that genuinely need different shapes:
+  sl.registerFactory(() => ScheduledBookingDetailCubit(
+        getBookingDetailUC: sl(),
+        getBookingStatusUC: sl(),
+        hubService: sl(),
+      ));
+  sl.registerFactory(() => ScheduledAlternativesCubit(
+        getAlternativesUC: sl(),
+      ));
+
   sl.registerFactory(() => BookingDetailsCubit(
     getBookingDetailsUseCase: sl(),
     getHelperProfileUseCase: sl(),

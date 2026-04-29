@@ -44,12 +44,17 @@ import '../../features/tourist/features/auth/presentation/pages/verify_code_page
 import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
 import '../../features/helper/features/profile/presentation/pages/account_control_center_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/booking_home_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled_search_page.dart';
+import '../../features/tourist/features/user_booking/domain/entities/search_params.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_search_form_screen.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_search_results_screen.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_helper_profile_screen.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_review_screen.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_alternatives_screen.dart';
+import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_booking_detail_screen.dart';
+import '../../features/tourist/features/user_booking/presentation/widgets/scheduled/scheduled_trip_config.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/helper_profile_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/booking_confirm_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/booking_details_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/my_bookings_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled_trip_details_page.dart';
 // New instant-flow pages (Step 2 → 10).
 import '../../features/tourist/features/user_booking/presentation/pages/instant/instant_trip_details_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/instant/instant_helpers_list_page.dart';
@@ -72,7 +77,6 @@ import '../../features/tourist/features/user_booking/domain/entities/instant_sea
     as instant_req;
 import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
 import '../../features/tourist/features/user_booking/domain/entities/helper_booking_entity.dart';
-import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
 import '../../features/tourist/features/payments/presentation/pages/payment_method_page.dart';
 import '../../features/tourist/features/payments/presentation/pages/payment_processing_page.dart';
 import '../../features/tourist/features/payments/presentation/pages/payment_webview_page.dart';
@@ -217,11 +221,15 @@ class AppRouter {
   static const String accountSettings = 'account-settings';
   static const String profile = 'profile';
   static const String bookingHome = '/booking-home';
-  static const String scheduledSearch = '/scheduled-search';
+  static const String scheduledSearch = '/scheduled/search';
+  static const String scheduledResults = '/scheduled/results';
+  static const String scheduledHelperProfile = '/scheduled/helpers/:id';
+  static const String scheduledReview = '/scheduled/review';
+  static const String scheduledAlternatives = '/bookings/:id/alternatives';
   static const String helperProfile = '/helper-profile/:id';
   static const String bookingConfirm = '/booking-confirm';
   static const String bookingDetails = '/booking-details/:id';
-  static const String scheduledTripDetails = '/scheduled-trip-details';
+  // Removed: scheduledTripDetails (use bookingDetails instead).
   static const String myBookings = '/my-bookings';
 
   // ── Instant Booking (rebuilt) ──────────────────────────────────────
@@ -739,11 +747,64 @@ class AppRouter {
         path: scheduledSearch,
         name: 'scheduled-search',
         builder: (context, state) {
-          final destination = state.extra as String?;
-          return BlocProvider(
-            create: (_) => sl<SearchHelpersCubit>(),
-            child: ScheduledSearchPage(initialDestination: destination),
+          final initialDestination = state.extra is String
+              ? state.extra as String
+              : null;
+          return ScheduledSearchFormScreen(
+            initialDestination: initialDestination,
           );
+        },
+      ),
+      GoRoute(
+        path: scheduledResults,
+        name: 'scheduled-results',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final params = extra?['params'] as ScheduledSearchParams?;
+          if (params == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing search parameters.')),
+            );
+          }
+          return ScheduledSearchResultsScreen(params: params);
+        },
+      ),
+      GoRoute(
+        path: scheduledHelperProfile,
+        name: 'scheduled-helper-profile',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return ScheduledHelperProfileScreen(
+            helperId: id,
+            initialHelper: extra?['helper'] as HelperBookingEntity?,
+            searchParams: extra?['params'] as ScheduledSearchParams?,
+          );
+        },
+      ),
+      GoRoute(
+        path: scheduledReview,
+        name: 'scheduled-review',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing review payload.')),
+            );
+          }
+          return ScheduledReviewScreen(
+            helper: extra['helper'] as HelperBookingEntity,
+            params: extra['params'] as ScheduledSearchParams,
+            config: extra['config'] as ScheduledTripConfig,
+          );
+        },
+      ),
+      GoRoute(
+        path: scheduledAlternatives,
+        name: 'scheduled-alternatives',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ScheduledAlternativesScreen(bookingId: id);
         },
       ),
       GoRoute(
@@ -772,26 +833,20 @@ class AppRouter {
           );
         },
       ),
-      GoRoute(
-        path: scheduledTripDetails,
-        name: 'scheduled-trip-details',
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          return ScheduledTripDetailsPage(
-            trip: extra?['trip'] as ScheduledTripEntity?,
-          );
-        },
-      ),
+      // /scheduled-trip-details was removed. Both Instant and Scheduled
+      // bookings now use the unified /booking-details/:id route.
+      //
+      // The ScheduledBookingDetailScreen (Phase 5) handles every booking
+      // status branch (waiting / accepted / paid / upcoming / in-progress
+      // / completed / cancelled / declined-needs-alternatives) and reuses
+      // GetBookingDetailUC under the hood, so it works for both Scheduled
+      // *and* Instant bookings opened from the bookings history.
       GoRoute(
         path: bookingDetails,
         name: 'booking-details',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>?;
-          return BookingDetailsPage(
-            bookingId: id,
-            initialBooking: extra?['booking'] as BookingDetailEntity?,
-          );
+          return ScheduledBookingDetailScreen(bookingId: id);
         },
       ),
 
