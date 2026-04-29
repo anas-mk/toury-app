@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
 import '../cubit/helper_sos_cubit.dart';
 
 class HelperSosPage extends StatelessWidget {
-  const HelperSosPage({super.key});
+  final String bookingId;
+  const HelperSosPage({super.key, required this.bookingId});
 
   @override
   Widget build(BuildContext context) {
@@ -18,13 +19,15 @@ class HelperSosPage extends StatelessWidget {
       builder: (context, state) {
         final isActive = state.status == SosStatus.active;
         return Scaffold(
-          backgroundColor: isActive ? const Color(0xFF450000) : theme.scaffoldBackgroundColor,
+          backgroundColor: isActive ? const Color(0xFF450000) : BrandTokens.bgSoft,
           appBar: AppBar(
             elevation: 0,
+            backgroundColor: BrandTokens.surfaceWhite,
+            foregroundColor: BrandTokens.textPrimary,
             title: const Text('Emergency Assistance', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.spaceLG),
+            padding: const EdgeInsets.all(24),
             child: Column(
               children: [
                 _EmergencyWarningCard(isActive: isActive),
@@ -52,11 +55,11 @@ class _EmergencyWarningCard extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceLG),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isActive ? AppColor.errorColor : theme.cardColor,
+        color: isActive ? BrandTokens.dangerRed : BrandTokens.surfaceWhite,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isActive ? Colors.white24 : AppColor.errorColor.withOpacity(0.3)),
+        border: Border.all(color: isActive ? Colors.white24 : BrandTokens.dangerRed.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -128,10 +131,10 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
             height: 200,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColor.errorColor,
+              color: BrandTokens.dangerRed,
               boxShadow: [
                 BoxShadow(
-                  color: AppColor.errorColor.withOpacity(0.4),
+                  color: BrandTokens.dangerRed.withValues(alpha: 0.4),
                   blurRadius: 20 + (_controller.value * 20),
                   spreadRadius: 5 + (_controller.value * 15),
                 ),
@@ -175,11 +178,11 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
+            const Icon(Icons.error_outline_rounded, color: BrandTokens.dangerRed, size: 48),
             const SizedBox(height: 16),
-            Text('Confirm Emergency?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text('Confirm Emergency?', style: BrandTokens.heading()),
             const SizedBox(height: 8),
-            Text('Authorities and nearby helpers will be notified.', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+            Text('Authorities and nearby helpers will be notified.', textAlign: TextAlign.center, style: BrandTokens.body()),
             const SizedBox(height: 32),
             Row(
               children: [
@@ -202,9 +205,9 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
                       context.read<HelperSosCubit>().activatePanic(0, 0); // Replace with real location
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColor.errorColor,
-                      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMD),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+                      backgroundColor: BrandTokens.dangerRed,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text('Trigger SOS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                   ),
@@ -251,7 +254,7 @@ class _EmergencyGrid extends StatelessWidget {
         _EmergencyItem(
           label: 'Safe Place',
           icon: Icons.shield_rounded,
-          color: AppColor.primaryColor,
+          color: BrandTokens.primaryBlue,
           onTap: () {}, // Mock
         ),
       ],
@@ -296,15 +299,15 @@ class _SafetyChecklist extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceLG),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Safety Checklist', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          Text('Safety Checklist', style: BrandTokens.heading(fontSize: 16)),
           const SizedBox(height: 16),
           _CheckItem(text: 'Park in a well-lit public area'),
           _CheckItem(text: 'Lock all doors and windows'),
@@ -328,9 +331,9 @@ class _CheckItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline_rounded, color: AppColor.accentColor, size: 18),
+          const Icon(Icons.check_circle_outline_rounded, color: BrandTokens.successGreen, size: 18),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+          Expanded(child: Text(text, style: BrandTokens.body())),
         ],
       ),
     );

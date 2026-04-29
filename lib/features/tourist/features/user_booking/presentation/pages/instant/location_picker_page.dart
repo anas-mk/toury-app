@@ -633,8 +633,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                 ),
 
                 // 2. Subtle vignette to lift CTAs off bright tiles.
-                IgnorePointer(
-                  child: Positioned.fill(
+                Positioned.fill(
+                  child: IgnorePointer(
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(

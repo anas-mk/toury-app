@@ -8,26 +8,31 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
+import '../../../../../../core/widgets/hero_header.dart';
 import '../../../../../../core/services/haptic_service.dart';
-import '../../domain/entities/helper_booking_entities.dart';
+import '../../domain/entities/helper_dashboard_entity.dart';
+import '../../domain/entities/helper_availability_state.dart';
 import '../cubit/helper_bookings_cubits.dart';
+import '../cubit/helper_polling_orchestrator.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../helper_location/presentation/cubit/location_status_cubits.dart';
 import '../../../helper_location/presentation/widgets/helper_location_status_widget.dart';
 import '../../../helper_service_areas/presentation/widgets/service_area_status_widget.dart';
 import '../../../helper_invoices/presentation/widgets/earnings_preview_card.dart';
-import '../../../helper_ratings/presentation/pages/helper_ratings_page.dart';
 import '../../../helper_reports/presentation/cubit/helper_reports_cubit.dart';
 import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
 
-// Modularized Dashboard Widgets
 import '../widgets/dashboard/availability_toggle_card.dart';
 import '../widgets/dashboard/active_trip_card.dart';
 import '../widgets/dashboard/stats_grid.dart';
 import '../widgets/dashboard/quick_actions_grid.dart';
 import '../widgets/dashboard/reputation_card.dart';
+import '../widgets/dashboard/helper_availability_action_button.dart';
+import '../../../../../../core/theme/brand_typography.dart';
+import 'package:shimmer/shimmer.dart';
 
 class HelperDashboardPage extends StatefulWidget {
   const HelperDashboardPage({super.key});
@@ -44,7 +49,8 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   late final IncomingRequestsCubit _requestsCubit;
   late final HelperLocationCubit _locCubit;
   late final LocationStatusCubit _statusCubit;
-  Timer? _refreshTimer;
+  late final HelperPollingOrchestrator _orchestrator;
+  
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -57,6 +63,13 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     _requestsCubit = sl<IncomingRequestsCubit>();
     _locCubit = sl<HelperLocationCubit>();
     _statusCubit = sl<LocationStatusCubit>();
+    _orchestrator = HelperPollingOrchestrator(
+      _dashCubit,
+      _activeCubit,
+      _requestsCubit,
+      _statusCubit,
+    );
+    
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -64,49 +77,37 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    _loadAll();
-    _startPolling();
+    _initLoad();
+    _orchestrator.start();
   }
 
-  void _loadAll() {
-    _dashCubit.load();
+  void _initLoad() {
+    _dashCubit.loadOnce();
     _activeCubit.load();
     _statusCubit.loadStatus();
   }
 
-  void _startPolling() {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (_dashCubit.state is HelperDashboardLoaded) {
-        final currentStatus = (_dashCubit.state as HelperDashboardLoaded).dashboard.availabilityState;
-        if (currentStatus == HelperAvailabilityState.availableNow) {
-          _dashCubit.refresh();
-          _activeCubit.load(silent: true);
-          _requestsCubit.load(silent: true);
-          _statusCubit.loadStatus();
-        }
-      }
-    });
+  Future<void> _refreshAll() async {
+    await Future.wait([
+      _dashCubit.refresh(silent: true),
+      _activeCubit.load(silent: true),
+      _statusCubit.loadStatus(),
+    ]);
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
+    _orchestrator.close();
     _pulseController.dispose();
     _dashCubit.close();
     _availCubit.close();
     _activeCubit.close();
     _requestsCubit.close();
-    _locCubit.close();
-    _statusCubit.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _dashCubit),
@@ -129,14 +130,14 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 _dashCubit.refresh();
                 
                 if (state.status == HelperAvailabilityState.availableNow) {
-                  _startPolling();
+                  _orchestrator.start();
                   _startAutoTracking();
                   _requestsCubit.load();
                 } else if (state.status == HelperAvailabilityState.offline) {
-                  _locCubit.stopTracking();
-                  _refreshTimer?.cancel();
+                  _locCubit.disable();
+                  _orchestrator.stop();
                 } else if (state.status == HelperAvailabilityState.busy) {
-                  _refreshTimer?.cancel();
+                  _orchestrator.stop();
                 }
               }
             },
@@ -161,12 +162,14 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           ),
         ],
         child: Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          body: RefreshIndicator(
-            onRefresh: () async => _loadAll(),
-            color: theme.colorScheme.primary,
+          backgroundColor: BrandTokens.bgSoft,
+          body: RefreshIndicator.adaptive(
+            onRefresh: _refreshAll,
+            color: BrandTokens.primaryBlue,
             child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
               slivers: [
                 _buildAppBar(context),
                 SliverToBoxAdapter(
@@ -193,68 +196,23 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   }
 
   Widget _buildAppBar(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return SliverAppBar(
-      expandedHeight: 120,
-      floating: false,
+    return SliverPersistentHeader(
       pinned: true,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      elevation: 0,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          padding: const EdgeInsets.fromLTRB(AppTheme.spaceLG, 50, AppTheme.spaceLG, 0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2), width: 2),
-                ),
-                child: Center(
-                  child: Icon(Icons.person_rounded, color: theme.colorScheme.primary, size: 28),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceMD),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Welcome back,',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
-                    ),
-                  ),
-                  Text(
-                    'Captain',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              _IconButton(
-                icon: Icons.notifications_none_rounded, 
-                onTap: () {
-                   HapticService.light();
-                },
-              ),
-            ],
-          ),
+      delegate: HeroSliverHeader(
+        title: 'Welcome back,\nCaptain',
+        showBack: false,
+        height: 200,
+        trailing: _IconButton(
+          icon: Icons.notifications_none_rounded,
+          onTap: () {
+            HapticService.light();
+          },
         ),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context, HelperDashboard dashboard) {
+  Widget _buildBody(BuildContext context, HelperDashboardEntity dashboard) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
       child: Column(
@@ -266,29 +224,65 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             child: AvailabilityToggleCard(
               currentStatus: dashboard.availabilityState,
               pulseAnimation: _pulseAnimation,
-              onStatusChanged: (s) async {
-                HapticService.medium();
-                if (_availCubit.state is AvailabilityUpdating) return;
-                if (dashboard.availabilityState == s) return;
-                
-                if (dashboard.activeTrip != null && s != HelperAvailabilityState.offline) {
-                  _showSnack(context, 'You cannot change availability during an active trip', isError: true);
-                  return;
-                }
-                
-                if (s == HelperAvailabilityState.availableNow) {
-                  final token = sl<SharedPreferences>().getString('auth_token') ?? '';
-                  final success = await _locCubit.requestPermissionAndInitialize(token);
-                  if (!success) {
-                    _dashCubit.refresh();
-                    return;
-                  }
-                }
-                
-                _availCubit.update(s);
-              },
+              onStatusChanged: (s) => _handleStatusChange(context, dashboard, s),
             ),
           ),
+
+          const SizedBox(height: AppTheme.spaceMD),
+          // FadeInSlide(
+          //   delay: const Duration(milliseconds: 120),
+          //   child: HelperAvailabilityActionButton(
+          //     currentStatus: dashboard.availabilityState,
+          //     onUpdated: () => context.go(AppRouter.helperRequests),
+          //   ),
+          // ),
+          
+          if (dashboard.availabilityState == HelperAvailabilityState.offline) ...[
+            const SizedBox(height: AppTheme.spaceLG),
+            FadeInSlide(
+              delay: const Duration(milliseconds: 450),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: BrandTokens.primaryBlue.withValues(alpha: 0.15)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Ready to work?',
+                      style: BrandTypography.title(color: BrandTokens.primaryBlue),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Go online to see new trip requests near you.',
+                      style: BrandTypography.caption(color: BrandTokens.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _handleStatusChange(context, dashboard, HelperAvailabilityState.availableNow),
+                        icon: const Icon(Icons.bolt_rounded, color: Colors.white),
+                        label: const Text('GO ONLINE NOW', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: BrandTokens.primaryBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 8,
+                          shadowColor: BrandTokens.primaryBlue.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: AppTheme.spaceXL),
           
           BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
@@ -350,9 +344,30 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
 
   Widget _buildShimmer() {
     return Padding(
-      padding: const EdgeInsets.all(AppTheme.spaceLG),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        children: List.generate(4, (i) => _ShimmerBox(height: i == 0 ? 120 : 100)),
+        children: [
+          const SizedBox(height: 20),
+          _ShimmerBox(height: 160),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(child: _ShimmerBox(height: 100)),
+              const SizedBox(width: 16),
+              Expanded(child: _ShimmerBox(height: 100)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _ShimmerBox(height: 100)),
+              const SizedBox(width: 16),
+              Expanded(child: _ShimmerBox(height: 100)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _ShimmerBox(height: 80),
+        ],
       ),
     );
   }
@@ -378,7 +393,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             ),
             const SizedBox(height: AppTheme.spaceXL),
             ElevatedButton(
-              onPressed: _loadAll, 
+              onPressed: _initLoad,
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
@@ -401,9 +416,37 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     );
   }
 
+  Future<void> _handleStatusChange(BuildContext context, HelperDashboardEntity dashboard, HelperAvailabilityState s) async {
+    HapticService.medium();
+    if (_availCubit.state is AvailabilityUpdating) return;
+    if (dashboard.availabilityState == s) return;
+    
+    if (dashboard.activeTrip != null && s != HelperAvailabilityState.offline) {
+      _showSnack(context, 'You cannot change availability during an active trip', isError: true);
+      return;
+    }
+    
+    if (s == HelperAvailabilityState.availableNow) {
+      final token = sl<SharedPreferences>().getString('auth_token') ?? '';
+      final success = await _locCubit.requestPermissionAndInitialize(token);
+      if (!success) {
+        _dashCubit.refresh();
+        return;
+      }
+      
+      _availCubit.update(s);
+      // Navigate to bookings center when going online
+      if (mounted) {
+        context.push(AppRouter.helperBookings);
+      }
+    } else {
+      _availCubit.update(s);
+    }
+  }
+
   Future<void> _startAutoTracking() async {
     final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
-    if (helper?.token != null) _locCubit.startTracking(helper!.token!);
+    if (helper?.token != null) _locCubit.enable(helper!.token!);
   }
 }
 
@@ -413,16 +456,9 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Text(
       title,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.bold,
-        letterSpacing: -0.5,
-        color: isDark ? Colors.white : Colors.black,
-      ),
+      style: BrandTokens.heading(fontSize: 20),
     );
   }
 }
@@ -434,16 +470,15 @@ class _IconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppTheme.spaceSM),
         decoration: BoxDecoration(
-          color: theme.colorScheme.primary.withOpacity(0.1),
-          shape: BoxShape.circle,
+          color: BrandTokens.surfaceWhite.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(icon, color: theme.colorScheme.primary, size: 22),
+        child: Icon(icon, color: BrandTokens.surfaceWhite, size: 24),
       ),
     );
   }
@@ -455,15 +490,15 @@ class _ShimmerBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      height: height,
-      margin: const EdgeInsets.only(bottom: AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: isDark ? AppColor.darkCardColor : AppColor.lightCardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+    return Shimmer.fromColors(
+      baseColor: BrandTokens.borderSoft.withValues(alpha: 0.3),
+      highlightColor: BrandTokens.borderSoft.withValues(alpha: 0.1),
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
       ),
     );
   }

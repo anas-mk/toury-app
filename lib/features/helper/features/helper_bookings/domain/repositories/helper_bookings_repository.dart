@@ -1,10 +1,17 @@
 import '../entities/helper_booking_entities.dart';
 import '../entities/helper_earnings_entities.dart';
+import '../entities/helper_dashboard_entity.dart';
+import '../entities/helper_availability_state.dart';
+import '../../data/models/helper_booking_models.dart';
 
 abstract class HelperBookingsRepository {
-  Future<HelperDashboard> getDashboard();
+  Future<HelperDashboardEntity> getDashboard();
   Future<void> updateAvailability(HelperAvailabilityState status);
-  Future<List<HelperBooking>> getRequests();
+  Future<PaginatedRequestsResponse> getRequests({
+    String? type,
+    int page = 1,
+    int pageSize = 10,
+  });
   Future<HelperBooking> getRequestDetails(String bookingId);
   Future<HelperBooking> acceptRequest(String bookingId);
   Future<void> declineRequest(String bookingId, {String? reason});

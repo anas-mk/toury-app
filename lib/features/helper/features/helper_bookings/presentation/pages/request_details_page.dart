@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
@@ -68,12 +71,12 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
           ),
         ],
         child: Scaffold(
-          backgroundColor: const Color(0xFF0A0E1A),
+          backgroundColor: BrandTokens.bgSoft,
           body: BlocBuilder<RequestDetailsCubit, RequestDetailsState>(
             builder: (context, state) {
               if (state is RequestDetailsLoading) {
                 return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+                    child: CircularProgressIndicator.adaptive());
               }
               if (state is RequestDetailsLoaded) {
                 return _buildContent(context, state.booking);
@@ -120,9 +123,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
           right: 0,
           bottom: 0,
           child: Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.transparent, Color(0xFF0A0E1A)],
+                colors: [BrandTokens.bgSoft.withValues(alpha: 0), BrandTokens.bgSoft],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -143,7 +146,8 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                                   .read<AcceptBookingCubit>()
                                   .accept(booking.id),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00C896),
+                            backgroundColor: BrandTokens.successGreen,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(18)),
                           ),
@@ -151,12 +155,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2))
-                              : const Text('✓  Accept',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold)),
+                                  child: CircularProgressIndicator.adaptive(
+                                      backgroundColor: Colors.white))
+                              : Text('✓  Accept',
+                                  style: BrandTypography.body(weight: FontWeight.bold, color: Colors.white)),
                         ),
                       );
                     },
@@ -174,8 +176,8 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                             ? null
                             : () => _showDecline(context, booking.id),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFFF6B6B),
-                          side: const BorderSide(color: Color(0xFFFF6B6B)),
+                          foregroundColor: BrandTokens.dangerRed,
+                          side: const BorderSide(color: BrandTokens.dangerRed),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18)),
                         ),
@@ -183,11 +185,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                    color: Color(0xFFFF6B6B),
-                                    strokeWidth: 2))
-                            : const Text('Decline',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
+                                child: CircularProgressIndicator.adaptive())
+                            : Text('Decline',
+                                style: BrandTypography.body(weight: FontWeight.bold, color: BrandTokens.dangerRed)),
                       ),
                     );
                   },
@@ -220,9 +220,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
               const Center(child: Icon(Icons.map_rounded, color: Colors.white12, size: 80)),
               Positioned.fill(
                 child: Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.transparent, Color(0xFF0A0E1A)],
+                      colors: [Colors.transparent, BrandTokens.bgSoft],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     ),
@@ -256,23 +256,19 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00C896).withOpacity(0.15),
+                        color: BrandTokens.successGreen.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: const Color(0xFF00C896).withOpacity(0.4)),
+                            color: BrandTokens.successGreen.withValues(alpha: 0.3)),
                       ),
                       child: Column(
                         children: [
                           Text(
                             '\$${booking.payout.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                                color: Color(0xFF00C896),
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold),
+                            style: BrandTypography.headline(color: BrandTokens.successGreen),
                           ),
-                          const Text('payout',
-                              style:
-                                  TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text('payout',
+                              style: BrandTypography.overline(color: BrandTokens.textSecondary)),
                         ],
                       ),
                     ),
@@ -291,14 +287,14 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Color(0xFFFF6B6B), size: 48),
+          const Icon(Icons.error_outline, color: BrandTokens.dangerRed, size: 48),
           const SizedBox(height: 16),
-          Text(msg, style: const TextStyle(color: Colors.white70)),
+          Text(msg, style: BrandTypography.body()),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => _detailsCubit.load(widget.bookingId),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
-            child: const Text('Retry'),
+            style: ElevatedButton.styleFrom(backgroundColor: BrandTokens.primaryBlue),
+            child: Text('Retry', style: BrandTypography.body(color: Colors.white)),
           ),
         ],
       ),
@@ -324,7 +320,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
       SnackBar(
         content: Text(msg),
         backgroundColor:
-            isError ? const Color(0xFFFF6B6B) : const Color(0xFF00C896),
+            isError ? BrandTokens.dangerRed : BrandTokens.successGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(12),
@@ -367,16 +363,16 @@ class _CountdownBarState extends State<_CountdownBar> {
     final expired = _remaining.isNegative;
     final urgent = !expired && _remaining.inSeconds < 60;
     final c = expired
-        ? Colors.white24
+        ? BrandTokens.textMuted
         : urgent
-            ? const Color(0xFFFF6B6B)
-            : const Color(0xFF6C63FF);
+            ? BrandTokens.dangerRed
+            : BrandTokens.primaryBlue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: c.withOpacity(0.08),
+        color: c.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: c.withOpacity(0.3)),
+        border: Border.all(color: c.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -386,7 +382,7 @@ class _CountdownBarState extends State<_CountdownBar> {
             expired
                 ? 'Response time expired'
                 : 'Respond within: ${_fmt(_remaining)}',
-            style: TextStyle(color: c, fontWeight: FontWeight.w600),
+            style: BrandTypography.body(color: c, weight: FontWeight.w600),
           ),
         ],
       ),
@@ -408,25 +404,18 @@ class _TravelerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(20),
-      ),
+    return CustomCard(
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
+            backgroundColor: BrandTokens.primaryBlue.withValues(alpha: 0.1),
             child: Text(
               booking.travelerName.isNotEmpty
                   ? booking.travelerName[0].toUpperCase()
                   : '?',
-              style: const TextStyle(
-                  color: Color(0xFF6C63FF),
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold),
+              style: BrandTypography.headline(color: BrandTokens.primaryBlue),
             ),
           ),
           const SizedBox(width: 14),
@@ -435,15 +424,12 @@ class _TravelerCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(booking.travelerName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold)),
+                    style: BrandTypography.body(weight: FontWeight.bold)),
                 if (booking.language != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text('🌐 ${booking.language}',
-                        style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                        style: BrandTypography.caption()),
                   ),
               ],
             ),
@@ -460,20 +446,13 @@ class _TripInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(20),
-      ),
+    return CustomCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Trip Details',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold)),
+          Text('Trip Details',
+              style: BrandTypography.body(weight: FontWeight.bold)),
           const SizedBox(height: 14),
           _InfoRow(
               icon: Icons.calendar_today_rounded,
@@ -526,23 +505,21 @@ class _InfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: Colors.white38, size: 16),
+        Icon(icon, color: BrandTokens.textMuted, size: 16),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label,
-                  style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  style: BrandTypography.overline()),
               const SizedBox(height: 2),
               Text(value,
-                  style: TextStyle(
+                  style: BrandTypography.body(
                       color: highlight
-                          ? const Color(0xFF00C896)
-                          : Colors.white,
-                      fontSize: 13,
-                      fontWeight:
-                          highlight ? FontWeight.bold : FontWeight.normal)),
+                          ? BrandTokens.successGreen
+                          : BrandTokens.textPrimary,
+                      weight: highlight ? FontWeight.bold : FontWeight.normal)),
             ],
           ),
         ),
@@ -558,29 +535,29 @@ class _NotesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
+        color: BrandTokens.accentAmberSoft,
         borderRadius: BorderRadius.circular(20),
         border:
-            Border.all(color: const Color(0xFFFFAB40).withOpacity(0.25)),
+            Border.all(color: BrandTokens.accentAmberBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(Icons.sticky_note_2_rounded,
-              color: Color(0xFFFFAB40), size: 20),
+              color: BrandTokens.accentAmberText, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Traveler Notes',
-                    style: TextStyle(
-                        color: Color(0xFFFFAB40), fontWeight: FontWeight.bold)),
+                Text('Traveler Notes',
+                    style: BrandTypography.body(
+                        color: BrandTokens.accentAmberText, weight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text(notes,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    style: BrandTypography.caption(color: BrandTokens.accentAmberText)),
               ],
             ),
           ),
@@ -610,10 +587,9 @@ class _RoutePoint extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label,
-                  style: TextStyle(
-                      color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                  style: BrandTypography.overline(color: color)),
               Text(value,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: BrandTypography.body(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
             ],
@@ -676,18 +652,18 @@ class _DeclineReasonSheetState extends State<_DeclineReasonSheet> {
                     onTap: () => setState(() => _selected = r),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
+                      margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 11),
+                          horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         color: _selected == r
-                            ? const Color(0xFFFF6B6B).withOpacity(0.08)
-                            : Colors.white.withOpacity(0.04),
-                        borderRadius: BorderRadius.circular(12),
+                            ? BrandTokens.dangerRed.withValues(alpha: 0.08)
+                            : BrandTokens.borderSoft.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                             color: _selected == r
-                                ? const Color(0xFFFF6B6B).withOpacity(0.4)
-                                : Colors.white12),
+                                ? BrandTokens.dangerRed.withValues(alpha: 0.4)
+                                : Colors.transparent),
                       ),
                       child: Row(
                         children: [
@@ -696,17 +672,17 @@ class _DeclineReasonSheetState extends State<_DeclineReasonSheet> {
                                 ? Icons.radio_button_checked
                                 : Icons.radio_button_unchecked,
                             color: _selected == r
-                                ? const Color(0xFFFF6B6B)
-                                : Colors.white38,
-                            size: 17,
+                                ? BrandTokens.dangerRed
+                                : BrandTokens.textMuted,
+                            size: 20,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Text(r,
-                              style: TextStyle(
+                              style: BrandTypography.body(
                                   color: _selected == r
-                                      ? Colors.white
-                                      : Colors.white60,
-                                  fontSize: 14)),
+                                      ? BrandTokens.textPrimary
+                                      : BrandTokens.textSecondary,
+                                  weight: _selected == r ? FontWeight.bold : FontWeight.normal)),
                         ],
                       ),
                     ),
@@ -725,19 +701,19 @@ class _DeclineReasonSheetState extends State<_DeclineReasonSheet> {
                               .read<DeclineBookingCubit>()
                               .decline(widget.bookingId, reason: _selected),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF6B6B),
+                        backgroundColor: BrandTokens.dangerRed,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
+                            borderRadius: BorderRadius.circular(18)),
                       ),
                       child: loading
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : const Text('Confirm Decline',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 15)),
+                              child: CircularProgressIndicator.adaptive(
+                                  backgroundColor: Colors.white))
+                          : Text('Confirm Decline',
+                              style: BrandTypography.body(weight: FontWeight.bold, color: Colors.white)),
                     ),
                   );
                 },

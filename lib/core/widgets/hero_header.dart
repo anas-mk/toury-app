@@ -157,15 +157,17 @@ class HeroBand extends StatelessWidget {
             right: AppTheme.spaceLG,
             top: mediaTop + 56,
             bottom: footer != null ? 16 : 24,
-            child: Column(
-              mainAxisAlignment: footer != null
-                  ? MainAxisAlignment.spaceBetween
-                  : MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+            child: OverflowBox(
+              maxHeight: double.infinity,
+              alignment: AlignmentDirectional.bottomStart,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
                     if (leadingIcon != null) ...[
                       Container(
                         width: 44,
@@ -225,6 +227,7 @@ class HeroBand extends StatelessWidget {
                   footer!,
                 ],
               ],
+            ),
             ),
           ),
           ],

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
+import '../../../../../../core/widgets/booking_status_chip.dart';
 
 class HelperHistoryPage extends StatefulWidget {
   const HelperHistoryPage({super.key});
@@ -56,13 +60,13 @@ class _HelperHistoryPageState extends State<HelperHistoryPage>
     return BlocProvider.value(
       value: _cubit,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
+        backgroundColor: BrandTokens.bgSoft,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0D1120),
-          foregroundColor: Colors.white,
+          backgroundColor: BrandTokens.surfaceWhite,
+          foregroundColor: BrandTokens.textPrimary,
           elevation: 0,
-          title: const Text('History',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          title: Text('History',
+              style: BrandTypography.title()),
           actions: [
             IconButton(
               icon: const Icon(Icons.filter_list_rounded),
@@ -72,12 +76,11 @@ class _HelperHistoryPageState extends State<HelperHistoryPage>
           ],
           bottom: TabBar(
             controller: _tab,
-            indicatorColor: const Color(0xFF6C63FF),
+            indicatorColor: BrandTokens.primaryBlue,
             indicatorSize: TabBarIndicatorSize.label,
-            labelColor: const Color(0xFF6C63FF),
-            unselectedLabelColor: Colors.white38,
-            labelStyle:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            labelColor: BrandTokens.primaryBlue,
+            unselectedLabelColor: BrandTokens.textMuted,
+            labelStyle: BrandTypography.body(weight: FontWeight.bold),
             tabs: const [
               Tab(text: '✅  Completed'),
               Tab(text: '❌  Cancelled'),
@@ -88,7 +91,7 @@ class _HelperHistoryPageState extends State<HelperHistoryPage>
           builder: (context, state) {
             if (state is HelperHistoryLoading) {
               return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+                  child: CircularProgressIndicator.adaptive());
             }
             if (state is HelperHistoryError) {
               return _buildError(state.message);
@@ -299,19 +302,19 @@ class _HistoryList extends StatelessWidget {
         ),
       );
     }
-    return RefreshIndicator(
+    return RefreshIndicator.adaptive(
       onRefresh: () async => onRefresh(),
-      color: const Color(0xFF6C63FF),
+      color: BrandTokens.primaryBlue,
       child: ListView.builder(
         controller: scrollCtrl,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.all(20),
         itemCount: bookings.length + (hasMore ? 1 : 0),
         itemBuilder: (ctx, i) {
           if (i == bookings.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child:
-                  Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF))),
+                  Center(child: CircularProgressIndicator.adaptive()),
             );
           }
           return _HistoryCard(booking: bookings[i]);
@@ -328,24 +331,19 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final done = booking.status == 'completed';
-    final accent = done ? const Color(0xFF00C896) : const Color(0xFFFF6B6B);
+    final accent = done ? BrandTokens.successGreen : BrandTokens.dangerRed;
     return GestureDetector(
       onTap: () => context.push('/helper/booking-details/${booking.id}'),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+      child: CustomCard(
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: accent.withOpacity(0.15)),
-        ),
         child: Row(
           children: [
             Container(
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: accent.withOpacity(0.12),
+                color: accent.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -360,28 +358,22 @@ class _HistoryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(booking.travelerName,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14)),
+                      style: BrandTypography.body(weight: FontWeight.bold)),
                   const SizedBox(height: 2),
                   Text(booking.destinationLocation,
-                      style: const TextStyle(
-                          color: Colors.white54, fontSize: 12),
+                      style: BrandTypography.caption(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Text(_fmt(booking.startTime),
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11)),
+                      style: BrandTypography.caption(color: BrandTokens.textMuted)),
                 ],
               ),
             ),
             Text('\$${booking.payout.toStringAsFixed(0)}',
-                style: TextStyle(
-                    color: done ? const Color(0xFF00C896) : Colors.white38,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15)),
+                style: BrandTypography.body(
+                    color: done ? BrandTokens.successGreen : BrandTokens.textMuted,
+                    weight: FontWeight.bold)),
           ],
         ),
       ),
@@ -421,22 +413,21 @@ class _DateTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E1A),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
+          color: BrandTokens.surfaceWhite,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: BrandTokens.borderSoft),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 11)),
+                style: BrandTypography.overline()),
             const SizedBox(height: 4),
             Text(
               date != null
                   ? '${date!.day}/${date!.month}/${date!.year}'
                   : 'Select',
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: BrandTypography.body(weight: FontWeight.bold),
             ),
           ],
         ),

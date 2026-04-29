@@ -3,14 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
+import 'package:toury/features/helper/features/helper_bookings/domain/entities/helper_availability_state.dart';
 import 'dart:ui';
 import '../../../../../../core/di/injection_container.dart';
-import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../../data/services/helper_location_signalr_service.dart';
 import '../cubit/helper_location_cubit.dart';
 import '../cubit/location_status_cubits.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
-import '../../../helper_bookings/domain/entities/helper_booking_entities.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 
@@ -41,15 +40,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
       duration: const Duration(seconds: 2),
     )..repeat();
 
-    _initTracking();
     _statusCubit.loadStatus();
-  }
-
-  Future<void> _initTracking() async {
-    final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
-    if (helper?.token != null) {
-      _locationCubit.startTracking(helper!.token!);
-    }
   }
 
   @override
@@ -354,7 +345,6 @@ class _EligibilityBadge extends StatelessWidget {
   const _EligibilityBadge();
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return BlocBuilder<LocationStatusCubit, LocationStatusState>(
       builder: (context, state) {
         bool eligible = state is LocationStatusLoaded && 
@@ -482,32 +472,6 @@ class _BottomControlPanel extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLG)),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
-                      builder: (context, state) {
-                        final isOnline = state is AvailabilityUpdated && state.status == HelperAvailabilityState.availableNow;
-                        final isUpdating = state is AvailabilityUpdating;
-                        
-                        return ElevatedButton.icon(
-                          onPressed: isUpdating ? null : () {
-                            final newStatus = isOnline ? HelperAvailabilityState.offline : HelperAvailabilityState.availableNow;
-                            context.read<HelperAvailabilityCubit>().update(newStatus);
-                          },
-                          icon: isUpdating 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(isOnline ? Icons.power_settings_new_rounded : Icons.radar_rounded),
-                          label: Text(isOnline ? 'GO OFFLINE' : 'GO ONLINE'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isOnline ? AppColor.errorColor : AppColor.accentColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLG)),
-                          ),
-                        );
-                      },
                     ),
                   ),
                 ],

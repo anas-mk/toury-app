@@ -6,8 +6,6 @@ import 'package:toury/features/tourist/features/profile/presentation/page/accoun
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/earnings_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/helper_history_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/incoming_requests_page.dart';
 import '../../features/helper/features/helper_location/presentation/pages/helper_location_page.dart';
 import '../../features/helper/features/helper_location/presentation/pages/eligibility_debug_page.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/service_areas_page.dart';
@@ -103,7 +101,6 @@ import '../../features/helper/features/helper_bookings/presentation/pages/helper
 import '../../features/helper/features/helper_bookings/presentation/pages/bookings_center_page.dart';
 import '../../features/helper/features/helper_chat/presentation/pages/conversations_list_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/wallet_hub_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/request_details_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
 
@@ -527,16 +524,6 @@ class AppRouter {
               ),
             ],
           ),
-          // Branch: Messages
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: helperMessages,
-                name: 'helper-messages',
-                builder: (context, state) => const ConversationsListPage(),
-              ),
-            ],
-          ),
           // Branch: Wallet
           StatefulShellBranch(
             routes: [
@@ -572,10 +559,16 @@ class AppRouter {
 
       // 4. Helper Sub-Pages (Pushed on top of Shell)
       GoRoute(
+        path: helperMessages,
+        name: 'helper-messages',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ConversationsListPage(),
+      ),
+      GoRoute(
         path: helperRequests,
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const IncomingRequestsPage(),
+        builder: (context, state) => const BookingsCenterPage(),
       ),
       GoRoute(
         path: helperRequestDetails,
@@ -583,7 +576,7 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return RequestDetailsPage(bookingId: id);
+          return HelperBookingDetailsPage(bookingId: id, isRequest: true);
         },
       ),
       GoRoute(
@@ -609,7 +602,7 @@ class AppRouter {
         path: helperHistory,
         name: 'helper-history',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const HelperHistoryPage(),
+        builder: (context, state) => const BookingsCenterPage(),
       ),
       GoRoute(
         path: helperEarnings,

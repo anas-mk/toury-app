@@ -28,16 +28,21 @@ class LocationStatusError extends LocationStatusState {
 
 class LocationStatusCubit extends Cubit<LocationStatusState> {
   final GetLocationStatusUseCase getStatusUseCase;
+  bool _inFlight = false;
 
   LocationStatusCubit({required this.getStatusUseCase}) : super(LocationStatusInitial());
 
   Future<void> loadStatus() async {
+    if (_inFlight) return;
+    _inFlight = true;
     emit(LocationStatusLoading());
     try {
       final status = await getStatusUseCase.execute();
       emit(LocationStatusLoaded(status));
     } catch (e) {
       emit(LocationStatusError(e.toString()));
+    } finally {
+      _inFlight = false;
     }
   }
 }

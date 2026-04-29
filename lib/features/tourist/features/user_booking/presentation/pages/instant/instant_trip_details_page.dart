@@ -822,7 +822,7 @@ class _DurationStrip extends StatelessWidget {
     final isCustom = selectedMinutes != 0 &&
         !kDurationPresetMinutes.contains(selectedMinutes);
     return SizedBox(
-      height: 64,
+      height: 80,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),

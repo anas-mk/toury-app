@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/theme/app_theme.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
-import '../../../domain/entities/helper_booking_entities.dart';
+import '../../../domain/entities/helper_dashboard_entity.dart';
 
 class StatsGrid extends StatelessWidget {
-  final HelperDashboard dashboard;
+  final HelperDashboardEntity dashboard;
 
   const StatsGrid({super.key, required this.dashboard});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     final stats = [
-      _StatItem('Daily Income', '\$${dashboard.todayEarnings.toStringAsFixed(0)}', Icons.payments_rounded, AppColor.accentColor),
+      _StatItem('Daily Income', '\$${dashboard.todayEarnings.toStringAsFixed(0)}', Icons.payments_rounded, BrandTokens.successGreen),
       _StatItem('Requests', '${dashboard.pendingRequestsCount}', Icons.inbox_rounded, Colors.orange),
-      _StatItem('Upcoming', '${dashboard.upcomingTripsCount}', Icons.calendar_today_rounded, theme.colorScheme.primary),
+      _StatItem('Upcoming', '${dashboard.upcomingTripsCount}', Icons.calendar_today_rounded, BrandTokens.primaryBlue),
       _StatItem('Success Rate', '${(dashboard.acceptanceRate * 100).toStringAsFixed(0)}%', Icons.verified_rounded, Colors.blueAccent),
     ];
 
@@ -24,10 +22,10 @@ class StatsGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: stats.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: AppTheme.spaceMD,
-        mainAxisSpacing: AppTheme.spaceMD,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
         childAspectRatio: 1.3,
       ),
       itemBuilder: (context, index) => _StatCard(stat: stats[index]),
@@ -48,39 +46,33 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return CustomCard(
       variant: CardVariant.elevated,
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(AppTheme.spaceXS),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: stat.color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSM),
+              color: stat.color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(stat.icon, color: stat.color, size: 16),
           ),
           const Spacer(),
           Text(
             stat.value,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: BrandTypography.title(
               color: stat.color,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
             ),
           ),
           Text(
             stat.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
-              fontWeight: FontWeight.w500,
+            style: BrandTypography.overline(
+              color: BrandTokens.textSecondary,
             ),
           ),
         ],

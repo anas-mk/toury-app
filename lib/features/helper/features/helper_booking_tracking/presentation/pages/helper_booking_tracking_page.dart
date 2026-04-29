@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../../../../../../core/theme/app_color.dart';
+import 'package:toury/features/helper/features/helper_chat/presentation/pages/helper_chat_page.dart';
+import 'package:toury/features/helper/features/helper_sos/presentation/pages/helper_sos_page.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../cubit/helper_tracking_cubit.dart';
 import '../cubit/helper_tracking_state.dart';
@@ -138,7 +140,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                       polylines: [
                         Polyline(
                           points: polylinePoints,
-                          color: AppColor.primaryColor,
+                          color: BrandTokens.primaryBlue,
                           strokeWidth: 4,
                         ),
                       ],
@@ -172,9 +174,9 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                                   color: Colors.white,
                                   shape: BoxShape.circle,
                                   boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
-                                  border: Border.all(color: AppColor.primaryColor, width: 3),
+                                  border: Border.all(color: BrandTokens.primaryBlue, width: 3),
                                 ),
-                                child: const Icon(Icons.navigation, color: AppColor.primaryColor, size: 30),
+                                child: const Icon(Icons.navigation, color: BrandTokens.primaryBlue, size: 30),
                               ),
                             ),
                           ),
@@ -213,7 +215,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                       FloatingActionButton(
                         heroTag: 'follow',
                         mini: true,
-                        backgroundColor: state.isFollowing ? AppColor.primaryColor : Colors.white,
+                        backgroundColor: state.isFollowing ? BrandTokens.primaryBlue : Colors.white,
                         onPressed: () => context.read<HelperTrackingCubit>().toggleFollow(!state.isFollowing),
                         child: Icon(
                           state.isFollowing ? Icons.lock : Icons.lock_open,
@@ -280,10 +282,14 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
 
   Widget _buildDashboard(BuildContext context, dynamic tracking) {
     final theme = Theme.of(context);
+    final s = tracking.status.toString().toLowerCase();
+    final canChat = ['accepted', 'confirmed', 'inprogress', 'started'].contains(s);
+    final canSos = ['inprogress', 'started'].contains(s);
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: BrandTokens.surfaceWhite,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20)],
       ),
@@ -303,22 +309,31 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
           const SizedBox(height: 16),
           Row(
             children: [
-              const CircleAvatar(backgroundColor: AppColor.primaryColor, child: Icon(Icons.person, color: Colors.white)),
+              const CircleAvatar(backgroundColor: BrandTokens.primaryBlue, child: Icon(Icons.person, color: Colors.white)),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('On Active Trip', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
-                    Text('Trip ID: #TOUR-8293', style: theme.textTheme.bodySmall),
+                    Text('On Active Trip', style: BrandTokens.body(fontWeight: FontWeight.bold)),
+                    Text('Trip ID: #${widget.bookingId.substring(0, 8).toUpperCase()}', style: BrandTokens.body(fontSize: 12)),
                   ],
                 ),
               ),
-              CustomButton(
-                text: 'Support',
-                variant: ButtonVariant.outlined,
-                onPressed: () {},
-              ),
+              if (canChat)
+                IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline, color: BrandTokens.primaryBlue),
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => HelperChatPage(bookingId: widget.bookingId)));
+                  },
+                ),
+              if (canSos)
+                IconButton(
+                  icon: const Icon(Icons.sos, color: BrandTokens.dangerRed),
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => HelperSosPage(bookingId: widget.bookingId)));
+                  },
+                ),
             ],
           ),
         ],
@@ -330,7 +345,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
     final theme = Theme.of(context);
     return Column(
       children: [
-        Icon(icon, color: AppColor.primaryColor, size: 24),
+        Icon(icon, color: BrandTokens.primaryBlue, size: 24),
         const SizedBox(height: 8),
         Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
         Text(label, style: theme.textTheme.bodySmall),

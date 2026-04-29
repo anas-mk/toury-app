@@ -560,7 +560,7 @@ Future<void> init() async {
 
   // Cubits
   sl.registerLazySingleton(() => HelperLocationCubit(
-    tracker: sl(),
+    locationService: sl(),
     connectUseCase: sl(),
     disconnectUseCase: sl(),
     streamUseCase: sl(),
@@ -588,6 +588,9 @@ Future<void> init() async {
 
   // Services
   sl.registerLazySingleton(() => HelperLocationSignalRService());
+  // NOTE: HelperLocationTracker is deprecated. Keep it registered only if
+  // other legacy modules still depend on it (no GPS stream should be started
+  // from widgets anymore).
   sl.registerLazySingleton(() => HelperLocationTracker());
 
   // Data Source
