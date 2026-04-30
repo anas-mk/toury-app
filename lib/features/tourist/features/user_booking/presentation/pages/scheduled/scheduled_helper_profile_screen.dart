@@ -68,10 +68,31 @@ class _ProfileView extends StatelessWidget {
       return;
     }
 
+    // Defensive guard — destination coords are gated on the search form,
+    // but if a future code path bypasses it (deep link, restored state)
+    // we'd send the user into a broken sheet. Bounce back instead.
+    final params = searchParams!;
+    if (params.destinationLatitude == null ||
+        params.destinationLongitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Destination coordinates missing. Please re-run your search.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final config = await SoftBottomSheet.show<ScheduledTripConfig>(
       context: context,
       child: ScheduledTripConfigSheet(
-        defaultDestinationName: searchParams!.destinationCity,
+        destinationName: params.destinationCity,
+        destinationLatitude: params.destinationLatitude!,
+        destinationLongitude: params.destinationLongitude!,
+        pickupLocationName: params.pickupLocationName,
+        pickupLatitude: params.pickupLatitude,
+        pickupLongitude: params.pickupLongitude,
       ),
     );
     if (config == null || !context.mounted) return;

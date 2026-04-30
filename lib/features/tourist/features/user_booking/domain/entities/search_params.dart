@@ -9,6 +9,20 @@ class ScheduledSearchParams extends Equatable {
   final bool requiresCar;
   final int travelersCount;
 
+  // Destination geo-point. Required by the create endpoint, but the
+  // search endpoint only consumes `destinationCity`. We carry the coords
+  // through the flow so the booking-create call (POST /scheduled) has
+  // them when we hit it after helper selection.
+  final double? destinationLatitude;
+  final double? destinationLongitude;
+
+  // Optional pickup details captured up-front in the search form. All
+  // three may be null — the user can leave them blank and add a pickup
+  // later via chat.
+  final String? pickupLocationName;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+
   const ScheduledSearchParams({
     required this.destinationCity,
     required this.requestedDate,
@@ -17,6 +31,11 @@ class ScheduledSearchParams extends Equatable {
     required this.requestedLanguage,
     required this.requiresCar,
     required this.travelersCount,
+    this.destinationLatitude,
+    this.destinationLongitude,
+    this.pickupLocationName,
+    this.pickupLatitude,
+    this.pickupLongitude,
   });
 
   @override
@@ -28,8 +47,16 @@ class ScheduledSearchParams extends Equatable {
         requestedLanguage,
         requiresCar,
         travelersCount,
+        destinationLatitude,
+        destinationLongitude,
+        pickupLocationName,
+        pickupLatitude,
+        pickupLongitude,
       ];
 
+  /// Wire body for `POST /scheduled/search`. The search endpoint does
+  /// not consume the geo-point fields — they live on this entity purely
+  /// to pass through to the create call.
   Map<String, dynamic> toJson() => {
         'destinationCity': destinationCity,
         'requestedDate': requestedDate.toIso8601String(),

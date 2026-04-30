@@ -8,11 +8,10 @@ import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/meeting_point_type.dart';
 import '../../widgets/scheduled/scheduled_trip_config.dart';
-import '../instant/location_picker_page.dart';
-import '../instant/location_pick_result.dart';
 
-/// Modal bottom sheet that collects the FINAL configuration the user
-/// supplies before reviewing their scheduled booking.
+/// Modal bottom sheet that finalises the scheduled-booking config AFTER
+/// the user has already locked in destination + (optional) pickup on
+/// the search form.
 ///
 /// Backend contract recap (Fix 1):
 ///   * destinationName + destinationLatitude + destinationLongitude → REQUIRED
@@ -21,22 +20,37 @@ import '../instant/location_pick_result.dart';
 ///     (Pascal-case wire: "Hotel" | "Airport" | "Custom")
 ///   * notes (max 2000 chars)                                        → OPTIONAL
 ///
-/// Pickup remains optional even after we added the destination picker
-/// (Fix 3). A user can plan a trip days ahead without knowing their hotel
-/// yet, so we never block submission on missing pickup. We DO show an
-/// `OptionalHint` explaining the trade-off.
-///
-/// Returns a [ScheduledTripConfig] via [Navigator.pop] when the user
-/// taps "Continue", or `null` if they back out.
+/// Geo-points are captured up-front in `ScheduledSearchFormScreen` and
+/// passed down here as pre-resolved props. This sheet is intentionally
+/// narrow now: meeting-point preset + helper notes. Distance estimation
+/// (Fix 13) still happens here since it depends on whether the user
+/// supplied a pickup pin earlier — which only this sheet's CTA marks as
+/// "ready to review".
 class ScheduledTripConfigSheet extends StatefulWidget {
-  /// Pre-populates the destination label with the city the user already
-  /// typed in the search form. The user can override it after picking the
-  /// real destination on the map.
-  final String defaultDestinationName;
+  /// Destination label captured on the search form. Read-only here:
+  /// editing the destination after seeing helper results would invalidate
+  /// the helper match, so we lock it.
+  final String destinationName;
+
+  /// Destination geo-point captured on the search form (REQUIRED, in
+  /// valid ranges — guaranteed by the form's `_isValid` check).
+  final double destinationLatitude;
+  final double destinationLongitude;
+
+  /// Optional pickup label captured on the search form. Null if the
+  /// user skipped pickup at search time.
+  final String? pickupLocationName;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
 
   const ScheduledTripConfigSheet({
     super.key,
-    required this.defaultDestinationName,
+    required this.destinationName,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
+    this.pickupLocationName,
+    this.pickupLatitude,
+    this.pickupLongitude,
   });
 
   @override
@@ -45,21 +59,9 @@ class ScheduledTripConfigSheet extends StatefulWidget {
 }
 
 class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
-  late final TextEditingController _destinationCtrl;
-  late final TextEditingController _pickupCtrl;
   late final TextEditingController _notesCtrl;
 
   MeetingPointType _meetingPoint = MeetingPointType.custom;
-
-  // Destination geo-point (REQUIRED before submit).
-  double? _destLat;
-  double? _destLng;
-  String? _destAddress;
-
-  // Pickup geo-point (OPTIONAL — null means "not set yet").
-  double? _pickupLat;
-  double? _pickupLng;
-  String? _pickupAddress;
 
   // Currently submitting the form (used to disable the CTA while we
   // run the optional Directions request — Fix 13).
@@ -68,106 +70,20 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
   @override
   void initState() {
     super.initState();
-    _destinationCtrl =
-        TextEditingController(text: widget.defaultDestinationName);
-    _pickupCtrl = TextEditingController();
     _notesCtrl = TextEditingController();
   }
 
   @override
   void dispose() {
-    _destinationCtrl.dispose();
-    _pickupCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
 
-  /// Backend gates create on destination coords inside valid ranges.
-  bool get _destCoordsValid =>
-      _destLat != null &&
-      _destLng != null &&
-      _destLat! >= -90 &&
-      _destLat! <= 90 &&
-      _destLng! >= -180 &&
-      _destLng! <= 180;
-
-  bool get _isValid =>
-      _destinationCtrl.text.trim().isNotEmpty && _destCoordsValid;
-
-  Future<void> _pickDestination() async {
-    HapticFeedback.selectionClick();
-    final initial = _destLat == null || _destLng == null
-        ? null
-        : LocationPickResult(
-            name: _destinationCtrl.text.trim(),
-            address: _destAddress,
-            latitude: _destLat!,
-            longitude: _destLng!,
-          );
-    final result = await Navigator.of(context).push<LocationPickResult>(
-      MaterialPageRoute(
-        builder: (_) => LocationPickerPage(
-          title: 'Pick destination',
-          isPickup: false,
-          initial: initial,
-        ),
-      ),
-    );
-    if (result == null || !mounted) return;
-    setState(() {
-      _destLat = result.latitude;
-      _destLng = result.longitude;
-      _destAddress = result.address;
-      // Only overwrite the label if the user hadn't typed something
-      // custom — they may have a brand-specific name we shouldn't clobber.
-      if (_destinationCtrl.text.trim().isEmpty ||
-          _destinationCtrl.text.trim() == widget.defaultDestinationName) {
-        _destinationCtrl.text = result.name;
-      }
-    });
-  }
-
-  Future<void> _pickPickup() async {
-    HapticFeedback.selectionClick();
-    final initial = _pickupLat == null || _pickupLng == null
-        ? null
-        : LocationPickResult(
-            name: _pickupCtrl.text.trim(),
-            address: _pickupAddress,
-            latitude: _pickupLat!,
-            longitude: _pickupLng!,
-          );
-    final result = await Navigator.of(context).push<LocationPickResult>(
-      MaterialPageRoute(
-        builder: (_) => LocationPickerPage(
-          title: 'Pick pickup point',
-          isPickup: true,
-          initial: initial,
-        ),
-      ),
-    );
-    if (result == null || !mounted) return;
-    setState(() {
-      _pickupLat = result.latitude;
-      _pickupLng = result.longitude;
-      _pickupAddress = result.address;
-      if (_pickupCtrl.text.trim().isEmpty) {
-        _pickupCtrl.text = result.name;
-      }
-    });
-  }
-
-  void _clearPickup() {
-    setState(() {
-      _pickupLat = null;
-      _pickupLng = null;
-      _pickupAddress = null;
-      _pickupCtrl.clear();
-    });
-  }
+  bool get _hasPickupCoords =>
+      widget.pickupLatitude != null && widget.pickupLongitude != null;
 
   Future<void> _submit() async {
-    if (!_isValid || _submitting) return;
+    if (_submitting) return;
     HapticFeedback.lightImpact();
     setState(() => _submitting = true);
 
@@ -176,14 +92,14 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
     // routing service down), we just omit the field — the backend
     // will fall back to its Haversine straight-line approximation.
     double? distanceKm;
-    if (_pickupLat != null && _pickupLng != null) {
+    if (_hasPickupCoords) {
       try {
         final directions = sl<DirectionsService>();
         final result = await directions.estimate(
-          fromLat: _pickupLat!,
-          fromLng: _pickupLng!,
-          toLat: _destLat!,
-          toLng: _destLng!,
+          fromLat: widget.pickupLatitude!,
+          fromLng: widget.pickupLongitude!,
+          toLat: widget.destinationLatitude,
+          toLng: widget.destinationLongitude,
         );
         distanceKm = result?.distanceKm;
       } catch (_) {
@@ -193,20 +109,18 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
 
     if (!mounted) return;
 
-    final pickupName = _pickupCtrl.text.trim();
     final config = ScheduledTripConfig(
-      destinationName: _destinationCtrl.text.trim(),
-      destinationLatitude: _destLat!,
-      destinationLongitude: _destLng!,
+      destinationName: widget.destinationName,
+      destinationLatitude: widget.destinationLatitude,
+      destinationLongitude: widget.destinationLongitude,
       meetingPointType: _meetingPoint,
-      // Fix 3: keep pickup truly optional — return null when both name
-      // and coords are missing so the review screen omits the keys from
-      // the JSON payload (vs sending zeros, which the backend would
-      // treat as a real geo-point on the equator off the coast of West
-      // Africa — definitely not what the user meant).
-      pickupLocationName: pickupName.isEmpty ? null : pickupName,
-      pickupLatitude: _pickupLat,
-      pickupLongitude: _pickupLng,
+      // Fix 3: pickup stays optional. Pass null/null/null when the
+      // search form left pickup blank so the create call omits the
+      // keys (vs sending zeros, which the backend would treat as a real
+      // geo-point on the equator off the coast of West Africa).
+      pickupLocationName: widget.pickupLocationName,
+      pickupLatitude: widget.pickupLatitude,
+      pickupLongitude: widget.pickupLongitude,
       distanceKm: distanceKm,
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
     );
@@ -227,49 +141,19 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Confirm where you\u2019re going and add anything that\u2019ll '
-          'help your helper.',
+          'Add anything that\u2019ll help your helper plan the trip.',
           style: BrandTypography.body(color: BrandTokens.textSecondary),
         ),
         const SizedBox(height: 20),
 
-        // ── Destination (REQUIRED) ─────────────────────────────────────
-        _Field(
-          label: 'Destination',
-          required: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _destinationCtrl,
-                onChanged: (_) => setState(() {}),
-                decoration: _decoration(
-                  hint: 'e.g. Pyramids of Giza',
-                  icon: Icons.place_rounded,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _LocationPickButton(
-                hasCoords: _destCoordsValid,
-                primaryLabel: _destCoordsValid
-                    ? 'Change destination on map'
-                    : 'Pick destination on map',
-                coordsPreview: _destCoordsValid
-                    ? '${_destLat!.toStringAsFixed(5)}, '
-                        '${_destLng!.toStringAsFixed(5)}'
-                    : null,
-                onTap: _pickDestination,
-              ),
-              if (!_destCoordsValid) ...[
-                const SizedBox(height: 6),
-                _RequiredHint(
-                  text: 'We need your destination on the map so the '
-                      'helper can plan the trip and we can give you an '
-                      'accurate price.',
-                ),
-              ],
-            ],
-          ),
+        // ── Trip summary (read-only — set on the search form) ──────────
+        _TripSummaryCard(
+          destinationName: widget.destinationName,
+          destinationLatitude: widget.destinationLatitude,
+          destinationLongitude: widget.destinationLongitude,
+          pickupLocationName: widget.pickupLocationName,
+          pickupLatitude: widget.pickupLatitude,
+          pickupLongitude: widget.pickupLongitude,
         ),
         const SizedBox(height: 18),
 
@@ -281,41 +165,6 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
           child: _MeetingPointPicker(
             selected: _meetingPoint,
             onChanged: (v) => setState(() => _meetingPoint = v),
-          ),
-        ),
-        const SizedBox(height: 18),
-
-        // ── Pickup (OPTIONAL — Fix 3 reaffirmed) ───────────────────────
-        _Field(
-          label: 'Pickup location',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _pickupCtrl,
-                onChanged: (_) => setState(() {}),
-                decoration: _decoration(
-                  hint: 'Hotel name, address\u2026',
-                  icon: Icons.my_location_rounded,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _LocationPickButton(
-                hasCoords:
-                    _pickupLat != null && _pickupLng != null,
-                primaryLabel: _pickupLat == null
-                    ? 'Drop pin on map (optional)'
-                    : 'Change pickup pin',
-                coordsPreview: _pickupLat == null
-                    ? null
-                    : '${_pickupLat!.toStringAsFixed(5)}, '
-                        '${_pickupLng!.toStringAsFixed(5)}',
-                onTap: _pickPickup,
-                onClear: _pickupLat != null ? _clearPickup : null,
-              ),
-              const SizedBox(height: 4),
-              OptionalHint(text: _pickupHint()),
-            ],
           ),
         ),
         const SizedBox(height: 18),
@@ -335,30 +184,16 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
         ),
         const SizedBox(height: 8),
         PrimaryGradientButton(
-          label: _submitting ? 'Calculating distance\u2026' : 'Continue to review',
+          label: _submitting
+              ? 'Calculating distance\u2026'
+              : 'Continue to review',
           icon: Icons.arrow_forward_rounded,
-          onPressed: (_isValid && !_submitting) ? _submit : null,
-          visualEnabled: _isValid && !_submitting,
+          onPressed: _submitting ? null : _submit,
+          visualEnabled: !_submitting,
         ),
         const SizedBox(height: 8),
       ],
     );
-  }
-
-  /// Honest hint copy that depends on the meeting-point selection — but
-  /// never gates submission.
-  String _pickupHint() {
-    switch (_meetingPoint) {
-      case MeetingPointType.hotel:
-        return 'You can add your hotel later via chat. Adding it now '
-            'helps the helper plan and gets you a more accurate price.';
-      case MeetingPointType.airport:
-        return 'You can share your flight details later via chat. '
-            'Adding a pickup pin now sharpens the price estimate.';
-      case MeetingPointType.custom:
-        return 'You can add a pickup point later via chat. Add it now '
-            'for the most accurate price quote.';
-    }
   }
 
   InputDecoration _decoration({required String hint, IconData? icon}) {
@@ -501,130 +336,136 @@ class _MeetingPointPicker extends StatelessWidget {
   }
 }
 
-/// Compact button that opens the [LocationPickerPage] and shows the
-/// resolved coordinates underneath when present.
-class _LocationPickButton extends StatelessWidget {
-  final bool hasCoords;
-  final String primaryLabel;
-  final String? coordsPreview;
-  final VoidCallback onTap;
-  final VoidCallback? onClear;
+/// Read-only summary of the destination + pickup the user already
+/// captured on the search form. Surfaces the coords so the user can
+/// sanity-check what was sent. Editing happens by going back to the
+/// search form (single source of truth — avoids two pickers in the
+/// flow drifting out of sync).
+class _TripSummaryCard extends StatelessWidget {
+  final String destinationName;
+  final double destinationLatitude;
+  final double destinationLongitude;
+  final String? pickupLocationName;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
 
-  const _LocationPickButton({
-    required this.hasCoords,
-    required this.primaryLabel,
-    required this.coordsPreview,
-    required this.onTap,
-    this.onClear,
+  const _TripSummaryCard({
+    required this.destinationName,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
+    required this.pickupLocationName,
+    required this.pickupLatitude,
+    required this.pickupLongitude,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: hasCoords
-              ? BrandTokens.borderTinted
-              : BrandTokens.surfaceWhite,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hasCoords
-                ? BrandTokens.primaryBlue
-                : BrandTokens.borderSoft,
+    final hasPickup = pickupLatitude != null && pickupLongitude != null;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: BrandTokens.borderSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SummaryRow(
+            icon: Icons.place_rounded,
+            iconColor: BrandTokens.primaryBlue,
+            label: 'Destination',
+            primary: destinationName,
+            secondary:
+                '${destinationLatitude.toStringAsFixed(5)}, '
+                '${destinationLongitude.toStringAsFixed(5)}',
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              hasCoords ? Icons.check_circle_rounded : Icons.map_rounded,
-              size: 18,
-              color: hasCoords
-                  ? BrandTokens.primaryBlue
-                  : BrandTokens.textSecondary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    primaryLabel,
-                    style: BrandTypography.caption(
-                      weight: FontWeight.w700,
-                      color: hasCoords
-                          ? BrandTokens.primaryBlue
-                          : BrandTokens.textPrimary,
-                    ),
-                  ),
-                  if (coordsPreview != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      coordsPreview!,
-                      style: BrandTypography.caption(
-                        color: BrandTokens.textSecondary,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (onClear != null)
-              IconButton(
-                tooltip: 'Clear pin',
-                onPressed: onClear,
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 18,
-                  color: BrandTokens.textMuted,
-                ),
-                splashRadius: 18,
-              )
-            else
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: BrandTokens.textMuted,
-              ),
-          ],
-        ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: BrandTokens.borderSoft),
+          const SizedBox(height: 12),
+          _SummaryRow(
+            icon: hasPickup
+                ? Icons.my_location_rounded
+                : Icons.location_off_outlined,
+            iconColor: hasPickup
+                ? BrandTokens.primaryBlue
+                : BrandTokens.textMuted,
+            label: 'Pickup',
+            primary: hasPickup
+                ? (pickupLocationName?.isNotEmpty == true
+                    ? pickupLocationName!
+                    : 'Pinned location')
+                : 'Not set — you can add it later via chat',
+            secondary: hasPickup
+                ? '${pickupLatitude!.toStringAsFixed(5)}, '
+                    '${pickupLongitude!.toStringAsFixed(5)}'
+                : null,
+            muted: !hasPickup,
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Inline hint pinned to a REQUIRED field. Visually distinct from
-/// [OptionalHint] so users instantly understand the difference.
-class _RequiredHint extends StatelessWidget {
-  final String text;
+class _SummaryRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String primary;
+  final String? secondary;
+  final bool muted;
 
-  const _RequiredHint({required this.text});
+  const _SummaryRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.primary,
+    required this.secondary,
+    this.muted = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 14,
-            color: BrandTokens.textSecondary,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: BrandTypography.caption(
-                color: BrandTokens.textSecondary,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: iconColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: BrandTypography.caption(
+                  weight: FontWeight.w700,
+                  color: BrandTokens.textSecondary,
+                ),
               ),
-            ),
+              const SizedBox(height: 2),
+              Text(
+                primary,
+                style: BrandTypography.body(
+                  weight: FontWeight.w600,
+                  color: muted
+                      ? BrandTokens.textMuted
+                      : BrandTokens.textPrimary,
+                ),
+              ),
+              if (secondary != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  secondary!,
+                  style: BrandTypography.caption(
+                    color: BrandTokens.textSecondary,
+                  ),
+                ),
+              ],
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

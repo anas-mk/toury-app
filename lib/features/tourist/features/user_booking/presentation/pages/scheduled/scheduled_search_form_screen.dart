@@ -7,6 +7,8 @@ import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/search_params.dart';
+import '../instant/location_picker_page.dart';
+import '../instant/location_pick_result.dart';
 
 /// First step in the Scheduled Trip flow.
 ///
@@ -36,6 +38,20 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   bool _requiresCar = false;
   int _travelers = 1;
 
+  // Destination geo-point. Required by the booking-create call (so we
+  // capture it now and carry it through search → results → review →
+  // create). The visible city name is what we send on the search body.
+  double? _destLat;
+  double? _destLng;
+  String? _destAddress;
+
+  // Pickup geo-point. Fully optional — the user can plan the trip days
+  // ahead and add a hotel/airport pin later via chat.
+  double? _pickupLat;
+  double? _pickupLng;
+  String? _pickupAddress;
+  late final TextEditingController _pickupCtrl;
+
   static const _languages = <(String code, String label)>[
     ('en', 'English'),
     ('ar', 'Arabic'),
@@ -53,12 +69,14 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     super.initState();
     _cityCtrl = TextEditingController(text: widget.initialDestination ?? '');
     _travelersCtrl = TextEditingController(text: '1');
+    _pickupCtrl = TextEditingController();
   }
 
   @override
   void dispose() {
     _cityCtrl.dispose();
     _travelersCtrl.dispose();
+    _pickupCtrl.dispose();
     super.dispose();
   }
 
@@ -83,8 +101,20 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     return composed.isBefore(DateTime.now());
   }
 
+  /// Backend create-call rejects bookings without a destination geo-point
+  /// in valid ranges. We capture the coords here and keep `_isValid` strict
+  /// so the user can never reach the search call without them.
+  bool get _destCoordsValid =>
+      _destLat != null &&
+      _destLng != null &&
+      _destLat! >= -90 &&
+      _destLat! <= 90 &&
+      _destLng! >= -180 &&
+      _destLng! <= 180;
+
   bool get _isValid =>
       _cityCtrl.text.trim().isNotEmpty &&
+      _destCoordsValid &&
       _date != null &&
       _start != null &&
       !_isInPast &&
@@ -118,6 +148,83 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     }
   }
 
+  /// Opens the fullscreen [LocationPickerPage] for the destination.
+  /// Pre-fills the city field with the resolved name when the user
+  /// hasn't typed something custom into it yet (so we don't clobber a
+  /// brand name like "Pyramids of Giza" with the reverse-geocoded address).
+  Future<void> _pickDestination() async {
+    HapticFeedback.selectionClick();
+    final initial = _destLat == null || _destLng == null
+        ? null
+        : LocationPickResult(
+            name: _cityCtrl.text.trim(),
+            address: _destAddress,
+            latitude: _destLat!,
+            longitude: _destLng!,
+          );
+    final result = await Navigator.of(context).push<LocationPickResult>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerPage(
+          title: 'Pick destination',
+          isPickup: false,
+          initial: initial,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _destLat = result.latitude;
+      _destLng = result.longitude;
+      _destAddress = result.address;
+      // Only auto-fill the visible name when the field is empty or still
+      // matches the initial-destination prop — otherwise respect user
+      // input.
+      final current = _cityCtrl.text.trim();
+      if (current.isEmpty || current == (widget.initialDestination ?? '')) {
+        _cityCtrl.text = result.name;
+      }
+    });
+  }
+
+  Future<void> _pickPickup() async {
+    HapticFeedback.selectionClick();
+    final initial = _pickupLat == null || _pickupLng == null
+        ? null
+        : LocationPickResult(
+            name: _pickupCtrl.text.trim(),
+            address: _pickupAddress,
+            latitude: _pickupLat!,
+            longitude: _pickupLng!,
+          );
+    final result = await Navigator.of(context).push<LocationPickResult>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerPage(
+          title: 'Pick pickup point',
+          isPickup: true,
+          initial: initial,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _pickupLat = result.latitude;
+      _pickupLng = result.longitude;
+      _pickupAddress = result.address;
+      if (_pickupCtrl.text.trim().isEmpty) {
+        _pickupCtrl.text = result.name;
+      }
+    });
+  }
+
+  void _clearPickup() {
+    setState(() {
+      _pickupLat = null;
+      _pickupLng = null;
+      _pickupAddress = null;
+      _pickupCtrl.clear();
+    });
+  }
+
   Future<void> _pickStart() async {
     final result = await showTimePicker(
       context: context,
@@ -149,6 +256,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     // Wire format: "HH:mm:ss".
     final h = _start!.hour.toString().padLeft(2, '0');
     final m = _start!.minute.toString().padLeft(2, '0');
+    final pickupName = _pickupCtrl.text.trim();
     final params = ScheduledSearchParams(
       destinationCity: _cityCtrl.text.trim(),
       // Send the trip-day as UTC midnight so the backend receives the
@@ -163,6 +271,18 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
       requestedLanguage: _languageCode,
       requiresCar: _requiresCar,
       travelersCount: _travelers,
+      // Carry destination coords through the flow — the search call
+      // ignores them, but the create call (POST /scheduled) requires
+      // them. _isValid guarantees they're populated and in range.
+      destinationLatitude: _destLat,
+      destinationLongitude: _destLng,
+      // Pickup is fully optional. Pass null when fields are empty so
+      // the create call can omit the keys from the JSON payload (rather
+      // than sending zeros, which the backend would treat as a real
+      // geo-point off the West African coast).
+      pickupLocationName: pickupName.isEmpty ? null : pickupName,
+      pickupLatitude: _pickupLat,
+      pickupLongitude: _pickupLng,
     );
 
     context.push(
@@ -203,16 +323,81 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                   style: BrandTypography.body(color: BrandTokens.textSecondary),
                 ),
                 const SizedBox(height: 24),
+
+                // ── Destination (REQUIRED — coords + label) ──────────
                 _Field(
-                  label: 'Destination city',
+                  label: 'Destination',
                   required: true,
-                  child: TextField(
-                    controller: _cityCtrl,
-                    onChanged: (_) => setState(() {}),
-                    decoration: _decoration(
-                      hint: 'e.g. Cairo, Luxor, Aswan',
-                      icon: Icons.location_city_rounded,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _cityCtrl,
+                        onChanged: (_) => setState(() {}),
+                        decoration: _decoration(
+                          hint: 'e.g. Pyramids of Giza, Cairo',
+                          icon: Icons.place_rounded,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _LocationPickButton(
+                        hasCoords: _destCoordsValid,
+                        primaryLabel: _destCoordsValid
+                            ? 'Change destination on map'
+                            : 'Pick destination on map',
+                        coordsPreview: _destCoordsValid
+                            ? '${_destLat!.toStringAsFixed(5)}, '
+                                '${_destLng!.toStringAsFixed(5)}'
+                            : null,
+                        onTap: _pickDestination,
+                      ),
+                      if (!_destCoordsValid) ...[
+                        const SizedBox(height: 6),
+                        _InlineError(
+                          text:
+                              'Tap the map button to mark exactly where you want to go.',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // ── Pickup (OPTIONAL) ────────────────────────────────
+                _Field(
+                  label: 'Pickup location',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _pickupCtrl,
+                        onChanged: (_) => setState(() {}),
+                        decoration: _decoration(
+                          hint: 'Hotel name, address\u2026',
+                          icon: Icons.my_location_rounded,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _LocationPickButton(
+                        hasCoords:
+                            _pickupLat != null && _pickupLng != null,
+                        primaryLabel: _pickupLat == null
+                            ? 'Drop pin on map (optional)'
+                            : 'Change pickup pin',
+                        coordsPreview: _pickupLat == null
+                            ? null
+                            : '${_pickupLat!.toStringAsFixed(5)}, '
+                                '${_pickupLng!.toStringAsFixed(5)}',
+                        onTap: _pickPickup,
+                        onClear: _pickupLat != null ? _clearPickup : null,
+                      ),
+                      const SizedBox(height: 4),
+                      const OptionalHint(
+                        text: 'You can leave pickup blank and add it '
+                            'later via chat. Adding it now sharpens '
+                            'the price estimate.',
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -747,6 +932,101 @@ class _CarToggle extends StatelessWidget {
               onChanged: onChanged,
               activeThumbColor: BrandTokens.primaryBlue,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact button row that opens a location picker and surfaces the
+/// resolved coordinates underneath when present. Mirrors the same widget
+/// used in `ScheduledTripConfigSheet` so both screens look identical.
+class _LocationPickButton extends StatelessWidget {
+  final bool hasCoords;
+  final String primaryLabel;
+  final String? coordsPreview;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+
+  const _LocationPickButton({
+    required this.hasCoords,
+    required this.primaryLabel,
+    required this.coordsPreview,
+    required this.onTap,
+    this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: hasCoords
+              ? BrandTokens.borderTinted
+              : BrandTokens.surfaceWhite,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasCoords
+                ? BrandTokens.primaryBlue
+                : BrandTokens.borderSoft,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasCoords ? Icons.check_circle_rounded : Icons.map_rounded,
+              size: 18,
+              color: hasCoords
+                  ? BrandTokens.primaryBlue
+                  : BrandTokens.textSecondary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    primaryLabel,
+                    style: BrandTypography.caption(
+                      weight: FontWeight.w700,
+                      color: hasCoords
+                          ? BrandTokens.primaryBlue
+                          : BrandTokens.textPrimary,
+                    ),
+                  ),
+                  if (coordsPreview != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      coordsPreview!,
+                      style: BrandTypography.caption(
+                        color: BrandTokens.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                tooltip: 'Clear pin',
+                onPressed: onClear,
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: BrandTokens.textMuted,
+                ),
+                splashRadius: 18,
+              )
+            else
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: BrandTokens.textMuted,
+              ),
           ],
         ),
       ),
