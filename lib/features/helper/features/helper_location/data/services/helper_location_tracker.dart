@@ -79,6 +79,20 @@ class HelperLocationTracker {
     );
   }
 
+  double distanceBetweenMeters(
+    double startLatitude,
+    double startLongitude,
+    double endLatitude,
+    double endLongitude,
+  ) {
+    return Geolocator.distanceBetween(
+      startLatitude,
+      startLongitude,
+      endLatitude,
+      endLongitude,
+    );
+  }
+
   void dispose() {
     stopTracking();
     if (!_locationController.isClosed) {

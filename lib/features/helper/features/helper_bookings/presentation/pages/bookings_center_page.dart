@@ -1,22 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
-import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/di/injection_container.dart';
-import '../../../../../tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
-import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../widgets/shared/empty_state_view.dart';
 import '../widgets/shared/skeleton_booking_card.dart';
-import '../../../../../../core/widgets/booking_status_chip.dart';
 
 import '../widgets/shared/booking_card.dart';
 
 class BookingsCenterPage extends StatefulWidget {
-  const BookingsCenterPage({super.key});
+  final int initialTabIndex;
+  const BookingsCenterPage({super.key, this.initialTabIndex = 0});
 
   @override
   State<BookingsCenterPage> createState() => _BookingsCenterPageState();
@@ -28,24 +24,59 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
   late final IncomingRequestsCubit _requestsCubit;
   late final UpcomingBookingsCubit _upcomingCubit;
   late final HelperHistoryCubit _historyCubit;
+  final ScrollController _historyScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
     _requestsCubit = sl<IncomingRequestsCubit>();
     _upcomingCubit = sl<UpcomingBookingsCubit>();
     _historyCubit = sl<HelperHistoryCubit>();
-    
-    _requestsCubit.load();
-    _upcomingCubit.load();
-    _historyCubit.load();
+    _historyScrollController.addListener(() {
+      if (_historyScrollController.position.pixels >=
+          _historyScrollController.position.maxScrollExtent - 180) {
+        _historyCubit.loadMore();
+      }
+    });
+    _tabController.addListener(_onTabChanged);
+    _loadCurrentTab();
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    _loadCurrentTab();
+  }
+
+  void _loadCurrentTab() {
+    switch (_tabController.index) {
+      case 0:
+        if (_requestsCubit.state is IncomingRequestsInitial) {
+          _requestsCubit.load();
+        }
+        break;
+      case 1:
+        if (_upcomingCubit.state is UpcomingBookingsInitial) {
+          _upcomingCubit.load();
+        }
+        break;
+      case 2:
+        if (_historyCubit.state is HelperHistoryInitial) {
+          _historyCubit.load();
+        }
+        break;
+    }
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
-    _requestsCubit.close();
+    _historyScrollController.dispose();
     _upcomingCubit.close();
     _historyCubit.close();
     super.dispose();
@@ -87,7 +118,10 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
           children: [
             _RequestsTab(cubit: _requestsCubit),
             _UpcomingTab(cubit: _upcomingCubit),
-            _HistoryTab(cubit: _historyCubit),
+            _HistoryTab(
+              cubit: _historyCubit,
+              scrollController: _historyScrollController,
+            ),
           ],
         ),
       ),
@@ -129,6 +163,13 @@ class _RequestsTab extends StatelessWidget {
                 child: BookingCard(booking: state.requests[index]),
               ),
             ),
+          );
+        }
+        if (state is IncomingRequestsEmpty) {
+          return const EmptyStateView(
+            icon: Icons.notifications_none_rounded,
+            title: 'No new requests',
+            subtitle: 'When travelers request your service, they will appear here.',
           );
         }
         if (state is IncomingRequestsError) {
@@ -184,7 +225,12 @@ class _UpcomingTab extends StatelessWidget {
 
 class _HistoryTab extends StatelessWidget {
   final HelperHistoryCubit cubit;
-  const _HistoryTab({required this.cubit});
+  final ScrollController scrollController;
+
+  const _HistoryTab({
+    required this.cubit,
+    required this.scrollController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -209,12 +255,21 @@ class _HistoryTab extends StatelessWidget {
             onRefresh: () async => cubit.load(),
             color: BrandTokens.primaryBlue,
             child: ListView.builder(
+              controller: scrollController,
               padding: const EdgeInsets.all(20),
-              itemCount: state.bookings.length,
-              itemBuilder: (context, index) => FadeInSlide(
-                delay: Duration(milliseconds: index * 50),
-                child: BookingCard(booking: state.bookings[index]),
-              ),
+              itemCount: state.bookings.length + (state.hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index >= state.bookings.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator.adaptive()),
+                  );
+                }
+                return FadeInSlide(
+                  delay: Duration(milliseconds: index * 50),
+                  child: BookingCard(booking: state.bookings[index]),
+                );
+              },
             ),
           );
         }

@@ -168,6 +168,9 @@ class _InstantTripDetailsViewState extends State<_InstantTripDetailsView> {
     if (!_canSubmit) return;
     final request = InstantSearchRequest(
       pickupLocationName: _pickup!.name,
+      destinationName: _destination!.name,
+      destinationLatitude: _destination!.latitude,
+      destinationLongitude: _destination!.longitude,
       pickupLatitude: _pickup!.latitude,
       pickupLongitude: _pickup!.longitude,
       durationInMinutes: _durationMinutes,

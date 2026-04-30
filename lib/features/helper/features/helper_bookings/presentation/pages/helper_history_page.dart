@@ -7,7 +7,6 @@ import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
-import '../../../../../../core/widgets/booking_status_chip.dart';
 
 class HelperHistoryPage extends StatefulWidget {
   const HelperHistoryPage({super.key});
@@ -116,7 +115,7 @@ class _HelperHistoryPageState extends State<HelperHistoryPage>
                   _HistoryList(
                     bookings: cancelled,
                     scrollCtrl: _scroll,
-                    hasMore: false,
+                    hasMore: state.hasMore,
                     onRefresh: () => _cubit.load(
                         status: 'cancelled', from: _from, to: _to),
                   ),

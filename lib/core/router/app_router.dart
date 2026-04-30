@@ -520,7 +520,7 @@ class AppRouter {
               GoRoute(
                 path: helperBookings,
                 name: 'helper-bookings',
-                builder: (context, state) => const BookingsCenterPage(),
+                builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
               ),
             ],
           ),
@@ -568,7 +568,7 @@ class AppRouter {
         path: helperRequests,
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BookingsCenterPage(),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
       ),
       GoRoute(
         path: helperRequestDetails,
@@ -602,7 +602,7 @@ class AppRouter {
         path: helperHistory,
         name: 'helper-history',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BookingsCenterPage(),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 2),
       ),
       GoRoute(
         path: helperEarnings,

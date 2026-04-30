@@ -29,15 +29,25 @@ class LocationStatusError extends LocationStatusState {
 class LocationStatusCubit extends Cubit<LocationStatusState> {
   final GetLocationStatusUseCase getStatusUseCase;
   bool _inFlight = false;
+  DateTime? _lastFetchAt;
+  static const Duration _minFetchInterval = Duration(seconds: 8);
 
   LocationStatusCubit({required this.getStatusUseCase}) : super(LocationStatusInitial());
 
-  Future<void> loadStatus() async {
+  Future<void> loadStatus({bool force = false}) async {
     if (_inFlight) return;
+    if (!force && _lastFetchAt != null) {
+      final diff = DateTime.now().difference(_lastFetchAt!);
+      if (diff < _minFetchInterval) return;
+    }
+
     _inFlight = true;
-    emit(LocationStatusLoading());
+    if (state is! LocationStatusLoaded) {
+      emit(LocationStatusLoading());
+    }
     try {
       final status = await getStatusUseCase.execute();
+      _lastFetchAt = DateTime.now();
       emit(LocationStatusLoaded(status));
     } catch (e) {
       emit(LocationStatusError(e.toString()));

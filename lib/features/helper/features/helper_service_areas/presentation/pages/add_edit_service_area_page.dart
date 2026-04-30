@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_theme.dart';
@@ -22,25 +23,17 @@ class AddEditServiceAreaPage extends StatefulWidget {
 
 class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   final _formKey = GlobalKey<FormState>();
-  final _countryCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
-  final _areaNameCtrl = TextEditingController();
 
   double _lat = 0;
   double _lng = 0;
   double _radiusKm = 10;
   bool _isPrimary = false;
   bool _locationPicked = false;
+  String? _resolvedCity;
+  String? _resolvedCountry;
+  bool _isResolvingAddress = false;
 
   static const _radiusOptions = [5, 10, 15, 20];
-  
-  static const _cityCoords = {
-    'cairo': (lat: 30.0444, lng: 31.2357),
-    'alexandria': (lat: 31.2001, lng: 29.9187),
-    'dubai': (lat: 25.2048, lng: 55.2708),
-    'riyadh': (lat: 24.7136, lng: 46.6753),
-    '10th of ramadan': (lat: 30.3065, lng: 31.7420),
-  };
 
   bool get _isEditing => widget.existing != null;
 
@@ -49,36 +42,44 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
     super.initState();
     final e = widget.existing;
     if (e != null) {
-      _countryCtrl.text = e.country;
-      _cityCtrl.text = e.city;
-      _areaNameCtrl.text = e.areaName ?? '';
+      _resolvedCountry = e.country;
+      _resolvedCity = e.city;
       _lat = e.latitude;
       _lng = e.longitude;
       _radiusKm = _radiusOptions.contains(e.radiusKm.round()) ? e.radiusKm : 10;
       _isPrimary = e.isPrimary;
       _locationPicked = true;
     }
-    _cityCtrl.addListener(_onCityChanged);
   }
 
   @override
   void dispose() {
-    _cityCtrl.removeListener(_onCityChanged);
-    _countryCtrl.dispose();
-    _cityCtrl.dispose();
-    _areaNameCtrl.dispose();
     super.dispose();
   }
 
-  void _onCityChanged() {
-    final city = _cityCtrl.text.trim().toLowerCase();
-    final coords = _cityCoords[city];
-    if (coords != null) {
-      setState(() {
-        _lat = coords.lat;
-        _lng = coords.lng;
-        _locationPicked = true;
-      });
+  Future<void> _resolveAddressFromCoordinates() async {
+    setState(() => _isResolvingAddress = true);
+    try {
+      final placemarks = await placemarkFromCoordinates(_lat, _lng);
+      final p = placemarks.isNotEmpty ? placemarks.first : null;
+      if (p != null) {
+        final city = p.locality?.trim().isNotEmpty == true
+            ? p.locality!.trim()
+            : (p.subAdministrativeArea?.trim().isNotEmpty == true
+                ? p.subAdministrativeArea!.trim()
+                : p.administrativeArea?.trim());
+        final country = p.country?.trim();
+        if (!mounted) return;
+        setState(() {
+          _resolvedCity = city;
+          _resolvedCountry = country;
+        });
+      }
+    } catch (_) {
+      // User can retry by re-picking on map.
+    } finally {
+      if (!mounted) return;
+      setState(() => _isResolvingAddress = false);
     }
   }
 
@@ -96,17 +97,28 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
         _lat = result.latitude;
         _lng = result.longitude;
         _locationPicked = true;
+        _resolvedCity = null;
+        _resolvedCountry = null;
       });
+      await _resolveAddressFromCoordinates();
     }
   }
 
   void _submit(BuildContext context) {
-    if (!_formKey.currentState!.validate()) return;
-
     if (!_locationPicked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please pick a location on the map or enter a recognised city name'),
+          content: Text('Please pick a location on the map'),
+          backgroundColor: AppColor.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if ((_resolvedCity ?? '').trim().isEmpty || (_resolvedCountry ?? '').trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not resolve city/country. Please re-pick location on map.'),
           backgroundColor: AppColor.errorColor,
           behavior: SnackBarBehavior.floating,
         ),
@@ -116,9 +128,9 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
 
     final entity = ServiceAreaEntity(
       id: widget.existing?.id ?? '',
-      country: _countryCtrl.text.trim(),
-      city: _cityCtrl.text.trim(),
-      areaName: _areaNameCtrl.text.trim().isEmpty ? null : _areaNameCtrl.text.trim(),
+      country: _resolvedCountry!.trim(),
+      city: _resolvedCity!.trim(),
+      areaName: null,
       latitude: _lat,
       longitude: _lng,
       radiusKm: _radiusKm,
@@ -219,41 +231,21 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                   ),
                 ),
                 const SizedBox(height: AppTheme.spaceLG),
-
-                // ── Country Field ───────────────────────────────────────────────────
-                _FormLabel('Country'),
-                const SizedBox(height: AppTheme.spaceXS),
-                _PremiumTextField(
-                  controller: _countryCtrl,
-                  hint: 'e.g. United Arab Emirates',
-                  icon: Icons.flag_rounded,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Country is required' : null,
-                ),
-                const SizedBox(height: AppTheme.spaceLG),
-
-                // ── City Field ─────────────────────────────────────────────────────
-                _FormLabel('City ⭐ Required'),
-                const SizedBox(height: AppTheme.spaceXS),
-                _PremiumTextField(
-                  controller: _cityCtrl,
-                  hint: 'e.g. Dubai',
-                  icon: Icons.location_city_rounded,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'City is required for matching' : null,
-                ),
-                const SizedBox(height: AppTheme.spaceLG),
-
-                // ── Area Name Field ────────────────────────────────────────────────
-                _FormLabel('Area Name (Optional)'),
-                const SizedBox(height: AppTheme.spaceXS),
-                _PremiumTextField(
-                  controller: _areaNameCtrl,
-                  hint: 'e.g. Downtown, Marina, JBR',
-                  icon: Icons.area_chart_rounded,
+                _ResolvedLocationCard(
+                  city: _resolvedCity,
+                  country: _resolvedCountry,
+                  isResolving: _isResolvingAddress,
                 ),
                 const SizedBox(height: AppTheme.spaceXL),
 
                 // ── Radius Selector ───────────────────────────────────────────────────
-                _FormLabel('Coverage Radius'),
+                Text(
+                  'Coverage Radius',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: AppTheme.spaceXS),
                 CustomCard(
                   variant: CardVariant.outlined,
@@ -348,60 +340,49 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   }
 }
 
-class _FormLabel extends StatelessWidget {
-  final String text;
-  const _FormLabel(this.text);
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Text(
-      text,
-      style: theme.textTheme.labelLarge?.copyWith(
-        color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-}
+class _ResolvedLocationCard extends StatelessWidget {
+  final String? city;
+  final String? country;
+  final bool isResolving;
 
-class _PremiumTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-  final String? Function(String?)? validator;
-
-  const _PremiumTextField({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-    this.validator,
+  const _ResolvedLocationCard({
+    required this.city,
+    required this.country,
+    required this.isResolving,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, size: 20),
-        filled: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          borderSide: BorderSide(color: theme.dividerColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          borderSide: BorderSide(color: theme.dividerColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-        ),
+    return CustomCard(
+      variant: CardVariant.outlined,
+      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      child: Row(
+        children: [
+          Icon(Icons.location_city_rounded, color: theme.colorScheme.primary),
+          const SizedBox(width: AppTheme.spaceMD),
+          Expanded(
+            child: isResolving
+                ? Text(
+                    'Resolving city/country from map...',
+                    style: theme.textTheme.bodyMedium,
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (city ?? '').isEmpty ? 'City not found' : city!,
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        (country ?? '').isEmpty ? 'Country not found' : country!,
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.6)),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }

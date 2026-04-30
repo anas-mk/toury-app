@@ -1,11 +1,8 @@
 import 'package:equatable/equatable.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/helper_booking_entities.dart';
-import '../../domain/entities/helper_earnings_entities.dart';
 import '../../domain/usecases/helper_bookings_usecases.dart';
 import 'dart:async';
-import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 
 // HELPER HISTORY CUBIT
 abstract class HelperHistoryState extends Equatable {
@@ -29,7 +26,7 @@ class HelperHistoryError extends HelperHistoryState {
 class HelperHistoryCubit extends Cubit<HelperHistoryState> {
   final GetHelperHistoryUseCase _getHistory;
   int _page = 1;
-  static const int _pageSize = 20;
+  static const int _pageSize = 10;
   String? _status;
   DateTime? _from;
   DateTime? _to;

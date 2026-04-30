@@ -44,6 +44,7 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 /// (e.g. [MessagingService.start]) check this so they don't blow up trying to
 /// touch FirebaseMessaging when there's no native config on device.
 bool firebaseReady = false;
+bool _backgroundHandlerRegistered = false;
 
 /// Bootstrap-owned subscription for `onMessageOpenedApp`. Held at the
 /// top level so it's installed BEFORE any auth state — this is the
@@ -101,7 +102,10 @@ void main() async {
     final app = await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+    if (!_backgroundHandlerRegistered) {
+      FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+      _backgroundHandlerRegistered = true;
+    }
     firebaseReady = true;
     RealtimeLogger.instance.log(
       'FCM',

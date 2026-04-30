@@ -20,7 +20,6 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   late final ActiveBookingCubit _activeCubit;
   late final StartTripCubit _startCubit;
   late final EndTripCubit _endCubit;
-  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -29,14 +28,10 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     _startCubit  = sl<StartTripCubit>();
     _endCubit    = sl<EndTripCubit>();
     _activeCubit.load();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5),
-        (_) => _activeCubit.load(silent: true));
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
-    _activeCubit.close();
     _startCubit.close();
     _endCubit.close();
     super.dispose();

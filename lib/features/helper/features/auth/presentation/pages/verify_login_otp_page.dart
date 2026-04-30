@@ -11,7 +11,6 @@ import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../data/datasources/helper_local_data_source.dart';
-import '../../../helper_bookings/domain/entities/helper_booking_entities.dart';
 import '../../../helper_bookings/domain/usecases/helper_bookings_usecases.dart';
 import '../cubit/helper_auth_cubit.dart';
 import '../cubit/helper_auth_state.dart';
@@ -81,6 +80,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
 
       if (token != null) {
         final locCubit = sl<HelperLocationCubit>();
+        locCubit.setAvailabilityState(HelperAvailabilityState.availableNow);
         final granted = await locCubit.requestPermissionAndInitialize(token);
 
         if (!granted) {

@@ -5,7 +5,6 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_card.dart';
-import '../../../../../../core/widgets/custom_button.dart';
 import '../cubit/service_areas_cubit.dart';
 import '../../domain/entities/service_area_entities.dart';
 
@@ -86,7 +85,12 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
           },
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => context.push('/helper/add-service-area'),
+          onPressed: () async {
+            await context.push('/helper/add-service-area');
+            if (mounted) {
+              _cubit.loadAreas();
+            }
+          },
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: isDark ? Colors.black : Colors.white,
           icon: const Icon(Icons.add_location_alt_rounded),
@@ -281,7 +285,12 @@ class _ServiceAreaCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => context.push('/helper/edit-service-area', extra: area),
+                  onPressed: () async {
+                    await context.push('/helper/edit-service-area', extra: area);
+                    if (context.mounted) {
+                      context.read<ServiceAreasCubit>().loadAreas();
+                    }
+                  },
                   icon: const Icon(Icons.edit_rounded, size: 16),
                   label: const Text('Edit'),
                 ),
@@ -303,8 +312,6 @@ class _ServiceAreaCard extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context) {
-    final theme = Theme.of(context);
-    
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

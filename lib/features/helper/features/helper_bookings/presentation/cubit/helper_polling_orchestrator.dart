@@ -14,6 +14,7 @@ class HelperPollingOrchestrator extends Cubit<void> {
   final LocationStatusCubit _statusCubit;
   
   Timer? _timer;
+  bool _started = false;
 
   HelperPollingOrchestrator(
     this._dashCubit,
@@ -23,6 +24,8 @@ class HelperPollingOrchestrator extends Cubit<void> {
   ) : super(null);
 
   void start() {
+    if (_started) return;
+    _started = true;
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_dashCubit.state is HelperDashboardLoaded) {
@@ -38,6 +41,7 @@ class HelperPollingOrchestrator extends Cubit<void> {
   }
 
   void stop() {
+    _started = false;
     _timer?.cancel();
     _timer = null;
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
@@ -23,9 +24,39 @@ class _MapPickerPageState extends State<MapPickerPage> {
   void initState() {
     super.initState();
     _selected = LatLng(
-      widget.initialLat ?? 25.2048, // Default: Dubai
-      widget.initialLng ?? 55.2708,
+      widget.initialLat ?? 30.0444,
+      widget.initialLng ?? 31.2357,
     );
+    if (widget.initialLat == null || widget.initialLng == null) {
+      _tryCenterOnCurrentLocation();
+    }
+  }
+
+  Future<void> _tryCenterOnCurrentLocation() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+
+      final current = LatLng(position.latitude, position.longitude);
+      setState(() => _selected = current);
+      _mapController.move(current, 15);
+    } catch (_) {
+      // Keep fallback center if current location is unavailable.
+    }
   }
 
   @override

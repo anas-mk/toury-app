@@ -27,7 +27,7 @@ abstract class HelperBookingsRemoteDataSource {
     DateTime? from,
     DateTime? to,
     int page = 1,
-    int pageSize = 20,
+    int pageSize = 10,
     CancelToken? cancelToken,
   });
   Future<HelperEarningsModel> getEarnings({CancelToken? cancelToken});
@@ -258,23 +258,28 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
     DateTime? from,
     DateTime? to,
     int page = 1,
-    int pageSize = 20,
+    int pageSize = 10,
     CancelToken? cancelToken,
   }) async {
     try {
-      final params = <String, dynamic>{'page': page, 'pageSize': pageSize};
-      if (status != null) params['status'] = status;
+      final normalizedPageSize = pageSize.clamp(1, 50);
+      final params = <String, dynamic>{'page': page, 'pageSize': normalizedPageSize};
+      if (status != null && status.trim().isNotEmpty) {
+        params['status'] = status.trim();
+      }
       if (from != null) params['from'] = from.toIso8601String();
       if (to != null) params['to'] = to.toIso8601String();
       final res = await dio.get(ApiConfig.helperHistory,
           queryParameters: params, cancelToken: cancelToken);
       _assertOk(res);
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is Map && raw['items'] is List)
-              ? raw['items'] as List
-              : (raw is List ? raw : []);
+      final list = (raw is Map && raw['data'] is Map && raw['data']['items'] is List)
+          ? raw['data']['items'] as List
+          : (raw is Map && raw['data'] is List)
+              ? raw['data'] as List
+              : (raw is Map && raw['items'] is List)
+                  ? raw['items'] as List
+                  : (raw is List ? raw : []);
       return list.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ServerException(_msg(e));

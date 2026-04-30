@@ -17,6 +17,8 @@ class EligibilityDebugPage extends StatefulWidget {
 class _EligibilityDebugPageState extends State<EligibilityDebugPage> {
   late final EligibilityCubit _cubit;
   final TextEditingController _languageController = TextEditingController(text: 'en');
+  final TextEditingController _pickupLatController = TextEditingController();
+  final TextEditingController _pickupLngController = TextEditingController();
   bool _requiresCar = false;
 
   @override
@@ -27,7 +29,11 @@ class _EligibilityDebugPageState extends State<EligibilityDebugPage> {
   }
 
   void _load() {
+    final pickupLat = double.tryParse(_pickupLatController.text.trim());
+    final pickupLng = double.tryParse(_pickupLngController.text.trim());
     _cubit.loadEligibility(
+      pickupLat: pickupLat,
+      pickupLng: pickupLng,
       language: _languageController.text,
       requiresCar: _requiresCar,
     );
@@ -36,6 +42,8 @@ class _EligibilityDebugPageState extends State<EligibilityDebugPage> {
   @override
   void dispose() {
     _languageController.dispose();
+    _pickupLatController.dispose();
+    _pickupLngController.dispose();
     _cubit.close();
     super.dispose();
   }
@@ -135,19 +143,77 @@ class _EligibilityDebugPageState extends State<EligibilityDebugPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _languageController,
-                    onSubmitted: (_) => _load(),
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      labelText: 'LOCALE FILTER',
-                      labelStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
-                      prefixIcon: Icon(Icons.language_rounded, color: theme.colorScheme.secondary, size: 18),
-                      filled: true,
-                      fillColor: theme.colorScheme.onSurface.withOpacity(0.05),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD), borderSide: BorderSide.none),
-                    ),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _languageController,
+                        onSubmitted: (_) => _load(),
+                        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          labelText: 'LOCALE FILTER',
+                          labelStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
+                          prefixIcon: Icon(Icons.language_rounded, color: theme.colorScheme.secondary, size: 18),
+                          filled: true,
+                          fillColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spaceSM),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _pickupLatController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              onSubmitted: (_) => _load(),
+                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                              decoration: InputDecoration(
+                                labelText: 'PICKUP LAT (OPTIONAL)',
+                                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                  fontSize: 10,
+                                ),
+                                prefixIcon: Icon(Icons.place_outlined, color: theme.colorScheme.secondary, size: 16),
+                                filled: true,
+                                fillColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppTheme.spaceSM),
+                          Expanded(
+                            child: TextField(
+                              controller: _pickupLngController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              onSubmitted: (_) => _load(),
+                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                              decoration: InputDecoration(
+                                labelText: 'PICKUP LNG (OPTIONAL)',
+                                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                  fontSize: 10,
+                                ),
+                                prefixIcon: Icon(Icons.explore_outlined, color: theme.colorScheme.secondary, size: 16),
+                                filled: true,
+                                fillColor: theme.colorScheme.onSurface.withOpacity(0.05),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: AppTheme.spaceLG),
