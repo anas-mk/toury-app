@@ -183,9 +183,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: isDark
-                          ? 'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken'
-                          : 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken',
+                      urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken',
                       additionalOptions: const {
                         'accessToken': _mapboxToken,
                       },

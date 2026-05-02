@@ -71,6 +71,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _activeCubit),
@@ -120,7 +121,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           ),
         ],
         child: Scaffold(
-          backgroundColor: const Color(0xFF0A0E1A),
+          backgroundColor: theme.scaffoldBackgroundColor,
           body: BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
               if (state is ActiveBookingLoading) {
@@ -140,6 +141,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   Widget _buildModernContent(BuildContext context, HelperBooking booking) {
+    final theme = Theme.of(context);
     final status = booking.status.toLowerCase();
     final isStarted = status == 'inprogress' || status == 'started';
     
@@ -163,7 +165,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x?access_token={accessToken}',
+              urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}@2x?access_token={accessToken}',
               additionalOptions: const {
                 'accessToken': 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg',
               },

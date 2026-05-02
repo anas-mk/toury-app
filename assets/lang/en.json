@@ -148,5 +148,8 @@
   "booking_review_yes": "Yes",
   "booking_review_no": "No",
   "booking_review_price_retry": "Price lines are still loading. Try again in a moment.",
-  "booking_review_price_unavailable": "No detailed quote yet. You can still confirm; your helper sets the final amount."
+  "booking_review_price_unavailable": "No detailed quote yet. You can still confirm; your helper sets the final amount.",
+  "recent_transactions": "Recent Transactions",
+  "view_all": "View All",
+  "no_transactions": "No transactions found"
 }

@@ -150,5 +150,8 @@
   "booking_review_yes": "نعم",
   "booking_review_no": "لا",
   "booking_review_price_retry": "تفاصيل السعر ما زالت تُحمّل. أعد المحاولة بعد لحظة.",
-  "booking_review_price_unavailable": "لا يوجد عرض تفصيلي بعد. يمكنك التأكيد؛ المبلغ النهائي يحدده المرشد."
+  "booking_review_price_unavailable": "لا يوجد عرض تفصيلي بعد. يمكنك التأكيد؛ المبلغ النهائي يحدده المرشد.",
+  "recent_transactions": "المعاملات الأخيرة",
+  "view_all": "عرض الكل",
+  "no_transactions": "لا توجد معاملات"
 }
