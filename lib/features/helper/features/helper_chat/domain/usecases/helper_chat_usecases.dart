@@ -20,7 +20,7 @@ class GetMessagesUseCase {
     String bookingId, {
     DateTime? before,
     int page = 1,
-    int pageSize = 50,
+    int pageSize = 20,
   }) {
     return repository.getMessages(
       bookingId,

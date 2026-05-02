@@ -32,7 +32,7 @@ class HelperChatRepositoryImpl implements HelperChatRepository {
     String bookingId, {
     DateTime? before,
     int page = 1,
-    int pageSize = 50,
+    int pageSize = 20,
   }) async {
     try {
       final result = await remoteDataSource.getMessages(

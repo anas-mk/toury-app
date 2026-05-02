@@ -33,6 +33,8 @@ class HelperBooking extends Equatable {
   final bool isExpired;
   final bool isInstant;
   final DateTime createdAt;
+  final bool canStartTrip;
+  final bool canEndTrip;
 
   const HelperBooking({
     required this.id,
@@ -65,6 +67,8 @@ class HelperBooking extends Equatable {
     this.isExpired = false,
     required this.isInstant,
     required this.createdAt,
+    this.canStartTrip = false,
+    this.canEndTrip = false,
   });
 
   HelperBooking copyWith({
@@ -98,6 +102,8 @@ class HelperBooking extends Equatable {
     bool? isExpired,
     bool? isInstant,
     DateTime? createdAt,
+    bool? canStartTrip,
+    bool? canEndTrip,
   }) {
     return HelperBooking(
       id: id ?? this.id,
@@ -130,6 +136,8 @@ class HelperBooking extends Equatable {
       isExpired: isExpired ?? this.isExpired,
       isInstant: isInstant ?? this.isInstant,
       createdAt: createdAt ?? this.createdAt,
+      canStartTrip: canStartTrip ?? this.canStartTrip,
+      canEndTrip: canEndTrip ?? this.canEndTrip,
     );
   }
 
@@ -165,5 +173,7 @@ class HelperBooking extends Equatable {
         isExpired,
         isInstant,
         createdAt,
+        canStartTrip,
+        canEndTrip,
       ];
 }

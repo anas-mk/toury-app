@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../../../core/errors/failures.dart';
 import '../../data/services/helper_chat_signalr_service.dart';
 import '../../domain/entities/helper_chat_entities.dart';
 import '../../domain/usecases/helper_chat_usecases.dart';
+
+import 'package:toury/core/services/realtime/booking_realtime_event_bus.dart';
+import 'package:toury/core/services/signalr/booking_hub_events.dart';
 
 abstract class HelperChatState extends Equatable {
   @override
@@ -64,7 +69,9 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _stateSubscription;
+  StreamSubscription? _busSubscription;
   String? _currentBookingId;
+  Timer? _refreshTimer;
 
   HelperChatCubit({
     required this.getConversationUseCase,
@@ -83,53 +90,133 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     await connectChatUseCase(token);
     await signalRService.joinBookingRoom(bookingId);
 
-    // 2. Load Conversation Metadata
-    final convRes = await getConversationUseCase(bookingId);
-    
+    // 2. Load Conversation Metadata & Initial Messages
+    final results = await Future.wait([
+      getConversationUseCase(bookingId),
+      getMessagesUseCase(bookingId, pageSize: 20),
+    ]);
+
+    final convRes = results[0] as Either<Failure, ConversationEntity>;
+    final msgRes = results[1] as Either<Failure, List<ChatMessageEntity>>;
+
     convRes.fold(
       (f) => emit(HelperChatError(f.message)),
-      (conv) async {
-        // 3. Load Initial Messages
-        final msgRes = await getMessagesUseCase(bookingId);
-        
+      (conv) {
         msgRes.fold(
           (f) => emit(HelperChatError(f.message)),
           (messages) {
             emit(HelperChatLoaded(
               conversation: conv,
               messages: messages,
-              hasReachedMax: messages.length < 50,
+              hasReachedMax: messages.length < 20,
               connectionState: signalRService.currentState,
             ));
             
-            // Mark as read immediately
             markRead(bookingId);
             
-            // 4. Start Listening
+            // 3. Start Listening
             _listenToMessages();
             _listenToState();
+            _listenToBus();
+            _startAutoRefresh();
           },
         );
       },
     );
   }
 
+  void _listenToBus() {
+    _busSubscription?.cancel();
+    _busSubscription = BookingRealtimeEventBus.instance.stream.listen((event) {
+      if (event is BusChatMessage && event.event.bookingId == _currentBookingId) {
+        _handleIncomingPush(event.event);
+      }
+    });
+  }
+
+  void _handleIncomingPush(ChatMessagePushEvent push) {
+    if (kDebugMode) {
+      debugPrint('📩 HelperChatCubit: Received Push for ${push.bookingId}');
+    }
+    
+    if (state is! HelperChatLoaded) return;
+    final s = state as HelperChatLoaded;
+
+    // Convert push event to entity
+    final msg = ChatMessageEntity(
+      id: push.messageId ?? push.eventId,
+      senderId: push.senderId ?? '',
+      senderType: push.senderType ?? 'User',
+      messageType: push.messageType ?? 'Text',
+      text: push.text ?? push.preview ?? '',
+      isRead: false,
+      sentAt: push.sentAt ?? DateTime.now(),
+    );
+
+    // Avoid duplicates
+    if (!s.messages.any((m) => m.id == msg.id)) {
+      emit(s.copyWith(messages: [msg, ...s.messages]));
+      
+      // Auto mark as read if it's from user
+      if (msg.senderType.toLowerCase() == 'user') {
+        markRead(_currentBookingId!);
+      }
+
+      // 🔄 Trigger a background refresh to sync perfectly with backend
+      refresh();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
+      refresh();
+    });
+  }
+
+  Future<void> refresh() async {
+    if (_currentBookingId == null) return;
+    
+    final results = await Future.wait([
+      getConversationUseCase(_currentBookingId!),
+      getMessagesUseCase(_currentBookingId!, pageSize: 20),
+    ]);
+
+    final convRes = results[0] as Either<Failure, ConversationEntity>;
+    final msgRes = results[1] as Either<Failure, List<ChatMessageEntity>>;
+
+    if (state is HelperChatLoaded) {
+      final s = state as HelperChatLoaded;
+      convRes.fold(
+        (_) => null,
+        (conv) => msgRes.fold(
+          (_) => null,
+          (messages) => emit(s.copyWith(
+            conversation: conv,
+            messages: messages,
+            hasReachedMax: messages.length < 20,
+          )),
+        ),
+      );
+    }
+  }
+
   void _listenToMessages() {
     _messageSubscription?.cancel();
     _messageSubscription = signalRService.messageStream.listen((msg) {
-      debugPrint('📡 [HelperChatCubit] Received real-time message: ${msg.id}');
       if (state is HelperChatLoaded) {
         final s = state as HelperChatLoaded;
         
-        // Add message to list if not already there
-        if (!s.messages.any((m) => m.id == msg.id)) {
-           debugPrint('📡 [HelperChatCubit] Adding message to UI list');
-           emit(s.copyWith(messages: [msg, ...s.messages]));
-        } else {
-           debugPrint('📡 [HelperChatCubit] Message already exists in list, skipping');
+        // Mark as read if message is from the other party
+        if (msg.senderType.toLowerCase() == 'user') {
+          markRead(_currentBookingId!);
         }
-      } else {
-        debugPrint('📡 [HelperChatCubit] State is NOT Loaded (${state.runtimeType}), skipping message');
+        
+        // Avoid duplicate messages (use messageId check)
+        if (!s.messages.any((m) => m.id == msg.id)) {
+           // SignalR is the SINGLE source of truth for incoming messages
+           emit(s.copyWith(messages: [msg, ...s.messages]));
+        }
       }
     });
   }
@@ -149,14 +236,22 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     if (s.hasReachedMax) return;
 
     final lastMessage = s.messages.last;
-    final result = await getMessagesUseCase(_currentBookingId!, before: lastMessage.sentAt);
+    final result = await getMessagesUseCase(_currentBookingId!, before: lastMessage.sentAt, pageSize: 20);
 
     result.fold(
       (f) => null,
       (newMessages) {
+        if (newMessages.isEmpty) {
+          emit(s.copyWith(hasReachedMax: true));
+          return;
+        }
+        
+        // Filter out duplicates if any
+        final filtered = newMessages.where((nm) => !s.messages.any((m) => m.id == nm.id)).toList();
+        
         emit(s.copyWith(
-          messages: [...s.messages, ...newMessages],
-          hasReachedMax: newMessages.length < 50,
+          messages: [...s.messages, ...filtered],
+          hasReachedMax: newMessages.length < 20,
         ));
       },
     );
@@ -166,9 +261,10 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     if (state is! HelperChatLoaded || _currentBookingId == null) return;
     final s = state as HelperChatLoaded;
 
-    // Optimistic UI update
+    // 1. Optimistic UI: Add message locally instantly
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final pendingMsg = ChatMessageEntity(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: tempId,
       senderId: s.conversation.helper.id,
       senderType: 'Helper',
       messageType: 'Text',
@@ -180,36 +276,56 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     
     emit(s.copyWith(messages: [pendingMsg, ...s.messages]));
 
+    // 2. Send to API
     final result = await sendMessageUseCase(_currentBookingId!, text);
 
     result.fold(
       (f) {
         if (state is HelperChatLoaded) {
           final currentLoaded = state as HelperChatLoaded;
-          // Remove pending message and show error
-          final updatedMessages = currentLoaded.messages.where((m) => m.id != pendingMsg.id).toList();
+          // Mark as failed instead of removing, or handle rollback
+          final updatedMessages = currentLoaded.messages.map((m) {
+            if (m.id == tempId) {
+              return m.copyWith(isPending: false, isFailed: true);
+            }
+            return m;
+          }).toList();
           emit(currentLoaded.copyWith(messages: updatedMessages));
         }
       },
       (sentMsg) {
+        // DO NOT just replace the whole list, map carefully to preserve scroll position/state
         if (state is HelperChatLoaded) {
           final currentLoaded = state as HelperChatLoaded;
-          // Replace pending with actual
-          final updatedMessages = currentLoaded.messages.map((m) => m.id == pendingMsg.id ? sentMsg : m).toList();
+          
+          // Check if SignalR already added this message
+          final alreadyInList = currentLoaded.messages.any((m) => m.id == sentMsg.id);
+          
+          final updatedMessages = currentLoaded.messages.map((m) {
+            // Replace the optimistic message with the real one from API if not already added by SignalR
+            if (m.id == tempId) {
+              return alreadyInList ? null : sentMsg;
+            }
+            return m;
+          }).whereType<ChatMessageEntity>().toList();
+          
           emit(currentLoaded.copyWith(messages: updatedMessages));
         }
       },
     );
   }
 
-  Future<void> markRead(String bookingId) async {
-    await markReadUseCase(bookingId);
+  /// Mark as read in background (unawaited) as requested
+  void markRead(String bookingId) {
+    unawaited(markReadUseCase(bookingId));
   }
 
   @override
   Future<void> close() {
     _messageSubscription?.cancel();
     _stateSubscription?.cancel();
+    _busSubscription?.cancel();
+    _refreshTimer?.cancel();
     if (_currentBookingId != null) {
       signalRService.leaveBookingRoom(_currentBookingId!);
     }

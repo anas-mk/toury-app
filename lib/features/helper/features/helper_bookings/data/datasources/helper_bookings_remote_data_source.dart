@@ -238,7 +238,9 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   @override
   Future<void> startTrip(String id, {CancelToken? cancelToken}) async {
     try {
-      final res = await dio.post(ApiConfig.helperStartTrip(id), cancelToken: cancelToken);
+      final url = ApiConfig.helperStartTrip(id);
+      debugPrint('➡️ [TripAction] START URL: $url (ID: $id)');
+      final res = await dio.post(url, cancelToken: cancelToken);
       _assertOk(res);
     } on DioException catch (e) {
       throw ServerException(_msg(e));
@@ -248,7 +250,9 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   @override
   Future<double> endTrip(String id, {CancelToken? cancelToken}) async {
     try {
-      final res = await dio.post(ApiConfig.helperEndTrip(id), cancelToken: cancelToken);
+      final url = ApiConfig.helperEndTrip(id);
+      debugPrint('➡️ [TripAction] END URL: $url (ID: $id)');
+      final res = await dio.post(url, cancelToken: cancelToken);
       _assertOk(res);
       final raw = res.data;
       final earnings = (raw is Map) ? (raw['data']?['earnings'] ?? raw['earnings'] ?? 0) : 0;

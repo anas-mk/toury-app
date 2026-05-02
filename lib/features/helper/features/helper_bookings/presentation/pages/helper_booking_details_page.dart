@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
 import '../../domain/entities/helper_booking_entities.dart';
@@ -89,7 +90,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
               if (state is AcceptSuccess) {
                 _showSnack(context, '✓ Request accepted!');
                 final b = state.booking;
-                context.replace('/helper-tracking/${b.id}?pickupLat=${b.pickupLat}&pickupLng=${b.pickupLng}&destLat=${b.destinationLat}&destLng=${b.destinationLng}');
+                context.pushReplacement(AppRouter.helperActiveBooking, extra: b.id);
               } else if (state is RejectSuccess) {
                 _showSnack(context, 'Request declined');
                 context.pop();
@@ -103,7 +104,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
               if (state is TripActionSuccess) {
                 if (state.actionType == 'start') {
                   _showSnack(context, 'Trip started!');
-                  _detailsCubit.load(widget.bookingId);
+                  context.pushReplacement(AppRouter.helperActiveBooking, extra: widget.bookingId);
                 } else if (state.actionType == 'end') {
                   _showEarningsDialog(context, state.result as double);
                 }
@@ -153,8 +154,8 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   Widget _buildContent(BuildContext context, HelperBooking booking) {
     final status = booking.status.toLowerCase();
     final isPending = status == 'pending' || status == 'pendinghelperresponse';
-    final isConfirmed = status == 'confirmed' || status == 'accepted';
-    final isActive = status == 'inprogress' || status == 'started';
+    final isConfirmed = booking.canStartTrip || status == 'confirmed' || status == 'accepted';
+    final isActive = booking.canEndTrip || status == 'inprogress' || status == 'started';
     final isCompleted = status == 'completed';
 
     return Stack(
@@ -183,6 +184,9 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   }
 
   Widget _buildBottomActions(BuildContext context, HelperBooking booking, bool isPending, bool isConfirmed, bool isActive, bool isCompleted) {
+    // If there are no actions to show, do not render the container to avoid empty space
+    if (!isPending && !isActive && !isCompleted) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
       decoration: BoxDecoration(
@@ -195,7 +199,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isPending) _buildRequestActions(context, booking),
-          if (isConfirmed) _buildConfirmedActions(context, booking),
           if (isActive) _buildActiveActions(context, booking),
           if (isCompleted) _buildCompletedActions(context, booking),
         ],
@@ -241,27 +244,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildConfirmedActions(BuildContext context, HelperBooking booking) {
-    return Column(
-      children: [
-        _ActionBtn(
-          label: 'Start Trip',
-          icon: Icons.play_arrow_rounded,
-          color: BrandTokens.successGreen,
-          onTap: () => _tripActionCubit.start(booking.id),
-        ),
-        const SizedBox(height: 12),
-        _ActionBtn(
-          label: 'Message Traveler',
-          icon: Icons.chat_bubble_outline_rounded,
-          color: BrandTokens.primaryBlue,
-          outline: true,
-          onTap: () => _openChat(context, booking.id),
-        ),
-      ],
     );
   }
 

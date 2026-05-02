@@ -231,6 +231,12 @@ StreamSubscription<String>? _authTokenHubReconnectSub;
 
 Future<void> init() async {
   // ============================================================
+  // Core - External Dependencies
+  // ============================================================
+  // 1️⃣  Dio — shared singleton used by ALL remote data sources.
+  sl.registerLazySingleton<Dio>(() => _createDio());
+
+  // ============================================================
   // Features - Auth
   // ============================================================
 
@@ -526,7 +532,7 @@ Future<void> init() async {
   sl.registerFactory(() => DeclineBookingCubit(sl()));
   sl.registerFactory(() => AcceptRejectRequestCubit(sl(), sl()));
   sl.registerFactory(() => UpcomingBookingsCubit(sl()));
-  sl.registerLazySingleton(() => ActiveBookingCubit(sl(), sl()));
+  sl.registerLazySingleton(() => ActiveBookingCubit(sl(), sl(), sl()));
   sl.registerFactory(() => TripActionCubit(sl(), sl()));
   sl.registerFactory(() => HelperHistoryCubit(sl()));
   sl.registerFactory(() => EarningsCubit(sl()));
@@ -790,7 +796,7 @@ Future<void> init() async {
   sl.registerFactory(() => HelperSosCubit(sosService: sl()));
 
   // Services
-  sl.registerLazySingleton(() => HelperSosService());
+  sl.registerLazySingleton<HelperSosService>(() => HelperSosService(sl<Dio>()));
 
   // ============================================================
   // Tourist Payments Feature
@@ -957,8 +963,7 @@ Future<void> init() async {
   // Core - External Dependencies
   // ============================================================
 
-  // 1️⃣  Dio — shared singleton used by ALL remote data sources.
-  sl.registerLazySingleton(() => _createDio());
+
 
 
   // 3️⃣  SharedPreferences

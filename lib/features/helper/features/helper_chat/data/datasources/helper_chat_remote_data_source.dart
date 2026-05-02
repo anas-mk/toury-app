@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/errors/exceptions.dart';
 import '../models/helper_chat_models.dart';
@@ -66,7 +67,7 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
     String bookingId, {
     DateTime? before,
     int page = 1,
-    int pageSize = 50,
+    int pageSize = 20,
     CancelToken? cancelToken,
   }) async {
     try {
@@ -81,9 +82,13 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
       );
       _assertOk(res);
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is List ? raw : []);
+      final list = (raw is Map && raw['data'] is Map && raw['data']['items'] is List)
+          ? raw['data']['items'] as List
+          : ((raw is Map && raw['data'] is List) ? raw['data'] as List : (raw is List ? raw : []));
+      
+      if (list.length > 10) {
+        return await compute(_parseMessages, list);
+      }
       return list.map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ServerException(_msg(e));
@@ -114,4 +119,8 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
       throw ServerException(_msg(e));
     }
   }
+}
+
+List<ChatMessageModel> _parseMessages(List<dynamic> list) {
+  return list.map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>)).toList();
 }

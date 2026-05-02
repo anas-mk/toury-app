@@ -305,6 +305,11 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
               if (state is ActiveBookingLoaded && state.booking != null) {
+                final s = state.booking!.status.toLowerCase();
+                if (s.contains('complet') || s.contains('cancel') || s == 'ended') {
+                  return const SizedBox.shrink();
+                }
+
                 return FadeInSlide(
                   delay: const Duration(milliseconds: 100),
                   child: Column(

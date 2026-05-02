@@ -35,6 +35,8 @@ class ChatMessageModel extends ChatMessageEntity {
     required super.isRead,
     super.readAt,
     required super.sentAt,
+    super.isPending = false,
+    super.isFailed = false,
   });
 
   factory ChatMessageModel.fromJson(Map<String, dynamic> json) {

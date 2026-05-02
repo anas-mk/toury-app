@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../cubit/helper_sos_cubit.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 
 enum HelperSosReason {
@@ -27,20 +29,29 @@ typedef HelperSosTriggerCallback = Future<String?> Function(HelperSosSheetResult
 Future<bool?> showHelperSosSheet(
   BuildContext context, {
   required HelperSosTriggerCallback onTrigger,
+  required VoidCallback onCancel,
+  required HelperSosCubit cubit,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => HelperSosSheet(onTrigger: onTrigger),
+    builder: (_) => BlocProvider.value(
+      value: cubit,
+      child: HelperSosSheet(
+        onTrigger: onTrigger,
+        onCancel: onCancel,
+      ),
+    ),
   );
 }
 
 class HelperSosSheet extends StatefulWidget {
-  const HelperSosSheet({super.key, required this.onTrigger});
+  const HelperSosSheet({super.key, required this.onTrigger, required this.onCancel});
 
   final HelperSosTriggerCallback onTrigger;
+  final VoidCallback onCancel;
 
   @override
   State<HelperSosSheet> createState() => _HelperSosSheetState();
@@ -229,27 +240,35 @@ class _HelperSosSheetState extends State<HelperSosSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _submitting ? null : _triggerSos,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(54),
-                  backgroundColor: BrandTokens.dangerRed,
-                  foregroundColor: BrandTokens.surfaceWhite,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-                child: _submitting
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: BrandTokens.surfaceWhite,
-                        ),
-                      )
-                    : const Text('Trigger SOS'),
+              BlocBuilder<HelperSosCubit, HelperSosState>(
+                builder: (context, state) {
+                  final isActive = state.status == SosStatus.active;
+                  return FilledButton(
+                    onPressed: _submitting ? null : (isActive ? () {
+                      widget.onCancel();
+                      Navigator.of(context).pop();
+                    } : _triggerSos),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                      backgroundColor: BrandTokens.dangerRed,
+                      foregroundColor: BrandTokens.surfaceWhite,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: BrandTokens.surfaceWhite,
+                            ),
+                          )
+                        : Text(isActive ? 'Cancel Active SOS' : 'Trigger SOS'),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               OutlinedButton(
@@ -264,6 +283,9 @@ class _HelperSosSheetState extends State<HelperSosSheet> {
                 ),
                 child: const Text('Close'),
               ),
+              const SizedBox(height: 12),
+              // Remove the redundant button at the bottom since we integrated it into the main button
+
             ],
           ),
         ),

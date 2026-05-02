@@ -163,7 +163,7 @@ class ApiConfig {
   // ==========================================================================
 
   static String helperConversation(String bookingId) => '/helper/bookings/$bookingId/chat';
-  static String helperChatMessages(String bookingId, {int page = 1, int pageSize = 50, String? beforeDateTime}) {
+  static String helperChatMessages(String bookingId, {int page = 1, int pageSize = 20, String? beforeDateTime}) {
     String url = '/helper/bookings/$bookingId/chat/messages?page=$page&pageSize=$pageSize';
     if (beforeDateTime != null) url += '&Before=$beforeDateTime';
     return url;
@@ -172,10 +172,12 @@ class ApiConfig {
   static String helperMarkChatRead(String bookingId) => '/helper/bookings/$bookingId/chat/read';
 
   // ==========================================================================
-  // HELPER - SOS Endpoints (Placeholder for future integration)
+  // HELPER - SOS Endpoints
   // ==========================================================================
-  // static const String helperSosPanic = '/helper/sos/panic';
-  // static const String helperSosCall  = '/helper/sos/call';
+  static String helperTriggerSos(String bookingId) => '/helper/sos/bookings/$bookingId';
+  static String helperCancelSos(String sosId)      => '/helper/sos/$sosId/cancel';
+  static const String helperMySosList              = '/helper/sos/mine';
+  static String helperMySosDetail(String sosId)    => '/helper/sos/mine/$sosId';
 
   // ==========================================================================
   // PAYMENTS Endpoints

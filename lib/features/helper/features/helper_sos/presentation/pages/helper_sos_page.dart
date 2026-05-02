@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../cubit/helper_sos_cubit.dart';
+import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 
 class HelperSosPage extends StatelessWidget {
   final String bookingId;
@@ -32,7 +33,7 @@ class HelperSosPage extends StatelessWidget {
               children: [
                 _EmergencyWarningCard(isActive: isActive),
                 const SizedBox(height: 32),
-                _PanicButton(isActive: isActive),
+                _PanicButton(isActive: isActive, bookingId: bookingId),
                 const SizedBox(height: 40),
                 _EmergencyGrid(),
                 const SizedBox(height: 32),
@@ -91,7 +92,8 @@ class _EmergencyWarningCard extends StatelessWidget {
 
 class _PanicButton extends StatefulWidget {
   final bool isActive;
-  const _PanicButton({required this.isActive});
+  final String bookingId;
+  const _PanicButton({required this.isActive, required this.bookingId});
 
   @override
   State<_PanicButton> createState() => _PanicButtonState();
@@ -202,14 +204,29 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      context.read<HelperSosCubit>().activatePanic(0, 0); // Replace with real location
+                      final locState = context.read<HelperLocationCubit>().state;
+                      double lat = 0, lng = 0;
+                      if (locState is HelperLocationTracking) {
+                        lat = locState.location.latitude;
+                        lng = locState.location.longitude;
+                      }
+
+                      context.read<HelperSosCubit>().activatePanic(
+                            bookingId: widget.bookingId,
+                            lat: lat,
+                            lng: lng,
+                            reason: 'Other',
+                          );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: BrandTokens.dangerRed,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Trigger SOS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    child: const Text('Trigger SOS',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, color: Colors.white)),
                   ),
                 ),
               ],

@@ -13,7 +13,7 @@ class ActiveTripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = booking.status.toLowerCase();
-    final canChat = ['accepted', 'confirmed', 'inprogress', 'started'].contains(s);
+    final canChat = ['accepted', 'confirmed', 'inProgress', 'started'].contains(s);
 
     return GestureDetector(
       onTap: () => context.push(AppRouter.helperActiveBooking, extra: booking.id),

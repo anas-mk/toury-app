@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 import '../../domain/entities/helper_booking_entities.dart';
 
 class HelperBookingModel extends HelperBooking {
@@ -32,10 +34,12 @@ class HelperBookingModel extends HelperBooking {
     super.isExpired,
     required super.isInstant,
     required super.createdAt,
+    super.canStartTrip = false,
+    super.canEndTrip = false,
   });
 
   factory HelperBookingModel.fromJson(Map<String, dynamic> json) {
-    // Handle both old and new API response formats
+    debugPrint('🔍 [HelperBookingModel] Parsing JSON keys: ${json.keys.toList()}');
     final bookingId = json['bookingId']?.toString() ?? json['id']?.toString() ?? '';
     final bookingType = json['bookingType']?.toString() ?? (json['isInstant'] == true ? 'Instant' : 'Scheduled');
     final isUrgent = json['isUrgent'] ?? false;
@@ -87,6 +91,8 @@ class HelperBookingModel extends HelperBooking {
     final isExpired = json['isExpired'] ?? false;
     final isInstant = json['isInstant'] ?? bookingType.toLowerCase() == 'instant';
     final createdAt = parseDate(json['createdAt'], now);
+    final canStartTrip = json['canStartTrip'] ?? false;
+    final canEndTrip = json['canEndTrip'] ?? false;
 
     return HelperBookingModel(
       id: bookingId,
@@ -119,6 +125,8 @@ class HelperBookingModel extends HelperBooking {
       isExpired: isExpired,
       isInstant: isInstant,
       createdAt: createdAt,
+      canStartTrip: canStartTrip,
+      canEndTrip: canEndTrip,
     );
   }
 
@@ -154,6 +162,8 @@ class HelperBookingModel extends HelperBooking {
       'isExpired': isExpired,
       'isInstant': isInstant,
       'createdAt': createdAt.toIso8601String(),
+      'canStartTrip': canStartTrip,
+      'canEndTrip': canEndTrip,
     };
   }
 }

@@ -1,13 +1,30 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/services/maps/cached_tile_provider.dart';
+import '../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../core/router/app_router.dart';
+import '../../../helper_ratings/presentation/pages/rate_user_page.dart';
+import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
+import '../../../../../../core/services/auth_service.dart';
+import '../../../helper_sos/presentation/widgets/helper_sos_floating_button.dart';
+import '../../../helper_sos/presentation/widgets/helper_sos_sheet.dart';
+import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
+import '../../../helper_sos/presentation/widgets/helper_sos_active_banner.dart';
 
 class ActiveBookingPage extends StatefulWidget {
   final String bookingId;
@@ -20,19 +37,36 @@ class ActiveBookingPage extends StatefulWidget {
 class _ActiveBookingPageState extends State<ActiveBookingPage> {
   late final ActiveBookingCubit _activeCubit;
   late final TripActionCubit _tripActionCubit;
+  final MapController _mapController = MapController();
+  HelperBooking? _currentBooking; // cached for use in listeners
+  bool _isFollowing = true; // Auto-pan flag
 
   @override
   void initState() {
     super.initState();
     _activeCubit = sl<ActiveBookingCubit>();
     _tripActionCubit = sl<TripActionCubit>();
-    _activeCubit.load();
+    
+    // Start trip tracking if we have an ID
+    if (widget.bookingId.isNotEmpty) {
+      final token = sl<AuthService>().getToken();
+      if (token != null) {
+        sl<HelperLocationCubit>().startTripTracking(token, widget.bookingId);
+      }
+      _activeCubit.loadById(widget.bookingId);
+    } else {
+      _activeCubit.load();
+    }
   }
 
   @override
   void dispose() {
-    _tripActionCubit.close();
+    _mapController.dispose();
     super.dispose();
+  }
+
+  void _recenter(LatLng pos) {
+    _mapController.move(pos, 15);
   }
 
   @override
@@ -41,6 +75,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       providers: [
         BlocProvider.value(value: _activeCubit),
         BlocProvider.value(value: _tripActionCubit),
+        BlocProvider.value(value: sl<HelperLocationCubit>()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -52,7 +87,31 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                   _activeCubit.load();
                 } else if (state.actionType == 'end') {
                   final earnings = state.result as double? ?? 0.0;
-                  _showEarningsDialog(context, earnings);
+                  final booking = _currentBooking;
+                  _showEarningsDialog(context, earnings, onDismiss: () {
+                    if (booking != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RateUserPage(
+                            bookingId: booking.id,
+                            travelerName: booking.travelerName,
+                            travelerAvatar: booking.travelerImage ?? '',
+                          ),
+                        ),
+                      ).then((_) {
+                        sl<HelperLocationCubit>().stopTripTracking();
+                        _activeCubit.clearCurrentId();
+                        _activeCubit.load(silent: true);
+                        context.pop();
+                      });
+                    } else {
+                      sl<HelperLocationCubit>().stopTripTracking();
+                      _activeCubit.clearCurrentId();
+                      _activeCubit.load(silent: true);
+                      context.pop();
+                    }
+                  });
                 }
               } else if (state is TripActionError) {
                 _showSnack(context, state.message, isError: true);
@@ -66,10 +125,11 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
             builder: (context, state) {
               if (state is ActiveBookingLoading) {
                 return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+                    child: CircularProgressIndicator(color: BrandTokens.primaryBlue));
               }
               if (state is ActiveBookingLoaded && state.booking != null) {
-                return _buildContent(context, state.booking!);
+                _currentBooking = state.booking;
+                return _buildModernContent(context, state.booking!);
               }
               return _buildNoTrip(context);
             },
@@ -79,155 +139,238 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     );
   }
 
-  Widget _buildContent(BuildContext context, HelperBooking booking) {
-    final status = booking.status;
-    final isStarted = status == 'InProgress' || status == 'started';
+  Widget _buildModernContent(BuildContext context, HelperBooking booking) {
+    final status = booking.status.toLowerCase();
+    final isStarted = status == 'inprogress' || status == 'started';
     
+    final pickup = LatLng(booking.pickupLat, booking.pickupLng);
+    final destination = LatLng(booking.destinationLat, booking.destinationLng);
+    final initialCenter = isStarted ? destination : pickup;
+
     return Stack(
       children: [
-        CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              expandedHeight: 260,
-              pinned: true,
-              backgroundColor: const Color(0xFF1A1F3C),
-              foregroundColor: Colors.white,
-              flexibleSpace: FlexibleSpaceBar(
-                background: _MapPlaceholder(
-                  booking: booking,
-                  isStarted: isStarted,
-                ),
-              ),
+        // 1. Full Screen Map
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: initialCenter,
+            initialZoom: 15,
+            onPositionChanged: (pos, hasGesture) {
+              if (hasGesture && _isFollowing) {
+                setState(() => _isFollowing = false);
+              }
+            },
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x?access_token={accessToken}',
+              additionalOptions: const {
+                'accessToken': 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg',
+              },
+              tileProvider: CachedTileProvider(),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 140),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _RouteCard(booking: booking),
-                  const SizedBox(height: 12),
-                  _TripStatsRow(booking: booking),
-                  const SizedBox(height: 12),
-                  _ElapsedTimer(startTime: booking.startTime, isStarted: isStarted),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.info_outline_rounded,
-                          color: Colors.white38, size: 16),
-                      label: const Text('Full Booking Details',
-                          style: TextStyle(color: Colors.white38, fontSize: 13)),
-                      onPressed: () =>
-                          context.push('/helper/booking-details/${booking.id}'),
-                    ),
-                  ),
-                ]),
-              ),
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: [pickup, destination],
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.4),
+                  strokeWidth: 4,
+                  pattern: StrokePattern.dashed(segments: const [10.0, 6.0]),
+                ),
+              ],
+            ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: pickup,
+                  width: 44,
+                  height: 44,
+                  child: const _PinDot(color: BrandTokens.successGreen, icon: Icons.trip_origin_rounded),
+                ),
+                Marker(
+                  point: destination,
+                  width: 44,
+                  height: 44,
+                  child: const _PinDot(color: BrandTokens.dangerRed, icon: Icons.flag_rounded),
+                ),
+              ],
+            ),
+            // Helper Location Marker Layer
+            BlocBuilder<HelperLocationCubit, HelperLocationState>(
+              builder: (context, locState) {
+                if (locState is HelperLocationTracking) {
+                  final pos = LatLng(locState.location.latitude, locState.location.longitude);
+                  
+                  // Auto-follow logic
+                  if (_isFollowing) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _mapController.move(pos, _mapController.camera.zoom);
+                    });
+                  }
+
+                  return MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: pos,
+                        width: 60,
+                        height: 60,
+                        child: _HelperMarker(rotation: locState.location.heading ?? 0),
+                      ),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
           ],
         ),
-        // Sticky CTA (Dynamic Buttons)
+
+
+
+        // 2. Blurred Top Buttons
         Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.transparent, Color(0xFF0A0E1A)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
-            child: _buildActionButtons(booking),
+          top: MediaQuery.of(context).padding.top + 8,
+          left: AppTheme.spaceMD,
+          child: _BlurredCircleButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: () => context.pop(),
           ),
         ),
         Positioned(
-          right: 20,
-          bottom: 120,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              FloatingActionButton.extended(
-                heroTag: 'track_live',
-                onPressed: () => context.push(
-                  '/helper-tracking/${booking.id}?pickupLat=${booking.pickupLat}&pickupLng=${booking.pickupLng}&destLat=${booking.destinationLat}&destLng=${booking.destinationLng}',
-                ),
-                backgroundColor: AppColor.primaryColor,
-                icon: const Icon(Icons.map_outlined, color: Colors.white),
-                label: const Text('Track Live', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 12),
-              FloatingActionButton.extended(
-                heroTag: 'chat_traveler',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => HelperChatPage(bookingId: booking.id),
+          top: MediaQuery.of(context).padding.top + 8,
+          right: AppTheme.spaceMD,
+          child: BlocBuilder<HelperLocationCubit, HelperLocationState>(
+            builder: (context, locState) {
+              return _BlurredCircleButton(
+                icon: Icons.my_location_rounded,
+                onTap: () {
+                  if (locState is HelperLocationTracking) {
+                    setState(() => _isFollowing = true);
+                    _recenter(LatLng(locState.location.latitude, locState.location.longitude));
+                  } else {
+                    _recenter(initialCenter);
+                  }
+                },
+              );
+            },
+          ),
+        ),
+
+        // 3. Draggable Tracking Sheet
+        BlocBuilder<HelperSosCubit, HelperSosState>(
+          bloc: sl<HelperSosCubit>(),
+          builder: (context, sosState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.38,
+              minChildSize: 0.22,
+              maxChildSize: 0.75,
+              builder: (context, scrollController) {
+                return _TrackingSheet(
+                  scrollController: scrollController,
+                  booking: booking,
+                  isStarted: isStarted,
+                  status: status,
+                  sosState: sosState,
+                  onEndTrip: () => _confirmEnd(context, booking),
+                  onStartTrip: () => _tripActionCubit.startTrip(booking),
+              onChat: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HelperChatPage(
+                    bookingId: booking.id,
+                    userName: booking.travelerName,
+                    userAvatar: booking.travelerImage,
                   ),
                 ),
-                backgroundColor: const Color(0xFF6C63FF),
-                icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
-                label: const Text('Chat Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-            ],
+                  onCancelSos: () => sl<HelperSosCubit>().deactivatePanic(),
+                );
+              },
+            );
+          },
+        ),
+
+        // 4. SOS Button (Floating)
+        Positioned(
+          right: AppTheme.spaceMD,
+          bottom: MediaQuery.of(context).size.height * 0.38 + 16,
+          child: HelperSosFloatingButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('SOS Button Pressed'), duration: Duration(seconds: 1)),
+              );
+              _openSosSheet(context);
+            },
           ),
+        ),
+
+        // 5. SOS Active Banner (Top of everything)
+        BlocBuilder<HelperSosCubit, HelperSosState>(
+          bloc: sl<HelperSosCubit>(),
+          builder: (context, sosState) {
+            if (sosState.status == SosStatus.active || sosState.status == SosStatus.activating) {
+              return Positioned(
+                top: MediaQuery.of(context).padding.top + 60,
+                left: AppTheme.spaceMD,
+                right: AppTheme.spaceMD,
+                child: HelperSosActiveBanner(
+                  onCancel: () => sl<HelperSosCubit>().deactivatePanic(),
+                  isCancelling: sosState.status == SosStatus.deactivating || sosState.status == SosStatus.activating,
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
         ),
       ],
     );
   }
 
-  Widget _buildActionButtons(HelperBooking booking) {
-    final status = booking.status;
-
-    if (status == 'AcceptedByHelper') {
-      return _TripActionButton(
-        label: 'Start Trip',
-        icon: Icons.play_arrow_rounded,
-        color: const Color(0xFF00C896),
-        onPressed: () => _tripActionCubit.startTrip(booking),
-        actionType: 'start',
-      );
-    } else if (status == 'InProgress' || status == 'started') {
-      return _TripActionButton(
-        label: 'End Trip',
-        icon: Icons.stop_circle_rounded,
-        color: const Color(0xFFFF6B6B),
-        onPressed: () => _confirmEnd(context, booking),
-        actionType: 'end',
-      );
-    } else if (status == 'Completed') {
-      return Container(
-        height: 58,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.white10,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Text(
-          'TRIP COMPLETED',
-          style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
+  void _openSosSheet(BuildContext context) {
+    debugPrint('ActiveBookingPage: Opening SOS Sheet');
+    showHelperSosSheet(
+      context,
+      cubit: sl<HelperSosCubit>(),
+      onCancel: () => sl<HelperSosCubit>().deactivatePanic(),
+      onTrigger: (result) async {
+        debugPrint('ActiveBookingPage: SOS Triggered with reason: ${result.reason.apiValue}');
+        final locState = sl<HelperLocationCubit>().state;
+        double lat = 0, lng = 0;
+        if (locState is HelperLocationTracking) {
+          lat = locState.location.latitude;
+          lng = locState.location.longitude;
+        }
+        
+        try {
+          await sl<HelperSosCubit>().activatePanic(
+            bookingId: widget.bookingId,
+            lat: lat,
+            lng: lng,
+            reason: result.reason.apiValue,
+            note: result.note,
+          );
+          debugPrint('ActiveBookingPage: SOS Activated successfully');
+          return null; // Success
+        } catch (e) {
+          debugPrint('ActiveBookingPage: SOS Activation failed: $e');
+          return e.toString();
+        }
+      },
+    );
   }
 
   void _confirmEnd(BuildContext context, HelperBooking booking) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F3C),
+        backgroundColor: BrandTokens.surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('End Trip?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text('Mark this trip as completed?',
-            style: TextStyle(color: Colors.white70)),
+        title: Text('End Trip?', style: BrandTypography.headline(color: BrandTokens.textPrimary)),
+        content: Text('Mark this trip as completed?', style: BrandTypography.body(color: BrandTokens.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.white38)),
+            child: Text('Cancel', style: BrandTypography.body(color: BrandTokens.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -235,8 +378,10 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
               _tripActionCubit.endTrip(booking);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B6B)),
-            child: const Text('End Trip'),
+              backgroundColor: BrandTokens.dangerRed,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('End Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -251,45 +396,37 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C896).withOpacity(0.1),
+              color: BrandTokens.successGreen.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check_circle_outline_rounded,
-                color: Color(0xFF00C896), size: 60),
+                color: BrandTokens.successGreen, size: 60),
           ),
           const SizedBox(height: 24),
-          const Text('No Active Trip',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold)),
+          Text('No Active Trip', style: BrandTypography.headline()),
           const SizedBox(height: 8),
-          const Text("You don't have an active booking right now",
-              style: TextStyle(color: Colors.white38, fontSize: 14)),
+          Text("You don't have an active booking right now", style: BrandTypography.body(color: BrandTokens.textSecondary)),
           const SizedBox(height: 28),
           ElevatedButton(
             onPressed: () => context.pop(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6C63FF),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: BrandTokens.primaryBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: const Text('Back to Dashboard',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Back to Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _showEarningsDialog(BuildContext context, double earnings) {
+  void _showEarningsDialog(BuildContext context, double earnings, {VoidCallback? onDismiss}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF1A1F3C),
+        backgroundColor: BrandTokens.surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -299,43 +436,42 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
               Container(
                 width: 72,
                 height: 72,
-                decoration: const BoxDecoration(
-                    color: Color(0xFF00C896), shape: BoxShape.circle),
-                child: const Icon(Icons.check_rounded,
-                    color: Colors.white, size: 36),
+                decoration: const BoxDecoration(color: BrandTokens.successGreen, shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded, color: Colors.white, size: 36),
               ),
               const SizedBox(height: 20),
-              const Text('Trip Completed! 🎉',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold)),
+              Text('Trip Completed! 🎉', style: BrandTypography.headline()),
               const SizedBox(height: 6),
-              const Text('You earned',
-                  style: TextStyle(color: Colors.white38, fontSize: 14)),
+              Text('You earned', style: BrandTypography.body(color: BrandTokens.textSecondary)),
               const SizedBox(height: 4),
               Text('\$${earnings.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      color: Color(0xFF00C896),
-                      fontSize: 42,
-                      fontWeight: FontWeight.bold)),
+                  style: BrandTypography.title(color: BrandTokens.successGreen).copyWith(fontSize: 42)),
+              const SizedBox(height: 8),
+              Text('How was your traveler?', style: BrandTypography.caption(color: BrandTokens.textSecondary)),
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.star_rounded, color: Colors.white),
+                  label: const Text('Rate Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   onPressed: () {
                     Navigator.pop(context);
-                    context.pop();
+                    onDismiss?.call();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6C63FF),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                    backgroundColor: BrandTokens.primaryBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('Back to Dashboard',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.pop();
+                },
+                child: Text('Skip', style: BrandTypography.body(color: BrandTokens.textSecondary)),
               ),
             ],
           ),
@@ -348,8 +484,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor:
-            isError ? const Color(0xFFFF6B6B) : const Color(0xFF00C896),
+        backgroundColor: isError ? BrandTokens.dangerRed : BrandTokens.successGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(12),
@@ -358,151 +493,274 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 }
 
-// ── Map Placeholder ───────────────────────────────────────────────────────────
-
-class _MapPlaceholder extends StatelessWidget {
+class _TrackingSheet extends StatelessWidget {
+  final ScrollController scrollController;
   final HelperBooking booking;
   final bool isStarted;
-  const _MapPlaceholder({required this.booking, required this.isStarted});
+  final String status;
+  final VoidCallback onEndTrip;
+  final VoidCallback onStartTrip;
+  final VoidCallback onChat;
+  final HelperSosState sosState;
+  final VoidCallback onCancelSos;
+
+
+  const _TrackingSheet({
+    required this.scrollController,
+    required this.booking,
+    required this.isStarted,
+    required this.status,
+    required this.onEndTrip,
+    required this.onStartTrip,
+    required this.onChat,
+    required this.sosState,
+    required this.onCancelSos,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF6C63FF), Color(0xFF2A2F5C), Color(0xFF0A0E1A)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0A0E1A) : BrandTokens.surfaceWhite,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
-      child: Stack(
+      child: Column(
         children: [
-          const Center(
-              child: Icon(Icons.navigation_rounded,
-                  color: Colors.white12, size: 100)),
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.transparent, Color(0xFF0A0E1A)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: BrandTokens.borderSoft,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Positioned(
-            top: 60,
-            left: 20,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isStarted
-                    ? const Color(0xFF00C896)
-                    : const Color(0xFFFFAB40),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isStarted ? '🟢  IN PROGRESS' : '🟡  CONFIRMED',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 20,
-            left: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(AppTheme.spaceLG, AppTheme.spaceLG, AppTheme.spaceLG, 0),
               children: [
-                Text(booking.travelerName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.flag_rounded,
-                      color: Colors.white60, size: 14),
-                  const SizedBox(width: 4),
-                  Text(booking.destinationLocation,
-                      style:
-                          const TextStyle(color: Colors.white60, fontSize: 13)),
-                ]),
+                // Traveler Info Row
+                Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: BrandTokens.primaryBlue.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          booking.travelerName.isNotEmpty ? booking.travelerName[0].toUpperCase() : '?',
+                          style: BrandTypography.title(color: BrandTokens.primaryBlue),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spaceMD),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(booking.travelerName, style: BrandTypography.title()),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: isStarted ? BrandTokens.successGreen : BrandTokens.warningAmber,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isStarted ? 'Trip in progress' : 'Ready to start',
+                                style: BrandTypography.caption(color: BrandTokens.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    _SheetIconButton(icon: Icons.chat_bubble_rounded, color: BrandTokens.primaryBlue, onTap: onChat),
+                  ],
+                ),
+                
+                const SizedBox(height: AppTheme.spaceXL),
+                
+                // Stats Row
+                Row(
+                  children: [
+                    _StatItem(label: 'Payout', value: '\$${booking.payout.toStringAsFixed(0)}', icon: Icons.attach_money_rounded),
+                    _StatItem(label: 'Language', value: booking.language ?? 'Any', icon: Icons.translate_rounded),
+                    _StatItem(label: 'Type', value: booking.isInstant ? 'Instant' : 'Scheduled', icon: Icons.bolt_rounded),
+                  ],
+                ),
+                
+                const SizedBox(height: AppTheme.spaceXL),
+                
+                // Route
+                _RouteInfo(pickup: booking.pickupLocation, destination: booking.destinationLocation),
+                const SizedBox(height: 120), // Padding for fixed buttons
               ],
             ),
           ),
+          
+          // Fixed Actions at Bottom
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spaceLG),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0A0E1A) : BrandTokens.surfaceWhite,
+              border: Border(top: BorderSide(color: BrandTokens.borderSoft.withValues(alpha: 0.2))),
+            ),
+            child: SafeArea(
+              top: false,
+              child: _buildActions(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    final s = status.toLowerCase();
+    final tripActive = isStarted || s.contains('progress') || s.contains('started');
+
+    // Case 1: Trip can be started (Accepted/Confirmed but not in progress)
+    if (booking.canStartTrip || (s.contains('accept') && !tripActive)) {
+      return _TripBtn(
+        label: 'Start Trip',
+        color: BrandTokens.successGreen,
+        icon: Icons.play_arrow_rounded,
+        onTap: onStartTrip,
+        actionType: 'start',
+      );
+    } 
+    
+    // Case 2: Trip is active (In Progress)
+    if (booking.canEndTrip || tripActive) {
+      final isSosActive = sosState.status == SosStatus.active;
+      final isSosPending = sosState.status == SosStatus.deactivating || sosState.status == SosStatus.activating;
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isSosActive || isSosPending) ...[
+            _TripBtn(
+              label: isSosPending ? 'Cancelling SOS...' : 'Cancel SOS Alert',
+              color: BrandTokens.dangerRed,
+              icon: Icons.cancel_outlined,
+              onTap: isSosPending ? null : onCancelSos,
+              actionType: 'cancel_sos',
+            ),
+            const SizedBox(height: AppTheme.spaceMD),
+          ],
+          _TripBtn(
+            label: 'End Trip',
+            color: BrandTokens.dangerRed,
+            icon: Icons.stop_circle_rounded,
+            onTap: onEndTrip,
+            actionType: 'end',
+          ),
+        ],
+      );
+    }
+
+    // Fallback: Just show End Trip if nothing else matches but it's not completed
+    if (s != 'completed' && s != 'cancelled') {
+       return _TripBtn(
+          label: 'End Trip',
+          color: BrandTokens.dangerRed,
+          icon: Icons.stop_circle_rounded,
+          onTap: onEndTrip,
+          actionType: 'end',
+        );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final String label, value;
+  final IconData icon;
+  const _StatItem({required this.label, required this.value, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: BrandTokens.textSecondary, size: 20),
+          const SizedBox(height: 4),
+          Text(value, style: BrandTypography.body(weight: FontWeight.bold)),
+          Text(label, style: BrandTypography.caption(color: BrandTokens.textSecondary)),
         ],
       ),
     );
   }
 }
 
-// ── Route Card ────────────────────────────────────────────────────────────────
-
-class _RouteCard extends StatelessWidget {
-  final HelperBooking booking;
-  const _RouteCard({required this.booking});
+class _RouteInfo extends StatelessWidget {
+  final String pickup, destination;
+  const _RouteInfo({required this.pickup, required this.destination});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(20)),
+        color: BrandTokens.borderSoft.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Column(
         children: [
-          _RItem(
-              icon: Icons.radio_button_checked_rounded,
-              label: 'Pickup',
-              value: booking.pickupLocation,
-              color: const Color(0xFF00C896)),
-          Container(
-              width: 2,
-              height: 20,
-              margin: const EdgeInsets.only(left: 11),
-              color: Colors.white12),
-          _RItem(
-              icon: Icons.location_on_rounded,
-              label: 'Drop-off',
-              value: booking.destinationLocation,
-              color: const Color(0xFFFF6B6B)),
+          _RouteRow(icon: Icons.trip_origin_rounded, color: BrandTokens.successGreen, label: 'Pickup', value: pickup),
+          Padding(
+            padding: const EdgeInsets.only(left: 11),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(width: 2, height: 20, color: BrandTokens.borderSoft),
+            ),
+          ),
+          _RouteRow(icon: Icons.location_on_rounded, color: BrandTokens.dangerRed, label: 'Drop-off', value: destination),
         ],
       ),
     );
   }
 }
 
-class _RItem extends StatelessWidget {
+class _RouteRow extends StatelessWidget {
   final IconData icon;
-  final String label, value;
   final Color color;
-  const _RItem(
-      {required this.icon,
-      required this.label,
-      required this.value,
-      required this.color});
+  final String label, value;
+  const _RouteRow({required this.icon, required this.color, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-              Text(value,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
+              Text(label, style: BrandTypography.caption(color: BrandTokens.textSecondary)),
+              Text(value, style: BrandTypography.body(weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
@@ -511,178 +769,171 @@ class _RItem extends StatelessWidget {
   }
 }
 
-class _TripStatsRow extends StatelessWidget {
-  final HelperBooking booking;
-  const _TripStatsRow({required this.booking});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _Chip(
-            label: 'Payout',
-            value: '\$${booking.payout.toStringAsFixed(0)}',
-            color: const Color(0xFF00C896)),
-        const SizedBox(width: 10),
-        _Chip(
-            label: 'Language',
-            value: booking.language ?? 'Any',
-            color: const Color(0xFF6C63FF)),
-        const SizedBox(width: 10),
-        _Chip(
-            label: 'Type',
-            value: booking.isInstant ? 'Instant' : 'Scheduled',
-            color: const Color(0xFFFFAB40)),
-      ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label, value;
-  final Color color;
-  const _Chip({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.09),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.25)),
-        ),
-        child: Column(
-          children: [
-            Text(value,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14)),
-            const SizedBox(height: 2),
-            Text(label,
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 10)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ElapsedTimer extends StatefulWidget {
-  final DateTime startTime;
-  final bool isStarted;
-  const _ElapsedTimer({required this.startTime, required this.isStarted});
-
-  @override
-  State<_ElapsedTimer> createState() => _ElapsedTimerState();
-}
-
-class _ElapsedTimerState extends State<_ElapsedTimer> {
-  late Timer _timer;
-  late Duration _elapsed;
-
-  @override
-  void initState() {
-    super.initState();
-    _elapsed = widget.isStarted
-        ? DateTime.now().difference(widget.startTime)
-        : Duration.zero;
-    if (widget.isStarted) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) {
-          setState(() =>
-              _elapsed = DateTime.now().difference(widget.startTime));
-        }
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    if (widget.isStarted) _timer.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.isStarted) return const SizedBox.shrink();
-    final h = _elapsed.inHours;
-    final m = (_elapsed.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (_elapsed.inSeconds % 60).toString().padLeft(2, '0');
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF6C63FF).withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: const Color(0xFF6C63FF).withOpacity(0.25)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.timer_rounded,
-              color: Color(0xFF6C63FF), size: 20),
-          const SizedBox(width: 10),
-          Text(
-            h > 0 ? '$h:$m:$s elapsed' : '$m:$s elapsed',
-            style: const TextStyle(
-                color: Color(0xFF6C63FF),
-                fontWeight: FontWeight.bold,
-                fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Trip Action Button (Unified & Safe) ───────────────────────────────────────
-
-class _TripActionButton extends StatelessWidget {
+class _TripBtn extends StatelessWidget {
   final String label;
-  final IconData icon;
   final Color color;
-  final VoidCallback onPressed;
-  final String actionType;
+  final IconData icon;
+   final VoidCallback? onTap;
+  final bool outline;
 
-  const _TripActionButton({
+  final String? actionType;
+
+  const _TripBtn({
     required this.label,
-    required this.icon,
     required this.color,
-    required this.onPressed,
-    required this.actionType,
+    required this.icon,
+    required this.onTap,
+    this.outline = false,
+    this.actionType,
   });
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<TripActionCubit, TripActionState>(
       builder: (context, state) {
-        final isLoading = state is TripActionLoading && state.actionType == actionType;
-        
+        final loading = state is TripActionLoading && state.actionType == actionType;
         return SizedBox(
           width: double.infinity,
-          height: 58,
+          height: 56,
           child: ElevatedButton.icon(
-            icon: isLoading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Icon(icon, size: 22),
-            label: Text(
-              isLoading ? (actionType == 'start' ? 'Starting...' : 'Ending...') : label,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            onPressed: isLoading ? null : onPressed,
+            onPressed: loading ? null : onTap,
+            icon: loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(icon, color: outline ? color : Colors.white),
+            label: Text(label, style: TextStyle(color: outline ? color : Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              disabledBackgroundColor: color.withOpacity(0.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              backgroundColor: outline ? Colors.transparent : color,
               elevation: 0,
+              side: outline ? BorderSide(color: color, width: 2) : null,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _SheetIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _SheetIconButton({required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.1),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(icon, color: color, size: 24),
+        ),
+      ),
+    );
+  }
+}
+
+class _BlurredCircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _BlurredCircleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.8),
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(icon, color: Colors.black87),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PinDot extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  const _PinDot({required this.color, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+        border: Border.all(color: color, width: 2.5),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: color, size: 20),
+    );
+  }
+}
+
+class _HelperMarker extends StatelessWidget {
+  final double rotation;
+  const _HelperMarker({required this.rotation});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Outer glow
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: BrandTokens.primaryBlue.withValues(alpha: 0.2),
+          ),
+        ),
+        // Helper Dot
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: BrandTokens.primaryBlue,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        // Directional Arrow
+        Transform.rotate(
+          angle: rotation * (math.pi / 180),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.navigation_rounded,
+                size: 20,
+                color: BrandTokens.primaryBlue,
+              ),
+              const SizedBox(height: 28), 
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,17 +1,15 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import '../../../../../../core/services/realtime/booking_realtime_event_bus.dart';
+import 'package:signalr_netcore/http_connection_options.dart';
+import 'package:signalr_netcore/hub_connection.dart';
+import 'package:signalr_netcore/hub_connection_builder.dart';
+import '../../../../../../core/config/api_config.dart';
 import '../models/helper_chat_models.dart';
 
 enum ChatSignalRState { connecting, connected, disconnected, error }
 
-/// A proxy service that taps into the global [BookingRealtimeEventBus] 
-/// instead of opening its own redundant SignalR connection.
-///
-/// This ensures we only have one socket open to `/hubs/booking` (managed 
-/// by BookingTrackingHubService) while still providing a dedicated 
-/// stream for the Helper Chat module.
 class HelperChatSignalRService {
+  HubConnection? _hubConnection;
+  
   final _stateController = StreamController<ChatSignalRState>.broadcast();
   Stream<ChatSignalRState> get stateStream => _stateController.stream;
   
@@ -21,64 +19,80 @@ class HelperChatSignalRService {
   ChatSignalRState _currentState = ChatSignalRState.disconnected;
   ChatSignalRState get currentState => _currentState;
 
-  StreamSubscription? _busSubscription;
-
-  HelperChatSignalRService() {
-    _init();
-  }
-
-  void _init() {
-    _busSubscription = BookingRealtimeEventBus.instance.stream.listen((event) {
-      if (event is BusChatMessage) {
-        final ev = event.event;
-        // Convert ChatMessagePushEvent to ChatMessageModel
-        final model = ChatMessageModel(
-          id: ev.messageId ?? ev.eventId,
-          senderId: ev.senderId ?? '',
-          senderType: ev.senderType ?? '',
-          messageType: ev.messageType ?? 'text',
-          text: ev.text ?? ev.preview ?? '',
-          sentAt: ev.sentAt ?? DateTime.now(),
-          isRead: false,
-        );
-        debugPrint('📡 [HelperChat-Proxy] Received message for booking=${ev.bookingId}');
-        _messageController.add(model);
-      }
-    });
-    
-    // Always report as connected if the global bus is attached, 
-    // though the state is mostly managed by the primary hub service.
-    _updateState(ChatSignalRState.connected);
-  }
-
   void _updateState(ChatSignalRState state) {
     _currentState = state;
     _stateController.add(state);
   }
 
-  /// No-op in the proxy implementation as the primary hub handles lifecycle.
   Future<void> connect(String token) async {
-    _updateState(ChatSignalRState.connected);
+    if (_hubConnection?.state == HubConnectionState.Connected) return;
+
+    _updateState(ChatSignalRState.connecting);
+
+    final httpOptions = HttpConnectionOptions(
+      accessTokenFactory: () async => token,
+    );
+
+    _hubConnection = HubConnectionBuilder()
+        .withUrl(ApiConfig.bookingHub, options: httpOptions)
+        .withAutomaticReconnect()
+        .build();
+
+    // Listen for messages
+    _hubConnection!.on('ReceiveChatMessage', (args) {
+      if (args != null && args.isNotEmpty) {
+        final data = args[0] as Map<String, dynamic>;
+        _messageController.add(ChatMessageModel.fromJson(data));
+      }
+    });
+
+    _hubConnection!.onclose(({error}) {
+      _updateState(ChatSignalRState.disconnected);
+    });
+
+    _hubConnection!.onreconnecting(({error}) {
+      _updateState(ChatSignalRState.connecting);
+    });
+
+    _hubConnection!.onreconnected(({connectionId}) {
+      _updateState(ChatSignalRState.connected);
+    });
+
+    try {
+      await _hubConnection!.start();
+      _updateState(ChatSignalRState.connected);
+    } catch (e) {
+      _updateState(ChatSignalRState.error);
+      rethrow;
+    }
   }
 
-  /// No-op in the proxy implementation.
   Future<void> disconnect() async {
+    await _hubConnection?.stop();
     _updateState(ChatSignalRState.disconnected);
   }
 
-  /// No-op: Primary hub usually joins the room automatically on booking accept/start.
   Future<void> joinBookingRoom(String bookingId) async {
-    // If specific room joining is needed, we could delegate to BookingTrackingHubService 
-    // here, but the logs show messages are already arriving via the global connection.
+    if (_hubConnection?.state != HubConnectionState.Connected) return;
+    try {
+      await _hubConnection!.invoke('JoinBookingRoom', args: [bookingId]);
+    } catch (e) {
+      // Silently fail if not implemented
+    }
   }
 
-  /// No-op.
   Future<void> leaveBookingRoom(String bookingId) async {
+    if (_hubConnection?.state != HubConnectionState.Connected) return;
+    try {
+      await _hubConnection!.invoke('LeaveBookingRoom', args: [bookingId]);
+    } catch (e) {
+      // Silently fail
+    }
   }
 
   void dispose() {
-    _busSubscription?.cancel();
     _stateController.close();
     _messageController.close();
+    disconnect();
   }
 }
