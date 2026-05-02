@@ -432,6 +432,7 @@ class ChatMessagePushEvent extends Equatable with EventEnvelope {
   final String? recipientId;
   final String? recipientType;
   final String? messageType;
+  final String? text;
   final String? preview;
   final DateTime? sentAt;
 
@@ -448,6 +449,7 @@ class ChatMessagePushEvent extends Equatable with EventEnvelope {
     this.recipientId,
     this.recipientType,
     this.messageType,
+    this.text,
     this.preview,
     this.sentAt,
   });
@@ -460,13 +462,14 @@ class ChatMessagePushEvent extends Equatable with EventEnvelope {
       version: env.version,
       bookingId: _str(map, 'bookingId') ?? '',
       conversationId: _str(map, 'conversationId'),
-      messageId: _str(map, 'messageId'),
+      messageId: _str(map, 'messageId') ?? _str(map, 'id'),
       senderId: _str(map, 'senderId'),
       senderType: _str(map, 'senderType'),
       senderName: _str(map, 'senderName'),
       recipientId: _str(map, 'recipientId'),
       recipientType: _str(map, 'recipientType'),
       messageType: _str(map, 'messageType'),
+      text: _str(map, 'text'),
       preview: _str(map, 'preview'),
       sentAt: _parseDate(_readKey(map, 'sentAt')),
     );
@@ -484,6 +487,7 @@ class ChatMessagePushEvent extends Equatable with EventEnvelope {
         recipientId,
         recipientType,
         messageType,
+        text,
         preview,
         sentAt,
       ];

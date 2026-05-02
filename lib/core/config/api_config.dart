@@ -22,6 +22,17 @@ class ApiConfig {
     };
   }
 
+  /// Ensures a relative image URL from the API has the full host.
+  static String resolveImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http')) return url;
+    
+    // Remove /api suffix from baseUrl to get the host
+    final host = baseUrl.replaceAll('/api', '');
+    final cleanUrl = url.startsWith('/') ? url : '/$url';
+    return '$host$cleanUrl';
+  }
+
   // ==========================================================================
   // TOURIST - Auth Endpoints
   // ==========================================================================
@@ -152,7 +163,11 @@ class ApiConfig {
   // ==========================================================================
 
   static String helperConversation(String bookingId) => '/helper/bookings/$bookingId/chat';
-  static String helperChatMessages(String bookingId) => '/helper/bookings/$bookingId/chat/messages';
+  static String helperChatMessages(String bookingId, {int page = 1, int pageSize = 50, String? beforeDateTime}) {
+    String url = '/helper/bookings/$bookingId/chat/messages?page=$page&pageSize=$pageSize';
+    if (beforeDateTime != null) url += '&Before=$beforeDateTime';
+    return url;
+  }
   static String helperSendChatMessage(String bookingId) => '/helper/bookings/$bookingId/chat/messages';
   static String helperMarkChatRead(String bookingId) => '/helper/bookings/$bookingId/chat/read';
 
@@ -195,7 +210,7 @@ class ApiConfig {
   static String getChatConversation(String bookingId) => '/user/bookings/$bookingId/chat';
   static String getChatMessages(String bookingId, {int page = 1, int pageSize = 50, String? beforeDateTime}) {
     String url = '/user/bookings/$bookingId/chat/messages?page=$page&pageSize=$pageSize';
-    if (beforeDateTime != null) url += '&beforeDateTime=$beforeDateTime';
+    if (beforeDateTime != null) url += '&Before=$beforeDateTime';
     return url;
   }
   static String sendChatMessage(String bookingId) => '/user/bookings/$bookingId/chat/messages';

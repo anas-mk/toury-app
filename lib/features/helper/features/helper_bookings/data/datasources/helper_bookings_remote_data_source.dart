@@ -205,9 +205,15 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
       final res = await dio.get(ApiConfig.helperUpcoming, cancelToken: cancelToken);
       _assertOk(res);
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is List ? raw : []);
+      final list = (raw is Map && raw['data'] is Map && raw['data']['items'] is List)
+          ? raw['data']['items'] as List
+          : (raw is Map && raw['data'] is List)
+              ? raw['data'] as List
+              : (raw is Map && raw['items'] is List)
+                  ? raw['items'] as List
+                  : (raw is List ? raw : []);
+      
+      debugPrint('📦 [UpcomingBookings] Parsed ${list.length} items');
       return list.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ServerException(_msg(e));

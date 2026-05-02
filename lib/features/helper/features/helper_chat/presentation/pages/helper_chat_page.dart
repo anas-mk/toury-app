@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/features/helper/features/helper_chat/data/services/helper_chat_signalr_service.dart';
+import 'package:toury/core/config/api_config.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
@@ -96,7 +97,9 @@ class _HelperChatPageState extends State<HelperChatPage> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: user.profileImageUrl.isNotEmpty ? NetworkImage(user.profileImageUrl) : null,
+                  backgroundImage: user.profileImageUrl.isNotEmpty 
+                      ? NetworkImage(ApiConfig.resolveImageUrl(user.profileImageUrl)) 
+                      : null,
                   backgroundColor: BrandTokens.primaryBlue.withValues(alpha: 0.1),
                   child: user.profileImageUrl.isEmpty
                       ? Text(user.name[0], style: const TextStyle(color: BrandTokens.primaryBlue, fontSize: 14))

@@ -197,6 +197,7 @@ class _UpcomingTab extends StatelessWidget {
           );
         }
         if (state is UpcomingBookingsLoaded) {
+          debugPrint('🎨 [UpcomingTab] Building with ${state.bookings.length} bookings');
           if (state.bookings.isEmpty) {
             return const EmptyStateView(
               icon: Icons.calendar_today_rounded,

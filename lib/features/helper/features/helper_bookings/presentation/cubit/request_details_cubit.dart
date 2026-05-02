@@ -40,5 +40,13 @@ class RequestDetailsCubit extends Cubit<RequestDetailsState> {
       emit(RequestDetailsError(e.toString()));
     }
   }
+
+  void optimisticUpdateStatus(String newStatus) {
+    if (state is RequestDetailsLoaded) {
+      final current = (state as RequestDetailsLoaded).booking;
+      emit(RequestDetailsLoaded(current.copyWith(status: newStatus)));
+    }
+  }
 }
+
 

@@ -62,6 +62,7 @@ class HelperLocationSignalRService {
   Future<void> sendLocation({
     required double lat,
     required double lng,
+    String? bookingId,
     double? heading,
     double? speedKmh,
     double? accuracyMeters,
@@ -71,14 +72,12 @@ class HelperLocationSignalRService {
     }
 
     await _hubConnection!.invoke('SendLocation', args: [
-      {
-        'latitude': lat,
-        'longitude': lng,
-        'heading': heading,
-        'speedKmh': speedKmh,
-        'accuracyMeters': accuracyMeters,
-        'timestamp': DateTime.now().toIso8601String(),
-      }
+      lat,
+      lng,
+      heading ?? 0.0,
+      speedKmh ?? 0.0,
+      accuracyMeters ?? 0.0,
+      ?bookingId,
     ]);
   }
 

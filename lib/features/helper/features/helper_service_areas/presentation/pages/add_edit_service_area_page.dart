@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_theme.dart';
@@ -11,6 +10,8 @@ import '../../../../../../core/widgets/custom_button.dart';
 import '../../domain/entities/service_area_entities.dart';
 import '../cubit/service_areas_cubit.dart';
 import 'map_picker_page.dart';
+
+import '../../../../../../core/services/location/mapbox_geocoding_service.dart';
 
 class AddEditServiceAreaPage extends StatefulWidget {
   final ServiceAreaEntity? existing;
@@ -23,6 +24,7 @@ class AddEditServiceAreaPage extends StatefulWidget {
 
 class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   final _formKey = GlobalKey<FormState>();
+  final GeocodingService _geo = GeocodingService();
 
   double _lat = 0;
   double _lng = 0;
@@ -60,23 +62,31 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   Future<void> _resolveAddressFromCoordinates() async {
     setState(() => _isResolvingAddress = true);
     try {
-      final placemarks = await placemarkFromCoordinates(_lat, _lng);
-      final p = placemarks.isNotEmpty ? placemarks.first : null;
-      if (p != null) {
-        final city = p.locality?.trim().isNotEmpty == true
-            ? p.locality!.trim()
-            : (p.subAdministrativeArea?.trim().isNotEmpty == true
-                ? p.subAdministrativeArea!.trim()
-                : p.administrativeArea?.trim());
-        final country = p.country?.trim();
-        if (!mounted) return;
+      final r = await _geo.reverse(lat: _lat, lng: _lng);
+      if (!mounted) return;
+      if (r != null) {
+        // displayName usually contains full address "District, City, Country"
+        final parts = r.displayName.split(',').map((e) => e.trim()).toList();
+        
+        String? city;
+        String? country;
+
+        if (parts.length >= 2) {
+          country = parts.last;
+          // City is usually the second to last part or the one before it
+          city = parts[parts.length - 2];
+        } else {
+          city = r.name;
+          country = 'Egypt';
+        }
+
         setState(() {
           _resolvedCity = city;
           _resolvedCountry = country;
         });
       }
-    } catch (_) {
-      // User can retry by re-picking on map.
+    } catch (e) {
+      debugPrint('[ServiceArea] Reverse geocode error: $e');
     } finally {
       if (!mounted) return;
       setState(() => _isResolvingAddress = false);

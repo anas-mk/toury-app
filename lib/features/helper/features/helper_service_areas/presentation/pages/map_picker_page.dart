@@ -6,6 +6,8 @@ import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 
+import '../../../../../../core/services/maps/cached_tile_provider.dart';
+
 class MapPickerPage extends StatefulWidget {
   final double? initialLat;
   final double? initialLng;
@@ -83,6 +85,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
+                tileProvider: CachedTileProvider(),
+                userAgentPackageName: 'com.toury.app',
               ),
               MarkerLayer(
                 markers: [

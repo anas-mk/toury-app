@@ -6,8 +6,17 @@ import 'package:toury/features/helper/features/helper_chat/presentation/pages/he
 import 'package:toury/features/helper/features/helper_sos/presentation/pages/helper_sos_page.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/widgets/custom_button.dart';
+import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
+import 'package:toury/features/helper/features/helper_location/presentation/cubit/helper_location_cubit.dart';
+import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/services/auth_service.dart';
+import '../../../helper_bookings/presentation/cubit/booking_actions_cubits.dart' show DeclineBookingCubit;
+import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
 import '../cubit/helper_tracking_cubit.dart';
+import '../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../cubit/helper_tracking_state.dart';
+
+const String _mapboxToken = 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg';
 
 class HelperBookingTrackingPage extends StatefulWidget {
   final String bookingId;
@@ -46,12 +55,22 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
     )..addListener(() {
       setState(() {}); // Rebuild map to update marker position
     });
+
+    // Start Real-time GPS Tracking
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final token = sl<AuthService>().getToken();
+      if (token != null) {
+        sl<HelperLocationCubit>().startTripTracking(token, widget.bookingId);
+      }
+    });
   }
 
   @override
   void dispose() {
     _movementController?.dispose();
     _mapController.dispose();
+    // Stop Trip Tracking when leaving the screen
+    sl<HelperLocationCubit>().stopTripTracking();
     super.dispose();
   }
 
@@ -75,9 +94,41 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      body: BlocConsumer<HelperTrackingCubit, HelperTrackingState>(
-        listener: (context, state) {
+      body: MultiBlocListener(
+        listeners: [
+          BlocListener<TripActionCubit, TripActionState>(
+            listener: (context, state) {
+              if (state is TripActionSuccess) {
+                final msg = state.message.toLowerCase();
+                if (msg.contains('started')) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Trip Started!')));
+                  context.read<HelperTrackingCubit>().startTracking(widget.bookingId);
+                } else if (msg.contains('ended') || msg.contains('completed')) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Trip Ended Successfully!')));
+                  Navigator.pop(context);
+                }
+              } else if (state is TripActionError) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+              }
+            },
+          ),
+          BlocListener<DeclineBookingCubit, DeclineBookingState>(
+            listener: (context, state) {
+              if (state is DeclineBookingSuccess) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Trip Cancelled')));
+                Navigator.pop(context);
+              } else if (state is DeclineBookingError) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+              }
+            },
+          ),
+        ],
+        child: BlocConsumer<HelperTrackingCubit, HelperTrackingState>(
+          listener: (context, state) {
           if (state is HelperTrackingLive && state.tracking.latestPoint != null) {
             final latest = state.tracking.latestPoint!;
             final newPos = LatLng(latest.latitude, latest.longitude);
@@ -133,16 +184,23 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate: isDark
+                          ? 'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken'
+                          : 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken',
+                      additionalOptions: const {
+                        'accessToken': _mapboxToken,
+                      },
+                      tileProvider: CachedTileProvider(),
                       userAgentPackageName: 'com.toury.app',
                     ),
                     PolylineLayer(
                       polylines: [
-                        Polyline(
-                          points: polylinePoints,
-                          color: BrandTokens.primaryBlue,
-                          strokeWidth: 4,
-                        ),
+                        if (polylinePoints.isNotEmpty)
+                          Polyline(
+                            points: polylinePoints,
+                            color: BrandTokens.primaryBlue,
+                            strokeWidth: 4,
+                          ),
                       ],
                     ),
                     MarkerLayer(
@@ -173,7 +231,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   shape: BoxShape.circle,
-                                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
+                                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
                                   border: Border.all(color: BrandTokens.primaryBlue, width: 3),
                                 ),
                                 child: const Icon(Icons.navigation, color: BrandTokens.primaryBlue, size: 30),
@@ -253,6 +311,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
           return const SizedBox();
         },
       ),
+      ),
     );
   }
 
@@ -283,8 +342,10 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
   Widget _buildDashboard(BuildContext context, dynamic tracking) {
     final theme = Theme.of(context);
     final s = tracking.status.toString().toLowerCase();
-    final canChat = ['accepted', 'confirmed', 'inprogress', 'started'].contains(s);
-    final canSos = ['inprogress', 'started'].contains(s);
+    
+    final canChat = true; // Always allow chat
+    final isStarted = ['inprogress', 'started'].contains(s);
+    final canSos = isStarted;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -315,7 +376,7 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('On Active Trip', style: BrandTokens.body(fontWeight: FontWeight.bold)),
+                    Text(isStarted ? 'On Active Trip' : 'Waiting to Start', style: BrandTokens.body(fontWeight: FontWeight.bold)),
                     Text('Trip ID: #${widget.bookingId.substring(0, 8).toUpperCase()}', style: BrandTokens.body(fontSize: 12)),
                   ],
                 ),
@@ -336,6 +397,54 @@ class _HelperBookingTrackingPageState extends State<HelperBookingTrackingPage> w
                 ),
             ],
           ),
+          const SizedBox(height: 16),
+          if (isStarted)
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: BlocBuilder<TripActionCubit, TripActionState>(
+                builder: (context, state) => ElevatedButton(
+                  onPressed: state is TripActionInProgress ? null : () => context.read<TripActionCubit>().end(widget.bookingId),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: BrandTokens.dangerRed,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text(state is TripActionInProgress ? 'Ending...' : 'End Trip', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: BlocBuilder<DeclineBookingCubit, DeclineBookingState>(
+                    builder: (context, state) => OutlinedButton(
+                      onPressed: state is DeclineBookingLoading ? null : () => context.read<DeclineBookingCubit>().decline(widget.bookingId, reason: 'Cancelled by helper'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: BrandTokens.dangerRed, width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(state is DeclineBookingLoading ? '...' : 'Cancel', style: const TextStyle(color: BrandTokens.dangerRed, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: BlocBuilder<TripActionCubit, TripActionState>(
+                    builder: (context, state) => ElevatedButton(
+                      onPressed: state is TripActionInProgress ? null : () => context.read<TripActionCubit>().start(widget.bookingId),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: BrandTokens.successGreen,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(state is TripActionInProgress ? 'Starting...' : 'Start Trip', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );

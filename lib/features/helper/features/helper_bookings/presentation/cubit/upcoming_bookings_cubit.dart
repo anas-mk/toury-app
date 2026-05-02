@@ -34,9 +34,11 @@ class UpcomingBookingsCubit extends Cubit<UpcomingBookingsState> {
     try {
       final bookings = await _getUpcoming();
       if (isClosed) return;
+      debugPrint('✅ [UpcomingBookingsCubit] Loaded ${bookings.length} bookings');
       emit(UpcomingBookingsLoaded(bookings));
     } catch (e) {
       if (isClosed) return;
+      debugPrint('❌ [UpcomingBookingsCubit] Error: $e');
       emit(UpcomingBookingsError(e.toString()));
     }
   }

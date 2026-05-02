@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
@@ -18,22 +19,19 @@ class ActiveBookingPage extends StatefulWidget {
 
 class _ActiveBookingPageState extends State<ActiveBookingPage> {
   late final ActiveBookingCubit _activeCubit;
-  late final StartTripCubit _startCubit;
-  late final EndTripCubit _endCubit;
+  late final TripActionCubit _tripActionCubit;
 
   @override
   void initState() {
     super.initState();
     _activeCubit = sl<ActiveBookingCubit>();
-    _startCubit  = sl<StartTripCubit>();
-    _endCubit    = sl<EndTripCubit>();
+    _tripActionCubit = sl<TripActionCubit>();
     _activeCubit.load();
   }
 
   @override
   void dispose() {
-    _startCubit.close();
-    _endCubit.close();
+    _tripActionCubit.close();
     super.dispose();
   }
 
@@ -42,26 +40,21 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _activeCubit),
-        BlocProvider.value(value: _startCubit),
-        BlocProvider.value(value: _endCubit),
+        BlocProvider.value(value: _tripActionCubit),
       ],
       child: MultiBlocListener(
         listeners: [
-          BlocListener<StartTripCubit, StartTripState>(
+          BlocListener<TripActionCubit, TripActionState>(
             listener: (context, state) {
-              if (state is StartTripSuccess) {
-                _showSnack(context, '🚀 Trip started!');
-                _activeCubit.load();
-              } else if (state is StartTripError) {
-                _showSnack(context, state.message, isError: true);
-              }
-            },
-          ),
-          BlocListener<EndTripCubit, EndTripState>(
-            listener: (context, state) {
-              if (state is EndTripSuccess) {
-                _showEarningsDialog(context, state.earnings);
-              } else if (state is EndTripError) {
+              if (state is TripActionSuccess) {
+                if (state.actionType == 'start') {
+                  _showSnack(context, '🚀 Trip started!');
+                  _activeCubit.load();
+                } else if (state.actionType == 'end') {
+                  final earnings = state.result as double? ?? 0.0;
+                  _showEarningsDialog(context, earnings);
+                }
+              } else if (state is TripActionError) {
                 _showSnack(context, state.message, isError: true);
               }
             },
@@ -87,7 +80,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   Widget _buildContent(BuildContext context, HelperBooking booking) {
-    final isStarted = booking.status == 'inProgress' || booking.status == 'started';
+    final status = booking.status;
+    final isStarted = status == 'InProgress' || status == 'started';
+    
     return Stack(
       children: [
         CustomScrollView(
@@ -129,7 +124,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
             ),
           ],
         ),
-        // Sticky CTA
+        // Sticky CTA (Dynamic Buttons)
         Positioned(
           left: 0,
           right: 0,
@@ -143,9 +138,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
               ),
             ),
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
-            child: isStarted
-                ? _EndTripButton(booking: booking)
-                : _StartTripButton(booking: booking),
+            child: _buildActionButtons(booking),
           ),
         ),
         Positioned(
@@ -180,6 +173,73 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildActionButtons(HelperBooking booking) {
+    final status = booking.status;
+
+    if (status == 'AcceptedByHelper') {
+      return _TripActionButton(
+        label: 'Start Trip',
+        icon: Icons.play_arrow_rounded,
+        color: const Color(0xFF00C896),
+        onPressed: () => _tripActionCubit.startTrip(booking),
+        actionType: 'start',
+      );
+    } else if (status == 'InProgress' || status == 'started') {
+      return _TripActionButton(
+        label: 'End Trip',
+        icon: Icons.stop_circle_rounded,
+        color: const Color(0xFFFF6B6B),
+        onPressed: () => _confirmEnd(context, booking),
+        actionType: 'end',
+      );
+    } else if (status == 'Completed') {
+      return Container(
+        height: 58,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Text(
+          'TRIP COMPLETED',
+          style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  void _confirmEnd(BuildContext context, HelperBooking booking) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F3C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('End Trip?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text('Mark this trip as completed?',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _tripActionCubit.endTrip(booking);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B6B)),
+            child: const Text('End Trip'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -579,96 +639,50 @@ class _ElapsedTimerState extends State<_ElapsedTimer> {
   }
 }
 
-// ── CTA Buttons ───────────────────────────────────────────────────────────────
+// ── Trip Action Button (Unified & Safe) ───────────────────────────────────────
 
-class _StartTripButton extends StatelessWidget {
-  final HelperBooking booking;
-  const _StartTripButton({required this.booking});
+class _TripActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+  final String actionType;
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<StartTripCubit, StartTripState>(
-      builder: (context, state) => SizedBox(
-        width: double.infinity,
-        height: 58,
-        child: ElevatedButton.icon(
-          icon: const Icon(Icons.play_arrow_rounded, size: 22),
-          label: Text(
-            state is StartTripLoading ? 'Starting...' : 'Start Trip',
-            style:
-                const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-          onPressed: state is StartTripLoading
-              ? null
-              : () => context.read<StartTripCubit>().start(booking.id),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00C896),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EndTripButton extends StatelessWidget {
-  final HelperBooking booking;
-  const _EndTripButton({required this.booking});
+  const _TripActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+    required this.actionType,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<EndTripCubit, EndTripState>(
-      builder: (context, state) => SizedBox(
-        width: double.infinity,
-        height: 58,
-        child: ElevatedButton.icon(
-          icon: const Icon(Icons.stop_circle_rounded, size: 22),
-          label: Text(
-            state is EndTripLoading ? 'Ending Trip...' : 'End Trip',
-            style:
-                const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-          onPressed: state is EndTripLoading
-              ? null
-              : () => _confirmEnd(context, booking.id),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF6B6B),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _confirmEnd(BuildContext context, String bookingId) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F3C),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('End Trip?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text('Mark this trip as completed?',
-            style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.white38)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<EndTripCubit>().end(bookingId);
-            },
+    return BlocBuilder<TripActionCubit, TripActionState>(
+      builder: (context, state) {
+        final isLoading = state is TripActionLoading && state.actionType == actionType;
+        
+        return SizedBox(
+          width: double.infinity,
+          height: 58,
+          child: ElevatedButton.icon(
+            icon: isLoading 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : Icon(icon, size: 22),
+            label: Text(
+              isLoading ? (actionType == 'start' ? 'Starting...' : 'Ending...') : label,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            onPressed: isLoading ? null : onPressed,
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B6B)),
-            child: const Text('End Trip'),
+              backgroundColor: color,
+              disabledBackgroundColor: color.withOpacity(0.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              elevation: 0,
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

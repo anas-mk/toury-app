@@ -1,31 +1,27 @@
+import '../../../../../../core/services/location_service.dart';
 import '../entities/helper_location_entities.dart';
-import '../../data/services/helper_location_tracker.dart';
 
-/// Use case to get the current GPS location of the helper
-/// This is used when the helper goes online to send their location to the backend
+/// Use case to get the current GPS location of the helper.
 class GetCurrentLocationUseCase {
-  final HelperLocationTracker locationTracker;
+  final LocationService locationService;
 
-  GetCurrentLocationUseCase(this.locationTracker);
+  GetCurrentLocationUseCase(this.locationService);
 
-  /// Fetches the current GPS location
-  /// Throws an exception if location permission is denied or location services are disabled
   Future<HelperLocation> execute() async {
-    final hasPermission = await locationTracker.checkPermission();
-    if (!hasPermission) {
+    final pos = await locationService.getCurrentPosition();
+    if (pos == null) {
       throw LocationPermissionDeniedException(
         'Location permission is required to go online',
       );
     }
 
-    final locationModel = await locationTracker.getCurrentLocation();
-    
     return HelperLocation(
-      latitude: locationModel.latitude,
-      longitude: locationModel.longitude,
-      heading: locationModel.heading,
-      speedKmh: locationModel.speedKmh,
-      timestamp: locationModel.timestamp,
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      heading: pos.heading,
+      speedKmh: pos.speed,
+      accuracyMeters: pos.accuracy,
+      timestamp: pos.timestamp ?? DateTime.now(),
     );
   }
 }

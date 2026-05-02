@@ -8,6 +8,7 @@ abstract class HelperChatRemoteDataSource {
   Future<List<ChatMessageModel>> getMessages(
     String bookingId, {
     DateTime? before,
+    int page = 1,
     int pageSize = 50,
     CancelToken? cancelToken,
   });
@@ -64,16 +65,18 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
   Future<List<ChatMessageModel>> getMessages(
     String bookingId, {
     DateTime? before,
+    int page = 1,
     int pageSize = 50,
     CancelToken? cancelToken,
   }) async {
     try {
-      final params = <String, dynamic>{'pageSize': pageSize};
-      if (before != null) params['beforeDateTime'] = before.toIso8601String();
-
       final res = await dio.get(
-        ApiConfig.helperChatMessages(bookingId),
-        queryParameters: params,
+        ApiConfig.helperChatMessages(
+          bookingId,
+          page: page,
+          pageSize: pageSize,
+          beforeDateTime: before?.toUtc().toIso8601String(),
+        ),
         cancelToken: cancelToken,
       );
       _assertOk(res);
@@ -92,7 +95,7 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
     try {
       final res = await dio.post(
         ApiConfig.helperSendChatMessage(bookingId),
-        data: {'text': text, 'messageType': 'text'},
+        data: {'text': text, 'messageType': 'Text'},
         cancelToken: cancelToken,
       );
       _assertOk(res);

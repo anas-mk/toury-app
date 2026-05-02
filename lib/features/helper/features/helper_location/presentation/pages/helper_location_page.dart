@@ -13,8 +13,11 @@ import '../../data/services/helper_location_signalr_service.dart';
 import '../cubit/helper_location_cubit.dart';
 import '../cubit/location_status_cubits.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
+import '../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
+
+const String _mapboxToken = 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg';
 
 class HelperLocationPage extends StatefulWidget {
   const HelperLocationPage({super.key});
@@ -56,8 +59,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
     final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
     final token = helper?.token ?? sl<AuthService>().getToken();
     if (token != null && token.isNotEmpty) {
-      _locationCubit.setAvailabilityState(HelperAvailabilityState.availableNow);
-      _locationCubit.requestPermissionAndInitialize(token);
+      _locationCubit.initialize(token, availability: HelperAvailabilityState.availableNow);
     }
   }
 
@@ -113,7 +115,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                   context.read<HelperAvailabilityCubit>().update(HelperAvailabilityState.offline);
                   return;
                 }
-                final ok = await _locationCubit.requestPermissionAndInitialize(token);
+                final ok = await _locationCubit.initialize(token, availability: HelperAvailabilityState.availableNow);
                 if (!ok) {
                   if (!context.mounted) return;
                   context.read<HelperAvailabilityCubit>().update(HelperAvailabilityState.offline);
@@ -124,7 +126,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
               }
 
               if (state.status == HelperAvailabilityState.offline) {
-                await _locationCubit.stopTracking();
+                await _locationCubit.setAvailabilityState(HelperAvailabilityState.offline);
               }
             },
           ),
@@ -182,9 +184,13 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                   children: [
                     TileLayer(
                       urlTemplate: isDark
-                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                          : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                      subdomains: const ['a', 'b', 'c', 'd'],
+                          ? 'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken'
+                          : 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken',
+                      additionalOptions: const {
+                        'accessToken': _mapboxToken,
+                      },
+                      tileProvider: CachedTileProvider(),
+                      userAgentPackageName: 'com.toury.app',
                     ),
                     if (state is HelperLocationTracking) ...[
                       CircleLayer(

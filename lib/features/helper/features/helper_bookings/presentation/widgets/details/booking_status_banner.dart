@@ -39,6 +39,7 @@ class BookingStatusBanner extends StatelessWidget {
   (Color, String, IconData) _info(String s) {
     switch (s.toLowerCase()) {
       case 'pending':
+      case 'pendinghelperresponse':
         return (const Color(0xFFFFAB40), 'Pending Your Response', Icons.hourglass_empty_rounded);
       case 'confirmed':
       case 'accepted':

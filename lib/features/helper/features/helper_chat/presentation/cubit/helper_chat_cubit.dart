@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/services/helper_chat_signalr_service.dart';
 import '../../domain/entities/helper_chat_entities.dart';
@@ -116,19 +117,19 @@ class HelperChatCubit extends Cubit<HelperChatState> {
   void _listenToMessages() {
     _messageSubscription?.cancel();
     _messageSubscription = signalRService.messageStream.listen((msg) {
+      debugPrint('📡 [HelperChatCubit] Received real-time message: ${msg.id}');
       if (state is HelperChatLoaded) {
         final s = state as HelperChatLoaded;
-        // Check if message belongs to current conversation
-        // (Assuming backend sends room info or we trust the room join)
-        if (msg.senderId != s.conversation.helper.id) {
-           // It's a traveler message, mark as read
-           markRead(_currentBookingId!);
-        }
         
-        // Add message to list if not already there (SignalR might send duplicate if we just sent it via HTTP)
+        // Add message to list if not already there
         if (!s.messages.any((m) => m.id == msg.id)) {
+           debugPrint('📡 [HelperChatCubit] Adding message to UI list');
            emit(s.copyWith(messages: [msg, ...s.messages]));
+        } else {
+           debugPrint('📡 [HelperChatCubit] Message already exists in list, skipping');
         }
+      } else {
+        debugPrint('📡 [HelperChatCubit] State is NOT Loaded (${state.runtimeType}), skipping message');
       }
     });
   }
@@ -169,8 +170,8 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     final pendingMsg = ChatMessageEntity(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       senderId: s.conversation.helper.id,
-      senderType: 'helper',
-      messageType: 'text',
+      senderType: 'Helper',
+      messageType: 'Text',
       text: text,
       isRead: false,
       sentAt: DateTime.now(),
@@ -183,15 +184,20 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
     result.fold(
       (f) {
-        // Remove pending message and show error
-        final updatedMessages = s.messages.where((m) => m.id != pendingMsg.id).toList();
-        emit(s.copyWith(messages: updatedMessages));
-        // You might want to emit a specific error state or use a side effect
+        if (state is HelperChatLoaded) {
+          final currentLoaded = state as HelperChatLoaded;
+          // Remove pending message and show error
+          final updatedMessages = currentLoaded.messages.where((m) => m.id != pendingMsg.id).toList();
+          emit(currentLoaded.copyWith(messages: updatedMessages));
+        }
       },
       (sentMsg) {
-        // Replace pending with actual
-        final updatedMessages = s.messages.map((m) => m.id == pendingMsg.id ? sentMsg : m).toList();
-        emit(s.copyWith(messages: updatedMessages));
+        if (state is HelperChatLoaded) {
+          final currentLoaded = state as HelperChatLoaded;
+          // Replace pending with actual
+          final updatedMessages = currentLoaded.messages.map((m) => m.id == pendingMsg.id ? sentMsg : m).toList();
+          emit(currentLoaded.copyWith(messages: updatedMessages));
+        }
       },
     );
   }

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import 'package:toury/core/config/api_config.dart';
 import '../theme/brand_tokens.dart';
 
 class AppNetworkImage extends StatelessWidget {
@@ -41,7 +42,8 @@ class AppNetworkImage extends StatelessWidget {
       return _buildPlaceholder();
     }
 
-    final optimizedUrl = _optimizeCloudinaryUrl(imageUrl!);
+    final resolvedUrl = ApiConfig.resolveImageUrl(imageUrl!);
+    final optimizedUrl = _optimizeCloudinaryUrl(resolvedUrl);
     final dpr = MediaQuery.of(context).devicePixelRatio;
 
     final effectiveMemW = memCacheWidth ??

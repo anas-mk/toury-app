@@ -12,6 +12,7 @@ import '../widgets/details/booking_route_card.dart';
 import '../widgets/details/payment_info_card.dart';
 import '../../../helper_ratings/presentation/widgets/booking_rating_sheet.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
+import '../cubit/trip_action_cubit.dart';
 
 class HelperBookingDetailsPage extends StatefulWidget {
   final String bookingId;
@@ -30,20 +31,18 @@ class HelperBookingDetailsPage extends StatefulWidget {
 class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   late final HelperBookingDetailsCubit _detailsCubit;
   late final RequestDetailsCubit _requestCubit;
-  late final AcceptBookingCubit _acceptCubit;
-  late final DeclineBookingCubit _declineCubit;
-  late final StartTripCubit _startCubit;
-  late final EndTripCubit _endCubit;
+  late final AcceptRejectRequestCubit _acceptRejectCubit;
+
+  late final TripActionCubit _tripActionCubit;
 
   @override
   void initState() {
     super.initState();
     _detailsCubit = sl<HelperBookingDetailsCubit>();
     _requestCubit = sl<RequestDetailsCubit>();
-    _acceptCubit  = sl<AcceptBookingCubit>();
-    _declineCubit = sl<DeclineBookingCubit>();
-    _startCubit   = sl<StartTripCubit>();
-    _endCubit     = sl<EndTripCubit>();
+    _acceptRejectCubit = sl<AcceptRejectRequestCubit>();
+
+    _tripActionCubit = sl<TripActionCubit>();
 
     if (widget.isRequest) {
       _requestCubit.load(widget.bookingId);
@@ -56,10 +55,9 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   void dispose() {
     _detailsCubit.close();
     _requestCubit.close();
-    _acceptCubit.close();
-    _declineCubit.close();
-    _startCubit.close();
-    _endCubit.close();
+    _acceptRejectCubit.close();
+
+    _tripActionCubit.close();
     super.dispose();
   }
 
@@ -80,48 +78,36 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
       providers: [
         BlocProvider.value(value: _detailsCubit),
         BlocProvider.value(value: _requestCubit),
-        BlocProvider.value(value: _acceptCubit),
-        BlocProvider.value(value: _declineCubit),
-        BlocProvider.value(value: _startCubit),
-        BlocProvider.value(value: _endCubit),
+        BlocProvider.value(value: _acceptRejectCubit),
+
+        BlocProvider.value(value: _tripActionCubit),
       ],
       child: MultiBlocListener(
         listeners: [
-          BlocListener<AcceptBookingCubit, AcceptBookingState>(
+          BlocListener<AcceptRejectRequestCubit, AcceptRejectRequestState>(
             listener: (context, state) {
-              if (state is AcceptBookingSuccess) {
+              if (state is AcceptSuccess) {
                 _showSnack(context, '✓ Request accepted!');
-                context.replace('/helper/booking-details/${state.booking.id}');
-              } else if (state is AcceptBookingError) {
-                _showSnack(context, state.message, isError: true);
-              }
-            },
-          ),
-          BlocListener<DeclineBookingCubit, DeclineBookingState>(
-            listener: (context, state) {
-              if (state is DeclineBookingSuccess) {
+                final b = state.booking;
+                context.replace('/helper-tracking/${b.id}?pickupLat=${b.pickupLat}&pickupLng=${b.pickupLng}&destLat=${b.destinationLat}&destLng=${b.destinationLng}');
+              } else if (state is RejectSuccess) {
                 _showSnack(context, 'Request declined');
                 context.pop();
-              } else if (state is DeclineBookingError) {
+              } else if (state is AcceptRejectFailure) {
                 _showSnack(context, state.message, isError: true);
               }
             },
           ),
-          BlocListener<StartTripCubit, StartTripState>(
+          BlocListener<TripActionCubit, TripActionState>(
             listener: (context, state) {
-              if (state is StartTripSuccess) {
-                _showSnack(context, 'Trip started!');
-                _detailsCubit.load(widget.bookingId);
-              } else if (state is StartTripError) {
-                _showSnack(context, state.message, isError: true);
-              }
-            },
-          ),
-          BlocListener<EndTripCubit, EndTripState>(
-            listener: (context, state) {
-              if (state is EndTripSuccess) {
-                _showEarningsDialog(context, state.earnings);
-              } else if (state is EndTripError) {
+              if (state is TripActionSuccess) {
+                if (state.actionType == 'start') {
+                  _showSnack(context, 'Trip started!');
+                  _detailsCubit.load(widget.bookingId);
+                } else if (state.actionType == 'end') {
+                  _showEarningsDialog(context, state.result as double);
+                }
+              } else if (state is TripActionError) {
                 _showSnack(context, state.message, isError: true);
               }
             },
@@ -166,7 +152,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
 
   Widget _buildContent(BuildContext context, HelperBooking booking) {
     final status = booking.status.toLowerCase();
-    final isPending = status == 'pending';
+    final isPending = status == 'pending' || status == 'pendinghelperresponse';
     final isConfirmed = status == 'confirmed' || status == 'accepted';
     final isActive = status == 'inprogress' || status == 'started';
     final isCompleted = status == 'completed';
@@ -218,25 +204,43 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   }
 
   Widget _buildRequestActions(BuildContext context, HelperBooking booking) {
-    return Row(
-      children: [
-        Expanded(
-          child: _ActionBtn(
-            label: 'Decline',
-            color: BrandTokens.dangerRed,
-            outline: true,
-            onTap: () => _declineCubit.decline(booking.id),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _ActionBtn(
-            label: 'Accept Request',
-            color: BrandTokens.successGreen,
-            onTap: () => _acceptCubit.accept(booking.id),
-          ),
-        ),
-      ],
+    return BlocBuilder<AcceptRejectRequestCubit, AcceptRejectRequestState>(
+      builder: (context, state) {
+        final isAcceptLoading = state is AcceptLoading;
+        final isRejectLoading = state is RejectLoading;
+        final isDisabled = isAcceptLoading || isRejectLoading;
+
+        return Row(
+          children: [
+            Expanded(
+              child: _ActionBtn(
+                label: 'Decline',
+                color: BrandTokens.dangerRed,
+                outline: true,
+                isLoading: isRejectLoading,
+                isDisabled: isDisabled,
+                onTap: () {
+                  if (widget.isRequest) _requestCubit.optimisticUpdateStatus('Rejected');
+                  _acceptRejectCubit.rejectRequest(booking.id);
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ActionBtn(
+                label: 'Accept Request',
+                color: BrandTokens.successGreen,
+                isLoading: isAcceptLoading,
+                isDisabled: isDisabled,
+                onTap: () {
+                  if (widget.isRequest) _requestCubit.optimisticUpdateStatus('Accepted');
+                  _acceptRejectCubit.acceptRequest(booking.id);
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -247,7 +251,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           label: 'Start Trip',
           icon: Icons.play_arrow_rounded,
           color: BrandTokens.successGreen,
-          onTap: () => _startCubit.start(booking.id),
+          onTap: () => _tripActionCubit.start(booking.id),
         ),
         const SizedBox(height: 12),
         _ActionBtn(
@@ -319,7 +323,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           TextButton(
             onPressed: () {
               context.pop();
-              _endCubit.end(bookingId);
+              _tripActionCubit.end(bookingId);
             },
             child: const Text('End Trip', style: TextStyle(color: BrandTokens.dangerRed)),
           ),
@@ -392,36 +396,62 @@ class _ActionBtn extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final bool outline;
+  final bool isLoading;
+  final bool isDisabled;
 
-  const _ActionBtn({required this.label, this.icon, required this.color, required this.onTap, this.outline = false});
+  const _ActionBtn({
+    required this.label, 
+    this.icon, 
+    required this.color, 
+    required this.onTap, 
+    this.outline = false,
+    this.isLoading = false,
+    this.isDisabled = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveOnTap = isDisabled ? null : onTap;
+    final contentColor = outline ? color : Colors.white;
+
+    Widget childContent = isLoading 
+        ? SizedBox(
+            width: 24, height: 24, 
+            child: CircularProgressIndicator(color: contentColor, strokeWidth: 2.5)
+          )
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) Icon(icon, color: contentColor, size: 20),
+              if (icon != null) const SizedBox(width: 8),
+              Text(label, style: BrandTypography.body(color: contentColor, weight: FontWeight.bold)),
+            ],
+          );
+
     if (outline) {
       return SizedBox(
         width: double.infinity, height: 56,
-        child: OutlinedButton.icon(
-          onPressed: onTap,
-          icon: icon != null ? Icon(icon, color: color, size: 20) : const SizedBox.shrink(),
-          label: Text(label, style: BrandTypography.body(color: color, weight: FontWeight.bold)),
+        child: OutlinedButton(
+          onPressed: effectiveOnTap,
           style: OutlinedButton.styleFrom(
-            side: BorderSide(color: color, width: 1.5),
+            side: BorderSide(color: isDisabled ? Colors.grey : color, width: 1.5),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
+          child: childContent,
         ),
       );
     }
     return SizedBox(
       width: double.infinity, height: 56,
-      child: ElevatedButton.icon(
-        onPressed: onTap,
-        icon: icon != null ? Icon(icon, color: Colors.white, size: 20) : const SizedBox.shrink(),
-        label: Text(label, style: BrandTypography.body(color: Colors.white, weight: FontWeight.bold)),
+      child: ElevatedButton(
+        onPressed: effectiveOnTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
+          disabledBackgroundColor: Colors.grey.shade400,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
+        child: childContent,
       ),
     );
   }

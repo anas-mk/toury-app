@@ -45,6 +45,7 @@ class HelperLocationRepositoryImpl implements HelperLocationRepository {
     await signalRService.sendLocation(
       lat: location.latitude,
       lng: location.longitude,
+      bookingId: location.bookingId,
       heading: location.heading,
       speedKmh: location.speedKmh,
       accuracyMeters: location.accuracyMeters,

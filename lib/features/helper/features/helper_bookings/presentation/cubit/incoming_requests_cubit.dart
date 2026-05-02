@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../../domain/usecases/helper_bookings_usecases.dart';
@@ -121,6 +122,7 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
   late final BookingTrackingHubService _hubService;
   StreamSubscription? _hubSub;
   Timer? _hubDebounce;
+  Timer? _pollingTimer;
   bool _inFlight = false;
 
   RequestFilterType _currentFilter = RequestFilterType.all;
@@ -142,6 +144,20 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
         if (isClosed) return;
         load(silent: true);
       });
+    });
+
+    // Production-grade polling fallback (every 30s)
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (isClosed) {
+        timer.cancel();
+        return;
+      }
+      // Only refresh if we are not already loading and we have a loaded state
+      if (!_inFlight && (state is IncomingRequestsLoaded || state is IncomingRequestsEmpty)) {
+        debugPrint('🔄 [IncomingRequestsCubit] Auto-refreshing requests...');
+        load(silent: true);
+      }
     });
   }
 
@@ -242,6 +258,7 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
   @override
   Future<void> close() {
     _hubDebounce?.cancel();
+    _pollingTimer?.cancel();
     _hubSub?.cancel();
     return super.close();
   }

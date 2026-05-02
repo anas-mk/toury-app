@@ -80,8 +80,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
 
       if (token != null) {
         final locCubit = sl<HelperLocationCubit>();
-        locCubit.setAvailabilityState(HelperAvailabilityState.availableNow);
-        final granted = await locCubit.requestPermissionAndInitialize(token);
+        final granted = await locCubit.initialize(token, availability: HelperAvailabilityState.availableNow);
 
         if (!granted) {
           if (mounted) setState(() { _isInitializing = false; _showPermissionWall = true; });

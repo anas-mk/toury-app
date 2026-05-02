@@ -66,30 +66,43 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   }
 
   Future<void> _loadAll({bool force = false}) async {
-    if (force) {
-      await Future.wait([
-        _dashCubit.refresh(silent: true),
-        _activeCubit.load(silent: true),
-        _requestsCubit.load(silent: true),
-        _statusCubit.loadStatus(force: true),
-      ]);
+    // 1. Auth/Token Check
+    final token = sl<AuthService>().getToken();
+    if (token == null || token.isEmpty) {
+      debugPrint('❌ [Dashboard] No token found, redirecting to login');
+      context.go(AppRouter.helperLogin);
       return;
     }
 
-    await _dashCubit.loadOnce();
-    final dashState = _dashCubit.state;
-    if (dashState is HelperDashboardLoaded) {
-      _availCubit.setCurrentStatus(dashState.dashboard.availabilityState);
-      _locCubit.setAvailabilityState(dashState.dashboard.availabilityState);
-    }
-    if (_activeCubit.state is ActiveBookingInitial) {
-      await _activeCubit.load(silent: true);
-    }
-    if (_requestsCubit.state is IncomingRequestsInitial) {
-      await _requestsCubit.load(silent: true);
-    }
-    if (_statusCubit.state is! LocationStatusLoaded) {
-      await _statusCubit.loadStatus();
+    try {
+      // 2. Load Dashboard Info (to get availability state)
+      if (force) {
+        await _dashCubit.refresh(silent: true);
+      } else {
+        await _dashCubit.loadOnce();
+      }
+      
+      final dashState = _dashCubit.state;
+      if (dashState is HelperDashboardLoaded) {
+        final availability = dashState.dashboard.availabilityState;
+        
+        // 3. Initialize Location Service & SignalR
+        // 4. Start Tracking if applicable
+        final trackingOk = await _locCubit.initialize(token, availability: availability);
+        
+        if (!trackingOk && availability == HelperAvailabilityState.availableNow) {
+          debugPrint('⚠️ [Dashboard] Tracking failed to start while Online');
+        }
+
+        // 5. Load associated data
+        await Future.wait([
+          _activeCubit.load(silent: true),
+          _requestsCubit.load(silent: true),
+          _statusCubit.loadStatus(force: force),
+        ]);
+      }
+    } catch (e) {
+      debugPrint('❌ [Dashboard] Error during initialization: $e');
     }
   }
 
@@ -130,7 +143,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                   _startAutoTracking();
                   _requestsCubit.load(silent: true);
                 } else if (state.status == HelperAvailabilityState.offline) {
-                  _locCubit.stopTracking();
+                  _locCubit.setAvailabilityState(HelperAvailabilityState.offline);
                 }
               }
             },
@@ -279,12 +292,8 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                     _locCubit.setAvailabilityState(dashboard.availabilityState);
                     return;
                   }
-                  final success = await _locCubit.requestPermissionAndInitialize(token);
-                  if (!success) {
-                    _locCubit.setAvailabilityState(dashboard.availabilityState);
-                    _dashCubit.refresh();
-                    return;
-                  }
+                  final ok = await _locCubit.initialize(token);
+                  if (!ok) return;
                 }
 
                 _availCubit.update(s);
@@ -405,7 +414,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
 
   Future<void> _startAutoTracking() async {
     final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
-    if (helper?.token != null) _locCubit.startTracking(helper!.token!);
+    if (helper?.token != null) _locCubit.initialize(helper!.token!);
   }
 }
 

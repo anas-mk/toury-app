@@ -75,7 +75,7 @@ class UserChatRemoteDataSourceImpl implements UserChatRemoteDataSource {
           bookingId, 
           page: page, 
           pageSize: pageSize, 
-          beforeDateTime: beforeDateTime?.toIso8601String()
+          beforeDateTime: beforeDateTime?.toUtc().toIso8601String()
         ),
         cancelToken: cancelToken,
       );

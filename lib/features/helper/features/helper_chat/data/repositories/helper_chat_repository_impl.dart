@@ -28,9 +28,19 @@ class HelperChatRepositoryImpl implements HelperChatRepository {
   }
 
   @override
-  Future<Either<Failure, List<ChatMessageEntity>>> getMessages(String bookingId, {DateTime? before}) async {
+  Future<Either<Failure, List<ChatMessageEntity>>> getMessages(
+    String bookingId, {
+    DateTime? before,
+    int page = 1,
+    int pageSize = 50,
+  }) async {
     try {
-      final result = await remoteDataSource.getMessages(bookingId, before: before);
+      final result = await remoteDataSource.getMessages(
+        bookingId,
+        before: before,
+        page: page,
+        pageSize: pageSize,
+      );
       return Right(result);
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));

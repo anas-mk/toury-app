@@ -15,6 +15,7 @@ import '../../core/services/realtime/app_realtime_cubit.dart';
 import '../../core/services/realtime/hub_lifecycle_observer.dart';
 import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
 import '../../core/services/sos/sos_service.dart';
+import '../../features/helper/features/helper_location/data/services/helper_location_tracking_service.dart' show HelperLocationTrackingService;
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 
 // ============================================================
@@ -165,6 +166,8 @@ import '../../features/helper/features/helper_bookings/data/repositories/helper_
 import '../../features/helper/features/helper_bookings/domain/repositories/helper_bookings_repository.dart';
 import '../../features/helper/features/helper_bookings/domain/usecases/helper_bookings_usecases.dart';
 import '../../features/helper/features/helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/accept_reject_request_cubit.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
 
 // ============================================================
 // Helper Location Feature Imports
@@ -521,10 +524,10 @@ Future<void> init() async {
   sl.registerFactory(() => RequestDetailsCubit(sl()));
   sl.registerFactory(() => AcceptBookingCubit(sl()));
   sl.registerFactory(() => DeclineBookingCubit(sl()));
+  sl.registerFactory(() => AcceptRejectRequestCubit(sl(), sl()));
   sl.registerFactory(() => UpcomingBookingsCubit(sl()));
   sl.registerLazySingleton(() => ActiveBookingCubit(sl(), sl()));
-  sl.registerFactory(() => StartTripCubit(sl()));
-  sl.registerFactory(() => EndTripCubit(sl()));
+  sl.registerFactory(() => TripActionCubit(sl(), sl()));
   sl.registerFactory(() => HelperHistoryCubit(sl()));
   sl.registerFactory(() => EarningsCubit(sl()));
   sl.registerFactory(() => HelperBookingDetailsCubit(sl()));
@@ -559,13 +562,20 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerLazySingleton(() => HelperLocationCubit(
-    tracker: sl(),
-    connectUseCase: sl(),
-    disconnectUseCase: sl(),
+  sl.registerLazySingleton(() => HelperLocationTrackingService(
+    coreLocationService: sl(),
+    authService: sl(),
     streamUseCase: sl(),
     updateUseCase: sl(),
+    connectUseCase: sl(),
+    disconnectUseCase: sl(),
     signalRStateStream: sl<HelperLocationRepository>().signalRStateStream.cast<SignalRConnectionState>(),
+  ));
+
+  sl.registerLazySingleton(() => HelperLocationCubit(
+    trackingService: sl(),
+    getLocationStatusUseCase: sl(),
+    getEligibilityUseCase: sl(),
   ));
   sl.registerLazySingleton(() => LocationStatusCubit(getStatusUseCase: sl()));
   sl.registerLazySingleton(() => EligibilityCubit(getEligibilityUseCase: sl()));

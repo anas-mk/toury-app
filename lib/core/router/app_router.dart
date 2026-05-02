@@ -103,6 +103,8 @@ import '../../features/helper/features/helper_chat/presentation/pages/conversati
 import '../../features/helper/features/helper_invoices/presentation/pages/wallet_hub_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/booking_actions_cubits.dart';
 
 import 'dart:async';
 
@@ -569,6 +571,12 @@ class AppRouter {
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
+      ),
+      GoRoute(
+        path: helperUpcoming,
+        name: 'helper-upcoming',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 1),
       ),
       GoRoute(
         path: helperRequestDetails,
@@ -1111,8 +1119,14 @@ class AppRouter {
             state.uri.queryParameters['destLng'] ?? '0',
           );
 
-          return BlocProvider(
-            create: (context) => sl<HelperTrackingCubit>()..startTracking(id),
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (context) => sl<HelperTrackingCubit>()..startTracking(id),
+              ),
+              BlocProvider(create: (context) => sl<TripActionCubit>()),
+              BlocProvider(create: (context) => sl<DeclineBookingCubit>()),
+            ],
             child: HelperBookingTrackingPage(
               bookingId: id,
               pickupLat: pickupLat,

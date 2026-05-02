@@ -7,6 +7,7 @@ import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
+import '../cubit/trip_action_cubit.dart';
 
 
 class UpcomingBookingsPage extends StatefulWidget {
@@ -276,12 +277,12 @@ class _InlineStartButton extends StatefulWidget {
 }
 
 class _InlineStartButtonState extends State<_InlineStartButton> {
-  late final StartTripCubit _cubit;
+  late final TripActionCubit _cubit;
 
   @override
   void initState() {
     super.initState();
-    _cubit = sl<StartTripCubit>();
+    _cubit = sl<TripActionCubit>();
   }
 
   @override
@@ -294,9 +295,9 @@ class _InlineStartButtonState extends State<_InlineStartButton> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _cubit,
-      child: BlocListener<StartTripCubit, StartTripState>(
+      child: BlocListener<TripActionCubit, TripActionState>(
         listener: (context, state) {
-          if (state is StartTripSuccess) {
+          if (state is TripActionSuccess && state.actionType == 'start') {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Trip started!'),
@@ -305,7 +306,7 @@ class _InlineStartButtonState extends State<_InlineStartButton> {
               ),
             );
             context.push('/helper/active-booking', extra: widget.bookingId);
-          } else if (state is StartTripError) {
+          } else if (state is TripActionError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
@@ -315,9 +316,9 @@ class _InlineStartButtonState extends State<_InlineStartButton> {
             );
           }
         },
-        child: BlocBuilder<StartTripCubit, StartTripState>(
+        child: BlocBuilder<TripActionCubit, TripActionState>(
           builder: (context, state) {
-            final loading = state is StartTripLoading;
+            final loading = state is TripActionInProgress && state.actionType == 'start';
             return TextButton.icon(
               icon: loading
                   ? const SizedBox(
