@@ -30,6 +30,7 @@ class HelperBookingModel extends HelperBookingEntity {
     super.suitabilityReasons,
     super.matchScore,
     super.distanceKm,
+    super.estimatedDistanceKm,
   });
 
   factory HelperBookingModel.fromJson(Map<String, dynamic> json) {
@@ -72,6 +73,7 @@ class HelperBookingModel extends HelperBookingEntity {
       suitabilityReasons: json['suitabilityReasons'] != null ? List<String>.from(json['suitabilityReasons']) : null,
       matchScore: json['matchScore'],
       distanceKm: json['distanceKm'] != null ? (json['distanceKm'] as num).toDouble() : null,
+      estimatedDistanceKm: json['estimatedDistanceKm'] != null ? (json['estimatedDistanceKm'] as num).toDouble() : null,
     );
   }
 }

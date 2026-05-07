@@ -48,12 +48,18 @@ class SearchHelpersCubit extends Cubit<SearchHelpersState> {
     debugPrint(
       '[SearchHelpersCubit] Scheduled search request:\n'
       '  city: ${params.destinationCity}\n'
+      '  destinationName: ${params.destinationName}\n'
       '  date: ${params.requestedDate}\n'
       '  startTime: ${params.startTime}\n'
       '  duration: ${params.durationInMinutes} min\n'
       '  language: ${params.requestedLanguage}\n'
       '  requiresCar: ${params.requiresCar}\n'
-      '  travelersCount: ${params.travelersCount}',
+      '  travelersCount: ${params.travelersCount}\n'
+      '  destLat: ${params.destinationLatitude}\n'
+      '  destLng: ${params.destinationLongitude}\n'
+      '  pickupName: ${params.pickupLocationName}\n'
+      '  pickupLat: ${params.pickupLatitude}\n'
+      '  pickupLng: ${params.pickupLongitude}',
     );
 
     final result = await searchScheduledHelpersUseCase(params);
@@ -61,9 +67,9 @@ class SearchHelpersCubit extends Cubit<SearchHelpersState> {
 
     result.fold(
       (failure) => emit(SearchHelpersError(failure.message)),
-      (helpers) {
-        debugPrint('[SearchHelpersCubit] Scheduled search returned ${helpers.length} helpers.');
-        emit(SearchHelpersLoaded(helpers));
+      (data) {
+        debugPrint('[SearchHelpersCubit] Scheduled search returned ${data.helpers.length} helpers (available: ${data.availableCount}).');
+        emit(SearchHelpersLoaded(data.helpers, availableCount: data.availableCount));
       },
     );
   }

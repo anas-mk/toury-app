@@ -16,7 +16,6 @@ import '../../../../../../core/widgets/booking_status_chip.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/my_bookings_cubit.dart';
 import '../cubits/my_bookings_state.dart';
-import 'scheduled_trip_details_page.dart';
 
 /// Phase 2 redesign — Bookings History.
 ///
@@ -330,31 +329,14 @@ class _BookingRow extends StatelessWidget {
 
   void _open(BuildContext context) {
     HapticFeedback.selectionClick();
-    if (booking.type == BookingType.scheduled) {
-      final trip = ScheduledTripEntity(
-        helperId: booking.helper?.id ?? '',
-        destinationCity: booking.destinationCity,
-        requestedDate: booking.requestedDate,
-        startTime: booking.startTime ?? '09:00',
-        durationInMinutes: booking.durationInMinutes,
-        requestedLanguage: 'English',
-        requiresCar: false,
-        travelersCount: 1,
-        meetingPointType: 'Standard Pickup',
-        pickupLocationName:
-            booking.pickupLocationName ?? booking.destinationCity,
-        pickupLatitude: booking.pickupLatitude ?? 0.0,
-        pickupLongitude: booking.pickupLongitude ?? 0.0,
-        notes: booking.notes,
-      );
-      context.pushNamed('scheduled-trip-details', extra: {'trip': trip});
-    } else {
-      context.pushNamed(
-        'booking-details',
-        pathParameters: {'id': booking.id},
-        extra: {'booking': booking},
-      );
-    }
+    // Both Instant and Scheduled bookings now share the same unified
+    // detail screen (`/booking-details/:id`). The page reads the booking
+    // type from the entity and renders the right CTAs.
+    context.pushNamed(
+      'booking-details',
+      pathParameters: {'id': booking.id},
+      extra: {'booking': booking},
+    );
   }
 
   static String _formatDuration(int minutes) {

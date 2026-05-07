@@ -18,3 +18,4 @@ export 'page_scaffold.dart';
 export 'section_header.dart';
 export 'soft_bottom_sheet.dart';
 export 'brand_card_v2.dart';
+export 'optional_chip.dart';

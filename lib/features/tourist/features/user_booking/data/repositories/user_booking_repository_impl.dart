@@ -14,10 +14,10 @@ class UserBookingRepositoryImpl implements UserBookingRepository {
   UserBookingRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, List<HelperBookingEntity>>> searchScheduledHelpers(ScheduledSearchParams params) async {
+  Future<Either<Failure, ({int availableCount, List<HelperBookingEntity> helpers})>> searchScheduledHelpers(ScheduledSearchParams params) async {
     try {
       final result = await remoteDataSource.searchScheduledHelpers(params);
-      return Right(result);
+      return Right((availableCount: result.availableCount, helpers: result.helpers));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
     } catch (e) {

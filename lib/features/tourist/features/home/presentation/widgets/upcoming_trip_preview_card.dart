@@ -5,7 +5,6 @@ import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../user_booking/domain/entities/booking_detail_entity.dart';
-import '../../../user_booking/presentation/pages/scheduled_trip_details_page.dart';
 
 class UpcomingTripPreviewCard extends StatefulWidget {
   final BookingDetailEntity booking;
@@ -62,22 +61,12 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard> with 
         position: _slideAnimation,
         child: GestureDetector(
           onTap: () {
-            final trip = ScheduledTripEntity(
-              helperId: widget.booking.helper?.id ?? '',
-              destinationCity: widget.booking.destinationCity,
-              requestedDate: widget.booking.requestedDate,
-              startTime: timeString,
-              durationInMinutes: widget.booking.durationInMinutes,
-              requestedLanguage: 'en', // Default or from entity
-              requiresCar: false, // Default or from entity
-              travelersCount: 1, // Default or from entity
-              meetingPointType: 'Standard Pickup',
-              pickupLocationName: widget.booking.pickupLocationName ?? widget.booking.destinationCity,
-              pickupLatitude: widget.booking.pickupLatitude ?? 0.0,
-              pickupLongitude: widget.booking.pickupLongitude ?? 0.0,
-              notes: widget.booking.notes,
+            // Unified booking detail (Instant + Scheduled).
+            context.pushNamed(
+              'booking-details',
+              pathParameters: {'id': widget.booking.id},
+              extra: {'booking': widget.booking},
             );
-            context.pushNamed('scheduled-trip-details', extra: {'trip': trip});
           },
           child: Container(
             padding: const EdgeInsets.all(AppTheme.spaceLG),
