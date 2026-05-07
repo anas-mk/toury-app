@@ -9,7 +9,7 @@ class SearchScheduledHelpersUseCase {
 
   SearchScheduledHelpersUseCase(this.repository);
 
-  Future<Either<Failure, List<HelperBookingEntity>>> call(ScheduledSearchParams params) async {
+  Future<Either<Failure, ({int availableCount, List<HelperBookingEntity> helpers})>> call(ScheduledSearchParams params) async {
     return await repository.searchScheduledHelpers(params);
   }
 }

@@ -26,6 +26,7 @@ class HelperBookingEntity extends Equatable {
   final List<String>? suitabilityReasons;
   final int? matchScore;
   final double? distanceKm;
+  final double? estimatedDistanceKm;
 
   const HelperBookingEntity({
     required this.id,
@@ -53,6 +54,7 @@ class HelperBookingEntity extends Equatable {
     this.suitabilityReasons,
     this.matchScore,
     this.distanceKm,
+    this.estimatedDistanceKm,
   });
 
   @override
@@ -82,6 +84,7 @@ class HelperBookingEntity extends Equatable {
         suitabilityReasons,
         matchScore,
         distanceKm,
+        estimatedDistanceKm,
       ];
 }
 

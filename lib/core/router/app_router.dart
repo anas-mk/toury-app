@@ -49,7 +49,6 @@ import '../../features/tourist/features/user_booking/presentation/pages/schedule
 import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_review_screen.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_alternatives_screen.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_booking_detail_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/widgets/scheduled/scheduled_trip_config.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/helper_profile_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/booking_confirm_page.dart';
 import '../../features/tourist/features/user_booking/presentation/pages/my_bookings_page.dart';
@@ -785,7 +784,6 @@ class AppRouter {
           return ScheduledReviewScreen(
             helper: extra['helper'] as HelperBookingEntity,
             params: extra['params'] as ScheduledSearchParams,
-            config: extra['config'] as ScheduledTripConfig,
           );
         },
       ),

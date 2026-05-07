@@ -13,11 +13,12 @@ class SearchHelpersLoading extends SearchHelpersState {}
 
 class SearchHelpersLoaded extends SearchHelpersState {
   final List<HelperBookingEntity> helpers;
+  final int availableCount;
 
-  const SearchHelpersLoaded(this.helpers);
+  const SearchHelpersLoaded(this.helpers, {this.availableCount = 0});
 
   @override
-  List<Object?> get props => [helpers];
+  List<Object?> get props => [helpers, availableCount];
 }
 
 /// Enriched error state — carries context so the UI can render

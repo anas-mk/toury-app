@@ -6,7 +6,7 @@ import '../entities/helper_booking_entity.dart';
 import '../entities/search_params.dart';
 
 abstract class UserBookingRepository {
-  Future<Either<Failure, List<HelperBookingEntity>>> searchScheduledHelpers(ScheduledSearchParams params);
+  Future<Either<Failure, ({int availableCount, List<HelperBookingEntity> helpers})>> searchScheduledHelpers(ScheduledSearchParams params);
   Future<Either<Failure, List<HelperBookingEntity>>> searchInstantHelpers(InstantSearchParams params);
   Future<Either<Failure, HelperBookingEntity>> getHelperProfile(String helperId);
   Future<Either<Failure, BookingDetailEntity>> createScheduledBooking(Map<String, dynamic> bookingData);

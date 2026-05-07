@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
+import '../../../../../../../core/services/location_cubit_impl.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
@@ -10,11 +12,6 @@ import '../../../domain/entities/search_params.dart';
 import '../instant/location_picker_page.dart';
 import '../instant/location_pick_result.dart';
 
-/// First step in the Scheduled Trip flow.
-///
-/// One job per screen: collect the structured search parameters required
-/// by `POST /user/bookings/scheduled/search` (city, date, start, duration,
-/// language, requiresCar, travelersCount).
 class ScheduledSearchFormScreen extends StatefulWidget {
   final String? initialDestination;
 
@@ -27,30 +24,26 @@ class ScheduledSearchFormScreen extends StatefulWidget {
 
 class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   late final TextEditingController _cityCtrl;
-  late final TextEditingController _travelersCtrl;
+  late final TextEditingController _pickupCtrl;
 
   DateTime? _date;
   TimeOfDay? _start;
-  // Step 30 minutes (Fix 2: backend wants 60..1440 minutes, so 0.5h grain
-  // gives users finer control without violating the wire bounds).
   int _durationMinutes = 240;
   String _languageCode = 'en';
   bool _requiresCar = false;
   int _travelers = 1;
 
-  // Destination geo-point. Required by the booking-create call (so we
-  // capture it now and carry it through search → results → review →
-  // create). The visible city name is what we send on the search body.
   double? _destLat;
   double? _destLng;
   String? _destAddress;
+  String? _destName;
 
-  // Pickup geo-point. Fully optional — the user can plan the trip days
-  // ahead and add a hotel/airport pin later via chat.
   double? _pickupLat;
   double? _pickupLng;
   String? _pickupAddress;
-  late final TextEditingController _pickupCtrl;
+
+  bool _gpsLoading = false;
+  bool _submitted = false;
 
   static const _languages = <(String code, String label)>[
     ('en', 'English'),
@@ -68,30 +61,42 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   void initState() {
     super.initState();
     _cityCtrl = TextEditingController(text: widget.initialDestination ?? '');
-    _travelersCtrl = TextEditingController(text: '1');
     _pickupCtrl = TextEditingController();
+    _tryAutoFillGpsPickup();
   }
 
   @override
   void dispose() {
     _cityCtrl.dispose();
-    _travelersCtrl.dispose();
     _pickupCtrl.dispose();
     super.dispose();
   }
 
-  /// Composed local date+time of the trip start, or null when either picker
-  /// is missing. Used by [_isInPast] to block past timestamps client-side
-  /// (Fix 4) before we hit the backend (which would reject with
-  /// "must be future").
+  Future<void> _tryAutoFillGpsPickup() async {
+    if (!mounted) return;
+    setState(() => _gpsLoading = true);
+    try {
+      final locCubit = sl<LocationCubit>();
+      final coords = await locCubit.requireLocation();
+      if (!mounted) return;
+      if (coords != null && _pickupLat == null) {
+        setState(() {
+          _pickupLat = coords.lat;
+          _pickupLng = coords.lng;
+          if (_pickupCtrl.text.trim().isEmpty) {
+            _pickupCtrl.text = 'My current location';
+          }
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _gpsLoading = false);
+  }
+
   DateTime? get _composedStart {
     if (_date == null || _start == null) return null;
     return DateTime(
-      _date!.year,
-      _date!.month,
-      _date!.day,
-      _start!.hour,
-      _start!.minute,
+      _date!.year, _date!.month, _date!.day,
+      _start!.hour, _start!.minute,
     );
   }
 
@@ -101,20 +106,18 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     return composed.isBefore(DateTime.now());
   }
 
-  /// Backend create-call rejects bookings without a destination geo-point
-  /// in valid ranges. We capture the coords here and keep `_isValid` strict
-  /// so the user can never reach the search call without them.
   bool get _destCoordsValid =>
       _destLat != null &&
       _destLng != null &&
-      _destLat! >= -90 &&
-      _destLat! <= 90 &&
-      _destLng! >= -180 &&
-      _destLng! <= 180;
+      _destLat! >= -90 && _destLat! <= 90 &&
+      _destLng! >= -180 && _destLng! <= 180;
+
+  bool get _pickupCoordsValid => _pickupLat != null && _pickupLng != null;
 
   bool get _isValid =>
       _cityCtrl.text.trim().isNotEmpty &&
       _destCoordsValid &&
+      _pickupCoordsValid &&
       _date != null &&
       _start != null &&
       !_isInPast &&
@@ -124,34 +127,22 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    // firstDate is "today" so the user can still book later today; the
-    // _isInPast check handles the time-of-day component (Fix 4).
     final today = DateTime(now.year, now.month, now.day);
     final result = await showDatePicker(
       context: context,
       initialDate: _date ?? now.add(const Duration(days: 1)),
       firstDate: today,
       lastDate: now.add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: BrandTokens.primaryBlue,
-                ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
+        ),
+        child: child!,
+      ),
     );
-    if (result != null && mounted) {
-      setState(() => _date = result);
-    }
+    if (result != null && mounted) setState(() => _date = result);
   }
 
-  /// Opens the fullscreen [LocationPickerPage] for the destination.
-  /// Pre-fills the city field with the resolved name when the user
-  /// hasn't typed something custom into it yet (so we don't clobber a
-  /// brand name like "Pyramids of Giza" with the reverse-geocoded address).
   Future<void> _pickDestination() async {
     HapticFeedback.selectionClick();
     final initial = _destLat == null || _destLng == null
@@ -176,9 +167,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
       _destLat = result.latitude;
       _destLng = result.longitude;
       _destAddress = result.address;
-      // Only auto-fill the visible name when the field is empty or still
-      // matches the initial-destination prop — otherwise respect user
-      // input.
+      _destName = result.name;
       final current = _cityCtrl.text.trim();
       if (current.isEmpty || current == (widget.initialDestination ?? '')) {
         _cityCtrl.text = result.name;
@@ -210,18 +199,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
       _pickupLat = result.latitude;
       _pickupLng = result.longitude;
       _pickupAddress = result.address;
-      if (_pickupCtrl.text.trim().isEmpty) {
-        _pickupCtrl.text = result.name;
-      }
-    });
-  }
-
-  void _clearPickup() {
-    setState(() {
-      _pickupLat = null;
-      _pickupLng = null;
-      _pickupAddress = null;
-      _pickupCtrl.clear();
+      _pickupCtrl.text = result.name;
     });
   }
 
@@ -229,66 +207,50 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     final result = await showTimePicker(
       context: context,
       initialTime: _start ?? const TimeOfDay(hour: 9, minute: 0),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: BrandTokens.primaryBlue,
-                ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
+        ),
+        child: child!,
+      ),
     );
-    if (result != null && mounted) {
-      setState(() => _start = result);
-    }
+    if (result != null && mounted) setState(() => _start = result);
   }
 
   void _submit() {
+    setState(() => _submitted = true);
     if (!_isValid) return;
     HapticFeedback.lightImpact();
-
-    // Defense in depth — UI already disables the CTA, but keep the same
-    // check before we build the params in case of future regressions.
     if (_isInPast) return;
 
-    // Wire format: "HH:mm:ss".
-    final h = _start!.hour.toString().padLeft(2, '0');
-    final m = _start!.minute.toString().padLeft(2, '0');
-    final pickupName = _pickupCtrl.text.trim();
+    // Convert local start time to UTC before sending
+    final localStart = DateTime(
+      _date!.year, _date!.month, _date!.day,
+      _start!.hour, _start!.minute,
+    );
+    final utcStart = localStart.toUtc();
+    final h = utcStart.hour.toString().padLeft(2, '0');
+    final m = utcStart.minute.toString().padLeft(2, '0');
+
     final params = ScheduledSearchParams(
       destinationCity: _cityCtrl.text.trim(),
-      // Send the trip-day as UTC midnight so the backend receives the
-      // calendar day the user selected regardless of their TZ. The actual
-      // time-of-day rides on `startTime` ("HH:mm:ss" local-clock).
+      destinationName: _destName ?? _cityCtrl.text.trim(),
       requestedDate: DateTime.utc(_date!.year, _date!.month, _date!.day),
       startTime: '$h:$m:00',
-      // Fix 2: send minutes (already validated 60..1440 in `_isValid`).
-      // Wire conversion is done here in the UI before handing the params
-      // to the search/create cubits — no other layer reinterprets it.
       durationInMinutes: _durationMinutes,
       requestedLanguage: _languageCode,
       requiresCar: _requiresCar,
       travelersCount: _travelers,
-      // Carry destination coords through the flow — the search call
-      // ignores them, but the create call (POST /scheduled) requires
-      // them. _isValid guarantees they're populated and in range.
-      destinationLatitude: _destLat,
-      destinationLongitude: _destLng,
-      // Pickup is fully optional. Pass null when fields are empty so
-      // the create call can omit the keys from the JSON payload (rather
-      // than sending zeros, which the backend would treat as a real
-      // geo-point off the West African coast).
-      pickupLocationName: pickupName.isEmpty ? null : pickupName,
-      pickupLatitude: _pickupLat,
-      pickupLongitude: _pickupLng,
+      destinationLatitude: _destLat!,
+      destinationLongitude: _destLng!,
+      pickupLocationName: _pickupCtrl.text.trim().isEmpty
+          ? 'Pickup location'
+          : _pickupCtrl.text.trim(),
+      pickupLatitude: _pickupLat!,
+      pickupLongitude: _pickupLng!,
     );
 
-    context.push(
-      AppRouter.scheduledResults,
-      extra: {'params': params},
-    );
+    context.push(AppRouter.scheduledResults, extra: {'params': params});
   }
 
   @override
@@ -318,13 +280,13 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
             sliver: SliverList.list(
               children: [
                 Text(
-                  'Tell us where and when, then we\u2019ll match you with helpers '
+                  'Tell us where and when, then we’ll match you with helpers '
                   'available for that window.',
                   style: BrandTypography.body(color: BrandTokens.textSecondary),
                 ),
                 const SizedBox(height: 24),
 
-                // ── Destination (REQUIRED — coords + label) ──────────
+                // ── Destination ────────────────────────────────────────
                 _Field(
                   label: 'Destination',
                   required: true,
@@ -346,16 +308,14 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                             ? 'Change destination on map'
                             : 'Pick destination on map',
                         coordsPreview: _destCoordsValid
-                            ? '${_destLat!.toStringAsFixed(5)}, '
-                                '${_destLng!.toStringAsFixed(5)}'
+                            ? '${_destLat!.toStringAsFixed(5)}, ${_destLng!.toStringAsFixed(5)}'
                             : null,
                         onTap: _pickDestination,
                       ),
                       if (!_destCoordsValid) ...[
                         const SizedBox(height: 6),
                         _InlineError(
-                          text:
-                              'Tap the map button to mark exactly where you want to go.',
+                          text: 'Tap the map button to mark exactly where you want to go.',
                         ),
                       ],
                     ],
@@ -363,9 +323,10 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                 ),
                 const SizedBox(height: 18),
 
-                // ── Pickup (OPTIONAL) ────────────────────────────────
+                // ── Pickup (REQUIRED — GPS auto-filled) ────────────────
                 _Field(
                   label: 'Pickup location',
+                  required: true,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -373,34 +334,38 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                         controller: _pickupCtrl,
                         onChanged: (_) => setState(() {}),
                         decoration: _decoration(
-                          hint: 'Hotel name, address\u2026',
-                          icon: Icons.my_location_rounded,
+                          hint: 'Hotel name, address…',
+                          icon: _gpsLoading
+                              ? Icons.gps_fixed_rounded
+                              : Icons.my_location_rounded,
                         ),
                       ),
                       const SizedBox(height: 8),
                       _LocationPickButton(
-                        hasCoords:
-                            _pickupLat != null && _pickupLng != null,
-                        primaryLabel: _pickupLat == null
-                            ? 'Drop pin on map (optional)'
-                            : 'Change pickup pin',
-                        coordsPreview: _pickupLat == null
-                            ? null
-                            : '${_pickupLat!.toStringAsFixed(5)}, '
-                                '${_pickupLng!.toStringAsFixed(5)}',
-                        onTap: _pickPickup,
-                        onClear: _pickupLat != null ? _clearPickup : null,
+                        hasCoords: _pickupCoordsValid,
+                        primaryLabel: _gpsLoading
+                            ? 'Getting your location…'
+                            : _pickupCoordsValid
+                                ? 'Change pickup pin'
+                                : 'Pick pickup on map',
+                        coordsPreview: _pickupCoordsValid
+                            ? '${_pickupLat!.toStringAsFixed(5)}, ${_pickupLng!.toStringAsFixed(5)}'
+                            : null,
+                        onTap: _gpsLoading ? () {} : _pickPickup,
+                        loading: _gpsLoading,
                       ),
-                      const SizedBox(height: 4),
-                      const OptionalHint(
-                        text: 'You can leave pickup blank and add it '
-                            'later via chat. Adding it now sharpens '
-                            'the price estimate.',
-                      ),
+                      if (_submitted && !_pickupCoordsValid && !_gpsLoading) ...[
+                        const SizedBox(height: 6),
+                        _InlineError(
+                          text: 'Pickup location is required. Enable GPS or pick on the map.',
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 18),
+
+                // ── Date + Start time ──────────────────────────────────
                 Row(
                   children: [
                     Expanded(
@@ -409,9 +374,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                         required: true,
                         child: _PickerTile(
                           icon: Icons.event_rounded,
-                          text: _date == null
-                              ? 'Pick a date'
-                              : _formatDate(_date!),
+                          text: _date == null ? 'Pick a date' : _formatDate(_date!),
                           placeholder: _date == null,
                           onTap: _pickDate,
                         ),
@@ -424,9 +387,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                         required: true,
                         child: _PickerTile(
                           icon: Icons.schedule_rounded,
-                          text: _start == null
-                              ? 'Pick time'
-                              : _start!.format(context),
+                          text: _start == null ? 'Pick time' : _start!.format(context),
                           placeholder: _start == null,
                           onTap: _pickStart,
                           hasError: _isInPast,
@@ -466,8 +427,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                   child: _LanguagePicker(
                     selected: _languageCode,
                     items: _languages,
-                    onSelected: (code) =>
-                        setState(() => _languageCode = code),
+                    onSelected: (code) => setState(() => _languageCode = code),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -484,20 +444,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   }
 
   static String _formatDate(DateTime d) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
@@ -507,8 +454,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
       hintStyle: BrandTypography.body(color: BrandTokens.textMuted),
       filled: true,
       fillColor: BrandTokens.surfaceWhite,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       prefixIcon: icon == null
           ? null
           : Icon(icon, color: BrandTokens.textSecondary, size: 20),
@@ -518,10 +464,7 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     );
   }
 
-  OutlineInputBorder _border({
-    Color color = BrandTokens.borderSoft,
-    double width = 1,
-  }) {
+  OutlineInputBorder _border({Color color = BrandTokens.borderSoft, double width = 1}) {
     return OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
       borderSide: BorderSide(color: color, width: width),
@@ -534,11 +477,7 @@ class _Field extends StatelessWidget {
   final bool required;
   final Widget child;
 
-  const _Field({
-    required this.label,
-    required this.child,
-    this.required = false,
-  });
+  const _Field({required this.label, required this.child, this.required = false});
 
   @override
   Widget build(BuildContext context) {
@@ -547,10 +486,7 @@ class _Field extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(
-              label,
-              style: BrandTypography.body(weight: FontWeight.w600, color: BrandTokens.textPrimary),
-            ),
+            Text(label, style: BrandTypography.body(weight: FontWeight.w600, color: BrandTokens.textPrimary)),
             if (!required) ...[
               const SizedBox(width: 8),
               const OptionalChip(compact: true),
@@ -569,10 +505,6 @@ class _PickerTile extends StatelessWidget {
   final String text;
   final bool placeholder;
   final VoidCallback onTap;
-
-  /// Renders the tile with a red border / icon to flag a validation error
-  /// (Fix 4 — past start time). The tile stays tappable so the user can fix
-  /// the value without losing context.
   final bool hasError;
 
   const _PickerTile({
@@ -604,30 +536,18 @@ class _PickerTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: hasError
-                  ? BrandTokens.dangerRed
-                  : BrandTokens.textSecondary,
-              size: 20,
-            ),
+            Icon(icon, color: hasError ? BrandTokens.dangerRed : BrandTokens.textSecondary, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 text,
                 overflow: TextOverflow.ellipsis,
                 style: BrandTypography.body(
-                  color: placeholder
-                      ? BrandTokens.textMuted
-                      : BrandTokens.textPrimary,
+                  color: placeholder ? BrandTokens.textMuted : BrandTokens.textPrimary,
                 ),
               ),
             ),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: BrandTokens.textMuted,
-              size: 20,
-            ),
+            const Icon(Icons.keyboard_arrow_down_rounded, color: BrandTokens.textMuted, size: 20),
           ],
         ),
       ),
@@ -635,10 +555,8 @@ class _PickerTile extends StatelessWidget {
   }
 }
 
-/// Inline red error pill, used directly under the picker that triggered it.
 class _InlineError extends StatelessWidget {
   final String text;
-
   const _InlineError({required this.text});
 
   @override
@@ -648,41 +566,24 @@ class _InlineError extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            size: 14,
-            color: BrandTokens.dangerRed,
-          ),
+          const Icon(Icons.error_outline_rounded, size: 14, color: BrandTokens.dangerRed),
           const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: BrandTypography.caption(color: BrandTokens.dangerRed),
-            ),
-          ),
+          Expanded(child: Text(text, style: BrandTypography.caption(color: BrandTokens.dangerRed))),
         ],
       ),
     );
   }
 }
 
-/// Duration stepper with 30-minute granularity (Fix 2).
-///
-/// Backend wants `durationInMinutes` ∈ [60, 1440]. We expose minutes
-/// directly so the UI can never be off-by-an-hour — no hours→minutes
-/// conversion happens later in the stack.
 class _DurationStepper extends StatelessWidget {
   static const int _stepMinutes = 30;
   static const int _minMinutes = 60;
-  static const int _maxMinutes = 720; // 12h trip cap (UX, well under wire 1440)
+  static const int _maxMinutes = 720;
 
   final int minutes;
   final ValueChanged<int> onChanged;
 
-  const _DurationStepper({
-    required this.minutes,
-    required this.onChanged,
-  });
+  const _DurationStepper({required this.minutes, required this.onChanged});
 
   String _formatLabel(int m) {
     final h = m ~/ 60;
@@ -705,29 +606,12 @@ class _DurationStepper extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.hourglass_top_rounded,
-            color: BrandTokens.textSecondary,
-            size: 20,
-          ),
+          const Icon(Icons.hourglass_top_rounded, color: BrandTokens.textSecondary, size: 20),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _formatLabel(minutes),
-              style: BrandTypography.body(),
-            ),
-          ),
-          _StepperButton(
-            icon: Icons.remove_rounded,
-            enabled: canDecrement,
-            onTap: () => onChanged(minutes - _stepMinutes),
-          ),
+          Expanded(child: Text(_formatLabel(minutes), style: BrandTypography.body())),
+          _StepperButton(icon: Icons.remove_rounded, enabled: canDecrement, onTap: () => onChanged(minutes - _stepMinutes)),
           const SizedBox(width: 8),
-          _StepperButton(
-            icon: Icons.add_rounded,
-            enabled: canIncrement,
-            onTap: () => onChanged(minutes + _stepMinutes),
-          ),
+          _StepperButton(icon: Icons.add_rounded, enabled: canIncrement, onTap: () => onChanged(minutes + _stepMinutes)),
         ],
       ),
     );
@@ -751,29 +635,12 @@ class _TravelersStepper extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.group_rounded,
-            color: BrandTokens.textSecondary,
-            size: 20,
-          ),
+          const Icon(Icons.group_rounded, color: BrandTokens.textSecondary, size: 20),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '$value traveler${value == 1 ? '' : 's'}',
-              style: BrandTypography.body(),
-            ),
-          ),
-          _StepperButton(
-            icon: Icons.remove_rounded,
-            enabled: value > 1,
-            onTap: () => onChanged(value - 1),
-          ),
+          Expanded(child: Text('$value traveler${value == 1 ? '' : 's'}', style: BrandTypography.body())),
+          _StepperButton(icon: Icons.remove_rounded, enabled: value > 1, onTap: () => onChanged(value - 1)),
           const SizedBox(width: 8),
-          _StepperButton(
-            icon: Icons.add_rounded,
-            enabled: value < 12,
-            onTap: () => onChanged(value + 1),
-          ),
+          _StepperButton(icon: Icons.add_rounded, enabled: value < 12, onTap: () => onChanged(value + 1)),
         ],
       ),
     );
@@ -785,11 +652,7 @@ class _StepperButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
 
-  const _StepperButton({
-    required this.icon,
-    required this.enabled,
-    required this.onTap,
-  });
+  const _StepperButton({required this.icon, required this.enabled, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -798,22 +661,11 @@ class _StepperButton extends StatelessWidget {
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: enabled
-            ? () {
-                HapticFeedback.selectionClick();
-                onTap();
-              }
-            : null,
+        onTap: enabled ? () { HapticFeedback.selectionClick(); onTap(); } : null,
         child: SizedBox(
           width: 32,
           height: 32,
-          child: Icon(
-            icon,
-            size: 18,
-            color: enabled
-                ? BrandTokens.primaryBlue
-                : BrandTokens.textMuted,
-          ),
+          child: Icon(icon, size: 18, color: enabled ? BrandTokens.primaryBlue : BrandTokens.textMuted),
         ),
       ),
     );
@@ -825,11 +677,7 @@ class _LanguagePicker extends StatelessWidget {
   final List<(String, String)> items;
   final ValueChanged<String> onSelected;
 
-  const _LanguagePicker({
-    required this.selected,
-    required this.items,
-    required this.onSelected,
-  });
+  const _LanguagePicker({required this.selected, required this.items, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -842,29 +690,21 @@ class _LanguagePicker extends StatelessWidget {
           final label = items[i].$2;
           final selectedNow = code == selected;
           return GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onSelected(code);
-            },
+            onTap: () { HapticFeedback.selectionClick(); onSelected(code); },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: selectedNow
-                    ? BrandTokens.primaryBlue
-                    : BrandTokens.surfaceWhite,
+                color: selectedNow ? BrandTokens.primaryBlue : BrandTokens.surfaceWhite,
                 borderRadius: BorderRadius.circular(99),
-                border: Border.all(
-                  color: selectedNow
-                      ? BrandTokens.primaryBlue
-                      : BrandTokens.borderSoft,
-                ),
+                border: Border.all(color: selectedNow ? BrandTokens.primaryBlue : BrandTokens.borderSoft),
               ),
               alignment: Alignment.center,
               child: Text(
                 label,
-                style: BrandTypography.body(weight: FontWeight.w600, 
+                style: BrandTypography.body(
+                  weight: FontWeight.w600,
                   color: selectedNow ? Colors.white : BrandTokens.textPrimary,
                 ),
               ),
@@ -888,10 +728,7 @@ class _CarToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onChanged(!value);
-      },
+      onTap: () { HapticFeedback.selectionClick(); onChanged(!value); },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
@@ -901,37 +738,19 @@ class _CarToggle extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.directions_car_rounded,
-              color: value
-                  ? BrandTokens.primaryBlue
-                  : BrandTokens.textSecondary,
-              size: 20,
-            ),
+            Icon(Icons.directions_car_rounded, color: value ? BrandTokens.primaryBlue : BrandTokens.textSecondary, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Helper with car',
-                    style: BrandTypography.body(weight: FontWeight.w600),
-                  ),
+                  Text('Helper with car', style: BrandTypography.body(weight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(
-                    'Only show helpers driving a car for this trip.',
-                    style: BrandTypography.caption(
-                      color: BrandTokens.textSecondary,
-                    ),
-                  ),
+                  Text('Only show helpers driving a car for this trip.', style: BrandTypography.caption(color: BrandTokens.textSecondary)),
                 ],
               ),
             ),
-            Switch.adaptive(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: BrandTokens.primaryBlue,
-            ),
+            Switch.adaptive(value: value, onChanged: onChanged, activeThumbColor: BrandTokens.primaryBlue),
           ],
         ),
       ),
@@ -939,51 +758,42 @@ class _CarToggle extends StatelessWidget {
   }
 }
 
-/// Compact button row that opens a location picker and surfaces the
-/// resolved coordinates underneath when present. Mirrors the same widget
-/// used in `ScheduledTripConfigSheet` so both screens look identical.
 class _LocationPickButton extends StatelessWidget {
   final bool hasCoords;
   final String primaryLabel;
   final String? coordsPreview;
   final VoidCallback onTap;
-  final VoidCallback? onClear;
+  final bool loading;
 
   const _LocationPickButton({
     required this.hasCoords,
     required this.primaryLabel,
     required this.coordsPreview,
     required this.onTap,
-    this.onClear,
+    this.loading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
+      onTap: loading ? null : onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: hasCoords
-              ? BrandTokens.borderTinted
-              : BrandTokens.surfaceWhite,
+          color: hasCoords ? BrandTokens.borderTinted : BrandTokens.surfaceWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hasCoords
-                ? BrandTokens.primaryBlue
-                : BrandTokens.borderSoft,
-          ),
+          border: Border.all(color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.borderSoft),
         ),
         child: Row(
           children: [
-            Icon(
-              hasCoords ? Icons.check_circle_rounded : Icons.map_rounded,
-              size: 18,
-              color: hasCoords
-                  ? BrandTokens.primaryBlue
-                  : BrandTokens.textSecondary,
-            ),
+            loading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: BrandTokens.primaryBlue))
+                : Icon(
+                    hasCoords ? Icons.check_circle_rounded : Icons.map_rounded,
+                    size: 18,
+                    color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.textSecondary,
+                  ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -994,39 +804,17 @@ class _LocationPickButton extends StatelessWidget {
                     primaryLabel,
                     style: BrandTypography.caption(
                       weight: FontWeight.w700,
-                      color: hasCoords
-                          ? BrandTokens.primaryBlue
-                          : BrandTokens.textPrimary,
+                      color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.textPrimary,
                     ),
                   ),
                   if (coordsPreview != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      coordsPreview!,
-                      style: BrandTypography.caption(
-                        color: BrandTokens.textSecondary,
-                      ),
-                    ),
+                    Text(coordsPreview!, style: BrandTypography.caption(color: BrandTokens.textSecondary)),
                   ],
                 ],
               ),
             ),
-            if (onClear != null)
-              IconButton(
-                tooltip: 'Clear pin',
-                onPressed: onClear,
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 18,
-                  color: BrandTokens.textMuted,
-                ),
-                splashRadius: 18,
-              )
-            else
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: BrandTokens.textMuted,
-              ),
+            const Icon(Icons.chevron_right_rounded, color: BrandTokens.textMuted),
           ],
         ),
       ),

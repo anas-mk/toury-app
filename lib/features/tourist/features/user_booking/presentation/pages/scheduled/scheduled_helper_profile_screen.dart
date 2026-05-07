@@ -12,8 +12,6 @@ import '../../../domain/entities/helper_booking_entity.dart';
 import '../../../domain/entities/helper_booking_profile.dart';
 import '../../../domain/entities/search_params.dart';
 import '../../cubits/helper_booking_profile_cubit.dart';
-import '../../widgets/scheduled/scheduled_trip_config.dart';
-import 'scheduled_trip_config_sheet.dart';
 
 /// Phase 3 — full helper profile (languages, certs, service areas, car)
 /// before booking.
@@ -56,7 +54,7 @@ class _ProfileView extends StatelessWidget {
     this.searchParams,
   });
 
-  Future<void> _onContinue(BuildContext context) async {
+  void _onContinue(BuildContext context) {
     if (searchParams == null || initialHelper == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -68,41 +66,11 @@ class _ProfileView extends StatelessWidget {
       return;
     }
 
-    // Defensive guard — destination coords are gated on the search form,
-    // but if a future code path bypasses it (deep link, restored state)
-    // we'd send the user into a broken sheet. Bounce back instead.
-    final params = searchParams!;
-    if (params.destinationLatitude == null ||
-        params.destinationLongitude == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Destination coordinates missing. Please re-run your search.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    final config = await SoftBottomSheet.show<ScheduledTripConfig>(
-      context: context,
-      child: ScheduledTripConfigSheet(
-        destinationName: params.destinationCity,
-        destinationLatitude: params.destinationLatitude!,
-        destinationLongitude: params.destinationLongitude!,
-        pickupLocationName: params.pickupLocationName,
-        pickupLatitude: params.pickupLatitude,
-        pickupLongitude: params.pickupLongitude,
-      ),
-    );
-    if (config == null || !context.mounted) return;
-
     context.push(
       AppRouter.scheduledReview,
       extra: {
         'helper': initialHelper,
         'params': searchParams,
-        'config': config,
       },
     );
   }
@@ -117,8 +85,8 @@ class _ProfileView extends StatelessWidget {
               searchParams != null &&
               initialHelper != null;
           return PrimaryGradientButton(
-            label: 'Continue to trip details',
-            icon: Icons.tune_rounded,
+            label: 'Continue to review',
+            icon: Icons.arrow_forward_rounded,
             onPressed: ready ? () => _onContinue(context) : null,
             visualEnabled: ready,
           );

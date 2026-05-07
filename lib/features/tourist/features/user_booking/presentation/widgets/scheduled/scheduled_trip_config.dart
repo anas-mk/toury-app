@@ -33,11 +33,6 @@ class ScheduledTripConfig extends Equatable {
   final double? pickupLatitude;
   final double? pickupLongitude;
 
-  /// Driving distance in km from Google Directions when both pickup and
-  /// destination coords are available, otherwise null (the backend will
-  /// fall back to Haversine).
-  final double? distanceKm;
-
   /// Free-form note for the helper (max 2000 chars).
   final String? notes;
 
@@ -49,7 +44,6 @@ class ScheduledTripConfig extends Equatable {
     this.pickupLocationName,
     this.pickupLatitude,
     this.pickupLongitude,
-    this.distanceKm,
     this.notes,
   });
 
@@ -64,7 +58,6 @@ class ScheduledTripConfig extends Equatable {
     String? pickupLocationName,
     double? pickupLatitude,
     double? pickupLongitude,
-    double? distanceKm,
     String? notes,
   }) {
     return ScheduledTripConfig(
@@ -75,7 +68,6 @@ class ScheduledTripConfig extends Equatable {
       pickupLocationName: pickupLocationName ?? this.pickupLocationName,
       pickupLatitude: pickupLatitude ?? this.pickupLatitude,
       pickupLongitude: pickupLongitude ?? this.pickupLongitude,
-      distanceKm: distanceKm ?? this.distanceKm,
       notes: notes ?? this.notes,
     );
   }
@@ -89,7 +81,6 @@ class ScheduledTripConfig extends Equatable {
         pickupLocationName,
         pickupLatitude,
         pickupLongitude,
-        distanceKm,
         notes,
       ];
 }

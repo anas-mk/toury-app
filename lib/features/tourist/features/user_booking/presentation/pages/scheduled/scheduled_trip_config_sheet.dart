@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../../../../core/di/injection_container.dart';
-import '../../../../../../../core/services/directions/directions_service.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
@@ -63,10 +61,6 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
 
   MeetingPointType _meetingPoint = MeetingPointType.custom;
 
-  // Currently submitting the form (used to disable the CTA while we
-  // run the optional Directions request — Fix 13).
-  bool _submitting = false;
-
   @override
   void initState() {
     super.initState();
@@ -79,53 +73,18 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
     super.dispose();
   }
 
-  bool get _hasPickupCoords =>
-      widget.pickupLatitude != null && widget.pickupLongitude != null;
-
-  Future<void> _submit() async {
-    if (_submitting) return;
+  void _submit() {
     HapticFeedback.lightImpact();
-    setState(() => _submitting = true);
-
-    // Fix 13: best-effort driving-distance estimate when both pickup
-    // and destination coords are available. If it fails (offline,
-    // routing service down), we just omit the field — the backend
-    // will fall back to its Haversine straight-line approximation.
-    double? distanceKm;
-    if (_hasPickupCoords) {
-      try {
-        final directions = sl<DirectionsService>();
-        final result = await directions.estimate(
-          fromLat: widget.pickupLatitude!,
-          fromLng: widget.pickupLongitude!,
-          toLat: widget.destinationLatitude,
-          toLng: widget.destinationLongitude,
-        );
-        distanceKm = result?.distanceKm;
-      } catch (_) {
-        distanceKm = null;
-      }
-    }
-
-    if (!mounted) return;
-
     final config = ScheduledTripConfig(
       destinationName: widget.destinationName,
       destinationLatitude: widget.destinationLatitude,
       destinationLongitude: widget.destinationLongitude,
       meetingPointType: _meetingPoint,
-      // Fix 3: pickup stays optional. Pass null/null/null when the
-      // search form left pickup blank so the create call omits the
-      // keys (vs sending zeros, which the backend would treat as a real
-      // geo-point on the equator off the coast of West Africa).
       pickupLocationName: widget.pickupLocationName,
       pickupLatitude: widget.pickupLatitude,
       pickupLongitude: widget.pickupLongitude,
-      distanceKm: distanceKm,
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
     );
-    if (!mounted) return;
-    setState(() => _submitting = false);
     Navigator.of(context).pop(config);
   }
 
@@ -184,12 +143,9 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
         ),
         const SizedBox(height: 8),
         PrimaryGradientButton(
-          label: _submitting
-              ? 'Calculating distance\u2026'
-              : 'Continue to review',
+          label: 'Continue to review',
           icon: Icons.arrow_forward_rounded,
-          onPressed: _submitting ? null : _submit,
-          visualEnabled: !_submitting,
+          onPressed: _submit,
         ),
         const SizedBox(height: 8),
       ],

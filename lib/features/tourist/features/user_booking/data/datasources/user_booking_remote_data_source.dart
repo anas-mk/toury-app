@@ -7,7 +7,7 @@ import '../models/paged_response_model.dart';
 import '../../domain/entities/search_params.dart';
 
 abstract class UserBookingRemoteDataSource {
-  Future<List<HelperBookingModel>> searchScheduledHelpers(ScheduledSearchParams params);
+  Future<({int availableCount, List<HelperBookingModel> helpers})> searchScheduledHelpers(ScheduledSearchParams params);
   Future<List<HelperBookingModel>> searchInstantHelpers(InstantSearchParams params);
   Future<HelperBookingModel> getHelperProfile(String helperId);
   Future<BookingDetailModel> createScheduledBooking(Map<String, dynamic> bookingData);
@@ -30,12 +30,15 @@ class UserBookingRemoteDataSourceImpl implements UserBookingRemoteDataSource {
   UserBookingRemoteDataSourceImpl(this.dio);
 
   @override
-  Future<List<HelperBookingModel>> searchScheduledHelpers(ScheduledSearchParams params) async {
+  Future<({int availableCount, List<HelperBookingModel> helpers})> searchScheduledHelpers(ScheduledSearchParams params) async {
     try {
       final response = await dio.post(ApiConfig.searchScheduledHelpers, data: params.toJson());
       if (response.statusCode == 200) {
-        final data = response.data['data'] as List;
-        return data.map((e) => HelperBookingModel.fromJson(e)).toList();
+        final data = response.data['data'];
+        final availableCount = (data['availableCount'] as num?)?.toInt() ?? 0;
+        final helpersList = (data['helpers'] as List? ?? data as List);
+        final helpers = helpersList.map((e) => HelperBookingModel.fromJson(e)).toList();
+        return (availableCount: availableCount, helpers: helpers);
       } else {
         throw ServerException(response.data['message'] ?? 'Search failed');
       }
