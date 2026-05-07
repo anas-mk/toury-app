@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../../core/theme/app_theme.dart';
-import '../../../../../../../core/theme/app_color.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../../core/router/app_router.dart';
 
@@ -10,20 +10,18 @@ class QuickActionsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     final actions = [
       _ActionItem('Requests', Icons.notifications_active_rounded, Colors.orange, 
           () => context.push(AppRouter.helperRequests)),
-      _ActionItem('Upcoming', Icons.event_available_rounded, theme.colorScheme.primary, 
+      _ActionItem('Upcoming', Icons.event_available_rounded, BrandTokens.primaryBlue, 
           () => context.push(AppRouter.helperUpcoming)),
       _ActionItem('History', Icons.history_rounded, Colors.blueAccent, 
           () => context.push(AppRouter.helperHistory)),
-      _ActionItem('My Areas', Icons.map_rounded, AppColor.accentColor, 
+      _ActionItem('My Areas', Icons.map_rounded, BrandTokens.successGreen, 
           () => context.push(AppRouter.helperServiceAreas)),
-      _ActionItem('Reports', Icons.flag_rounded, AppColor.errorColor, 
+      _ActionItem('Reports', Icons.flag_rounded, BrandTokens.dangerRed, 
           () => context.push(AppRouter.helperReports)),
-      _ActionItem('SOS', Icons.sos_rounded, AppColor.errorColor, 
+      _ActionItem('SOS', Icons.sos_rounded, BrandTokens.dangerRed, 
           () => context.push(AppRouter.helperSos)),
     ];
 
@@ -33,8 +31,8 @@ class QuickActionsGrid extends StatelessWidget {
       itemCount: actions.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: AppTheme.spaceMD,
-        mainAxisSpacing: AppTheme.spaceMD,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
         childAspectRatio: 1.0,
       ),
       itemBuilder: (context, index) => _ActionTile(action: actions[index]),
@@ -56,9 +54,6 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return GestureDetector(
       onTap: action.onTap,
       child: CustomCard(
@@ -68,19 +63,18 @@ class _ActionTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(AppTheme.spaceSM),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: action.color.withOpacity(0.1),
+                color: action.color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(action.icon, color: action.color, size: 24),
             ),
-            const SizedBox(height: AppTheme.spaceSM),
+            const SizedBox(height: 8),
             Text(
               action.label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: isDark ? Colors.white70 : Colors.black87,
-                fontWeight: FontWeight.bold,
+              style: BrandTypography.caption(
+                weight: FontWeight.bold,
               ),
             ),
           ],

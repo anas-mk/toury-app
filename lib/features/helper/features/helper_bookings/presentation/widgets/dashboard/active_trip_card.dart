@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../../core/router/app_router.dart';
-import '../../../../../../../core/theme/app_theme.dart';
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/widgets/custom_card.dart';
+import '../../../../../../../core/theme/brand_typography.dart';
 import '../../../domain/entities/helper_booking_entities.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
 
 class ActiveTripCard extends StatelessWidget {
   final HelperBooking booking;
@@ -13,26 +12,23 @@ class ActiveTripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final s = booking.status.toLowerCase();
+    final canChat = ['accepted', 'confirmed', 'inProgress', 'started'].contains(s);
 
     return GestureDetector(
       onTap: () => context.push(AppRouter.helperActiveBooking, extra: booking.id),
       child: Container(
-        padding: const EdgeInsets.all(AppTheme.spaceLG),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primary,
-              theme.colorScheme.primary.withOpacity(0.8),
-            ],
+          gradient: const LinearGradient(
+            colors: [BrandTokens.primaryBlue, BrandTokens.primaryBlueDark],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: theme.colorScheme.primary.withOpacity(0.3),
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -46,20 +42,17 @@ class ActiveTripCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.circle, color: Colors.white, size: 8),
-                      SizedBox(width: 6),
+                      const Icon(Icons.circle, color: Colors.white, size: 8),
+                      const SizedBox(width: 6),
                       Text(
-                        'ONGOING TRIP',
-                        style: TextStyle(
+                        booking.status.toUpperCase(),
+                        style: BrandTypography.overline(
                           color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
@@ -69,16 +62,14 @@ class ActiveTripCard extends StatelessWidget {
                 const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 14),
               ],
             ),
-            const SizedBox(height: AppTheme.spaceLG),
+            const SizedBox(height: 16),
             Text(
               booking.travelerName,
-              style: theme.textTheme.headlineSmall?.copyWith(
+              style: BrandTypography.headline(
                 color: Colors.white,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: AppTheme.spaceXS),
+            const SizedBox(height: 4),
             Row(
               children: [
                 const Icon(Icons.location_on_rounded, color: Colors.white70, size: 14),
@@ -86,14 +77,14 @@ class ActiveTripCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     booking.destinationLocation,
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+                    style: BrandTypography.caption(color: Colors.white70),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppTheme.spaceXL),
+            const SizedBox(height: 24),
             Row(
               children: [
                 Expanded(
@@ -103,15 +94,17 @@ class ActiveTripCard extends StatelessWidget {
                     onTap: () => context.push(AppRouter.helperActiveBooking, extra: booking.id),
                   ),
                 ),
-                const SizedBox(width: AppTheme.spaceMD),
-                Expanded(
-                  child: _TripAction(
-                    label: 'Chat',
-                    icon: Icons.chat_bubble_rounded,
-                    outline: true,
-                    onTap: () => context.push(AppRouter.helperActiveBooking, extra: booking.id),
+                if (canChat) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _TripAction(
+                      label: 'Chat',
+                      icon: Icons.chat_bubble_rounded,
+                      outline: true,
+                      onTap: () => context.push(AppRouter.helperActiveBooking, extra: booking.id),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
@@ -136,32 +129,29 @@ class _TripAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        height: 48,
         decoration: BoxDecoration(
           color: outline ? Colors.transparent : Colors.white,
-          border: outline ? Border.all(color: Colors.white38) : null,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          borderRadius: BorderRadius.circular(14),
+          border: outline ? Border.all(color: Colors.white.withValues(alpha: 0.3)) : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              icon,
-              color: outline ? Colors.white : theme.colorScheme.primary,
+              icon, 
+              color: outline ? Colors.white : BrandTokens.primaryBlue, 
               size: 18,
             ),
             const SizedBox(width: 8),
             Text(
               label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: outline ? Colors.white : theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
+              style: BrandTypography.body(
+                color: outline ? Colors.white : BrandTokens.primaryBlue,
+                weight: FontWeight.bold,
               ),
             ),
           ],

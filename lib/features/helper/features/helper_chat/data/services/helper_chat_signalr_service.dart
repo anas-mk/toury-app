@@ -74,12 +74,20 @@ class HelperChatSignalRService {
 
   Future<void> joinBookingRoom(String bookingId) async {
     if (_hubConnection?.state != HubConnectionState.Connected) return;
-    await _hubConnection!.invoke('JoinBookingRoom', args: [bookingId]);
+    try {
+      await _hubConnection!.invoke('JoinBookingRoom', args: [bookingId]);
+    } catch (e) {
+      // Silently fail if not implemented
+    }
   }
 
   Future<void> leaveBookingRoom(String bookingId) async {
     if (_hubConnection?.state != HubConnectionState.Connected) return;
-    await _hubConnection!.invoke('LeaveBookingRoom', args: [bookingId]);
+    try {
+      await _hubConnection!.invoke('LeaveBookingRoom', args: [bookingId]);
+    } catch (e) {
+      // Silently fail
+    }
   }
 
   void dispose() {

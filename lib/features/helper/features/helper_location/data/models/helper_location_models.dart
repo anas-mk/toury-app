@@ -4,6 +4,7 @@ class HelperLocationModel extends HelperLocation {
   const HelperLocationModel({
     required super.latitude,
     required super.longitude,
+    super.bookingId,
     super.heading,
     super.speedKmh,
     super.accuracyMeters,
@@ -11,19 +12,24 @@ class HelperLocationModel extends HelperLocation {
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final Map<String, dynamic> map = {
       'latitude': latitude,
       'longitude': longitude,
       'heading': heading,
       'speedKmh': speedKmh,
       'accuracyMeters': accuracyMeters,
     };
+    if (bookingId != null) {
+      map['bookingId'] = bookingId;
+    }
+    return map;
   }
 
   factory HelperLocationModel.fromEntity(HelperLocation entity) {
     return HelperLocationModel(
       latitude: entity.latitude,
       longitude: entity.longitude,
+      bookingId: entity.bookingId,
       heading: entity.heading,
       speedKmh: entity.speedKmh,
       accuracyMeters: entity.accuracyMeters,

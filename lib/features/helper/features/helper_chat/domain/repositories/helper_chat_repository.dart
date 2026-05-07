@@ -4,7 +4,12 @@ import '../entities/helper_chat_entities.dart';
 
 abstract class HelperChatRepository {
   Future<Either<Failure, ConversationEntity>> getConversation(String bookingId);
-  Future<Either<Failure, List<ChatMessageEntity>>> getMessages(String bookingId, {DateTime? before});
+  Future<Either<Failure, List<ChatMessageEntity>>> getMessages(
+    String bookingId, {
+    DateTime? before,
+    int page = 1,
+    int pageSize = 50,
+  });
   Future<Either<Failure, ChatMessageEntity>> sendMessage(String bookingId, String text);
   Future<Either<Failure, void>> markAsRead(String bookingId);
   

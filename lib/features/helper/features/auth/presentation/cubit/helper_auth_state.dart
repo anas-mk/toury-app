@@ -37,7 +37,7 @@ class HelperRegistrationData extends Equatable {
     this.email = '',
     this.password = '',
     this.phoneNumber = '',
-    this.gender = 'Male',
+    this.gender = '',
     this.birthDate,
     this.profileImage,
     this.selfieImage,

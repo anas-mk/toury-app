@@ -16,6 +16,7 @@ import '../../core/services/realtime/hub_lifecycle_observer.dart';
 import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
 import '../../core/services/directions/directions_service.dart';
 import '../../core/services/sos/sos_service.dart';
+import '../../features/helper/features/helper_location/data/services/helper_location_tracking_service.dart' show HelperLocationTrackingService;
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 
 // ============================================================
@@ -167,6 +168,8 @@ import '../../features/helper/features/helper_bookings/data/repositories/helper_
 import '../../features/helper/features/helper_bookings/domain/repositories/helper_bookings_repository.dart';
 import '../../features/helper/features/helper_bookings/domain/usecases/helper_bookings_usecases.dart';
 import '../../features/helper/features/helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/accept_reject_request_cubit.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
 
 // ============================================================
 // Helper Location Feature Imports
@@ -229,6 +232,12 @@ final sl = GetIt.instance;
 StreamSubscription<String>? _authTokenHubReconnectSub;
 
 Future<void> init() async {
+  // ============================================================
+  // Core - External Dependencies
+  // ============================================================
+  // 1️⃣  Dio — shared singleton used by ALL remote data sources.
+  sl.registerLazySingleton<Dio>(() => _createDio());
+
   // ============================================================
   // Features - Auth
   // ============================================================
@@ -536,16 +545,16 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits — factory so each screen gets a fresh instance
-  sl.registerFactory(() => HelperDashboardCubit(sl(), sl()));
-  sl.registerFactory(() => HelperAvailabilityCubit(sl()));
-  sl.registerFactory(() => IncomingRequestsCubit(sl()));
+  sl.registerLazySingleton(() => HelperDashboardCubit(sl(), sl()));
+  sl.registerLazySingleton(() => HelperAvailabilityCubit(sl()));
+  sl.registerLazySingleton(() => IncomingRequestsCubit(sl()));
   sl.registerFactory(() => RequestDetailsCubit(sl()));
   sl.registerFactory(() => AcceptBookingCubit(sl()));
   sl.registerFactory(() => DeclineBookingCubit(sl()));
+  sl.registerFactory(() => AcceptRejectRequestCubit(sl(), sl()));
   sl.registerFactory(() => UpcomingBookingsCubit(sl()));
-  sl.registerFactory(() => ActiveBookingCubit(sl(), sl()));
-  sl.registerFactory(() => StartTripCubit(sl()));
-  sl.registerFactory(() => EndTripCubit(sl()));
+  sl.registerLazySingleton(() => ActiveBookingCubit(sl(), sl(), sl()));
+  sl.registerFactory(() => TripActionCubit(sl(), sl()));
   sl.registerFactory(() => HelperHistoryCubit(sl()));
   sl.registerFactory(() => EarningsCubit(sl()));
   sl.registerFactory(() => HelperBookingDetailsCubit(sl()));
@@ -580,13 +589,20 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerLazySingleton(() => HelperLocationCubit(
-    tracker: sl(),
-    connectUseCase: sl(),
-    disconnectUseCase: sl(),
+  sl.registerLazySingleton(() => HelperLocationTrackingService(
+    coreLocationService: sl(),
+    authService: sl(),
     streamUseCase: sl(),
     updateUseCase: sl(),
+    connectUseCase: sl(),
+    disconnectUseCase: sl(),
     signalRStateStream: sl<HelperLocationRepository>().signalRStateStream.cast<SignalRConnectionState>(),
+  ));
+
+  sl.registerLazySingleton(() => HelperLocationCubit(
+    trackingService: sl(),
+    getLocationStatusUseCase: sl(),
+    getEligibilityUseCase: sl(),
   ));
   sl.registerLazySingleton(() => LocationStatusCubit(getStatusUseCase: sl()));
   sl.registerLazySingleton(() => EligibilityCubit(getEligibilityUseCase: sl()));
@@ -609,6 +625,9 @@ Future<void> init() async {
 
   // Services
   sl.registerLazySingleton(() => HelperLocationSignalRService());
+  // NOTE: HelperLocationTracker is deprecated. Keep it registered only if
+  // other legacy modules still depend on it (no GPS stream should be started
+  // from widgets anymore).
   sl.registerLazySingleton(() => HelperLocationTracker());
 
   // Data Source
@@ -798,7 +817,7 @@ Future<void> init() async {
   sl.registerFactory(() => HelperSosCubit(sosService: sl()));
 
   // Services
-  sl.registerLazySingleton(() => HelperSosService());
+  sl.registerLazySingleton<HelperSosService>(() => HelperSosService(sl<Dio>()));
 
   // ============================================================
   // Tourist Payments Feature
@@ -965,8 +984,7 @@ Future<void> init() async {
   // Core - External Dependencies
   // ============================================================
 
-  // 1️⃣  Dio — shared singleton used by ALL remote data sources.
-  sl.registerLazySingleton(() => _createDio());
+
 
 
   // 3️⃣  SharedPreferences

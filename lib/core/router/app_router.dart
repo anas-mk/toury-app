@@ -6,8 +6,6 @@ import 'package:toury/features/tourist/features/profile/presentation/page/accoun
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/earnings_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/helper_history_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/incoming_requests_page.dart';
 import '../../features/helper/features/helper_location/presentation/pages/helper_location_page.dart';
 import '../../features/helper/features/helper_location/presentation/pages/eligibility_debug_page.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/service_areas_page.dart';
@@ -90,7 +88,6 @@ import '../../features/tourist/features/user_ratings/presentation/pages/helper_r
 import '../../features/tourist/features/user_ratings/presentation/pages/rate_booking_page.dart';
 import '../../features/tourist/features/user_chat/presentation/pages/user_chat_page.dart';
 import '../../features/tourist/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
-import '../../features/helper/features/helper_booking_tracking/presentation/pages/helper_booking_tracking_page.dart';
 import '../../features/helper/features/helper_booking_tracking/presentation/cubit/helper_tracking_cubit.dart';
 
 // Helper imports
@@ -105,11 +102,11 @@ import '../../features/helper/features/auth/presentation/pages/helper_reset_pass
 // Helper Bookings imports
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_dashboard_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/bookings_center_page.dart';
-import '../../features/helper/features/helper_chat/presentation/pages/conversations_list_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/wallet_hub_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/request_details_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
+import '../../features/helper/features/helper_bookings/presentation/cubit/booking_actions_cubits.dart';
 
 import 'dart:async';
 
@@ -265,9 +262,7 @@ class AppRouter {
   // User Chat Routes
   static const String userChat = '/user-chat/:id';
 
-  // User Tracking Routes
   static const String userTracking = '/user-tracking/:id';
-  static const String helperTracking = '/helper-tracking/:id';
 
   // User Rating Routes
   static const String helperReviews = '/helper-reviews/:id';
@@ -294,7 +289,6 @@ class AppRouter {
   // Helper Shell Routes
   static const String helperHome = '/helper/home';
   static const String helperBookings = '/helper/bookings';
-  static const String helperMessages = '/helper/messages';
   static const String helperWallet = '/helper/wallet';
   static const String helperAccount = '/helper/account';
 
@@ -531,17 +525,7 @@ class AppRouter {
               GoRoute(
                 path: helperBookings,
                 name: 'helper-bookings',
-                builder: (context, state) => const BookingsCenterPage(),
-              ),
-            ],
-          ),
-          // Branch: Messages
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: helperMessages,
-                name: 'helper-messages',
-                builder: (context, state) => const ConversationsListPage(),
+                builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
               ),
             ],
           ),
@@ -583,7 +567,13 @@ class AppRouter {
         path: helperRequests,
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const IncomingRequestsPage(),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
+      ),
+      GoRoute(
+        path: helperUpcoming,
+        name: 'helper-upcoming',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 1),
       ),
       GoRoute(
         path: helperRequestDetails,
@@ -591,7 +581,7 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return RequestDetailsPage(bookingId: id);
+          return HelperBookingDetailsPage(bookingId: id, isRequest: true);
         },
       ),
       GoRoute(
@@ -617,7 +607,7 @@ class AppRouter {
         path: helperHistory,
         name: 'helper-history',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const HelperHistoryPage(),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 2),
       ),
       GoRoute(
         path: helperEarnings,
@@ -1154,37 +1144,7 @@ class AppRouter {
         },
       ),
 
-      // ── Helper Booking Tracking ─────────────────────────────────────────
-      GoRoute(
-        path: helperTracking,
-        name: 'helper-tracking',
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          final pickupLat = double.parse(
-            state.uri.queryParameters['pickupLat'] ?? '0',
-          );
-          final pickupLng = double.parse(
-            state.uri.queryParameters['pickupLng'] ?? '0',
-          );
-          final destLat = double.parse(
-            state.uri.queryParameters['destLat'] ?? '0',
-          );
-          final destLng = double.parse(
-            state.uri.queryParameters['destLng'] ?? '0',
-          );
 
-          return BlocProvider(
-            create: (context) => sl<HelperTrackingCubit>()..startTracking(id),
-            child: HelperBookingTrackingPage(
-              bookingId: id,
-              pickupLat: pickupLat,
-              pickupLng: pickupLng,
-              destLat: destLat,
-              destLng: destLng,
-            ),
-          );
-        },
-      ),
 
       // ── Helper Location ──────────────────────────────────────────────────
       GoRoute(

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../../../../../core/errors/exceptions.dart';
+import '../../../../../../core/config/api_config.dart';
 import 'package:toury/core/models/tracking/tracking_point_model.dart';
 
 abstract class HelperTrackingRemoteDataSource {
@@ -15,9 +16,11 @@ class HelperTrackingRemoteDataSourceImpl implements HelperTrackingRemoteDataSour
   @override
   Future<TrackingPointModel> getLatestLocation(String bookingId) async {
     try {
-      final response = await dio.get('/api/booking/$bookingId/tracking/latest');
+      final response = await dio.get(ApiConfig.getLatestLocation(bookingId));
       if (response.statusCode == 200 && response.data != null) {
-        return TrackingPointModel.fromJson(response.data);
+        final data = response.data['data'];
+        if (data == null) throw ServerException('No location samples recorded yet');
+        return TrackingPointModel.fromJson(data);
       } else {
         throw ServerException('Failed to load latest location');
       }
@@ -31,9 +34,11 @@ class HelperTrackingRemoteDataSourceImpl implements HelperTrackingRemoteDataSour
   @override
   Future<List<TrackingPointModel>> getTrackingHistory(String bookingId) async {
     try {
-      final response = await dio.get('/api/booking/$bookingId/tracking/history');
+      final response = await dio.get(ApiConfig.getTrackingHistory(bookingId));
       if (response.statusCode == 200 && response.data != null) {
-        final List list = response.data;
+        final data = response.data['data'];
+        if (data == null || data['points'] == null) return [];
+        final List list = data['points'];
         return list.map((e) => TrackingPointModel.fromJson(e)).toList();
       } else {
         return [];

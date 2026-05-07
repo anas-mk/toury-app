@@ -1,21 +1,33 @@
 import '../../domain/entities/helper_booking_entities.dart';
+import '../../domain/entities/helper_dashboard_entity.dart';
+import '../../domain/entities/helper_availability_state.dart';
 import '../../domain/entities/helper_earnings_entities.dart';
 import '../../domain/repositories/helper_bookings_repository.dart';
 import '../datasources/helper_bookings_remote_data_source.dart';
+import '../models/helper_booking_models.dart';
 
 class HelperBookingsRepositoryImpl implements HelperBookingsRepository {
   final HelperBookingsRemoteDataSource remoteDataSource;
   const HelperBookingsRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<HelperDashboard> getDashboard() => remoteDataSource.getDashboard();
+  Future<HelperDashboardEntity> getDashboard() => remoteDataSource.getDashboard();
 
   @override
   Future<void> updateAvailability(HelperAvailabilityState status) =>
       remoteDataSource.updateAvailability(status.toApiValue);
 
   @override
-  Future<List<HelperBooking>> getRequests() => remoteDataSource.getRequests();
+  Future<PaginatedRequestsResponse> getRequests({
+    String? type,
+    int page = 1,
+    int pageSize = 10,
+  }) =>
+      remoteDataSource.getRequests(
+        type: type,
+        page: page,
+        pageSize: pageSize,
+      );
 
   @override
   Future<HelperBooking> getRequestDetails(String bookingId) =>

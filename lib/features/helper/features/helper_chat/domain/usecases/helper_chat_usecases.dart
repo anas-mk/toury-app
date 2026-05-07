@@ -16,8 +16,18 @@ class GetMessagesUseCase {
   final HelperChatRepository repository;
   GetMessagesUseCase(this.repository);
 
-  Future<Either<Failure, List<ChatMessageEntity>>> call(String bookingId, {DateTime? before}) {
-    return repository.getMessages(bookingId, before: before);
+  Future<Either<Failure, List<ChatMessageEntity>>> call(
+    String bookingId, {
+    DateTime? before,
+    int page = 1,
+    int pageSize = 20,
+  }) {
+    return repository.getMessages(
+      bookingId,
+      before: before,
+      page: page,
+      pageSize: pageSize,
+    );
   }
 }
 

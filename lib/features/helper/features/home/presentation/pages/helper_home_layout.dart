@@ -55,11 +55,6 @@ class HelperHomeLayout extends StatelessWidget {
               label: 'Bookings',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline_rounded),
-              activeIcon: Icon(Icons.chat_bubble_rounded),
-              label: 'Messages',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.account_balance_wallet_outlined),
               activeIcon: Icon(Icons.account_balance_wallet_rounded),
               label: 'Wallet',

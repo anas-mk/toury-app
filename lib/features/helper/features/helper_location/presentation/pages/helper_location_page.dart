@@ -5,14 +5,19 @@ import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:ui';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/services/auth_service.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
+import '../../../helper_bookings/domain/entities/helper_availability_state.dart';
+import '../../../helper_bookings/presentation/cubit/incoming_requests_cubit.dart';
 import '../../data/services/helper_location_signalr_service.dart';
 import '../cubit/helper_location_cubit.dart';
 import '../cubit/location_status_cubits.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
-import '../../../helper_bookings/domain/entities/helper_booking_entities.dart';
+import '../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
+
+const String _mapboxToken = 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg';
 
 class HelperLocationPage extends StatefulWidget {
   const HelperLocationPage({super.key});
@@ -35,7 +40,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
     _locationCubit = sl<HelperLocationCubit>();
     _statusCubit = sl<LocationStatusCubit>();
     _availabilityCubit = sl<HelperAvailabilityCubit>();
-    
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -46,9 +51,15 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
   }
 
   Future<void> _initTracking() async {
+    final dashState = sl<HelperDashboardCubit>().state;
+    final isOnline = dashState is HelperDashboardLoaded &&
+        dashState.dashboard.availabilityState == HelperAvailabilityState.availableNow;
+    if (!isOnline) return;
+
     final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
-    if (helper?.token != null) {
-      _locationCubit.startTracking(helper!.token!);
+    final token = helper?.token ?? sl<AuthService>().getToken();
+    if (token != null && token.isNotEmpty) {
+      _locationCubit.initialize(token, availability: HelperAvailabilityState.availableNow);
     }
   }
 
@@ -69,9 +80,82 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
         BlocProvider.value(value: _statusCubit),
         BlocProvider.value(value: _availabilityCubit),
       ],
-      child: Scaffold(
-        body: Stack(
-          children: [
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<HelperAvailabilityCubit, HelperAvailabilityStatus>(
+            listener: (context, state) async {
+              if (state is AvailabilityError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: AppColor.errorColor,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+
+              if (state is! AvailabilityUpdated) return;
+
+              _locationCubit.setAvailabilityState(state.status);
+              await _statusCubit.loadStatus(force: true);
+
+              if (state.status == HelperAvailabilityState.availableNow) {
+                final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
+                final token = helper?.token ?? sl<AuthService>().getToken() ?? '';
+                if (token.isEmpty) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Session expired. Please login again.'),
+                      backgroundColor: AppColor.errorColor,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  context.read<HelperAvailabilityCubit>().update(HelperAvailabilityState.offline);
+                  return;
+                }
+                final ok = await _locationCubit.initialize(token, availability: HelperAvailabilityState.availableNow);
+                if (!ok) {
+                  if (!context.mounted) return;
+                  context.read<HelperAvailabilityCubit>().update(HelperAvailabilityState.offline);
+                  return;
+                }
+                await sl<IncomingRequestsCubit>().load(silent: true);
+                return;
+              }
+
+              if (state.status == HelperAvailabilityState.offline) {
+                await _locationCubit.setAvailabilityState(HelperAvailabilityState.offline);
+              }
+            },
+          ),
+          BlocListener<HelperLocationCubit, HelperLocationState>(
+            listener: (context, state) {
+              if (state is HelperLocationPermissionDenied) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Location permission required to go online and receive nearby requests.'),
+                    backgroundColor: AppColor.errorColor,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+              if (state is HelperLocationError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: AppColor.errorColor,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+        child: Scaffold(
+          body: Stack(
+            children: [
             // ── Map Layer ────────────────────────────────────────────────────────
             BlocConsumer<HelperLocationCubit, HelperLocationState>(
               listener: (context, state) {
@@ -99,10 +183,12 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: isDark 
-                        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                      subdomains: const ['a', 'b', 'c', 'd'],
+                      urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken',
+                      additionalOptions: const {
+                        'accessToken': _mapboxToken,
+                      },
+                      tileProvider: CachedTileProvider(),
+                      userAgentPackageName: 'com.toury.app',
                     ),
                     if (state is HelperLocationTracking) ...[
                       CircleLayer(
@@ -205,7 +291,8 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -284,7 +371,7 @@ class _TopStatusBar extends StatelessWidget {
             children: [
               BlocBuilder<HelperLocationCubit, HelperLocationState>(
                 builder: (context, state) {
-                  bool connected = state is HelperLocationTracking && 
+                  bool connected = state is HelperLocationTracking &&
                       state.connectionState == SignalRConnectionState.connected;
                   return _StatusIndicator(isActive: connected);
                 },
@@ -354,13 +441,12 @@ class _EligibilityBadge extends StatelessWidget {
   const _EligibilityBadge();
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return BlocBuilder<LocationStatusCubit, LocationStatusState>(
       builder: (context, state) {
-        bool eligible = state is LocationStatusLoaded && 
+        bool eligible = state is LocationStatusLoaded &&
             state.status.isLocationFresh && state.status.canReceiveInstantRequests;
         final color = eligible ? AppColor.accentColor : AppColor.warningColor;
-        
+
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -371,7 +457,7 @@ class _EligibilityBadge extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(eligible ? Icons.verified_user_rounded : Icons.info_outline_rounded, 
+              Icon(eligible ? Icons.verified_user_rounded : Icons.info_outline_rounded,
                   color: color, size: 14),
               const SizedBox(width: 6),
               Text(
@@ -427,7 +513,7 @@ class _BottomControlPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    
+
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.radius2XL)),
       child: BackdropFilter(
@@ -457,8 +543,8 @@ class _BottomControlPanel extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(isOnline ? 'Broadcasting Active' : 'System Standby', 
-                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                            Text(isOnline ? 'Broadcasting Active' : 'System Standby',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
                             const SizedBox(height: 4),
                             Text(isOnline ? 'Streaming High-Precision GPS data' : 'Tracking and visibility suspended',
                                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
@@ -490,15 +576,15 @@ class _BottomControlPanel extends StatelessWidget {
                       builder: (context, state) {
                         final isOnline = state is AvailabilityUpdated && state.status == HelperAvailabilityState.availableNow;
                         final isUpdating = state is AvailabilityUpdating;
-                        
+
                         return ElevatedButton.icon(
                           onPressed: isUpdating ? null : () {
                             final newStatus = isOnline ? HelperAvailabilityState.offline : HelperAvailabilityState.availableNow;
                             context.read<HelperAvailabilityCubit>().update(newStatus);
                           },
-                          icon: isUpdating 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(isOnline ? Icons.power_settings_new_rounded : Icons.radar_rounded),
+                          icon: isUpdating
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Icon(isOnline ? Icons.power_settings_new_rounded : Icons.radar_rounded),
                           label: Text(isOnline ? 'GO OFFLINE' : 'GO ONLINE'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: isOnline ? AppColor.errorColor : AppColor.accentColor,

@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -7,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'app.dart';
 import 'core/di/injection_container.dart' as di;
 import 'core/localization/cubit/localization_cubit.dart';
@@ -25,6 +23,7 @@ import 'core/theme/theme_cubit.dart';
 import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
 import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
 import 'firebase_options.dart';
+
 
 /// Top-level handler so FCM background messages are processed even when the
 /// Dart isolate has been killed. MUST be a top-level (or static) function —
@@ -45,6 +44,7 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 /// (e.g. [MessagingService.start]) check this so they don't blow up trying to
 /// touch FirebaseMessaging when there's no native config on device.
 bool firebaseReady = false;
+bool _backgroundHandlerRegistered = false;
 
 /// Bootstrap-owned subscription for `onMessageOpenedApp`. Held at the
 /// top level so it's installed BEFORE any auth state — this is the
@@ -102,7 +102,10 @@ void main() async {
     final app = await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+    if (!_backgroundHandlerRegistered) {
+      FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+      _backgroundHandlerRegistered = true;
+    }
     firebaseReady = true;
     RealtimeLogger.instance.log(
       'FCM',

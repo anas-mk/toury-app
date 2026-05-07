@@ -3,12 +3,18 @@ import 'package:flutter/foundation.dart';
 import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/errors/exceptions.dart';
 import '../models/helper_booking_models.dart';
+import '../models/helper_dashboard_model.dart';
 import '../models/helper_earnings_models.dart';
 
 abstract class HelperBookingsRemoteDataSource {
   Future<HelperDashboardModel> getDashboard({CancelToken? cancelToken});
   Future<void> updateAvailability(String availabilityState, {CancelToken? cancelToken});
-  Future<List<HelperBookingModel>> getRequests({CancelToken? cancelToken});
+  Future<PaginatedRequestsResponse> getRequests({
+    String? type,
+    int page = 1,
+    int pageSize = 10,
+    CancelToken? cancelToken,
+  });
   Future<HelperBookingModel> getRequestDetails(String id, {CancelToken? cancelToken});
   Future<HelperBookingModel> acceptRequest(String id, {CancelToken? cancelToken});
   Future<void> declineRequest(String id, {String? reason, CancelToken? cancelToken});
@@ -21,7 +27,7 @@ abstract class HelperBookingsRemoteDataSource {
     DateTime? from,
     DateTime? to,
     int page = 1,
-    int pageSize = 20,
+    int pageSize = 10,
     CancelToken? cancelToken,
   });
   Future<HelperEarningsModel> getEarnings({CancelToken? cancelToken});
@@ -93,15 +99,68 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   }
 
   @override
-  Future<List<HelperBookingModel>> getRequests({CancelToken? cancelToken}) async {
+  Future<PaginatedRequestsResponse> getRequests({
+    String? type,
+    int page = 1,
+    int pageSize = 10,
+    CancelToken? cancelToken,
+  }) async {
     try {
-      final res = await dio.get(ApiConfig.helperRequests, cancelToken: cancelToken);
+      final params = <String, dynamic>{
+        'page': page,
+        'pageSize': pageSize,
+      };
+      if (type != null && type.isNotEmpty) {
+        params['type'] = type;
+      }
+      
+      final res = await dio.get(
+        ApiConfig.helperRequests,
+        queryParameters: params,
+        cancelToken: cancelToken,
+      );
       _assertOk(res);
+      
+      // Handle both paginated and non-paginated responses
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is List ? raw : []);
-      return list.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList();
+      if (raw is Map && raw['data'] is Map && raw['data']['items'] is List) {
+        // New paginated format
+        return PaginatedRequestsResponse.fromJson(raw as Map<String, dynamic>);
+      } else if (raw is Map && raw['data'] is List) {
+        // Old non-paginated format - wrap in pagination structure
+        final list = raw['data'] as List;
+        return PaginatedRequestsResponse(
+          items: list.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList(),
+          page: page,
+          pageSize: pageSize,
+          totalCount: list.length,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        );
+      } else if (raw is List) {
+        // Direct list format - wrap in pagination structure
+        return PaginatedRequestsResponse(
+          items: raw.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList(),
+          page: page,
+          pageSize: pageSize,
+          totalCount: raw.length,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        );
+      }
+      
+      // Empty response
+      return PaginatedRequestsResponse(
+        items: const [],
+        page: page,
+        pageSize: pageSize,
+        totalCount: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      );
     } on DioException catch (e) {
       throw ServerException(_msg(e));
     }
@@ -146,9 +205,15 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
       final res = await dio.get(ApiConfig.helperUpcoming, cancelToken: cancelToken);
       _assertOk(res);
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is List ? raw : []);
+      final list = (raw is Map && raw['data'] is Map && raw['data']['items'] is List)
+          ? raw['data']['items'] as List
+          : (raw is Map && raw['data'] is List)
+              ? raw['data'] as List
+              : (raw is Map && raw['items'] is List)
+                  ? raw['items'] as List
+                  : (raw is List ? raw : []);
+      
+      debugPrint('📦 [UpcomingBookings] Parsed ${list.length} items');
       return list.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ServerException(_msg(e));
@@ -173,7 +238,9 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   @override
   Future<void> startTrip(String id, {CancelToken? cancelToken}) async {
     try {
-      final res = await dio.post(ApiConfig.helperStartTrip(id), cancelToken: cancelToken);
+      final url = ApiConfig.helperStartTrip(id);
+      debugPrint('➡️ [TripAction] START URL: $url (ID: $id)');
+      final res = await dio.post(url, cancelToken: cancelToken);
       _assertOk(res);
     } on DioException catch (e) {
       throw ServerException(_msg(e));
@@ -183,7 +250,9 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   @override
   Future<double> endTrip(String id, {CancelToken? cancelToken}) async {
     try {
-      final res = await dio.post(ApiConfig.helperEndTrip(id), cancelToken: cancelToken);
+      final url = ApiConfig.helperEndTrip(id);
+      debugPrint('➡️ [TripAction] END URL: $url (ID: $id)');
+      final res = await dio.post(url, cancelToken: cancelToken);
       _assertOk(res);
       final raw = res.data;
       final earnings = (raw is Map) ? (raw['data']?['earnings'] ?? raw['earnings'] ?? 0) : 0;
@@ -199,23 +268,28 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
     DateTime? from,
     DateTime? to,
     int page = 1,
-    int pageSize = 20,
+    int pageSize = 10,
     CancelToken? cancelToken,
   }) async {
     try {
-      final params = <String, dynamic>{'page': page, 'pageSize': pageSize};
-      if (status != null) params['status'] = status;
+      final normalizedPageSize = pageSize.clamp(1, 50);
+      final params = <String, dynamic>{'page': page, 'pageSize': normalizedPageSize};
+      if (status != null && status.trim().isNotEmpty) {
+        params['status'] = status.trim();
+      }
       if (from != null) params['from'] = from.toIso8601String();
       if (to != null) params['to'] = to.toIso8601String();
       final res = await dio.get(ApiConfig.helperHistory,
           queryParameters: params, cancelToken: cancelToken);
       _assertOk(res);
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is Map && raw['items'] is List)
-              ? raw['items'] as List
-              : (raw is List ? raw : []);
+      final list = (raw is Map && raw['data'] is Map && raw['data']['items'] is List)
+          ? raw['data']['items'] as List
+          : (raw is Map && raw['data'] is List)
+              ? raw['data'] as List
+              : (raw is Map && raw['items'] is List)
+                  ? raw['items'] as List
+                  : (raw is List ? raw : []);
       return list.map((e) => HelperBookingModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ServerException(_msg(e));

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/errors/exceptions.dart';
 import '../models/helper_chat_models.dart';
@@ -8,6 +9,7 @@ abstract class HelperChatRemoteDataSource {
   Future<List<ChatMessageModel>> getMessages(
     String bookingId, {
     DateTime? before,
+    int page = 1,
     int pageSize = 50,
     CancelToken? cancelToken,
   });
@@ -64,23 +66,29 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
   Future<List<ChatMessageModel>> getMessages(
     String bookingId, {
     DateTime? before,
-    int pageSize = 50,
+    int page = 1,
+    int pageSize = 20,
     CancelToken? cancelToken,
   }) async {
     try {
-      final params = <String, dynamic>{'pageSize': pageSize};
-      if (before != null) params['beforeDateTime'] = before.toIso8601String();
-
       final res = await dio.get(
-        ApiConfig.helperChatMessages(bookingId),
-        queryParameters: params,
+        ApiConfig.helperChatMessages(
+          bookingId,
+          page: page,
+          pageSize: pageSize,
+          beforeDateTime: before?.toUtc().toIso8601String(),
+        ),
         cancelToken: cancelToken,
       );
       _assertOk(res);
       final raw = res.data;
-      final list = (raw is Map && raw['data'] is List)
-          ? raw['data'] as List
-          : (raw is List ? raw : []);
+      final list = (raw is Map && raw['data'] is Map && raw['data']['items'] is List)
+          ? raw['data']['items'] as List
+          : ((raw is Map && raw['data'] is List) ? raw['data'] as List : (raw is List ? raw : []));
+      
+      if (list.length > 10) {
+        return await compute(_parseMessages, list);
+      }
       return list.map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ServerException(_msg(e));
@@ -92,7 +100,7 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
     try {
       final res = await dio.post(
         ApiConfig.helperSendChatMessage(bookingId),
-        data: {'text': text, 'messageType': 'text'},
+        data: {'text': text, 'messageType': 'Text'},
         cancelToken: cancelToken,
       );
       _assertOk(res);
@@ -111,4 +119,8 @@ class HelperChatRemoteDataSourceImpl implements HelperChatRemoteDataSource {
       throw ServerException(_msg(e));
     }
   }
+}
+
+List<ChatMessageModel> _parseMessages(List<dynamic> list) {
+  return list.map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>)).toList();
 }

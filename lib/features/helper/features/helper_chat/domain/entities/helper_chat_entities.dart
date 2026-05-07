@@ -26,6 +26,7 @@ class ChatMessageEntity extends Equatable {
   final DateTime? readAt;
   final DateTime sentAt;
   final bool isPending; // For local optimistic UI
+  final bool isFailed; // For error handling in optimistic UI
 
   const ChatMessageEntity({
     required this.id,
@@ -38,7 +39,36 @@ class ChatMessageEntity extends Equatable {
     this.readAt,
     required this.sentAt,
     this.isPending = false,
+    this.isFailed = false,
   });
+
+  ChatMessageEntity copyWith({
+    String? id,
+    String? senderId,
+    String? senderType,
+    String? messageType,
+    String? text,
+    String? languageCode,
+    bool? isRead,
+    DateTime? readAt,
+    DateTime? sentAt,
+    bool? isPending,
+    bool? isFailed,
+  }) {
+    return ChatMessageEntity(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      senderType: senderType ?? this.senderType,
+      messageType: messageType ?? this.messageType,
+      text: text ?? this.text,
+      languageCode: languageCode ?? this.languageCode,
+      isRead: isRead ?? this.isRead,
+      readAt: readAt ?? this.readAt,
+      sentAt: sentAt ?? this.sentAt,
+      isPending: isPending ?? this.isPending,
+      isFailed: isFailed ?? this.isFailed,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -52,6 +82,7 @@ class ChatMessageEntity extends Equatable {
         readAt,
         sentAt,
         isPending,
+        isFailed,
       ];
 }
 

@@ -87,6 +87,13 @@ class _HelperRegisterPageState extends State<HelperRegisterPage> with SingleTick
         _showError('Please upload all required licenses');
         return;
       }
+    } else if (data.currentStep == 4) {
+      if (!_formKey5.currentState!.validate()) {
+        _showError('Please fill in all mandatory car details');
+        return;
+      }
+      // Always ensure hasCar is true when submitting the final step
+      data = data.copyWith(hasCar: true);
     }
 
     if (data.currentStep < 4) {
@@ -292,6 +299,16 @@ class _HelperRegisterPageState extends State<HelperRegisterPage> with SingleTick
               label: "Phone Number",
             ),
             const SizedBox(height: AppTheme.spaceLG),
+            _buildDropdownField(
+              label: 'Gender',
+              value: data.gender.isEmpty || (data.gender != '1' && data.gender != '2') ? null : data.gender,
+              items: const {
+                'Male': '1',
+                'Female': '2',
+              },
+              onChanged: (val) => _updateData(data.copyWith(gender: val)),
+            ),
+            const SizedBox(height: AppTheme.spaceLG),
             _buildBirthDateField(theme, data),
             const SizedBox(height: AppTheme.spaceXL),
           ],
@@ -403,28 +420,82 @@ class _HelperRegisterPageState extends State<HelperRegisterPage> with SingleTick
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SwitchListTile(
-              title: Text('Do you have a car?', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              value: data.hasCar,
-              onChanged: (val) => _updateData(data.copyWith(hasCar: val)),
-              activeColor: theme.colorScheme.primary,
-              contentPadding: EdgeInsets.zero,
+            Text(
+              'Mandatory Car Details',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            if (data.hasCar) ...[
-              const SizedBox(height: AppTheme.spaceLG),
-              _buildCarDetailsField('Car Brand', data.carBrand, (v) => _updateData(data.copyWith(carBrand: v))),
-              const SizedBox(height: AppTheme.spaceLG),
-              _buildCarDetailsField('Car Model', data.carModel, (v) => _updateData(data.copyWith(carModel: v))),
-              const SizedBox(height: AppTheme.spaceLG),
-              _buildCarDetailsField('Car Color', data.carColor, (v) => _updateData(data.copyWith(carColor: v))),
-              const SizedBox(height: AppTheme.spaceLG),
-              _buildCarDetailsField('License Plate', data.carLicensePlate, (v) => _updateData(data.copyWith(carLicensePlate: v))),
-            ],
+            const SizedBox(height: AppTheme.spaceLG),
+            
+            _buildCarDetailsField('Car Brand', data.carBrand, (v) => _updateData(data.copyWith(carBrand: v))),
+            const SizedBox(height: AppTheme.spaceLG),
+            
+            _buildCarDetailsField('Car Model', data.carModel, (v) => _updateData(data.copyWith(carModel: v))),
+            const SizedBox(height: AppTheme.spaceLG),
+            
+            _buildCarDetailsField('License Plate', data.carLicensePlate, (v) => _updateData(data.copyWith(carLicensePlate: v))),
+            const SizedBox(height: AppTheme.spaceLG),
+
+            _buildDropdownField(
+              label: 'Car Color',
+              value: data.carColor.isEmpty ? null : data.carColor,
+              items: const {
+                'Black': '1', 'White': '2', 'Green': '3', 'Blue': '4',
+                'Red': '5', 'Silver': '6', 'Gray': '7', 'Yellow': '8',
+                'Brown': '9', 'Orange': '10', 'Purple': '11', 'Pink': '12'
+              },
+              onChanged: (val) => _updateData(data.copyWith(carColor: val)),
+            ),
+            const SizedBox(height: AppTheme.spaceLG),
+
+            _buildDropdownField(
+              label: 'Energy Type',
+              value: data.carEnergyType.isEmpty ? null : data.carEnergyType,
+              items: const {
+                'Disel': '1', 'Essence': '2', 'Gasoline': '3',
+                'Electric': '4', 'Hybrid': '5'
+              },
+              onChanged: (val) => _updateData(data.copyWith(carEnergyType: val)),
+            ),
+            const SizedBox(height: AppTheme.spaceLG),
+
+            _buildDropdownField(
+              label: 'Car Type',
+              value: data.carType.isEmpty ? null : data.carType,
+              items: const {
+                'Sedan': '1', 'SUV': '2', 'Van': '3',
+                'Truck': '4', 'Taxi': '5', 'Scooter': '6', 'Other': '7'
+              },
+              onChanged: (val) => _updateData(data.copyWith(carType: val)),
+            ),
+            
             const SizedBox(height: AppTheme.spaceXL),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String label,
+    required String? value,
+    required Map<String, String> items,
+    required Function(String) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.info_outline_rounded),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLG)),
+      ),
+      items: items.entries.map((e) => DropdownMenuItem(
+        value: e.value,
+        child: Text(e.key),
+      )).toList(),
+      onChanged: (v) => onChanged(v!),
+      validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
     );
   }
 
@@ -433,7 +504,7 @@ class _HelperRegisterPageState extends State<HelperRegisterPage> with SingleTick
       label: label,
       onChanged: onChanged,
       prefixIcon: Icons.directions_car_filled_outlined,
-      validator: (v) => v!.isEmpty ? 'Required' : null,
+      validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
     );
   }
 

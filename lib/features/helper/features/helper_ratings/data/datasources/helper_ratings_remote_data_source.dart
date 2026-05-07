@@ -69,7 +69,7 @@ class HelperRatingsRemoteDataSourceImpl implements HelperRatingsRemoteDataSource
       final res = await dio.post(
         ApiConfig.helperRateUser(bookingId),
         data: {
-          'stars': stars,
+          'stars': stars.round(), // API expects Int32, not double
           'comment': comment,
           'tags': tags,
         },

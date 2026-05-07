@@ -28,6 +28,15 @@ class _RateUserPageState extends State<RateUserPage> {
   final List<String> _selectedTags = [];
   final TextEditingController _commentController = TextEditingController();
 
+  static const String _imageHost = 'https://tourestaapi.runasp.net';
+
+  String get _avatarUrl {
+    final raw = widget.travelerAvatar;
+    if (raw.isEmpty) return '';
+    if (raw.startsWith('http')) return raw;
+    return '$_imageHost$raw';
+  }
+
   final List<String> _availableTags = [
     'Friendly',
     'Respectful',
@@ -66,6 +75,7 @@ class _RateUserPageState extends State<RateUserPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final resolvedAvatar = _avatarUrl;
 
     return BlocProvider.value(
       value: _cubit,
@@ -100,10 +110,10 @@ class _RateUserPageState extends State<RateUserPage> {
                 const SizedBox(height: 20),
                 CircleAvatar(
                   radius: 50,
-                  backgroundImage: widget.travelerAvatar.isNotEmpty ? NetworkImage(widget.travelerAvatar) : null,
+                  backgroundImage: resolvedAvatar.isNotEmpty ? NetworkImage(resolvedAvatar) : null,
                   backgroundColor: AppColor.primaryColor.withOpacity(0.1),
-                  child: widget.travelerAvatar.isEmpty
-                      ? Text(widget.travelerName[0], style: const TextStyle(fontSize: 32, color: AppColor.primaryColor))
+                  child: resolvedAvatar.isEmpty
+                      ? Text(widget.travelerName.isNotEmpty ? widget.travelerName[0] : '?', style: const TextStyle(fontSize: 32, color: AppColor.primaryColor))
                       : null,
                 ),
                 const SizedBox(height: 16),

@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 class HelperLocation extends Equatable {
   final double latitude;
   final double longitude;
+  final String? bookingId;
   final double? heading;
   final double? speedKmh;
   final double? accuracyMeters;
@@ -11,6 +12,7 @@ class HelperLocation extends Equatable {
   const HelperLocation({
     required this.latitude,
     required this.longitude,
+    this.bookingId,
     this.heading,
     this.speedKmh,
     this.accuracyMeters,
@@ -18,7 +20,7 @@ class HelperLocation extends Equatable {
   });
 
   @override
-  List<Object?> get props => [latitude, longitude, heading, speedKmh, accuracyMeters, timestamp];
+  List<Object?> get props => [latitude, longitude, bookingId, heading, speedKmh, accuracyMeters, timestamp];
 }
 
 class LocationUpdateResponse extends Equatable {

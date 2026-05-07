@@ -540,7 +540,7 @@ class _Hero extends StatelessWidget {
     final r = Responsive.of(context);
     final topPad =
         r.viewPadding.top + r.pick(compact: 50.0, phone: 56.0, tablet: 64.0);
-    final heroHeight = r.pick(compact: 280.0, phone: 310.0, tablet: 340.0);
+    final heroHeight = r.pick(compact: 320.0, phone: 360.0, tablet: 400.0);
 
     return SizedBox(
       height: heroHeight,
@@ -577,83 +577,88 @@ class _Hero extends StatelessWidget {
             top: topPad,
             left: 0,
             right: 0,
-            bottom: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Hero(
-                  tag: 'helper-avatar-${profile.helperId}',
-                  child: _AvatarPlate(profile: profile, size: r.heroAvatar),
-                ),
-                SizedBox(height: r.gapSM + 2),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          profile.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: BrandTokens.heading(
-                            fontSize: r.pick(
-                              compact: 20.0,
-                              phone: 22.0,
-                              tablet: 26.0,
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Hero(
+                    tag: 'helper-avatar-${profile.helperId}',
+                    child: _AvatarPlate(profile: profile, size: r.heroAvatar),
+                  ),
+                  SizedBox(height: r.gapSM + 2),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            profile.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: BrandTokens.heading(
+                              fontSize: r.pick(
+                                compact: 20.0,
+                                phone: 22.0,
+                                tablet: 26.0,
+                              ),
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
                             ),
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.verified_rounded,
-                        color: Colors.white,
-                        size: r.fontTitle,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                _RatingPill(rating: profile.rating, count: profile.ratingCount),
-                SizedBox(height: r.gapSM),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      if ((profile.gender ?? '').isNotEmpty)
-                        _HeroChip(label: profile.gender!),
-                      if (profile.age != null)
-                        _HeroChip(label: '${profile.age} y/o'),
-                      _HeroChip(
-                        label: '${profile.experienceYears}y exp',
-                        icon: Icons.workspace_premium_rounded,
-                      ),
-                      _HeroChip(
-                        label: profile.availabilityState,
-                        icon: Icons.bolt_rounded,
-                      ),
-                      if (profile.canAcceptInstant)
-                        const _HeroChip(
-                          label: 'Instant',
-                          icon: Icons.flash_on_rounded,
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.verified_rounded,
+                          color: Colors.white,
+                          size: r.fontTitle,
                         ),
-                      if (profile.canAcceptScheduled)
-                        const _HeroChip(
-                          label: 'Scheduled',
-                          icon: Icons.event_available_rounded,
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  _RatingPill(
+                    rating: profile.rating,
+                    count: profile.ratingCount,
+                  ),
+                  SizedBox(height: r.gapSM),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        if ((profile.gender ?? '').isNotEmpty)
+                          _HeroChip(label: profile.gender!),
+                        if (profile.age != null)
+                          _HeroChip(label: '${profile.age} y/o'),
+                        _HeroChip(
+                          label: '${profile.experienceYears}y exp',
+                          icon: Icons.workspace_premium_rounded,
+                        ),
+                        _HeroChip(
+                          label: profile.availabilityState,
+                          icon: Icons.bolt_rounded,
+                        ),
+                        if (profile.canAcceptInstant)
+                          const _HeroChip(
+                            label: 'Instant',
+                            icon: Icons.flash_on_rounded,
+                          ),
+                        if (profile.canAcceptScheduled)
+                          const _HeroChip(
+                            label: 'Scheduled',
+                            icon: Icons.event_available_rounded,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

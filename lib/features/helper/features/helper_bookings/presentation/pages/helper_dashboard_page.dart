@@ -1,16 +1,16 @@
-import 'dart:async';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:toury/features/helper/features/helper_bookings/domain/entities/helper_availability_state.dart';
+import 'package:toury/features/helper/features/helper_bookings/domain/entities/helper_dashboard_entity.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';
-import '../../domain/entities/helper_booking_entities.dart';
+import '../../../../../../core/services/auth_service.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
@@ -18,7 +18,6 @@ import '../../../helper_location/presentation/cubit/location_status_cubits.dart'
 import '../../../helper_location/presentation/widgets/helper_location_status_widget.dart';
 import '../../../helper_service_areas/presentation/widgets/service_area_status_widget.dart';
 import '../../../helper_invoices/presentation/widgets/earnings_preview_card.dart';
-import '../../../helper_ratings/presentation/pages/helper_ratings_page.dart';
 import '../../../helper_reports/presentation/cubit/helper_reports_cubit.dart';
 import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
 
@@ -44,7 +43,6 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   late final IncomingRequestsCubit _requestsCubit;
   late final HelperLocationCubit _locCubit;
   late final LocationStatusCubit _statusCubit;
-  Timer? _refreshTimer;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -65,47 +63,58 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _loadAll();
-    _startPolling();
   }
 
-  void _loadAll() {
-    _dashCubit.load();
-    _activeCubit.load();
-    _statusCubit.loadStatus();
-  }
+  Future<void> _loadAll({bool force = false}) async {
+    // 1. Auth/Token Check
+    final token = sl<AuthService>().getToken();
+    if (token == null || token.isEmpty) {
+      debugPrint('❌ [Dashboard] No token found, redirecting to login');
+      context.go(AppRouter.helperLogin);
+      return;
+    }
 
-  void _startPolling() {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (_dashCubit.state is HelperDashboardLoaded) {
-        final currentStatus = (_dashCubit.state as HelperDashboardLoaded).dashboard.availabilityState;
-        if (currentStatus == HelperAvailabilityState.availableNow) {
-          _dashCubit.refresh();
-          _activeCubit.load(silent: true);
-          _requestsCubit.load(silent: true);
-          _statusCubit.loadStatus();
-        }
+    try {
+      // 2. Load Dashboard Info (to get availability state)
+      if (force) {
+        await _dashCubit.refresh(silent: true);
+      } else {
+        await _dashCubit.loadOnce();
       }
-    });
+      
+      final dashState = _dashCubit.state;
+      if (dashState is HelperDashboardLoaded) {
+        final availability = dashState.dashboard.availabilityState;
+        
+        // 3. Initialize Location Service & SignalR
+        // 4. Start Tracking if applicable
+        final trackingOk = await _locCubit.initialize(token, availability: availability);
+        
+        if (!trackingOk && availability == HelperAvailabilityState.availableNow) {
+          debugPrint('⚠️ [Dashboard] Tracking failed to start while Online');
+        }
+
+        // 5. Load associated data
+        await Future.wait([
+          _activeCubit.load(silent: true),
+          _requestsCubit.load(silent: true),
+          _statusCubit.loadStatus(force: force),
+        ]);
+      }
+    } catch (e) {
+      debugPrint('❌ [Dashboard] Error during initialization: $e');
+    }
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     _pulseController.dispose();
-    _dashCubit.close();
-    _availCubit.close();
-    _activeCubit.close();
-    _requestsCubit.close();
-    _locCubit.close();
-    _statusCubit.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return MultiBlocProvider(
       providers: [
@@ -125,18 +134,16 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
               if (state is AvailabilityError) {
                 _showSnack(context, state.message, isError: true);
               } else if (state is AvailabilityUpdated) {
+                _availCubit.setCurrentStatus(state.status);
                 _dashCubit.updateLocalAvailability(state.status);
-                _dashCubit.refresh();
-                
+                _locCubit.setAvailabilityState(state.status);
+                _dashCubit.refresh(silent: true);
+
                 if (state.status == HelperAvailabilityState.availableNow) {
-                  _startPolling();
                   _startAutoTracking();
-                  _requestsCubit.load();
+                  _requestsCubit.load(silent: true);
                 } else if (state.status == HelperAvailabilityState.offline) {
-                  _locCubit.stopTracking();
-                  _refreshTimer?.cancel();
-                } else if (state.status == HelperAvailabilityState.busy) {
-                  _refreshTimer?.cancel();
+                  _locCubit.setAvailabilityState(HelperAvailabilityState.offline);
                 }
               }
             },
@@ -163,7 +170,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
         child: Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
           body: RefreshIndicator(
-            onRefresh: () async => _loadAll(),
+            onRefresh: () async => _loadAll(force: true),
             color: theme.colorScheme.primary,
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
@@ -242,9 +249,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
               ),
               const Spacer(),
               _IconButton(
-                icon: Icons.notifications_none_rounded, 
+                icon: Icons.notifications_none_rounded,
                 onTap: () {
-                   HapticService.light();
+                  HapticService.light();
                 },
               ),
             ],
@@ -254,7 +261,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     );
   }
 
-  Widget _buildBody(BuildContext context, HelperDashboard dashboard) {
+  Widget _buildBody(BuildContext context, HelperDashboardEntity dashboard) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
       child: Column(
@@ -270,30 +277,39 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 HapticService.medium();
                 if (_availCubit.state is AvailabilityUpdating) return;
                 if (dashboard.availabilityState == s) return;
-                
+
                 if (dashboard.activeTrip != null && s != HelperAvailabilityState.offline) {
                   _showSnack(context, 'You cannot change availability during an active trip', isError: true);
                   return;
                 }
-                
+
                 if (s == HelperAvailabilityState.availableNow) {
-                  final token = sl<SharedPreferences>().getString('auth_token') ?? '';
-                  final success = await _locCubit.requestPermissionAndInitialize(token);
-                  if (!success) {
-                    _dashCubit.refresh();
+                  _locCubit.setAvailabilityState(HelperAvailabilityState.availableNow);
+                  final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
+                  final token = helper?.token ?? sl<AuthService>().getToken() ?? '';
+                  if (token.isEmpty) {
+                    _showSnack(context, 'Session expired. Please login again.', isError: true);
+                    _locCubit.setAvailabilityState(dashboard.availabilityState);
                     return;
                   }
+                  final ok = await _locCubit.initialize(token);
+                  if (!ok) return;
                 }
-                
+
                 _availCubit.update(s);
               },
             ),
           ),
           const SizedBox(height: AppTheme.spaceXL),
-          
+
           BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
               if (state is ActiveBookingLoaded && state.booking != null) {
+                final s = state.booking!.status.toLowerCase();
+                if (s.contains('complet') || s.contains('cancel') || s == 'ended') {
+                  return const SizedBox.shrink();
+                }
+
                 return FadeInSlide(
                   delay: const Duration(milliseconds: 100),
                   child: Column(
@@ -367,18 +383,18 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
             const SizedBox(height: AppTheme.spaceLG),
             Text(
-              'Something went wrong', 
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+                'Something went wrong',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
             ),
             const SizedBox(height: AppTheme.spaceSM),
             Text(
-              message, 
+              message,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
             ),
             const SizedBox(height: AppTheme.spaceXL),
             ElevatedButton(
-              onPressed: _loadAll, 
+              onPressed: _loadAll,
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
@@ -403,7 +419,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
 
   Future<void> _startAutoTracking() async {
     final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
-    if (helper?.token != null) _locCubit.startTracking(helper!.token!);
+    if (helper?.token != null) _locCubit.initialize(helper!.token!);
   }
 }
 

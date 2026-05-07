@@ -35,19 +35,21 @@ class ChatMessageModel extends ChatMessageEntity {
     required super.isRead,
     super.readAt,
     required super.sentAt,
+    super.isPending = false,
+    super.isFailed = false,
   });
 
   factory ChatMessageModel.fromJson(Map<String, dynamic> json) {
     return ChatMessageModel(
-      id: json['id'] ?? '',
-      senderId: json['senderId'] ?? '',
-      senderType: json['senderType'] ?? '',
-      messageType: json['messageType'] ?? 'text',
-      text: json['text'] ?? '',
-      languageCode: json['languageCode'],
+      id: json['id']?.toString() ?? json['messageId']?.toString() ?? '',
+      senderId: json['senderId']?.toString() ?? '',
+      senderType: json['senderType']?.toString() ?? '',
+      messageType: json['messageType']?.toString() ?? 'text',
+      text: json['text']?.toString() ?? json['preview']?.toString() ?? '',
+      languageCode: json['languageCode']?.toString(),
       isRead: json['isRead'] ?? false,
-      readAt: json['readAt'] != null ? DateTime.parse(json['readAt']) : null,
-      sentAt: DateTime.parse(json['sentAt'] ?? DateTime.now().toIso8601String()),
+      readAt: json['readAt'] != null ? DateTime.parse(json['readAt'].toString()) : null,
+      sentAt: DateTime.parse(json['sentAt']?.toString() ?? DateTime.now().toIso8601String()),
     );
   }
 

@@ -62,7 +62,7 @@ class ChatMessageBubble extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        DateFormat('HH:mm').format(message.sentAt),
+                        DateFormat('HH:mm').format(message.sentAt.toLocal()),
                         style: TextStyle(
                           color: isMe ? Colors.white70 : theme.colorScheme.onSurface.withOpacity(0.4),
                           fontSize: 10,

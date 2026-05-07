@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import '../../data/services/helper_location_signalr_service.dart';
-import '../../data/services/helper_location_tracker.dart';
+import 'package:toury/features/helper/features/helper_location/data/services/helper_location_signalr_service.dart';
+import '../../data/services/helper_location_tracking_service.dart';
 import '../../domain/entities/helper_location_entities.dart';
 import '../../domain/usecases/helper_location_usecases.dart';
+import '../../../helper_bookings/domain/entities/helper_availability_state.dart';
 
 abstract class HelperLocationState extends Equatable {
   const HelperLocationState();
@@ -17,16 +18,13 @@ class HelperLocationInitial extends HelperLocationState {}
 class HelperLocationTracking extends HelperLocationState {
   final HelperLocation location;
   final SignalRConnectionState connectionState;
-  final bool isUsingFallback;
-
   const HelperLocationTracking({
     required this.location,
     required this.connectionState,
-    this.isUsingFallback = false,
   });
 
   @override
-  List<Object?> get props => [location, connectionState, isUsingFallback];
+  List<Object?> get props => [location, connectionState];
 }
 
 class HelperLocationPermissionDenied extends HelperLocationState {}
@@ -38,164 +36,91 @@ class HelperLocationError extends HelperLocationState {
   List<Object?> get props => [message];
 }
 
+/// Cubit for Helper Location UI.
+/// 
+/// This Cubit is a thin wrapper around [HelperLocationTrackingService].
+/// It displays the current location and delegates commands to the singleton service.
 class HelperLocationCubit extends Cubit<HelperLocationState> {
-  final HelperLocationTracker tracker;
-  final ConnectSignalRUseCase connectUseCase;
-  final DisconnectSignalRUseCase disconnectUseCase;
-  final StreamLocationUseCase streamUseCase;
-  final UpdateLocationUseCase updateUseCase;
-  final Stream<SignalRConnectionState> signalRStateStream;
+  final HelperLocationTrackingService _trackingService;
+  final GetLocationStatusUseCase _getStatusUseCase;
+  final GetInstantEligibilityUseCase _getEligibilityUseCase;
 
   StreamSubscription? _locationSubscription;
-  StreamSubscription? _signalRSubscription;
-  SignalRConnectionState _currentSignalRState = SignalRConnectionState.disconnected;
-  
-  // Optimization: Debouncing and thresholding
-  DateTime? _lastApiUpdateTime;
-  HelperLocation? _lastUpdateLocation;
-  static const Duration _updateThreshold = Duration(seconds: 30);
-  static const double _distanceThresholdMeters = 10.0;
 
   HelperLocationCubit({
-    required this.tracker,
-    required this.connectUseCase,
-    required this.disconnectUseCase,
-    required this.streamUseCase,
-    required this.updateUseCase,
-    required this.signalRStateStream,
-  }) : super(HelperLocationInitial()) {
-    _signalRSubscription = signalRStateStream.listen((state) {
-      if (isClosed) return;
-      _currentSignalRState = state;
-      
-      final currentState = this.state;
-      if (currentState is HelperLocationTracking) {
+    required HelperLocationTrackingService trackingService,
+    required GetLocationStatusUseCase getLocationStatusUseCase,
+    required GetInstantEligibilityUseCase getEligibilityUseCase,
+  })  : _trackingService = trackingService,
+        _getStatusUseCase = getLocationStatusUseCase,
+        _getEligibilityUseCase = getEligibilityUseCase,
+        super(HelperLocationInitial()) {
+    
+    // Listen to the centralized service
+    _locationSubscription = _trackingService.locationStream.listen((location) {
+      if (!isClosed) {
         emit(HelperLocationTracking(
-          location: currentState.location,
-          connectionState: _currentSignalRState,
-          isUsingFallback: currentState.isUsingFallback,
+          location: location,
+          connectionState: _trackingService.currentSignalRState,
         ));
       }
     });
   }
 
-  Future<void> startTracking(String token) async {
-    if (isClosed) return;
-    
-    // Prevent duplicate tracking
-    if (_locationSubscription != null) return;
+  /// Entry point after login or on dashboard init.
+  Future<bool> initialize(String token, {HelperAvailabilityState? availability}) async {
+    final ok = await _trackingService.updateTrackingState(
+      token: token,
+      availability: availability,
+    );
+    if (!ok && !isClosed) {
+      emit(HelperLocationPermissionDenied());
+    }
+    return ok;
+  }
 
+  /// Start tracking for a specific trip.
+  Future<bool> startTripTracking(String token, String bookingId) async {
+    final ok = await _trackingService.updateTrackingState(
+      token: token,
+      bookingId: bookingId,
+    );
+    if (!ok && !isClosed) {
+      emit(HelperLocationPermissionDenied());
+    }
+    return ok;
+  }
+
+  /// End trip tracking and return to normal background tracking (if online).
+  Future<void> stopTripTracking() async {
+    await _trackingService.updateTrackingState(bookingId: null);
+  }
+
+  /// Update availability (Online/Offline/etc).
+  Future<bool> setAvailabilityState(HelperAvailabilityState availability) async {
+    final ok = await _trackingService.updateTrackingState(availability: availability);
+    if (!ok && !isClosed) {
+      emit(HelperLocationPermissionDenied());
+    }
+    return ok;
+  }
+
+  /// Manually trigger a status refresh (e.g. on pull-to-refresh).
+  Future<void> refreshStatus() async {
     try {
-      await connectUseCase.execute(token);
-      if (isClosed) return;
-
-      await tracker.startTracking(intervalSeconds: 30);
-      _locationSubscription = tracker.locationStream.listen((location) async {
-        if (isClosed) return;
-
-        bool shouldUpdateBackend = _shouldUpdateBackend(location);
-        bool fallback = false;
-
-        if (shouldUpdateBackend) {
-          if (_currentSignalRState == SignalRConnectionState.connected) {
-            try {
-              await streamUseCase.execute(location);
-            } catch (e) {
-              fallback = true;
-            }
-          } else {
-            fallback = true;
-          }
-
-          if (fallback) {
-            try {
-              await updateUseCase.execute(location);
-            } catch (e) {
-              // Silently handle fallback errors to avoid disrupting UI
-            }
-          }
-          
-          _lastApiUpdateTime = DateTime.now();
-          _lastUpdateLocation = location;
-        }
-
-        if (!isClosed) {
-          emit(HelperLocationTracking(
-            location: location,
-            connectionState: _currentSignalRState,
-            isUsingFallback: fallback,
-          ));
-        }
-      });
+      final status = await _getStatusUseCase;
+      // You could emit a new state here if needed, or just let the service handle updates.
     } catch (e) {
-      if (!isClosed) {
-        emit(HelperLocationError(e.toString()));
-      }
+      if (!isClosed) emit(HelperLocationError(e.toString()));
     }
-  }
-
-  bool _shouldUpdateBackend(HelperLocation newLoc) {
-    if (_lastApiUpdateTime == null || _lastUpdateLocation == null) return true;
-
-    final timeDiff = DateTime.now().difference(_lastApiUpdateTime!);
-    if (timeDiff < _updateThreshold) return false;
-
-    // Optional: Add distance threshold check here if needed
-    // For now, time threshold + distanceFilter in tracker is enough
-    return true;
-  }
-
-  Future<void> stopTracking() async {
-    await _locationSubscription?.cancel();
-    _locationSubscription = null;
-    await tracker.stopTracking();
-    await disconnectUseCase.execute();
-    if (!isClosed) {
-      emit(HelperLocationInitial());
-    }
-  }
-
-  Future<void> reconnect(String token) async {
-    if (isClosed) return;
-    await connectUseCase.execute(token);
-  }
-
-  /// Full post-login init: request permission → get position → send to API → start 30s tracking.
-  /// Returns true if permission was granted, false if denied.
-  Future<bool> requestPermissionAndInitialize(String token) async {
-    if (isClosed) return false;
-
-    final hasPermission = await tracker.checkPermission();
-    if (!hasPermission) {
-      if (!isClosed) emit(HelperLocationPermissionDenied());
-      return false;
-    }
-
-    // Immediately send current position
-    try {
-      final location = await tracker.getCurrentLocation();
-      await updateUseCase.execute(location);
-      if (!isClosed) {
-        emit(HelperLocationTracking(
-          location: location,
-          connectionState: _currentSignalRState,
-        ));
-      }
-    } catch (_) {
-      // Non-fatal: continue to start continuous tracking
-    }
-
-    // Start 30s continuous tracking (guard inside startTracking prevents duplicates)
-    await startTracking(token);
-    return true;
   }
 
   @override
-  Future<void> close() async {
-    await _locationSubscription?.cancel();
-    _locationSubscription = null;
-    await _signalRSubscription?.cancel();
-    _signalRSubscription = null;
+  Future<void> close() {
+    _locationSubscription?.cancel();
+    // NOTE: We do NOT stop the _trackingService here because it is a singleton 
+    // that should continue running even if this specific Cubit is destroyed 
+    // (e.g. during page navigation).
     return super.close();
   }
 }

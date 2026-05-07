@@ -29,8 +29,7 @@ class HelperLocationTracker {
     final hasPermission = await checkPermission();
     if (!hasPermission) throw Exception('Location permission denied');
 
-    // Ensure previous subscription is cancelled before starting a new one
-    await stopTracking();
+    if (_positionSubscription != null) return;
 
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: AndroidSettings(
@@ -76,6 +75,20 @@ class HelperLocationTracker {
       heading: position.heading,
       speedKmh: position.speed,
       timestamp: DateTime.now(),
+    );
+  }
+
+  double distanceBetweenMeters(
+    double startLatitude,
+    double startLongitude,
+    double endLatitude,
+    double endLongitude,
+  ) {
+    return Geolocator.distanceBetween(
+      startLatitude,
+      startLongitude,
+      endLatitude,
+      endLongitude,
     );
   }
 

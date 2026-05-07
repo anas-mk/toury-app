@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/theme/brand_typography.dart';
 
 class EmptyStateView extends StatelessWidget {
   final IconData icon;
@@ -23,28 +25,27 @@ class EmptyStateView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
+                color: BrandTokens.borderSoft.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: Colors.white24, size: 64),
+              child: Icon(
+                icon, 
+                color: BrandTokens.textSecondary.withValues(alpha: 0.3), 
+                size: 64,
+              ),
             ),
             const SizedBox(height: 24),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: BrandTypography.title(),
             ),
             const SizedBox(height: 8),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white24,
-                fontSize: 13,
+              style: BrandTypography.caption(
+                color: BrandTokens.textSecondary,
               ),
             ),
           ],

@@ -1,17 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:toury/features/helper/features/helper_chat/data/services/helper_chat_signalr_service.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import 'package:toury/core/config/api_config.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../cubit/helper_chat_cubit.dart';
-import '../widgets/chat_widgets.dart';
+import '../widgets/chat_message_bubble.dart';
+import '../widgets/chat_input_bar.dart';
+import '../widgets/chat_widgets.dart' hide ChatInputBar;
 
 class HelperChatPage extends StatefulWidget {
   final String bookingId;
+  final String? userName;
+  final String? userAvatar;
 
-  const HelperChatPage({super.key, required this.bookingId});
+  const HelperChatPage({
+    super.key,
+    required this.bookingId,
+    this.userName,
+    this.userAvatar,
+  });
 
   @override
   State<HelperChatPage> createState() => _HelperChatPageState();
@@ -66,7 +77,10 @@ class _HelperChatPageState extends State<HelperChatPage> {
                   if (state is HelperChatLoading) {
                     return _buildLoading();
                   } else if (state is HelperChatLoaded) {
-                    return _buildMessageList(state);
+                    return RefreshIndicator(
+                      onRefresh: () => _cubit.refresh(),
+                      child: _buildMessageList(state),
+                    );
                   } else if (state is HelperChatError) {
                     return _buildError(state.message);
                   }
@@ -85,41 +99,46 @@ class _HelperChatPageState extends State<HelperChatPage> {
     final theme = Theme.of(context);
     return AppBar(
       elevation: 0,
+      backgroundColor: theme.scaffoldBackgroundColor,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new, size: 20),
         onPressed: () => Navigator.pop(context),
       ),
+      titleSpacing: 0,
       title: BlocBuilder<HelperChatCubit, HelperChatState>(
         builder: (context, state) {
-          if (state is HelperChatLoaded) {
-            final user = state.conversation.user;
-            return Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage: user.profileImageUrl.isNotEmpty ? NetworkImage(user.profileImageUrl) : null,
-                  backgroundColor: AppColor.primaryColor.withOpacity(0.1),
-                  child: user.profileImageUrl.isEmpty
-                      ? Text(user.name[0], style: const TextStyle(color: AppColor.primaryColor, fontSize: 14))
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
+          final String name = (state is HelperChatLoaded) ? state.conversation.user.name : (widget.userName ?? 'Chat');
+          final String imageUrl = (state is HelperChatLoaded) ? state.conversation.user.profileImageUrl : (widget.userAvatar ?? '');
+          
+          return Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: imageUrl.isNotEmpty 
+                    ? NetworkImage(ApiConfig.resolveImageUrl(imageUrl)) 
+                    : null,
+                backgroundColor: AppColor.primaryColor.withOpacity(0.1),
+                child: imageUrl.isEmpty && name != 'Chat'
+                    ? Text(name[0].toUpperCase(), style: const TextStyle(color: AppColor.primaryColor, fontSize: 14))
+                    : (imageUrl.isEmpty ? const Icon(Icons.person, size: 20, color: AppColor.primaryColor) : null),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (state is HelperChatLoaded)
                       _buildConnectionStatus(context, state.connectionState),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
-            );
-          }
-          return const Text('Chat');
+              ),
+            ],
+          );
         },
       ),
     );
@@ -128,7 +147,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
   Widget _buildConnectionStatus(BuildContext context, ChatSignalRState state) {
     final theme = Theme.of(context);
     String text = '';
-    Color color = theme.brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary;
+    Color color = theme.brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary;
     
     switch (state) {
       case ChatSignalRState.connected:
@@ -142,7 +161,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
       case ChatSignalRState.disconnected:
       case ChatSignalRState.error:
         text = 'Offline';
-        color = theme.brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary;
+        color = theme.brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary;
         break;
     }
     
@@ -168,21 +187,23 @@ class _HelperChatPageState extends State<HelperChatPage> {
       controller: _scrollController,
       reverse: true, // Newer messages at bottom
       padding: const EdgeInsets.symmetric(vertical: 16),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: state.messages.length + (state.hasReachedMax ? 0 : 1),
       itemBuilder: (context, index) {
         if (index == state.messages.length) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(16.0),
-              child: CircularProgressIndicator(color: AppColor.primaryColor),
+              child: CircularProgressIndicator(color: BrandTokens.primaryBlue),
             ),
           );
         }
 
         final message = state.messages[index];
-        final isMe = message.senderId == state.conversation.helper.id;
+        final isMe = message.senderType.toLowerCase() == 'helper';
         
-        return MessageBubble(
+        return ChatMessageBubble(
+          key: ValueKey(message.id),
           message: message,
           isMe: isMe,
         );
@@ -191,7 +212,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
   }
 
   Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator(color: AppColor.primaryColor));
+    return const Center(child: CircularProgressIndicator(color: BrandTokens.primaryBlue));
   }
 
   Widget _buildError(String message) {
@@ -199,13 +220,13 @@ class _HelperChatPageState extends State<HelperChatPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: AppColor.errorColor, size: 48),
+          const Icon(Icons.error_outline, color: BrandTokens.dangerRed, size: 48),
           const SizedBox(height: 16),
-          Text(message, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
+          Text(message, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary)),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _init,
-            style: ElevatedButton.styleFrom(backgroundColor: AppColor.primaryColor),
+            style: ElevatedButton.styleFrom(backgroundColor: BrandTokens.primaryBlue),
             child: const Text('Retry'),
           ),
         ],
@@ -218,11 +239,11 @@ class _HelperChatPageState extends State<HelperChatPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.chat_bubble_outline_rounded, color: AppColor.lightBorder, size: 80),
+          const Icon(Icons.chat_bubble_outline_rounded, color: BrandTokens.borderSoft, size: 80),
           const SizedBox(height: 16),
           Text(
             'Start a conversation with ${state.conversation.user.name}',
-            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
+            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary),
           ),
         ],
       ),

@@ -1,0 +1,8 @@
+import '../repositories/helper_bookings_repository.dart';
+import '../entities/helper_booking_entities.dart';
+
+class StartTripUseCase {
+  final HelperBookingsRepository repository;
+  const StartTripUseCase(this.repository);
+  Future<void> call(String bookingId) => repository.startTrip(bookingId);
+}

@@ -28,9 +28,11 @@ class MessageBubble extends StatelessWidget {
           isMe ? 16 : 60,
           4,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isMe ? AppColor.primaryColor : theme.cardColor,
+          color: isMe 
+              ? AppColor.primaryColor 
+              : (isDark ? theme.colorScheme.surface : AppColor.lightSurface),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -38,44 +40,51 @@ class MessageBubble extends StatelessWidget {
             bottomRight: Radius.circular(isMe ? 4 : 20),
           ),
           boxShadow: [
-            if (isMe)
-              BoxShadow(
-                color: AppColor.primaryColor.withOpacity(0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               message.text,
-              style: TextStyle(
-                color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87),
-                fontSize: 15,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: isMe ? Colors.white : theme.colorScheme.onSurface,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  DateFormat('HH:mm').format(message.sentAt),
+                  DateFormat('HH:mm').format(message.sentAt.toLocal()),
                   style: TextStyle(
-                    color: isMe ? Colors.white70 : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
+                    color: isMe ? Colors.white70 : theme.colorScheme.onSurface.withOpacity(0.4),
                     fontSize: 10,
                   ),
                 ),
                 if (isMe) ...[
                   const SizedBox(width: 4),
-                  Icon(
-                    message.isRead ? Icons.done_all_rounded : Icons.done_rounded,
-                    size: 14,
-                    color: message.isRead ? AppColor.accentColor : Colors.white38,
-                  ),
+                  if (message.isPending)
+                    const SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(strokeWidth: 1, color: Colors.white70),
+                    )
+                  else if (message.isFailed)
+                    const Icon(Icons.error_outline_rounded, size: 14, color: Colors.white)
+                  else
+                    Icon(
+                      message.isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                      size: 14,
+                      color: message.isRead ? AppColor.accentColor : Colors.white38,
+                    ),
                 ],
               ],
             ),

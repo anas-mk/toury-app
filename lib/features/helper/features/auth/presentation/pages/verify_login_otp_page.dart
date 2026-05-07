@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:toury/features/helper/features/helper_bookings/domain/entities/helper_availability_state.dart';
 import 'dart:async';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_button.dart';
@@ -10,7 +11,6 @@ import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../data/datasources/helper_local_data_source.dart';
-import '../../../helper_bookings/domain/entities/helper_booking_entities.dart';
 import '../../../helper_bookings/domain/usecases/helper_bookings_usecases.dart';
 import '../cubit/helper_auth_cubit.dart';
 import '../cubit/helper_auth_state.dart';
@@ -80,7 +80,7 @@ class _VerifyLoginOtpPageState extends State<VerifyLoginOtpPage> {
 
       if (token != null) {
         final locCubit = sl<HelperLocationCubit>();
-        final granted = await locCubit.requestPermissionAndInitialize(token);
+        final granted = await locCubit.initialize(token, availability: HelperAvailabilityState.availableNow);
 
         if (!granted) {
           if (mounted) setState(() { _isInitializing = false; _showPermissionWall = true; });

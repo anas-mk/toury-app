@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/theme/app_theme.dart';
-import '../../../domain/entities/helper_booking_entities.dart';
+import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/theme/brand_typography.dart';
+import '../../../domain/entities/helper_availability_state.dart';
 import '../../cubit/helper_bookings_cubits.dart';
 
 class AvailabilityToggleCard extends StatelessWidget {
@@ -19,8 +19,6 @@ class AvailabilityToggleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final isOnline = currentStatus == HelperAvailabilityState.availableNow;
     
     return BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
@@ -29,29 +27,26 @@ class AvailabilityToggleCard extends StatelessWidget {
         
         return AnimatedContainer(
           duration: const Duration(milliseconds: 500),
-          padding: const EdgeInsets.all(AppTheme.spaceLG),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isOnline
-                  ? [AppColor.accentColor, AppColor.accentColor.withOpacity(0.8)]
-                  : [
-                      isDark ? AppColor.darkCardColor : Colors.white,
-                      isDark ? AppColor.darkCardColor.withOpacity(0.8) : Colors.white.withOpacity(0.9)
-                    ],
+                  ? [BrandTokens.primaryBlue, BrandTokens.primaryBlue.withValues(alpha: 0.8)]
+                  : [BrandTokens.surfaceWhite, BrandTokens.surfaceWhite],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: isOnline 
-                  ? Colors.white.withOpacity(0.2) 
-                  : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                  ? Colors.white.withValues(alpha: 0.2) 
+                  : BrandTokens.borderSoft.withValues(alpha: 0.6),
             ),
             boxShadow: [
               BoxShadow(
                 color: isOnline
-                    ? AppColor.accentColor.withOpacity(0.25)
-                    : Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                    ? BrandTokens.primaryBlue.withValues(alpha: 0.25)
+                    : BrandTokens.textSecondary.withValues(alpha: 0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -66,36 +61,34 @@ class AvailabilityToggleCard extends StatelessWidget {
                     isOnline: isOnline,
                     pulseAnimation: pulseAnimation,
                   ),
-                  const SizedBox(width: AppTheme.spaceMD),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           isOnline ? 'Active & Online' : 'Currently Offline',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: isOnline ? Colors.white : (isDark ? Colors.white : Colors.black),
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
+                          style: BrandTypography.title(
+                            color: isOnline ? Colors.white : BrandTokens.textPrimary,
                           ),
                         ),
                         Text(
                           isOnline ? 'You are visible to travelers' : 'Tap the toggle to go online',
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          style: BrandTypography.caption(
                             color: isOnline 
-                                ? Colors.white.withOpacity(0.8) 
-                                : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
+                                ? Colors.white.withValues(alpha: 0.8) 
+                                : BrandTokens.textSecondary,
                           ),
                         ),
                       ],
                     ),
                   ),
                   if (isUpdating)
-                    SizedBox(
+                    const SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
-                        color: isOnline ? Colors.white : theme.colorScheme.primary, 
+                        color: BrandTokens.primaryBlue, 
                         strokeWidth: 2
                       ),
                     )
@@ -105,18 +98,17 @@ class AvailabilityToggleCard extends StatelessWidget {
                       onChanged: (val) {
                         onStatusChanged(val ? HelperAvailabilityState.availableNow : HelperAvailabilityState.offline);
                       },
-                      activeColor: Colors.white,
-                      activeTrackColor: Colors.white24,
-                      inactiveTrackColor: isDark ? Colors.white10 : Colors.black12,
+                      activeTrackColor: Colors.white.withValues(alpha: 0.3),
+                      inactiveTrackColor: BrandTokens.borderSoft,
                     ),
                 ],
               ),
-              const SizedBox(height: AppTheme.spaceLG),
+              const SizedBox(height: 20),
               Divider(
-                color: isOnline ? Colors.white24 : (isDark ? Colors.white10 : Colors.black12), 
+                color: isOnline ? Colors.white.withValues(alpha: 0.15) : BrandTokens.borderSoft, 
                 height: 1
               ),
-              const SizedBox(height: AppTheme.spaceMD),
+              const SizedBox(height: 16),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
@@ -153,13 +145,13 @@ class _PulseIndicator extends StatelessWidget {
       builder: (_, __) => Transform.scale(
         scale: isOnline ? pulseAnimation.value : 1.0,
         child: Container(
-          width: 14,
-          height: 14,
+          width: 12,
+          height: 12,
           decoration: BoxDecoration(
-            color: isOnline ? Colors.white : AppColor.warningColor.withOpacity(0.5),
+            color: isOnline ? Colors.white : BrandTokens.textSecondary.withValues(alpha: 0.3),
             shape: BoxShape.circle,
             boxShadow: isOnline
-                ? [BoxShadow(color: Colors.white.withOpacity(0.8), blurRadius: 10)]
+                ? [BoxShadow(color: Colors.white.withValues(alpha: 0.8), blurRadius: 10)]
                 : null,
           ),
         ),
@@ -183,32 +175,25 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: AppTheme.spaceSM),
+        margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected 
-              ? (isOnline ? Colors.white : theme.colorScheme.primary) 
-              : (isOnline ? Colors.white.withOpacity(0.1) : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
-          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : (isOnline ? Colors.white10 : Colors.transparent),
-          ),
+              ? (isOnline ? Colors.white : BrandTokens.primaryBlue) 
+              : (isOnline ? Colors.white.withValues(alpha: 0.1) : BrandTokens.borderSoft.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           _label(status),
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: isSelected 
-                ? (isOnline ? AppColor.accentColor : (isDark ? Colors.black : Colors.white)) 
-                : (isOnline ? Colors.white70 : (isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          ),
+            style: BrandTypography.caption(
+                color: isSelected 
+                    ? (isOnline ? BrandTokens.primaryBlue : Colors.white) 
+                    : (isOnline ? Colors.white.withValues(alpha: 0.7) : BrandTokens.textSecondary),
+            ),
         ),
       ),
     );
