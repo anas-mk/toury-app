@@ -107,6 +107,7 @@ import '../../features/helper/features/helper_bookings/presentation/pages/helper
 
 import 'dart:async';
 
+import '../theme/app_dimens.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_button.dart';
 
@@ -217,7 +218,10 @@ class InstantConfirmedRouteArgs {
 }
 
 class InstantTripTrackingRouteArgs {
-  const InstantTripTrackingRouteArgs({required this.cubit, required this.helper});
+  const InstantTripTrackingRouteArgs({
+    required this.cubit,
+    required this.helper,
+  });
   final InstantBookingCubit cubit;
   final instant_helper.HelperSearchResult? helper;
 }
@@ -229,8 +233,9 @@ class GoogleVerifyCodePage extends StatelessWidget {
   const GoogleVerifyCodePage({super.key, required this.email});
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: Text('Google Verify Code Page for $email (Placeholder)'),
+    body: _PlaceholderPage(
+      title: 'Google verification',
+      message: 'Google Verify Code Page for $email (Placeholder)',
     ),
   );
 }
@@ -239,11 +244,10 @@ class HelperOnboardingPage extends StatelessWidget {
   const HelperOnboardingPage({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Helper Onboarding')),
-    body: const Center(
-      child: Text(
-        'Onboarding Status: Incomplete\nComplete your profile settings.',
-      ),
+    body: const _PlaceholderPage(
+      title: 'Helper Onboarding',
+      message: 'Onboarding Status: Incomplete\nComplete your profile settings.',
+      showBack: true,
     ),
   );
 }
@@ -252,11 +256,11 @@ class WaitingApprovalPage extends StatelessWidget {
   const WaitingApprovalPage({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Account Pending')),
-    body: const Center(
-      child: Text(
-        'Your account is waiting for admin approval.\nWe will notify you soon.',
-      ),
+    body: const _PlaceholderPage(
+      title: 'Account Pending',
+      message:
+          'Your account is waiting for admin approval.\nWe will notify you soon.',
+      showBack: true,
     ),
   );
 }
@@ -267,16 +271,12 @@ class UserReportsPlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Reports')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
+    return const Scaffold(
+      body: _PlaceholderPage(
+        title: 'Reports',
+        message:
             'Report updates open here. Pull down on My Bookings to refresh statuses.',
-            textAlign: TextAlign.center,
-          ),
-        ),
+        showBack: true,
       ),
     );
   }
@@ -286,16 +286,62 @@ class AccountInactivePage extends StatelessWidget {
   const AccountInactivePage({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Account Inactive')),
-    body: const Center(
-      child: Text(
-        'Your account has been deactivated.\nPlease contact support.',
-      ),
+    body: const _PlaceholderPage(
+      title: 'Account Inactive',
+      message: 'Your account has been deactivated.\nPlease contact support.',
+      showBack: true,
     ),
   );
 }
 
+class _PlaceholderPage extends StatelessWidget {
+  final String title;
+  final String message;
+  final bool showBack;
+
+  const _PlaceholderPage({
+    required this.title,
+    required this.message,
+    this.showBack = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.pageGutter),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showBack)
+              IconButton(
+                onPressed: () => Navigator.maybePop(context),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              ),
+            const SizedBox(height: AppSpacing.md),
+            Text(title, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: AppSpacing.sm),
+            Text(message, style: theme.textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AppRouter {
+  static double _toDouble(String? value, {double fallback = 0}) {
+    return double.tryParse(value ?? '') ?? fallback;
+  }
+
+  static UserChatPage _buildUserChatPage(GoRouterState state) {
+    final id = state.pathParameters['id']!;
+    final name = state.uri.queryParameters['name'];
+    final image = state.uri.queryParameters['image'];
+    return UserChatPage(bookingId: id, helperName: name, helperImage: image);
+  }
+
   // ----------------------------------------
   // Routes
   // ----------------------------------------
@@ -474,8 +520,8 @@ class AppRouter {
       //
       // Done LAST so we don't race the role-based redirects above.
       if (isAuthenticated && !isPublic) {
-        final pendingRoute =
-            NotificationRouter.instance.consumePendingDeepLink();
+        final pendingRoute = NotificationRouter.instance
+            .consumePendingDeepLink();
         if (pendingRoute != null && pendingRoute != matchedPath) {
           return pendingRoute;
         }
@@ -619,7 +665,8 @@ class AppRouter {
               GoRoute(
                 path: helperBookings,
                 name: 'helper-bookings',
-                builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
+                builder: (context, state) =>
+                    const BookingsCenterPage(initialTabIndex: 0),
               ),
             ],
           ),
@@ -661,13 +708,15 @@ class AppRouter {
         path: helperRequests,
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
+        builder: (context, state) =>
+            const BookingsCenterPage(initialTabIndex: 0),
       ),
       GoRoute(
         path: helperUpcoming,
         name: 'helper-upcoming',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 1),
+        builder: (context, state) =>
+            const BookingsCenterPage(initialTabIndex: 1),
       ),
       GoRoute(
         path: helperRequestDetails,
@@ -701,7 +750,8 @@ class AppRouter {
         path: helperHistory,
         name: 'helper-history',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 2),
+        builder: (context, state) =>
+            const BookingsCenterPage(initialTabIndex: 2),
       ),
       GoRoute(
         path: helperEarnings,
@@ -1057,9 +1107,7 @@ class AppRouter {
         name: 'instant-pay-now',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return PayNowPage(
-            bookingId: id,
-          );
+          return PayNowPage(bookingId: id);
         },
       ),
 
@@ -1178,30 +1226,12 @@ class AppRouter {
       GoRoute(
         path: userChat,
         name: 'user-chat',
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          final name = state.uri.queryParameters['name'];
-          final image = state.uri.queryParameters['image'];
-          return UserChatPage(
-            bookingId: id,
-            helperName: name,
-            helperImage: image,
-          );
-        },
+        builder: (context, state) => _buildUserChatPage(state),
       ),
       GoRoute(
         path: chatByConversation,
         name: 'user-chat-conversation',
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          final name = state.uri.queryParameters['name'];
-          final image = state.uri.queryParameters['image'];
-          return UserChatPage(
-            bookingId: id,
-            helperName: name,
-            helperImage: image,
-          );
-        },
+        builder: (context, state) => _buildUserChatPage(state),
       ),
       GoRoute(
         path: reports,
@@ -1215,18 +1245,10 @@ class AppRouter {
         name: 'user-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final pickupLat = double.parse(
-            state.uri.queryParameters['pickupLat'] ?? '0',
-          );
-          final pickupLng = double.parse(
-            state.uri.queryParameters['pickupLng'] ?? '0',
-          );
-          final destLat = double.parse(
-            state.uri.queryParameters['destLat'] ?? '0',
-          );
-          final destLng = double.parse(
-            state.uri.queryParameters['destLng'] ?? '0',
-          );
+          final pickupLat = _toDouble(state.uri.queryParameters['pickupLat']);
+          final pickupLng = _toDouble(state.uri.queryParameters['pickupLng']);
+          final destLat = _toDouble(state.uri.queryParameters['destLat']);
+          final destLng = _toDouble(state.uri.queryParameters['destLng']);
 
           return UserBookingTrackingPage(
             bookingId: id,
@@ -1237,8 +1259,6 @@ class AppRouter {
           );
         },
       ),
-
-
 
       GoRoute(
         path: helperEligibilityDebug,
@@ -1366,7 +1386,9 @@ class AppRouter {
             key: state.pageKey,
             child: MultiBlocProvider(
               providers: [
-                BlocProvider<HelperSosCubit>(create: (_) => sl<HelperSosCubit>()),
+                BlocProvider<HelperSosCubit>(
+                  create: (_) => sl<HelperSosCubit>(),
+                ),
                 BlocProvider.value(value: sl<HelperLocationCubit>()),
               ],
               child: HelperSosPage(bookingId: bookingId),
@@ -1393,12 +1415,18 @@ class AppRouter {
                     color: theme.colorScheme.error.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.error_outline_rounded, size: 64, color: theme.colorScheme.error),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 64,
+                    color: theme.colorScheme.error,
+                  ),
                 ),
                 const SizedBox(height: AppTheme.space2XL),
                 Text(
                   'Page Not Found',
-                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppTheme.spaceLG),

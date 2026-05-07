@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../../../../../core/widgets/custom_button.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';
@@ -34,28 +35,132 @@ class _RegisterPageState extends State<RegisterPage>
   late TabController _tabController;
 
   static const List<String> _countries = [
-    'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Argentina',
-    'Armenia', 'Australia', 'Austria', 'Azerbaijan', 'Bahrain', 'Bangladesh',
-    'Belarus', 'Belgium', 'Bolivia', 'Bosnia and Herzegovina', 'Brazil',
-    'Bulgaria', 'Cambodia', 'Cameroon', 'Canada', 'Chile', 'China',
-    'Colombia', 'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Denmark',
-    'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Estonia',
-    'Ethiopia', 'Finland', 'France', 'Georgia', 'Germany', 'Ghana', 'Greece',
-    'Guatemala', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia',
-    'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan',
-    'Jordan', 'Kazakhstan', 'Kenya', 'Kuwait', 'Kyrgyzstan', 'Latvia',
-    'Lebanon', 'Libya', 'Lithuania', 'Luxembourg', 'Malaysia', 'Maldives',
-    'Malta', 'Mexico', 'Moldova', 'Monaco', 'Mongolia', 'Morocco',
-    'Mozambique', 'Myanmar', 'Nepal', 'Netherlands', 'New Zealand',
-    'Nicaragua', 'Nigeria', 'North Korea', 'Norway', 'Oman', 'Pakistan',
-    'Palestine', 'Panama', 'Paraguay', 'Peru', 'Philippines', 'Poland',
-    'Portugal', 'Qatar', 'Romania', 'Russia', 'Saudi Arabia', 'Senegal',
-    'Serbia', 'Singapore', 'Slovakia', 'Slovenia', 'Somalia', 'South Africa',
-    'South Korea', 'Spain', 'Sri Lanka', 'Sudan', 'Sweden', 'Switzerland',
-    'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Tunisia',
-    'Turkey', 'Turkmenistan', 'Uganda', 'Ukraine', 'United Arab Emirates',
-    'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Venezuela',
-    'Vietnam', 'Yemen', 'Zimbabwe',
+    'Afghanistan',
+    'Albania',
+    'Algeria',
+    'Andorra',
+    'Angola',
+    'Argentina',
+    'Armenia',
+    'Australia',
+    'Austria',
+    'Azerbaijan',
+    'Bahrain',
+    'Bangladesh',
+    'Belarus',
+    'Belgium',
+    'Bolivia',
+    'Bosnia and Herzegovina',
+    'Brazil',
+    'Bulgaria',
+    'Cambodia',
+    'Cameroon',
+    'Canada',
+    'Chile',
+    'China',
+    'Colombia',
+    'Croatia',
+    'Cuba',
+    'Cyprus',
+    'Czech Republic',
+    'Denmark',
+    'Dominican Republic',
+    'Ecuador',
+    'Egypt',
+    'El Salvador',
+    'Estonia',
+    'Ethiopia',
+    'Finland',
+    'France',
+    'Georgia',
+    'Germany',
+    'Ghana',
+    'Greece',
+    'Guatemala',
+    'Honduras',
+    'Hungary',
+    'Iceland',
+    'India',
+    'Indonesia',
+    'Iran',
+    'Iraq',
+    'Ireland',
+    'Israel',
+    'Italy',
+    'Jamaica',
+    'Japan',
+    'Jordan',
+    'Kazakhstan',
+    'Kenya',
+    'Kuwait',
+    'Kyrgyzstan',
+    'Latvia',
+    'Lebanon',
+    'Libya',
+    'Lithuania',
+    'Luxembourg',
+    'Malaysia',
+    'Maldives',
+    'Malta',
+    'Mexico',
+    'Moldova',
+    'Monaco',
+    'Mongolia',
+    'Morocco',
+    'Mozambique',
+    'Myanmar',
+    'Nepal',
+    'Netherlands',
+    'New Zealand',
+    'Nicaragua',
+    'Nigeria',
+    'North Korea',
+    'Norway',
+    'Oman',
+    'Pakistan',
+    'Palestine',
+    'Panama',
+    'Paraguay',
+    'Peru',
+    'Philippines',
+    'Poland',
+    'Portugal',
+    'Qatar',
+    'Romania',
+    'Russia',
+    'Saudi Arabia',
+    'Senegal',
+    'Serbia',
+    'Singapore',
+    'Slovakia',
+    'Slovenia',
+    'Somalia',
+    'South Africa',
+    'South Korea',
+    'Spain',
+    'Sri Lanka',
+    'Sudan',
+    'Sweden',
+    'Switzerland',
+    'Syria',
+    'Taiwan',
+    'Tajikistan',
+    'Tanzania',
+    'Thailand',
+    'Tunisia',
+    'Turkey',
+    'Turkmenistan',
+    'Uganda',
+    'Ukraine',
+    'United Arab Emirates',
+    'United Kingdom',
+    'United States',
+    'Uruguay',
+    'Uzbekistan',
+    'Venezuela',
+    'Vietnam',
+    'Yemen',
+    'Zimbabwe',
   ];
 
   @override
@@ -86,16 +191,26 @@ class _RegisterPageState extends State<RegisterPage>
     _tabController.animateTo(0);
   }
 
-  void _submitForm(BuildContext context, AuthState state, AppLocalizations loc) {
+  void _submitForm(
+    BuildContext context,
+    AuthState state,
+    AppLocalizations loc,
+  ) {
     if (!_formKey2.currentState!.validate()) return;
 
     if (selectedBirthDate == null) {
-      _showError(context, loc.translate("select_birth_date") ?? 'Please select your birth date');
+      _showError(
+        context,
+        loc.translate("select_birth_date") ?? 'Please select your birth date',
+      );
       return;
     }
 
     if (selectedCountry == null || selectedCountry!.isEmpty) {
-      _showError(context, loc.translate("select_country") ?? 'Please select your country');
+      _showError(
+        context,
+        loc.translate("select_country") ?? 'Please select your country',
+      );
       return;
     }
 
@@ -111,15 +226,10 @@ class _RegisterPageState extends State<RegisterPage>
   }
 
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    AppSnackbar.error(context, message);
   }
 
-  void _showCountryPicker(bool isDark, AppLocalizations loc) {
+  void _showCountryPicker(AppLocalizations loc) {
     final searchController = TextEditingController();
     List<String> filteredCountries = List.from(_countries);
     final theme = Theme.of(context);
@@ -135,7 +245,9 @@ class _RegisterPageState extends State<RegisterPage>
               height: MediaQuery.of(context).size.height * 0.8,
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.radius2XL)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppTheme.radius2XL),
+                ),
               ),
               child: Column(
                 children: [
@@ -151,23 +263,33 @@ class _RegisterPageState extends State<RegisterPage>
                   const SizedBox(height: AppTheme.spaceLG),
                   Text(
                     loc.translate("select_country") ?? 'Select Country',
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: AppTheme.spaceLG),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceLG,
+                    ),
                     child: TextField(
                       controller: searchController,
                       style: theme.textTheme.bodyLarge,
                       decoration: InputDecoration(
-                        hintText: loc.translate("search_country") ?? 'Search country...',
+                        hintText:
+                            loc.translate("search_country") ??
+                            'Search country...',
                         prefixIcon: const Icon(Icons.search_rounded),
                         suffixIcon: searchController.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded, size: 20),
                                 onPressed: () {
                                   searchController.clear();
-                                  setModalState(() => filteredCountries = List.from(_countries));
+                                  setModalState(
+                                    () => filteredCountries = List.from(
+                                      _countries,
+                                    ),
+                                  );
                                 },
                               )
                             : null,
@@ -175,7 +297,11 @@ class _RegisterPageState extends State<RegisterPage>
                       onChanged: (value) {
                         setModalState(() {
                           filteredCountries = _countries
-                              .where((c) => c.toLowerCase().contains(value.toLowerCase()))
+                              .where(
+                                (c) => c.toLowerCase().contains(
+                                  value.toLowerCase(),
+                                ),
+                              )
                               .toList();
                         });
                       },
@@ -188,27 +314,42 @@ class _RegisterPageState extends State<RegisterPage>
                             child: Text(
                               loc.translate("no_results") ?? 'No results found',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                                color: theme.colorScheme.onSurface.withOpacity(
+                                  0.5,
+                                ),
                               ),
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceSM),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.spaceSM,
+                            ),
                             itemCount: filteredCountries.length,
                             itemBuilder: (context, index) {
                               final country = filteredCountries[index];
                               final isSelected = country == selectedCountry;
                               return ListTile(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusMD,
+                                  ),
+                                ),
                                 title: Text(
                                   country,
                                   style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    color: isSelected ? theme.colorScheme.primary : null,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isSelected
+                                        ? theme.colorScheme.primary
+                                        : null,
                                   ),
                                 ),
                                 trailing: isSelected
-                                    ? Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary)
+                                    ? Icon(
+                                        Icons.check_circle_rounded,
+                                        color: theme.colorScheme.primary,
+                                      )
                                     : null,
                                 onTap: () {
                                   setState(() => selectedCountry = country);
@@ -245,10 +386,17 @@ class _RegisterPageState extends State<RegisterPage>
           if (state is AuthError) {
             _showError(context, state.message);
           } else if (state is AuthRegistrationVerificationNeeded) {
-            context.go('${AppRouter.verifyCode}?email=${Uri.encodeComponent(state.email)}');
+            context.go(
+              '${AppRouter.verifyCode}?email=${Uri.encodeComponent(state.email)}',
+            );
           } else if (state is AuthAuthenticated) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(loc.translate("register_success") ?? "Registration successful ✅")),
+              SnackBar(
+                content: Text(
+                  loc.translate("register_success") ??
+                      "Registration successful ✅",
+                ),
+              ),
             );
             context.go(AppRouter.login);
           }
@@ -278,7 +426,8 @@ class _RegisterPageState extends State<RegisterPage>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      loc.translate("already_have_account") ?? "Already have an account?",
+                      loc.translate("already_have_account") ??
+                          "Already have an account?",
                       style: theme.textTheme.bodyMedium,
                     ),
                     TextButton(
@@ -309,8 +458,8 @@ class _RegisterPageState extends State<RegisterPage>
           child: Container(
             height: 2,
             margin: const EdgeInsets.symmetric(horizontal: AppTheme.spaceSM),
-            color: _tabController.index >= 1 
-                ? theme.colorScheme.primary 
+            color: _tabController.index >= 1
+                ? theme.colorScheme.primary
                 : theme.colorScheme.onSurface.withOpacity(0.1),
           ),
         ),
@@ -330,14 +479,19 @@ class _RegisterPageState extends State<RegisterPage>
           height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.1),
+            color: isActive
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withOpacity(0.1),
           ),
           child: Center(
-            child: isActive 
+            child: isActive
                 ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                : Text("${index + 1}", style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.5),
-                  )),
+                : Text(
+                    "${index + 1}",
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
           ),
         ),
         const SizedBox(height: AppTheme.spaceXS),
@@ -345,7 +499,9 @@ class _RegisterPageState extends State<RegisterPage>
           label,
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.5),
+            color: isActive
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurface.withOpacity(0.5),
           ),
         ),
       ],
@@ -391,7 +547,11 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
-  Widget _buildPersonalInfoForm(AppLocalizations loc, ThemeData theme, AuthState state) {
+  Widget _buildPersonalInfoForm(
+    AppLocalizations loc,
+    ThemeData theme,
+    AuthState state,
+  ) {
     return Form(
       key: _formKey2,
       child: Column(
@@ -472,17 +632,26 @@ class _RegisterPageState extends State<RegisterPage>
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMD),
         decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+          color: isSelected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
           border: Border.all(
-            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline,
             width: 1.5,
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.5)),
+            Icon(
+              icon,
+              color: isSelected
+                  ? Colors.white
+                  : theme.colorScheme.onSurface.withOpacity(0.5),
+            ),
             const SizedBox(width: AppTheme.spaceSM),
             Text(
               value,
@@ -502,7 +671,9 @@ class _RegisterPageState extends State<RegisterPage>
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
-          initialDate: selectedBirthDate ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
+          initialDate:
+              selectedBirthDate ??
+              DateTime.now().subtract(const Duration(days: 365 * 18)),
           firstDate: DateTime(1900),
           lastDate: DateTime.now(),
         );
@@ -516,9 +687,9 @@ class _RegisterPageState extends State<RegisterPage>
         enabled: false,
         prefixIcon: Icons.calendar_today_rounded,
         controller: TextEditingController(
-          text: selectedBirthDate != null 
-              ? '${selectedBirthDate!.day}/${selectedBirthDate!.month}/${selectedBirthDate!.year}' 
-              : ""
+          text: selectedBirthDate != null
+              ? '${selectedBirthDate!.day}/${selectedBirthDate!.month}/${selectedBirthDate!.year}'
+              : "",
         ),
       ),
     );
@@ -526,7 +697,7 @@ class _RegisterPageState extends State<RegisterPage>
 
   Widget _buildCountrySelector(AppLocalizations loc, ThemeData theme) {
     return InkWell(
-      onTap: () => _showCountryPicker(theme.brightness == Brightness.dark, loc),
+      onTap: () => _showCountryPicker(loc),
       child: CustomTextField(
         label: loc.translate("country") ?? "Country",
         hintText: selectedCountry ?? "Select your country",

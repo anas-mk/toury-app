@@ -1,7 +1,18 @@
 // lib/core/widgets/custom_button.dart
+//
+// Primary button primitive used everywhere in the app.
+//
+// IMPORTANT: this widget's API is preserved — `CustomButton`,
+// `SocialLoginButton`, and `IconOnlyButton` are referenced from 50+
+// pages. Internals are modernized to use the unified design system
+// tokens (AppColors, AppRadius, AppSize) so dark mode, button heights,
+// border radii, and color states stay consistent.
+
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+
 import '../theme/app_color.dart';
+import '../theme/app_dimens.dart';
+import '../theme/app_theme.dart';
 
 enum ButtonVariant {
   primary,
@@ -53,14 +64,16 @@ class CustomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final buttonStyle = _getButtonStyle(theme);
-    final buttonHeight = customHeight ?? _getHeight();
+    final palette = AppColors.of(context);
+
+    final buttonStyle = _getButtonStyle(theme, palette);
+    final buttonHeight = customHeight ?? _heightFor(size);
     final width = customWidth ?? (isFullWidth ? double.infinity : null);
 
     return SizedBox(
       width: width,
       height: buttonHeight,
-      child: _buildButton(buttonStyle, _buildContent(theme)),
+      child: _buildButton(buttonStyle, _buildContent(theme, palette)),
     );
   }
 
@@ -87,56 +100,63 @@ class CustomButton extends StatelessWidget {
     }
   }
 
-  Widget _buildContent(ThemeData theme) {
+  Widget _buildContent(ThemeData theme, AppColors palette) {
     if (isLoading) {
       return Center(
         child: SizedBox(
-          width: _getLoadingSize(),
-          height: _getLoadingSize(),
+          width: _loadingSizeFor(size),
+          height: _loadingSizeFor(size),
           child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: _getLoadingColor(theme),
+            strokeWidth: 2.2,
+            color: _loadingColor(palette),
           ),
         ),
       );
     }
 
-    final Color? textColor = _getForegroundColor(theme);
+    final textColor = _foregroundColor(palette);
 
-    final content = Row(
+    return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          Icon(icon, size: _getIconSize(), color: textColor),
-          const SizedBox(width: AppTheme.spaceSM),
+          Icon(icon, size: _iconSizeFor(size), color: textColor),
+          const SizedBox(width: AppSpacing.sm),
         ],
-        Text(
-          text,
-          style: textStyle ?? _getTextStyle(theme).copyWith(color: textColor),
-          textAlign: TextAlign.center,
+        Flexible(
+          child: Text(
+            text,
+            style: textStyle ??
+                _textStyleFor(theme, size).copyWith(color: textColor),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
         ),
       ],
     );
-
-    return content;
   }
 
-  ButtonStyle _getButtonStyle(ThemeData theme) {
-
+  ButtonStyle _getButtonStyle(ThemeData theme, AppColors palette) {
     final baseStyle = ButtonStyle(
       shape: WidgetStateProperty.all(
         RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMD),
+          borderRadius: BorderRadius.circular(borderRadius ?? AppRadius.md),
         ),
       ),
-      padding: WidgetStateProperty.all(_getPadding()),
+      padding: WidgetStateProperty.all(_paddingFor(size)),
       elevation: WidgetStateProperty.all(0),
+      shadowColor: WidgetStateProperty.all(Colors.transparent),
       overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
         if (states.contains(WidgetState.pressed)) {
-          return (variant == ButtonVariant.primary || variant == ButtonVariant.secondary)
-              ? Colors.white.withOpacity(0.1)
-              : theme.colorScheme.primary.withOpacity(0.1);
+          final isFilled = variant == ButtonVariant.primary ||
+              variant == ButtonVariant.secondary ||
+              variant == ButtonVariant.danger ||
+              variant == ButtonVariant.success;
+          return isFilled
+              ? Colors.white.withValues(alpha: 0.12)
+              : palette.primary.withValues(alpha: 0.08);
         }
         return null;
       }),
@@ -147,47 +167,51 @@ class CustomButton extends StatelessWidget {
         return baseStyle.copyWith(
           backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
             if (states.contains(WidgetState.disabled)) {
-              return theme.colorScheme.primary.withOpacity(0.5);
+              return palette.primary.withValues(alpha: 0.4);
             }
-            return theme.colorScheme.primary;
+            return color ?? palette.primary;
           }),
-          foregroundColor: WidgetStateProperty.all(theme.colorScheme.onPrimary),
+          foregroundColor: WidgetStateProperty.all(palette.onPrimary),
         );
 
       case ButtonVariant.secondary:
         return baseStyle.copyWith(
           backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
             if (states.contains(WidgetState.disabled)) {
-              return theme.colorScheme.secondary.withOpacity(0.5);
+              return palette.accent.withValues(alpha: 0.4);
             }
-            return theme.colorScheme.secondary;
+            return color ?? palette.accent;
           }),
-          foregroundColor: WidgetStateProperty.all(theme.colorScheme.onSecondary),
+          foregroundColor: WidgetStateProperty.all(palette.onAccent),
         );
 
       case ButtonVariant.outlined:
         return baseStyle.copyWith(
-          side: WidgetStateProperty.all(
-            BorderSide(
-              color: color ?? theme.colorScheme.primary,
+          backgroundColor: WidgetStateProperty.all(Colors.transparent),
+          side: WidgetStateProperty.resolveWith((states) {
+            final c = color ?? palette.border;
+            return BorderSide(
+              color: states.contains(WidgetState.disabled)
+                  ? c.withValues(alpha: 0.4)
+                  : c,
               width: 1.5,
-            ),
-          ),
-          foregroundColor: WidgetStateProperty.all(color ?? theme.colorScheme.primary),
+            );
+          }),
+          foregroundColor: WidgetStateProperty.all(color ?? palette.primary),
         );
 
       case ButtonVariant.text:
         return baseStyle.copyWith(
-          foregroundColor: WidgetStateProperty.all(color ?? theme.colorScheme.primary),
+          foregroundColor: WidgetStateProperty.all(color ?? palette.primary),
         );
 
       case ButtonVariant.danger:
         return baseStyle.copyWith(
           backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
             if (states.contains(WidgetState.disabled)) {
-              return AppColor.errorColor.withOpacity(0.5);
+              return palette.danger.withValues(alpha: 0.4);
             }
-            return AppColor.errorColor;
+            return palette.danger;
           }),
           foregroundColor: WidgetStateProperty.all(Colors.white),
         );
@@ -196,94 +220,103 @@ class CustomButton extends StatelessWidget {
         return baseStyle.copyWith(
           backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
             if (states.contains(WidgetState.disabled)) {
-              return AppColor.accentColor.withOpacity(0.5);
+              return palette.success.withValues(alpha: 0.4);
             }
-            return AppColor.accentColor;
+            return palette.success;
           }),
           foregroundColor: WidgetStateProperty.all(Colors.white),
         );
     }
   }
 
-  TextStyle _getTextStyle(ThemeData theme) {
-    final Color? textColor = _getForegroundColor(theme);
-    
+  TextStyle _textStyleFor(ThemeData theme, ButtonSize size) {
     switch (size) {
       case ButtonSize.small:
-        return theme.textTheme.labelMedium!.copyWith(color: textColor);
+        return theme.textTheme.labelMedium ?? AppTheme.labelMedium;
       case ButtonSize.large:
-        return theme.textTheme.labelLarge!.copyWith(fontSize: 16, color: textColor);
-      default:
-        return theme.textTheme.labelLarge!.copyWith(color: textColor);
+        return theme.textTheme.labelLarge?.copyWith(fontSize: 16) ??
+            AppTheme.labelLarge.copyWith(fontSize: 16);
+      case ButtonSize.medium:
+        return theme.textTheme.labelLarge ?? AppTheme.labelLarge;
     }
   }
 
-  Color? _getForegroundColor(ThemeData theme) {
-    if (color != null) return color;
-    
+  Color _foregroundColor(AppColors palette) {
+    if (color != null && variant == ButtonVariant.outlined) return color!;
+    if (color != null && variant == ButtonVariant.text) return color!;
+
     switch (variant) {
       case ButtonVariant.primary:
-        return theme.colorScheme.onPrimary;
+        return palette.onPrimary;
       case ButtonVariant.secondary:
-        return theme.colorScheme.onSecondary;
+        return palette.onAccent;
       case ButtonVariant.outlined:
       case ButtonVariant.text:
-        return theme.colorScheme.primary;
+        return palette.primary;
       case ButtonVariant.danger:
       case ButtonVariant.success:
         return Colors.white;
     }
   }
 
-  EdgeInsetsGeometry _getPadding() {
+  EdgeInsetsGeometry _paddingFor(ButtonSize size) {
     switch (size) {
       case ButtonSize.small:
-        return const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD, vertical: AppTheme.spaceSM);
+        return const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        );
       case ButtonSize.large:
-        return const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG, vertical: AppTheme.spaceLG);
-      default:
-        return const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG, vertical: AppTheme.spaceMD);
+        return const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xxl,
+          vertical: AppSpacing.lg,
+        );
+      case ButtonSize.medium:
+        return const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.md,
+        );
     }
   }
 
-  double _getHeight() {
+  double _heightFor(ButtonSize size) {
     switch (size) {
       case ButtonSize.small:
-        return 40;
+        return AppSize.buttonSm;
       case ButtonSize.large:
-        return 60;
-      default:
-        return 56;
+        return AppSize.buttonLg;
+      case ButtonSize.medium:
+        return AppSize.buttonMd;
     }
   }
 
-  double _getIconSize() {
+  double _iconSizeFor(ButtonSize size) {
     switch (size) {
       case ButtonSize.small:
-        return 16;
+        return AppSize.iconSm;
       case ButtonSize.large:
-        return 24;
-      default:
-        return 20;
+        return AppSize.iconLg;
+      case ButtonSize.medium:
+        return AppSize.iconMd;
     }
   }
 
-  double _getLoadingSize() {
+  double _loadingSizeFor(ButtonSize size) {
     switch (size) {
       case ButtonSize.small:
         return 14;
       case ButtonSize.large:
         return 24;
-      default:
+      case ButtonSize.medium:
         return 20;
     }
   }
 
-  Color _getLoadingColor(ThemeData theme) {
+  Color _loadingColor(AppColors palette) {
     if (variant == ButtonVariant.outlined || variant == ButtonVariant.text) {
-      return color ?? theme.colorScheme.primary;
+      return color ?? palette.primary;
     }
-    return theme.colorScheme.onPrimary;
+    return Colors.white;
   }
 }
 
@@ -304,21 +337,18 @@ class SocialLoginButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     return OutlinedButton(
       onPressed: isLoading ? null : onPressed,
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 56),
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
-        side: BorderSide(
-          color: isDark ? AppColor.darkBorder : AppColor.lightBorder,
-          width: 1,
-        ),
+        minimumSize: const Size(double.infinity, AppSize.buttonLg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+        side: BorderSide(color: palette.border),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        backgroundColor: isDark ? AppColor.darkSurface : Colors.white,
+        backgroundColor: palette.surface,
         elevation: 0,
       ),
       child: isLoading
@@ -327,25 +357,29 @@ class SocialLoginButton extends StatelessWidget {
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: theme.colorScheme.primary,
+                  strokeWidth: 2.2,
+                  color: palette.primary,
                 ),
               ),
             )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(width: 24, height: 24, child: icon),
-                  const SizedBox(width: AppTheme.spaceMD),
-                  Text(
-                    text,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      letterSpacing: 0,
-                    ),
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: AppSize.iconLg,
+                  height: AppSize.iconLg,
+                  child: icon,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Text(
+                  text,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: palette.textPrimary,
+                    letterSpacing: 0,
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -363,34 +397,30 @@ class IconOnlyButton extends StatelessWidget {
     this.onPressed,
     this.backgroundColor,
     this.iconColor,
-    this.size = 56,
+    this.size = AppSize.buttonLg,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     return Material(
-      color: backgroundColor ?? (isDark ? AppColor.darkSurface : AppColor.lightSurface),
-      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+      color: backgroundColor ?? palette.surface,
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           width: size,
           height: size,
           decoration: BoxDecoration(
-            border: Border.all(
-              color: isDark ? AppColor.darkBorder : AppColor.lightBorder,
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+            border: Border.all(color: palette.border),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Icon(
             icon,
-            color: iconColor ?? theme.colorScheme.onSurface,
-            size: 24,
+            color: iconColor ?? palette.textPrimary,
+            size: AppSize.iconLg,
           ),
         ),
       ),

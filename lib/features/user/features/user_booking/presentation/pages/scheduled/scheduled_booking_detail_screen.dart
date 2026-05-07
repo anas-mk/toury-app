@@ -11,6 +11,10 @@ import '../../../../../../../core/services/signalr/booking_tracking_hub_service.
 import '../../../../../../../core/services/sos/sos_service.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../../core/widgets/app_dialog.dart';
+import '../../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_status.dart';
@@ -86,50 +90,52 @@ class _DetailViewState extends State<_DetailView> {
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      bottomCta: BlocBuilder<ScheduledBookingDetailCubit,
-          ScheduledBookingDetailState>(
-        builder: (context, state) {
-          if (state is ScheduledBookingDetailLoaded) {
-            return _PrimaryCta(detail: state.booking);
-          }
-          return const SizedBox.shrink();
-        },
-      ),
-      body: BlocBuilder<ScheduledBookingDetailCubit,
-          ScheduledBookingDetailState>(
-        builder: (context, state) {
-          if (state is ScheduledBookingDetailLoading ||
-              state is ScheduledBookingDetailInitial) {
-            return const _Loading();
-          }
-          if (state is ScheduledBookingDetailError) {
-            return _ErrorView(
-              message: state.message,
-              onRetry: () => context
-                  .read<ScheduledBookingDetailCubit>()
-                  .load(widget.bookingId),
-            );
-          }
-          if (state is ScheduledBookingDetailLoaded) {
-            return Stack(
-              children: [
-                RefreshIndicator(
-                  onRefresh: _refresh,
-                  color: BrandTokens.primaryBlue,
-                  child: _LoadedView(state: state),
-                ),
-                if (state.booking.status == BookingStatus.inProgress)
-                  Positioned(
-                    right: 16,
-                    bottom: 12,
-                    child: _SosFloatingButton(bookingId: state.booking.bookingId),
-                  ),
-              ],
-            );
-          }
-          return const SizedBox.shrink();
-        },
-      ),
+      bottomCta:
+          BlocBuilder<ScheduledBookingDetailCubit, ScheduledBookingDetailState>(
+            builder: (context, state) {
+              if (state is ScheduledBookingDetailLoaded) {
+                return _PrimaryCta(detail: state.booking);
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+      body:
+          BlocBuilder<ScheduledBookingDetailCubit, ScheduledBookingDetailState>(
+            builder: (context, state) {
+              if (state is ScheduledBookingDetailLoading ||
+                  state is ScheduledBookingDetailInitial) {
+                return const _Loading();
+              }
+              if (state is ScheduledBookingDetailError) {
+                return _ErrorView(
+                  message: state.message,
+                  onRetry: () => context
+                      .read<ScheduledBookingDetailCubit>()
+                      .load(widget.bookingId),
+                );
+              }
+              if (state is ScheduledBookingDetailLoaded) {
+                return Stack(
+                  children: [
+                    RefreshIndicator(
+                      onRefresh: _refresh,
+                      color: BrandTokens.primaryBlue,
+                      child: _LoadedView(state: state),
+                    ),
+                    if (state.booking.status == BookingStatus.inProgress)
+                      Positioned(
+                        right: 16,
+                        bottom: 12,
+                        child: _SosFloatingButton(
+                          bookingId: state.booking.bookingId,
+                        ),
+                      ),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
     );
   }
 }
@@ -208,10 +214,7 @@ class _LoadedView extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmCancel(
-    BuildContext context,
-    BookingDetail d,
-  ) async {
+  Future<void> _confirmCancel(BuildContext context, BookingDetail d) async {
     // Fix 9: pass the real penalty hint based on deposit + free-window
     // calculations, not free-form copy.
     final penalty = _cancellationPenalty(d);
@@ -225,9 +228,7 @@ class _LoadedView extends StatelessWidget {
       ),
     );
     if (result != null && context.mounted) {
-      unawaited(
-        context.read<ScheduledBookingDetailCubit>().refresh(),
-      );
+      unawaited(context.read<ScheduledBookingDetailCubit>().refresh());
     }
   }
 }
@@ -265,7 +266,7 @@ _CancellationPenalty _cancellationPenalty(BookingDetail d) {
       refundHint: dep == null
           ? 'Cancelling may forfeit your deposit per the cancellation policy.'
           : 'Cancelling now may forfeit your $dep EGP deposit per the '
-              'cancellation policy.',
+                'cancellation policy.',
       forfeitsDeposit: true,
     );
   }
@@ -383,8 +384,7 @@ class _StatusBanner extends StatelessWidget {
           title: helperName != null && helperName.isNotEmpty
               ? 'Waiting for $helperName to respond'
               : 'Waiting for the helper to respond',
-          subtitle:
-              'We\u2019ll notify you the moment they accept or decline.',
+          subtitle: 'We\u2019ll notify you the moment they accept or decline.',
           icon: Icons.sensors_rounded,
           fg: BrandTokens.accentAmberText,
           bg: BrandTokens.accentAmberSoft,
@@ -471,7 +471,8 @@ class _StatusBanner extends StatelessWidget {
       case BookingStatus.completed:
         return _BannerVisuals(
           title: 'Trip completed',
-          subtitle: 'Thanks for using RAFIQ. Don\u2019t forget to rate '
+          subtitle:
+              'Thanks for using RAFIQ. Don\u2019t forget to rate '
               'your helper.',
           icon: Icons.flag_rounded,
           fg: BrandTokens.primaryBlue,
@@ -484,7 +485,8 @@ class _StatusBanner extends StatelessWidget {
       case BookingStatus.cancelledBySystem:
         return _BannerVisuals(
           title: 'Cancelled',
-          subtitle: d.cancellationReason ??
+          subtitle:
+              d.cancellationReason ??
               'This booking was cancelled and won\u2019t be charged.',
           icon: Icons.cancel_rounded,
           fg: BrandTokens.dangerRed,
@@ -576,9 +578,7 @@ class _SosBanner extends StatelessWidget {
                 Text(
                   'Our support team is on the way. You can call your '
                   'helper or contact support directly.',
-                  style: BrandTypography.caption(
-                    color: BrandTokens.dangerRed,
-                  ),
+                  style: BrandTypography.caption(color: BrandTokens.dangerRed),
                 ),
               ],
             ),
@@ -595,48 +595,25 @@ class _SosFloatingButton extends StatelessWidget {
 
   Future<void> _onPressed(BuildContext context) async {
     HapticFeedback.heavyImpact();
-    final confirm = await showDialog<bool>(
+    final confirm = await AppDialog.confirm(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Trigger SOS?'),
-        content: const Text(
-          'This will alert support and your emergency contacts. Use this '
-          'only in a real emergency.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: BrandTokens.dangerRed,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Trigger SOS'),
-          ),
-        ],
-      ),
+      title: 'Trigger SOS?',
+      message:
+          'This will alert support and your emergency contacts. Use this only in a real emergency.',
+      confirmLabel: 'Trigger SOS',
+      tone: AppDialogTone.danger,
     );
-    if (confirm != true || !context.mounted) return;
+    if (!confirm || !context.mounted) return;
     final result = await sl<SosService>().trigger(
       bookingId: bookingId,
       reason: 'user-trip-sos',
     );
     if (!context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          result.success
-              ? 'SOS active — help is on the way.'
-              : (result.message ?? 'SOS request failed.'),
-        ),
-        backgroundColor: result.success
-            ? BrandTokens.successGreen
-            : BrandTokens.dangerRed,
-      ),
-    );
+    if (result.success) {
+      AppSnackbar.success(context, 'SOS active - help is on the way.');
+    } else {
+      AppSnackbar.error(context, result.message ?? 'SOS request failed.');
+    }
     if (result.success) {
       // Reflect SOS state immediately — the SignalR `SosTriggered` will
       // also flow in shortly and is idempotent.
@@ -689,8 +666,9 @@ class _HelperCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final h = detail.helper!;
-    final initial =
-        h.fullName.isEmpty ? '?' : h.fullName.substring(0, 1).toUpperCase();
+    final initial = h.fullName.isEmpty
+        ? '?'
+        : h.fullName.substring(0, 1).toUpperCase();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -754,9 +732,7 @@ class _HelperCard extends StatelessWidget {
                     const SizedBox(width: 3),
                     Text(
                       h.rating.toStringAsFixed(1),
-                      style: BrandTypography.caption(
-                        weight: FontWeight.w700,
-                      ),
+                      style: BrandTypography.caption(weight: FontWeight.w700),
                     ),
                     const SizedBox(width: 6),
                     Text('\u2022', style: BrandTypography.caption()),
@@ -833,10 +809,7 @@ class _HelperCard extends StatelessWidget {
     HapticFeedback.lightImpact();
     // Reset local unread badge — the chat screen will read from REST.
     context.read<ScheduledBookingDetailCubit>().markChatRead();
-    context.pushNamed(
-      'user-chat',
-      pathParameters: {'bookingId': bookingId},
-    );
+    context.pushNamed('user-chat', pathParameters: {'id': bookingId});
   }
 }
 
@@ -857,17 +830,10 @@ class _TripCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Trip',
-            style: BrandTypography.body(weight: FontWeight.w700),
-          ),
+          Text('Trip', style: BrandTypography.body(weight: FontWeight.w700)),
           const SizedBox(height: 12),
           if (whenLabel != null)
-            _Row(
-              icon: Icons.event_rounded,
-              label: 'When',
-              value: whenLabel,
-            ),
+            _Row(icon: Icons.event_rounded, label: 'When', value: whenLabel),
           if (detail.destinationName != null &&
               detail.destinationName!.isNotEmpty)
             _Row(
@@ -952,8 +918,18 @@ class _TripCard extends StatelessWidget {
     if (d.requestedDate == null) return null;
     final base = d.requestedDate!.toLocal();
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final dateStr = '${months[base.month - 1]} ${base.day}, ${base.year}';
     final t = (d.startTime ?? '').padRight(5);
@@ -987,10 +963,7 @@ class _PriceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Payment',
-            style: BrandTypography.body(weight: FontWeight.w700),
-          ),
+          Text('Payment', style: BrandTypography.body(weight: FontWeight.w700)),
           const SizedBox(height: 12),
           ..._buildRows(detail),
           if (detail.depositForfeited)
@@ -1103,9 +1076,7 @@ class _PriceCard extends StatelessWidget {
                   ? 'Remaining paid \u2713'
                   : 'Remaining due (cash on completion)',
               value: fmt(rem),
-              tone: d.remainingPaid
-                  ? _PriceTone.success
-                  : _PriceTone.warning,
+              tone: d.remainingPaid ? _PriceTone.success : _PriceTone.warning,
             ),
         ];
 
@@ -1113,11 +1084,7 @@ class _PriceCard extends StatelessWidget {
       case BookingStatus.cancelledByHelper:
       case BookingStatus.cancelledBySystem:
         return [
-          if (est != null)
-            _PriceRow(
-              label: 'Estimated total',
-              value: fmt(est),
-            ),
+          if (est != null) _PriceRow(label: 'Estimated total', value: fmt(est)),
           if (dep != null && d.depositPaid && !d.depositForfeited)
             _PriceRow(
               label: 'Deposit refunded',
@@ -1252,11 +1219,7 @@ class _Row extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _Row({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _Row({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -1320,8 +1283,10 @@ class _PrimaryCta extends StatelessWidget {
                 label: 'Pick another helper',
                 icon: Icons.swap_horiz_rounded,
                 onPressed: () => context.push(
-                  AppRouter.scheduledAlternatives
-                      .replaceFirst(':id', detail.bookingId),
+                  AppRouter.scheduledAlternatives.replaceFirst(
+                    ':id',
+                    detail.bookingId,
+                  ),
                 ),
               ),
             ),
@@ -1351,12 +1316,10 @@ class _PrimaryCta extends StatelessWidget {
                   label: 'Chat',
                   icon: Icons.chat_bubble_rounded,
                   onPressed: () {
-                    context
-                        .read<ScheduledBookingDetailCubit>()
-                        .markChatRead();
+                    context.read<ScheduledBookingDetailCubit>().markChatRead();
                     context.pushNamed(
                       'user-chat',
-                      pathParameters: {'bookingId': detail.bookingId},
+                      pathParameters: {'id': detail.bookingId},
                     );
                   },
                 ),
@@ -1405,7 +1368,7 @@ class _PrimaryCta extends StatelessWidget {
                 icon: Icons.receipt_long_rounded,
                 onPressed: () => context.pushNamed(
                   'user-invoice-detail',
-                  pathParameters: {'bookingId': detail.bookingId},
+                  pathParameters: {'id': detail.bookingId},
                 ),
               ),
             ),
@@ -1432,9 +1395,7 @@ class _PrimaryCta extends StatelessWidget {
       ),
     );
     if (result != null && context.mounted) {
-      unawaited(
-        context.read<ScheduledBookingDetailCubit>().refresh(),
-      );
+      unawaited(context.read<ScheduledBookingDetailCubit>().refresh());
     }
   }
 
@@ -1452,18 +1413,7 @@ class _Loading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: const [
-        SkeletonShimmer(child: SkeletonBlock(height: 100, radius: 20)),
-        SizedBox(height: 16),
-        SkeletonShimmer(child: SkeletonBlock(height: 80, radius: 20)),
-        SizedBox(height: 16),
-        SkeletonShimmer(child: SkeletonBlock(height: 200, radius: 20)),
-        SizedBox(height: 16),
-        SkeletonShimmer(child: SkeletonBlock(height: 140, radius: 20)),
-      ],
-    );
+    return const AppLoading(message: 'Loading booking details...');
   }
 }
 
@@ -1474,37 +1424,10 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              size: 56,
-              color: BrandTokens.dangerRed,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Couldn\u2019t load booking',
-              style: BrandTypography.title(weight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: BrandTypography.caption(),
-            ),
-            const SizedBox(height: 16),
-            GhostButton(
-              label: 'Try again',
-              icon: Icons.refresh_rounded,
-              onPressed: onRetry,
-            ),
-          ],
-        ),
-      ),
+    return AppErrorState(
+      title: 'Couldn\u2019t load booking',
+      message: message,
+      onRetry: onRetry,
     );
   }
 }

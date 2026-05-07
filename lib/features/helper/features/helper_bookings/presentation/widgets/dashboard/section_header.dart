@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../../core/widgets/app_section_header.dart';
 
 class SectionHeader extends StatelessWidget {
   final String title;
@@ -7,9 +7,6 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: BrandTypography.title(),
-    );
+    return AppSectionHeader(title: title, padding: EdgeInsets.zero);
   }
 }

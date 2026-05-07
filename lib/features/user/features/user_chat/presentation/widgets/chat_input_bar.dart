@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 
 class ChatInputBar extends StatefulWidget {
   final Function(String) onSend;
@@ -38,16 +38,20 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
+        color: palette.scaffold,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -58,8 +62,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: isDark ? theme.colorScheme.surface : AppColor.lightSurface,
-                borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
               child: TextField(
                 controller: _controller,
@@ -68,8 +72,11 @@ class _ChatInputBarState extends State<ChatInputBar> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   hintText: 'Type a message...',
-                  hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.3)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  hintStyle: TextStyle(color: palette.textMuted),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.md,
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -78,19 +85,20 @@ class _ChatInputBarState extends State<ChatInputBar> {
             ),
           ),
           const SizedBox(width: 12),
-          GestureDetector(
-            onTap: _handleSend,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: _canSend ? AppColor.primaryColor : theme.colorScheme.onSurface.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
+          AnimatedContainer(
+            duration: AppDurations.fast,
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: _canSend ? palette.primary : palette.disabledFill,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              tooltip: 'Send message',
+              onPressed: _canSend ? _handleSend : null,
+              icon: Icon(
                 Icons.send_rounded,
-                color: _canSend ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.3),
+                color: _canSend ? Colors.white : palette.disabledText,
                 size: 20,
               ),
             ),

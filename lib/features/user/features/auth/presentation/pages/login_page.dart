@@ -6,6 +6,7 @@ import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../../../../../core/widgets/custom_button.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';
@@ -18,7 +19,8 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _googleSignIn = GoogleSignIn(scopes: ['email']);
@@ -44,13 +46,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       curve: Curves.easeIn,
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.05),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+        );
 
     _animController.forward();
   }
@@ -83,7 +82,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             child: SlideTransition(
               position: _slideAnimation,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceLG,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -148,11 +149,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       children: [
                         const Expanded(child: Divider()),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppTheme.spaceMD,
+                          ),
                           child: Text(
                             l10n.or,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.4),
+                              color: theme.colorScheme.onSurface.withOpacity(
+                                0.4,
+                              ),
                             ),
                           ),
                         ),
@@ -165,11 +170,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     // Social Login
                     SocialLoginButton(
                       text: l10n.continueWithGoogle,
-                      icon: const Icon(Icons.g_mobiledata_rounded, size: 32, color: AppColor.secondaryColor),
+                      icon: const Icon(
+                        Icons.g_mobiledata_rounded,
+                        size: 32,
+                        color: AppColor.secondaryColor,
+                      ),
                       onPressed: _handleGoogleSignIn,
                       isLoading: state is AuthLoading,
                     ),
-                    
+
                     const SizedBox(height: AppTheme.space2XL),
 
                     // Register Link
@@ -181,7 +190,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           style: theme.textTheme.bodyMedium,
                         ),
                         TextButton(
-                          onPressed: () => context.go('${AppRouter.login}/${AppRouter.register}'),
+                          onPressed: () => context.go(
+                            '${AppRouter.login}/${AppRouter.register}',
+                          ),
                           child: Text(
                             l10n.register,
                             style: theme.textTheme.labelLarge?.copyWith(
@@ -219,24 +230,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign-in failed: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        AppSnackbar.error(context, 'Google sign-in failed: ${e.toString()}');
       }
     }
   }
 
   void _handleAuthState(BuildContext context, AuthState state) {
     if (state is AuthError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      AppSnackbar.error(context, state.message);
     } else if (state is AuthEmailExists) {
       context.go('${AppRouter.login}/enter-password/${state.email}');
     } else if (state is AuthGoogleRegistrationNeeded) {

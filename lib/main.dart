@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/config/api_config.dart';
 import 'core/di/injection_container.dart' as di;
@@ -26,7 +25,6 @@ import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart'
 import 'features/user/features/auth/presentation/cubit/auth_cubit.dart';
 import 'firebase_options.dart';
 
-
 /// Top-level handler so FCM background messages are processed even when the
 /// Dart isolate has been killed. MUST be a top-level (or static) function —
 /// Firebase requires a const-evaluable entry point with the `@pragma`
@@ -37,8 +35,10 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   // payload; we just log here for diagnostics. Do NOT push routes from a
   // background isolate — the navigator isn't mounted there.
   if (kDebugMode) {
-    debugPrint('🔔 [bg] FCM message: ${message.messageId} '
-        'data=${message.data}');
+    debugPrint(
+      '🔔 [bg] FCM message: ${message.messageId} '
+      'data=${message.data}',
+    );
   }
 }
 
@@ -73,19 +73,16 @@ Future<void> _logFcmTokenOnce() async {
       );
       return;
     }
-    final tail = token.length <= 12 ? token : token.substring(token.length - 12);
+    final tail = token.length <= 12
+        ? token
+        : token.substring(token.length - 12);
     RealtimeLogger.instance.log(
       'FCM',
       'token.diag',
       'getToken() ok len=${token.length} tail=…$tail',
     );
   } catch (e) {
-    RealtimeLogger.instance.log(
-      'FCM',
-      'token.diag.error',
-      '$e',
-      isError: true,
-    );
+    RealtimeLogger.instance.log('FCM', 'token.diag.error', '$e', isError: true);
   }
 }
 
@@ -131,8 +128,8 @@ void main() async {
     // app_router.dart's redirect callback once auth has resolved and a
     // real route is being entered.
     try {
-      final initialMessage =
-          await FirebaseMessaging.instance.getInitialMessage();
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
       if (initialMessage != null) {
         final stringData = <String, dynamic>{
           for (final entry in initialMessage.data.entries)
@@ -157,21 +154,23 @@ void main() async {
     // here and `NotificationRouter.bind`, `routeFromData` falls back
     // to setPendingDeepLink via the router's bind-not-ready guard.
     _bootstrapOnMessageOpenedAppSub?.cancel();
-    _bootstrapOnMessageOpenedAppSub =
-        FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      final stringData = <String, dynamic>{
-        for (final entry in message.data.entries)
-          entry.key: entry.value?.toString(),
-      };
-      RealtimeLogger.instance.log(
-        'FCM',
-        'onMessageOpenedApp',
-        'type=${stringData['notificationType']}',
-        eventId: stringData['eventId']?.toString(),
-      );
-      NotificationRouter.instance
-          .routeFromData(stringData, reason: 'fcm-bg-tap');
-    });
+    _bootstrapOnMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp
+        .listen((message) {
+          final stringData = <String, dynamic>{
+            for (final entry in message.data.entries)
+              entry.key: entry.value?.toString(),
+          };
+          RealtimeLogger.instance.log(
+            'FCM',
+            'onMessageOpenedApp',
+            'type=${stringData['notificationType']}',
+            eventId: stringData['eventId']?.toString(),
+          );
+          NotificationRouter.instance.routeFromData(
+            stringData,
+            reason: 'fcm-bg-tap',
+          );
+        });
   } catch (e, st) {
     firebaseReady = false;
     // Log unconditionally (not only in debug) — a silent failure here is
@@ -192,10 +191,9 @@ void main() async {
 
   await di.init();
 
-  BookingRealtimeEventBus.instance
-      .attach(di.sl<BookingTrackingHubService>());
-  BookingRealtimeEventBus.instance.onEventPublished =
-      (e) => di.sl<MessagingService>().maybeInAppBannerFromBusEvent(e);
+  BookingRealtimeEventBus.instance.attach(di.sl<BookingTrackingHubService>());
+  BookingRealtimeEventBus.instance.onEventPublished = (e) =>
+      di.sl<MessagingService>().maybeInAppBannerFromBusEvent(e);
 
   // Phase 3: attach the app-wide realtime orchestrator. It subscribes to
   // the same bus and propagates relevant events to currently-mounted
@@ -215,17 +213,12 @@ void main() async {
   // pending.
   MandatoryRatingOverlay.bind(AppRouter.rootNavigatorKey);
 
-  final prefs = await SharedPreferences.getInstance();
-  final isDark = prefs.getBool('isDark') ?? false;
-
   runApp(
     MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => ThemeCubit(isDark: isDark)),
+        BlocProvider(create: (_) => ThemeCubit()),
         BlocProvider(create: (_) => LocalizationCubit()),
-        BlocProvider(
-          create: (_) => di.sl<AuthCubit>()..checkAuthStatus(),
-        ),
+        BlocProvider(create: (_) => di.sl<AuthCubit>()..checkAuthStatus()),
         BlocProvider(create: (_) => di.sl<HelperAuthCubit>()),
       ],
       child: const MyApp(),
