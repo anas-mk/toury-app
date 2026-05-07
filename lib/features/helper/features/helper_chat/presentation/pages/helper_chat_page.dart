@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:signalr_netcore/hub_connection.dart';
 import 'package:toury/core/config/api_config.dart';
-import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../cubit/helper_chat_cubit.dart';
-import '../widgets/chat_message_bubble.dart';
 import '../widgets/chat_input_bar.dart';
-import '../widgets/chat_widgets.dart' hide ChatInputBar;
+import '../widgets/chat_message_bubble.dart';
+import '../widgets/chat_widgets.dart';
 
 class HelperChatPage extends StatefulWidget {
   final String bookingId;
@@ -47,7 +51,8 @@ class _HelperChatPageState extends State<HelperChatPage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
       _cubit.loadMore();
     }
   }
@@ -61,147 +66,80 @@ class _HelperChatPageState extends State<HelperChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return BlocProvider.value(
       value: _cubit,
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: _buildAppBar(context),
+      child: AppScaffold(
+        resizeToAvoidBottomInset: true,
+        appBar: _HelperChatAppBar(
+          fallbackName: widget.userName,
+          fallbackAvatar: widget.userAvatar,
+        ),
         body: Column(
           children: [
             Expanded(
               child: BlocBuilder<HelperChatCubit, HelperChatState>(
                 builder: (context, state) {
                   if (state is HelperChatLoading) {
-                    return _buildLoading();
-                  } else if (state is HelperChatLoaded) {
-                    return RefreshIndicator(
+                    return const Center(child: AppLoading(fullScreen: false));
+                  }
+                  if (state is HelperChatLoaded) {
+                    return RefreshIndicator.adaptive(
                       onRefresh: () => _cubit.refresh(),
+                      color: Theme.of(context).colorScheme.primary,
                       child: _buildMessageList(state),
                     );
-                  } else if (state is HelperChatError) {
-                    return _buildError(state.message);
+                  }
+                  if (state is HelperChatError) {
+                    return AppErrorState(
+                      message: state.message,
+                      onRetry: _init,
+                    );
                   }
                   return const SizedBox.shrink();
                 },
               ),
             ),
-            _buildInput(),
+            ChatInputBar(
+              onSend: (text) => _cubit.sendMessage(text),
+              onQuickReply: () {
+                showModalBottomSheet<void>(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => QuickRepliesSheet(
+                    onReply: (text) => _cubit.sendMessage(text),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppBar(
-      elevation: 0,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-        onPressed: () => Navigator.pop(context),
-      ),
-      titleSpacing: 0,
-      title: BlocBuilder<HelperChatCubit, HelperChatState>(
-        builder: (context, state) {
-          final String name = (state is HelperChatLoaded) ? state.conversation.user.name : (widget.userName ?? 'Chat');
-          final String imageUrl = (state is HelperChatLoaded) ? state.conversation.user.profileImageUrl : (widget.userAvatar ?? '');
-          
-          return Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: imageUrl.isNotEmpty 
-                    ? NetworkImage(ApiConfig.resolveImageUrl(imageUrl)) 
-                    : null,
-                backgroundColor: AppColor.primaryColor.withOpacity(0.1),
-                child: imageUrl.isEmpty && name != 'Chat'
-                    ? Text(name[0].toUpperCase(), style: const TextStyle(color: AppColor.primaryColor, fontSize: 14))
-                    : (imageUrl.isEmpty ? const Icon(Icons.person, size: 20, color: AppColor.primaryColor) : null),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (state is HelperChatLoaded)
-                      _buildConnectionStatus(context, state.connectionState),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildConnectionStatus(BuildContext context, HubConnectionState state) {
-    final theme = Theme.of(context);
-    String text = '';
-    Color color = theme.brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary;
-    
-    switch (state) {
-      case HubConnectionState.Connected:
-        text = 'Online';
-        color = const Color(0xFF00C896);
-        break;
-      case HubConnectionState.Connecting:
-      case HubConnectionState.Reconnecting:
-        text = 'Connecting...';
-        color = Colors.amber;
-        break;
-      case HubConnectionState.Disconnected:
-      case HubConnectionState.Disconnecting:
-        text = 'Offline';
-        color = theme.brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary;
-        break;
-    }
-    
-    return Row(
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(text, style: TextStyle(color: color, fontSize: 10)),
-      ],
-    );
-  }
-
   Widget _buildMessageList(HelperChatLoaded state) {
     if (state.messages.isEmpty) {
-      return _buildEmptyState(state);
+      return _buildEmptyState(context, state);
     }
 
     return ListView.builder(
       controller: _scrollController,
-      reverse: true, // Newer messages at bottom
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      reverse: true,
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: state.messages.length + (state.hasReachedMax ? 0 : 1),
       itemBuilder: (context, index) {
         if (index == state.messages.length) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: CircularProgressIndicator(color: BrandTokens.primaryBlue),
-            ),
+          return const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: Center(child: AppSpinner.large()),
           );
         }
 
         final message = state.messages[index];
         final isMe = message.senderType.toLowerCase() == 'helper';
-        
+
         return ChatMessageBubble(
           key: ValueKey(message.id),
           message: message,
@@ -211,57 +149,171 @@ class _HelperChatPageState extends State<HelperChatPage> {
     );
   }
 
-  Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator(color: BrandTokens.primaryBlue));
+  Widget _buildEmptyState(BuildContext context, HelperChatLoaded state) {
+    final h = MediaQuery.sizeOf(context).height;
+    return ListView(
+      reverse: true,
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.pageGutter,
+        vertical: AppSpacing.xl,
+      ),
+      children: [
+        SizedBox(height: h * 0.22),
+        AppEmptyState(
+          icon: Icons.chat_bubble_outline_rounded,
+          title: 'No messages yet',
+          message: 'Start a conversation with ${state.conversation.user.name}',
+          padding: EdgeInsets.zero,
+        ),
+      ],
+    );
   }
+}
 
-  Widget _buildError(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, color: BrandTokens.dangerRed, size: 48),
-          const SizedBox(height: 16),
-          Text(message, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary)),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _init,
-            style: ElevatedButton.styleFrom(backgroundColor: BrandTokens.primaryBlue),
-            child: const Text('Retry'),
-          ),
-        ],
+/// App bar title row with traveler avatar — matches chrome of [BasicAppBar]
+/// without losing connection status or dynamic name from the cubit.
+class _HelperChatAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String? fallbackName;
+  final String? fallbackAvatar;
+
+  const _HelperChatAppBar({
+    required this.fallbackName,
+    required this.fallbackAvatar,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    final canPop = Navigator.of(context).canPop();
+
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      leading: canPop
+          ? IconButton(
+              splashRadius: 20,
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: palette.textPrimary,
+                size: AppSize.iconMd,
+              ),
+              onPressed: () => Navigator.maybePop(context),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            )
+          : null,
+      titleSpacing: AppSpacing.sm,
+      title: BlocBuilder<HelperChatCubit, HelperChatState>(
+        builder: (context, state) {
+          final name = (state is HelperChatLoaded)
+              ? state.conversation.user.name
+              : (fallbackName ?? 'Chat');
+          final imageUrl = (state is HelperChatLoaded)
+              ? state.conversation.user.profileImageUrl
+              : (fallbackAvatar ?? '');
+
+          return Row(
+            children: [
+              CircleAvatar(
+                radius: AppSize.avatarMd / 2,
+                backgroundImage: imageUrl.isNotEmpty
+                    ? NetworkImage(ApiConfig.resolveImageUrl(imageUrl))
+                    : null,
+                backgroundColor: palette.primarySoft,
+                child: imageUrl.isEmpty && name != 'Chat'
+                    ? Text(
+                        name[0].toUpperCase(),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: palette.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    : (imageUrl.isEmpty
+                          ? Icon(
+                              Icons.person_rounded,
+                              size: AppSize.iconMd,
+                              color: palette.primary,
+                            )
+                          : null),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (state is HelperChatLoaded)
+                      _ConnectionStatusChip(state.connectionState),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
+}
 
-  Widget _buildEmptyState(HelperChatLoaded state) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.chat_bubble_outline_rounded, color: BrandTokens.borderSoft, size: 80),
-          const SizedBox(height: 16),
-          Text(
-            'Start a conversation with ${state.conversation.user.name}',
-            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
+class _ConnectionStatusChip extends StatelessWidget {
+  final HubConnectionState connectionState;
 
-  Widget _buildInput() {
-    return ChatInputBar(
-      onSend: (text) => _cubit.sendMessage(text),
-      onQuickReply: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (_) => QuickRepliesSheet(
-            onReply: (text) => _cubit.sendMessage(text),
+  const _ConnectionStatusChip(this.connectionState);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    late final String label;
+    late final Color indicator;
+
+    switch (connectionState) {
+      case HubConnectionState.Connected:
+        label = 'Online';
+        indicator = palette.success;
+        break;
+      case HubConnectionState.Connecting:
+      case HubConnectionState.Reconnecting:
+        label = 'Connecting...';
+        indicator = palette.warning;
+        break;
+      case HubConnectionState.Disconnected:
+      case HubConnectionState.Disconnecting:
+        label = 'Offline';
+        indicator = palette.textMuted;
+        break;
+    }
+
+    return Row(
+      children: [
+        Container(
+          width: AppSpacing.xs + AppSpacing.xxs,
+          height: AppSpacing.xs + AppSpacing.xxs,
+          decoration: BoxDecoration(color: indicator, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: indicator,
+            fontWeight: FontWeight.w600,
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

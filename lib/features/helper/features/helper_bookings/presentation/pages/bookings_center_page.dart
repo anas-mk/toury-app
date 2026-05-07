@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../widgets/shared/empty_state_view.dart';
@@ -93,6 +97,7 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _requestsCubit),
@@ -100,12 +105,13 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
         BlocProvider.value(value: _historyCubit),
       ],
       child: Scaffold(
-        backgroundColor: BrandTokens.bgSoft,
+        backgroundColor: palette.scaffold,
         appBar: AppBar(
           elevation: 0,
           centerTitle: false,
-          backgroundColor: BrandTokens.surfaceWhite,
-          foregroundColor: BrandTokens.textPrimary,
+          surfaceTintColor: Colors.transparent,
+          backgroundColor: palette.surface,
+          foregroundColor: palette.textPrimary,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -113,17 +119,18 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
               Text('Booking Center', style: BrandTokens.heading(fontSize: 20)),
               Text(
                 'Requests, live trips, and completed history',
-                style: BrandTypography.caption(color: BrandTokens.textSecondary),
+                style: BrandTypography.caption(color: palette.textSecondary),
               ),
             ],
           ),
           bottom: TabBar(
             controller: _tabController,
             isScrollable: false,
-            indicatorColor: BrandTokens.primaryBlue,
+            indicatorColor: palette.primary,
             indicatorWeight: 3,
-            labelColor: BrandTokens.primaryBlue,
-            unselectedLabelColor: BrandTokens.textSecondary,
+            labelColor: palette.primary,
+            unselectedLabelColor: palette.textSecondary,
+            dividerColor: Colors.transparent,
             labelStyle: BrandTypography.caption(weight: FontWeight.bold),
             tabs: const [
               Tab(text: 'Requests'),
@@ -160,9 +167,10 @@ class _RequestsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<IncomingRequestsCubit, IncomingRequestsState>(
       builder: (context, state) {
-        if (state is IncomingRequestsLoading || state is IncomingRequestsInitial) {
+        if (state is IncomingRequestsLoading ||
+            state is IncomingRequestsInitial) {
           return ListView.builder(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpacing.pageGutter),
             itemCount: 3,
             itemBuilder: (_, __) => const SkeletonBookingCard(),
           );
@@ -188,23 +196,25 @@ class _RequestsTab extends StatelessWidget {
                       )
                     : RefreshIndicator.adaptive(
                         onRefresh: () async => cubit.refresh(),
-                        color: BrandTokens.primaryBlue,
+                        color: Theme.of(context).colorScheme.primary,
                         child: ListView.builder(
                           controller: scrollController,
-                          padding: const EdgeInsets.all(20),
-                          itemCount: state.requests.length + (state.hasNextPage ? 1 : 0),
+                          padding: const EdgeInsets.all(AppSpacing.pageGutter),
+                          itemCount:
+                              state.requests.length +
+                              (state.hasNextPage ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index >= state.requests.length) {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 16),
-                                child: Center(
-                                  child: CircularProgressIndicator.adaptive(),
-                                ),
+                                child: Center(child: AppSpinner.large()),
                               );
                             }
                             return FadeInSlide(
                               delay: Duration(milliseconds: index * 50),
-                              child: BookingCard(booking: state.requests[index]),
+                              child: BookingCard(
+                                booking: state.requests[index],
+                              ),
                             );
                           },
                         ),
@@ -217,8 +227,7 @@ class _RequestsTab extends StatelessWidget {
           return Column(
             children: [
               const _FlowStatusStrip(
-                text:
-                    'Loading more requests based on your selected filter.',
+                text: 'Loading more requests based on your selected filter.',
               ),
               _RequestTypeFilterBar(
                 selected: state.filter,
@@ -227,15 +236,13 @@ class _RequestsTab extends StatelessWidget {
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(AppSpacing.pageGutter),
                   itemCount: state.currentRequests.length + 1,
                   itemBuilder: (context, index) {
                     if (index >= state.currentRequests.length) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: CircularProgressIndicator.adaptive(),
-                        ),
+                        child: Center(child: AppSpinner.large()),
                       );
                     }
                     return FadeInSlide(
@@ -271,9 +278,15 @@ class _RequestsTab extends StatelessWidget {
           );
         }
         if (state is IncomingRequestsError) {
-          return _ErrorStateView(
-            message: state.message,
-            onRetry: cubit.refresh,
+          return Center(
+            child: AppErrorState(
+              message: state.message,
+              onRetry: () => cubit.refresh(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xxl,
+                vertical: AppSpacing.xl,
+              ),
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -290,9 +303,10 @@ class _UpcomingTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<UpcomingBookingsCubit, UpcomingBookingsState>(
       builder: (context, state) {
-        if (state is UpcomingBookingsInitial || state is UpcomingBookingsLoading) {
+        if (state is UpcomingBookingsInitial ||
+            state is UpcomingBookingsLoading) {
           return ListView.builder(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpacing.pageGutter),
             itemCount: 3,
             itemBuilder: (_, __) => const SkeletonBookingCard(),
           );
@@ -302,14 +316,15 @@ class _UpcomingTab extends StatelessWidget {
             return const EmptyStateView(
               icon: Icons.calendar_today_rounded,
               title: 'No upcoming trips',
-              subtitle: 'Confirmed bookings will show up here for you to start.',
+              subtitle:
+                  'Confirmed bookings will show up here for you to start.',
             );
           }
           return RefreshIndicator.adaptive(
             onRefresh: () async => cubit.load(),
-            color: BrandTokens.primaryBlue,
+            color: Theme.of(context).colorScheme.primary,
             child: ListView.builder(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpacing.pageGutter),
               itemCount: state.bookings.length,
               itemBuilder: (context, index) => FadeInSlide(
                 delay: Duration(milliseconds: index * 50),
@@ -319,9 +334,15 @@ class _UpcomingTab extends StatelessWidget {
           );
         }
         if (state is UpcomingBookingsError) {
-          return _ErrorStateView(
-            message: state.message,
-            onRetry: cubit.load,
+          return Center(
+            child: AppErrorState(
+              message: state.message,
+              onRetry: () => cubit.load(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xxl,
+                vertical: AppSpacing.xl,
+              ),
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -334,10 +355,7 @@ class _HistoryTab extends StatelessWidget {
   final HelperHistoryCubit cubit;
   final ScrollController scrollController;
 
-  const _HistoryTab({
-    required this.cubit,
-    required this.scrollController,
-  });
+  const _HistoryTab({required this.cubit, required this.scrollController});
 
   @override
   Widget build(BuildContext context) {
@@ -345,7 +363,7 @@ class _HistoryTab extends StatelessWidget {
       builder: (context, state) {
         if (state is HelperHistoryInitial || state is HelperHistoryLoading) {
           return ListView.builder(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpacing.pageGutter),
             itemCount: 5,
             itemBuilder: (_, __) => const SkeletonBookingCard(),
           );
@@ -360,16 +378,16 @@ class _HistoryTab extends StatelessWidget {
           }
           return RefreshIndicator.adaptive(
             onRefresh: () async => cubit.load(),
-            color: BrandTokens.primaryBlue,
+            color: Theme.of(context).colorScheme.primary,
             child: ListView.builder(
               controller: scrollController,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpacing.pageGutter),
               itemCount: state.bookings.length + (state.hasMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index >= state.bookings.length) {
                   return const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator.adaptive()),
+                    child: Center(child: AppSpinner.large()),
                   );
                 }
                 return FadeInSlide(
@@ -381,9 +399,15 @@ class _HistoryTab extends StatelessWidget {
           );
         }
         if (state is HelperHistoryError) {
-          return _ErrorStateView(
-            message: state.message,
-            onRetry: () => cubit.load(),
+          return Center(
+            child: AppErrorState(
+              message: state.message,
+              onRetry: () => cubit.load(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xxl,
+                vertical: AppSpacing.xl,
+              ),
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -403,28 +427,34 @@ class _RequestTypeFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-      color: BrandTokens.surfaceWhite,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.sm + AppSpacing.xxs,
+      ),
+      color: palette.surface,
       child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
         children: RequestFilterType.values.map((filter) {
           final selectedFilter = filter == selected;
           return ChoiceChip(
             label: Text(filter.displayName),
             selected: selectedFilter,
             onSelected: (_) => onChanged(filter),
-            selectedColor: BrandTokens.primaryBlue.withValues(alpha: 0.15),
+            selectedColor: palette.primary.withValues(alpha: 0.15),
             labelStyle: BrandTypography.caption(
               weight: FontWeight.w600,
-              color: selectedFilter ? BrandTokens.primaryBlue : BrandTokens.textSecondary,
+              color: selectedFilter ? palette.primary : palette.textSecondary,
             ),
             side: BorderSide(
               color: selectedFilter
-                  ? BrandTokens.primaryBlue.withValues(alpha: 0.35)
-                  : BrandTokens.borderSoft,
+                  ? palette.primary.withValues(alpha: 0.35)
+                  : palette.border,
             ),
           );
         }).toList(),
@@ -439,73 +469,39 @@ class _FlowStatusStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + AppSpacing.xxs,
+      ),
       decoration: BoxDecoration(
-        color: BrandTokens.primaryBlue.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: BrandTokens.primaryBlue.withValues(alpha: 0.14),
-        ),
+        color: palette.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.primary.withValues(alpha: 0.14)),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.info_outline_rounded,
-            size: 16,
-            color: BrandTokens.primaryBlue,
+            size: AppSize.iconSm,
+            color: palette.primary,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               text,
-              style: BrandTypography.caption(color: BrandTokens.textSecondary),
+              style: BrandTypography.caption(color: palette.textSecondary),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ErrorStateView extends StatelessWidget {
-  final String message;
-  final Future<void> Function() onRetry;
-
-  const _ErrorStateView({
-    required this.message,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 46,
-              color: BrandTokens.dangerRed.withValues(alpha: 0.8),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: BrandTypography.caption(color: BrandTokens.textSecondary),
-            ),
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: () => onRetry(),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try again'),
-            ),
-          ],
-        ),
       ),
     );
   }

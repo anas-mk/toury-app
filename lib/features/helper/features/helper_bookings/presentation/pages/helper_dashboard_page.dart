@@ -9,6 +9,9 @@ import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_section_header.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/services/auth_service.dart';
 import '../cubit/helper_bookings_cubits.dart';
@@ -79,16 +82,20 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
       } else {
         await _dashCubit.loadOnce();
       }
-      
+
       final dashState = _dashCubit.state;
       if (dashState is HelperDashboardLoaded) {
         final availability = dashState.dashboard.availabilityState;
-        
+
         // 3. Initialize Location Service & SignalR
         // 4. Start Tracking if applicable
-        final trackingOk = await _locCubit.initialize(token, availability: availability);
-        
-        if (!trackingOk && availability == HelperAvailabilityState.availableNow) {
+        final trackingOk = await _locCubit.initialize(
+          token,
+          availability: availability,
+        );
+
+        if (!trackingOk &&
+            availability == HelperAvailabilityState.availableNow) {
           debugPrint('⚠️ [Dashboard] Tracking failed to start while Online');
         }
 
@@ -139,7 +146,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                   _startAutoTracking();
                   _requestsCubit.load(silent: true);
                 } else if (state.status == HelperAvailabilityState.offline) {
-                  _locCubit.setAvailabilityState(HelperAvailabilityState.offline);
+                  _locCubit.setAvailabilityState(
+                    HelperAvailabilityState.offline,
+                  );
                 }
               }
             },
@@ -147,17 +156,12 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           BlocListener<HelperLocationCubit, HelperLocationState>(
             listener: (context, state) {
               if (state is HelperLocationPermissionDenied) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Location permission required to go Online.'),
-                    backgroundColor: AppColor.errorColor,
-                    behavior: SnackBarBehavior.floating,
-                    action: SnackBarAction(
-                      label: 'Settings',
-                      textColor: Colors.white,
-                      onPressed: () => Geolocator.openAppSettings(),
-                    ),
-                  ),
+                AppSnackbar.show(
+                  context,
+                  message: 'Location permission required to go Online.',
+                  tone: AppSnackTone.danger,
+                  actionLabel: 'Settings',
+                  onAction: () => Geolocator.openAppSettings(),
                 );
               }
             },
@@ -173,18 +177,21 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
               slivers: [
                 _buildAppBar(context),
                 SliverToBoxAdapter(
-                  child: BlocBuilder<HelperDashboardCubit, HelperDashboardState>(
-                    builder: (context, state) {
-                      if (state is HelperDashboardLoading) return _buildShimmer();
-                      if (state is HelperDashboardLoaded) {
-                        return _buildBody(context, state.dashboard);
-                      }
-                      if (state is HelperDashboardError) {
-                        return _buildError(context, state.message);
-                      }
-                      return _buildShimmer();
-                    },
-                  ),
+                  child:
+                      BlocBuilder<HelperDashboardCubit, HelperDashboardState>(
+                        builder: (context, state) {
+                          if (state is HelperDashboardLoading) {
+                            return _buildShimmer();
+                          }
+                          if (state is HelperDashboardLoaded) {
+                            return _buildBody(context, state.dashboard);
+                          }
+                          if (state is HelperDashboardError) {
+                            return _buildError(context, state.message);
+                          }
+                          return _buildShimmer();
+                        },
+                      ),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
@@ -222,10 +229,17 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
-                  border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2), width: 2),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    width: 2,
+                  ),
                 ),
                 child: Center(
-                  child: Icon(Icons.person_rounded, color: theme.colorScheme.primary, size: 28),
+                  child: Icon(
+                    Icons.person_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 28,
+                  ),
                 ),
               ),
               const SizedBox(width: AppTheme.spaceMD),
@@ -236,7 +250,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                   Text(
                     'Welcome back,',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                      color: isDark
+                          ? AppColor.darkTextSecondary
+                          : AppColor.lightTextSecondary,
                     ),
                   ),
                   Text(
@@ -272,18 +288,31 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 if (_availCubit.state is AvailabilityUpdating) return;
                 if (dashboard.availabilityState == s) return;
 
-                if (dashboard.activeTrip != null && s != HelperAvailabilityState.offline) {
-                  _showSnack(context, 'You cannot change availability during an active trip', isError: true);
+                if (dashboard.activeTrip != null &&
+                    s != HelperAvailabilityState.offline) {
+                  _showSnack(
+                    context,
+                    'You cannot change availability during an active trip',
+                    isError: true,
+                  );
                   return;
                 }
 
                 if (s == HelperAvailabilityState.availableNow) {
-                  _locCubit.setAvailabilityState(HelperAvailabilityState.availableNow);
-                  final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
+                  _locCubit.setAvailabilityState(
+                    HelperAvailabilityState.availableNow,
+                  );
+                  final helper = await sl<HelperLocalDataSource>()
+                      .getCurrentHelper();
                   if (!context.mounted) return;
-                  final token = helper?.token ?? sl<AuthService>().getToken() ?? '';
+                  final token =
+                      helper?.token ?? sl<AuthService>().getToken() ?? '';
                   if (token.isEmpty) {
-                    _showSnack(context, 'Session expired. Please login again.', isError: true);
+                    _showSnack(
+                      context,
+                      'Session expired. Please login again.',
+                      isError: true,
+                    );
                     _locCubit.setAvailabilityState(dashboard.availabilityState);
                     return;
                   }
@@ -301,7 +330,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             builder: (context, state) {
               if (state is ActiveBookingLoaded && state.booking != null) {
                 final s = state.booking!.status.toLowerCase();
-                if (s.contains('complet') || s.contains('cancel') || s == 'ended') {
+                if (s.contains('complet') ||
+                    s.contains('cancel') ||
+                    s == 'ended') {
                   return const SizedBox.shrink();
                 }
 
@@ -319,24 +350,60 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             },
           ),
 
-          const FadeInSlide(delay: Duration(milliseconds: 150), child: SectionHeader(title: 'Overview')),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 150),
+            child: AppSectionHeader(
+              title: 'Overview',
+              padding: EdgeInsets.zero,
+            ),
+          ),
           const SizedBox(height: AppTheme.spaceMD),
-          FadeInSlide(delay: const Duration(milliseconds: 200), child: StatsGrid(dashboard: dashboard)),
+          FadeInSlide(
+            delay: const Duration(milliseconds: 200),
+            child: StatsGrid(dashboard: dashboard),
+          ),
           const SizedBox(height: AppTheme.spaceXL),
 
-          const FadeInSlide(delay: Duration(milliseconds: 250), child: SectionHeader(title: 'Service & Location')),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 250),
+            child: AppSectionHeader(
+              title: 'Service & Location',
+              padding: EdgeInsets.zero,
+            ),
+          ),
           const SizedBox(height: AppTheme.spaceMD),
-          const FadeInSlide(delay: Duration(milliseconds: 300), child: HelperLocationStatusWidget()),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 300),
+            child: HelperLocationStatusWidget(),
+          ),
           const SizedBox(height: AppTheme.spaceSM),
-          const FadeInSlide(delay: Duration(milliseconds: 350), child: ServiceAreaStatusCard()),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 350),
+            child: ServiceAreaStatusCard(),
+          ),
           const SizedBox(height: AppTheme.spaceXL),
 
-          const FadeInSlide(delay: Duration(milliseconds: 400), child: SectionHeader(title: 'Financials')),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 400),
+            child: AppSectionHeader(
+              title: 'Financials',
+              padding: EdgeInsets.zero,
+            ),
+          ),
           const SizedBox(height: AppTheme.spaceMD),
-          const FadeInSlide(delay: Duration(milliseconds: 450), child: EarningsPreviewCard()),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 450),
+            child: EarningsPreviewCard(),
+          ),
           const SizedBox(height: AppTheme.spaceXL),
 
-          const FadeInSlide(delay: Duration(milliseconds: 500), child: SectionHeader(title: 'Reputation')),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 500),
+            child: AppSectionHeader(
+              title: 'Reputation',
+              padding: EdgeInsets.zero,
+            ),
+          ),
           const SizedBox(height: AppTheme.spaceMD),
           FadeInSlide(
             delay: const Duration(milliseconds: 550),
@@ -350,9 +417,18 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           ),
           const SizedBox(height: AppTheme.spaceXL),
 
-          const FadeInSlide(delay: Duration(milliseconds: 600), child: SectionHeader(title: 'Quick Actions')),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 600),
+            child: AppSectionHeader(
+              title: 'Quick Actions',
+              padding: EdgeInsets.zero,
+            ),
+          ),
           const SizedBox(height: AppTheme.spaceMD),
-          const FadeInSlide(delay: Duration(milliseconds: 650), child: QuickActionsGrid()),
+          const FadeInSlide(
+            delay: Duration(milliseconds: 650),
+            child: QuickActionsGrid(),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -363,78 +439,29 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     return Padding(
       padding: const EdgeInsets.all(AppTheme.spaceLG),
       child: Column(
-        children: List.generate(4, (i) => _ShimmerBox(height: i == 0 ? 120 : 100)),
-      ),
-    );
-  }
-
-  Widget _buildError(BuildContext context, String message) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 40),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
-            const SizedBox(height: AppTheme.spaceLG),
-            Text(
-                'Something went wrong',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
-            ),
-            const SizedBox(height: AppTheme.spaceSM),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-            ),
-            const SizedBox(height: AppTheme.spaceXL),
-            ElevatedButton(
-              onPressed: _loadAll,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
+        children: List.generate(
+          4,
+          (i) => _ShimmerBox(height: i == 0 ? 120 : 100),
         ),
       ),
     );
   }
 
+  Widget _buildError(BuildContext context, String message) {
+    return AppErrorState(message: message, onRetry: _loadAll);
+  }
+
   void _showSnack(BuildContext context, String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? AppColor.errorColor : AppColor.accentColor,
-        behavior: SnackBarBehavior.floating,
-      ),
+    AppSnackbar.show(
+      context,
+      message: msg,
+      tone: isError ? AppSnackTone.danger : AppSnackTone.success,
     );
   }
 
   Future<void> _startAutoTracking() async {
     final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
     if (helper?.token != null) _locCubit.initialize(helper!.token!);
-  }
-}
-
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Text(
-      title,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.bold,
-        letterSpacing: -0.5,
-        color: isDark ? Colors.white : Colors.black,
-      ),
-    );
   }
 }
 

@@ -3,10 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/services/realtime/app_realtime_cubit.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/di/injection_container.dart';
@@ -62,21 +65,21 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       child: BlocListener<CancelBookingCubit, CancelBookingState>(
         listener: (context, state) {
           if (state is CancelBookingSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Booking cancelled successfully.')),
+            AppSnackbar.show(
+              context,
+              message: 'Booking cancelled successfully.',
+              tone: AppSnackTone.success,
             );
             context.go(AppRouter.home);
           } else if (state is CancelBookingError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColor.errorColor,
-              ),
+            AppSnackbar.show(
+              context,
+              message: state.message,
+              tone: AppSnackTone.danger,
             );
           }
         },
-        child: Scaffold(
-          backgroundColor: BrandTokens.bgSoft,
+        child: AppScaffold(
           body: BlocBuilder<BookingStatusCubit, BookingStatusState>(
             builder: (context, state) {
               if (state is BookingStatusLoading &&
@@ -114,10 +117,10 @@ class _BookingDetailsView extends StatelessWidget {
         SliverToBoxAdapter(child: _StatusHero(booking: booking)),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(
-            AppTheme.spaceLG,
-            AppTheme.spaceMD,
-            AppTheme.spaceLG,
-            AppTheme.space2XL,
+            AppSpacing.xxl,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+            AppSpacing.huge,
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate.fixed([

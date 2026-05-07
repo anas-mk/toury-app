@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 
@@ -65,7 +64,7 @@ class HomeView extends StatelessWidget {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   const SizedBox(height: AppTheme.spaceMD),
-                  
+
                   Container(
                     padding: const EdgeInsets.all(AppTheme.spaceLG),
                     decoration: BoxDecoration(
@@ -97,7 +96,7 @@ class HomeView extends StatelessWidget {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: AppTheme.spaceXL * 2),
                 ]),
               ),

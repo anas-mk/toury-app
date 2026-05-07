@@ -9,6 +9,8 @@ import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../../core/widgets/app_snackbar.dart';
+import '../../../../../../../core/widgets/custom_bottom_sheet.dart';
 import '../../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../../../../../core/widgets/brand_widgets.dart';
 import '../../../domain/entities/app_payment_method.dart';
@@ -139,9 +141,7 @@ class _ReviewViewState extends State<_ReviewView> {
   Future<void> _onConfirmPressed(BuildContext context) async {
     final loc = AppLocalizations.of(context);
     if (!_canConfirm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(loc.bookingReviewValidationSnackbar)),
-      );
+      AppSnackbar.warning(context, loc.bookingReviewValidationSnackbar);
       return;
     }
     if (_paymentMethod == AppPaymentMethod.mockCard && !_mockCardAuthorized) {
@@ -162,12 +162,7 @@ class _ReviewViewState extends State<_ReviewView> {
     return BlocConsumer<InstantBookingCubit, InstantBookingState>(
       listener: (context, state) {
         if (state is InstantBookingError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: AppColor.errorColor,
-            ),
-          );
+          AppSnackbar.error(context, state.message);
         }
         if (state is InstantBookingCreated || state is InstantBookingWaiting) {
           if (_navigatedToWaiting) return;
@@ -365,12 +360,10 @@ class _ReviewViewState extends State<_ReviewView> {
 }
 
 Future<bool> _showMockCardPrepaySheet(BuildContext context) async {
-  return await showModalBottomSheet<bool>(
+  return await CustomBottomSheet.show<bool>(
         context: context,
         isDismissible: false,
-        enableDrag: false,
-        backgroundColor: Colors.transparent,
-        builder: (_) => const _MockCardPrepaySheet(),
+        child: const _MockCardPrepaySheet(),
       ) ??
       false;
 }
@@ -742,9 +735,7 @@ class _PriceEstimateFallback extends StatelessWidget {
           BrandOutlinedButton(
             label: loc.retry,
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(loc.bookingReviewPriceRetry)),
-              );
+              AppSnackbar.info(context, loc.bookingReviewPriceRetry);
             },
           ),
         ],

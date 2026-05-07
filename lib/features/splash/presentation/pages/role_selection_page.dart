@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/app_router.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/app_dimens.dart';
+import '../../../../core/widgets/app_scaffold.dart';
 
 class RoleSelectionPage extends StatefulWidget {
   const RoleSelectionPage({super.key});
@@ -11,7 +13,8 @@ class RoleSelectionPage extends StatefulWidget {
   State<RoleSelectionPage> createState() => _RoleSelectionPageState();
 }
 
-class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTickerProviderStateMixin {
+class _RoleSelectionPageState extends State<RoleSelectionPage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
@@ -24,14 +27,12 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
       duration: const Duration(milliseconds: 1000),
     )..forward();
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
 
-    _slideAnimation = Tween<double>(begin: 30, end: 0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
+    _slideAnimation = Tween<double>(
+      begin: 30,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
   }
 
   @override
@@ -45,7 +46,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
     final theme = Theme.of(context);
     final loc = AppLocalizations.of(context);
 
-    return Scaffold(
+    return AppScaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -55,9 +56,9 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.colorScheme.primary.withOpacity(0.05),
+              theme.colorScheme.primary.withValues(alpha: 0.05),
               theme.scaffoldBackgroundColor,
-              theme.colorScheme.secondary.withOpacity(0.03),
+              theme.colorScheme.secondary.withValues(alpha: 0.03),
             ],
           ),
         ),
@@ -81,11 +82,13 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
                         );
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xxl,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(height: AppTheme.space2XL),
+                            const SizedBox(height: AppSpacing.huge),
                             Center(
                               child: Image.asset(
                                 'assets/logo/logo.png',
@@ -93,48 +96,62 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
                                 fit: BoxFit.contain,
                               ),
                             ),
-                            const SizedBox(height: AppTheme.space2XL),
+                            const SizedBox(height: AppSpacing.huge),
                             Text(
-                              loc.translate("continue_as") ?? "Continue as",
+                              loc.translate('continue_as'),
                               style: theme.textTheme.displaySmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                               textAlign: TextAlign.center,
                             ),
-                            const SizedBox(height: AppTheme.spaceSM),
+                            const SizedBox(height: AppSpacing.sm),
                             Text(
-                              loc.translate("select_role") ?? "Please select your role to continue",
+                              loc.translate('select_role'),
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
                               ),
                               textAlign: TextAlign.center,
                             ),
-                            const SizedBox(height: AppTheme.space2XL),
+                            const SizedBox(height: AppSpacing.huge),
                             _buildRoleCard(
                               context,
-                              title: loc.translate("tourist") ?? "Tourist",
-                              subtitle: "Discover places and book amazing trips",
+                              title: loc.translate('tourist'),
+                              subtitle:
+                                  "Discover places and book amazing trips",
                               icon: Icons.travel_explore_rounded,
                               color: theme.colorScheme.primary,
-                              onTap: () => context.push(AppRouter.login, extra: 'from_role_selection'),
+                              onTap: () => context.push(
+                                AppRouter.login,
+                                extra: 'from_role_selection',
+                              ),
                             ),
-                            const SizedBox(height: AppTheme.spaceLG),
+                            const SizedBox(height: AppSpacing.xxl),
                             _buildRoleCard(
                               context,
-                              title: loc.translate("helper") ?? "Helper",
-                              subtitle: "Join as a partner and earn while helping",
+                              title: loc.translate('helper'),
+                              subtitle:
+                                  "Join as a partner and earn while helping",
                               icon: Icons.handshake_rounded,
                               color: theme.colorScheme.secondary,
-                              onTap: () => context.push(AppRouter.helperLogin, extra: 'from_role_selection'),
+                              onTap: () => context.push(
+                                AppRouter.helperLogin,
+                                extra: 'from_role_selection',
+                              ),
                             ),
                             const Spacer(),
-                            const SizedBox(height: AppTheme.spaceXL),
+                            const SizedBox(height: AppSpacing.xl),
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppTheme.spaceXL),
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.xl,
+                              ),
                               child: Text(
                                 "By continuing, you agree to our Terms and Privacy Policy",
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.4,
+                                  ),
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -167,16 +184,18 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         child: Ink(
-          padding: const EdgeInsets.all(AppTheme.spaceXL),
+          padding: const EdgeInsets.all(AppSpacing.xl),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-            border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.08)),
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
+            border: Border.all(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+            ),
             boxShadow: [
               BoxShadow(
-                color: theme.shadowColor.withOpacity(0.05),
+                color: theme.shadowColor.withValues(alpha: 0.05),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -185,14 +204,14 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(AppTheme.spaceLG),
+                padding: const EdgeInsets.all(AppSpacing.xxl),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Icon(icon, color: color, size: 32),
               ),
-              const SizedBox(width: AppTheme.spaceLG),
+              const SizedBox(width: AppSpacing.xxl),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,11 +222,13 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                   ],
@@ -216,7 +237,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> with SingleTicker
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
-                color: theme.colorScheme.onSurface.withOpacity(0.2),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
               ),
             ],
           ),

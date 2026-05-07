@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../domain/entities/helper_earnings_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 
@@ -31,26 +38,25 @@ class _EarningsPageState extends State<EarningsPage> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _cubit,
-      child: Scaffold(
-        backgroundColor: const Color(0xFF0A0E1A),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF0D1120),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          title: const Text('Earnings',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        ),
+      child: AppScaffold(
+        appBar: const BasicAppBar(title: 'Earnings'),
         body: BlocBuilder<EarningsCubit, EarningsState>(
           builder: (context, state) {
             if (state is EarningsLoading) {
-              return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+              return const Center(child: AppLoading(fullScreen: false));
             }
             if (state is EarningsError) {
-              return _buildError(state.message);
+              return AppErrorState(
+                message: state.message,
+                onRetry: () => _cubit.load(),
+              );
             }
             if (state is EarningsLoaded) {
-              return _buildContent(state.earnings);
+              return RefreshIndicator.adaptive(
+                onRefresh: () async => _cubit.load(),
+                color: Theme.of(context).colorScheme.primary,
+                child: _buildContent(context, state.earnings),
+              );
             }
             return const SizedBox.shrink();
           },
@@ -59,113 +65,77 @@ class _EarningsPageState extends State<EarningsPage> {
     );
   }
 
-  Widget _buildContent(HelperEarnings e) {
-    return RefreshIndicator(
-      onRefresh: () async => _cubit.load(),
-      color: const Color(0xFF6C63FF),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-        children: [
-          _HeroCard(earnings: e),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                  child: _PCard(
-                      label: 'This Week',
-                      amount: e.week,
-                      color: const Color(0xFF6C63FF))),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: _PCard(
-                      label: 'This Month',
-                      amount: e.month,
-                      color: const Color(0xFFFFAB40))),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _StatsCard(trips: e.completedTrips),
-          const SizedBox(height: 20),
-          if (e.chartData.isNotEmpty) ...[
-            const Text('Weekly Overview',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            _BarChart(data: e.chartData),
-            const SizedBox(height: 20),
-          ],
-          const Text('Recent Transactions',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          if (e.recentEarnings.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Column(
-                  children: [
-                    Icon(Icons.receipt_long_rounded,
-                        color: Colors.white24, size: 48),
-                    SizedBox(height: 8),
-                    Text('No transactions yet',
-                        style: TextStyle(color: Colors.white38)),
-                  ],
-                ),
-              ),
-            )
-          else
-            ...e.recentEarnings.map((item) => _TransactionTile(item: item)),
-        ],
-      ),
-    );
-  }
+  Widget _buildContent(BuildContext context, HelperEarnings e) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
 
-  Widget _buildError(String msg) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageGutter,
+        AppSpacing.sm,
+        AppSpacing.pageGutter,
+        AppSpacing.huge,
+      ),
+      children: [
+        _HeroCard(earnings: e, palette: palette),
+        const SizedBox(height: AppSpacing.md + AppSpacing.xs),
+        Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF6B6B).withOpacity(0.1),
-                shape: BoxShape.circle,
+            Expanded(
+              child: _PCard(
+                label: 'This Week',
+                amount: e.week,
+                accent: palette.primary,
+                palette: palette,
               ),
-              child: const Icon(Icons.wifi_off_rounded,
-                  color: Color(0xFFFF6B6B), size: 44),
             ),
-            const SizedBox(height: 20),
-            const Text('Could not load earnings',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(msg,
-                style: const TextStyle(color: Colors.white38),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-              onPressed: () => _cubit.load(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _PCard(
+                label: 'This Month',
+                amount: e.month,
+                accent: palette.accent,
+                palette: palette,
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: AppSpacing.md + AppSpacing.xs),
+        _StatsCard(trips: e.completedTrips, palette: palette),
+        const SizedBox(height: AppSpacing.xl),
+        if (e.chartData.isNotEmpty) ...[
+          Text(
+            'Weekly Overview',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
+          _BarChart(data: e.chartData, palette: palette),
+          const SizedBox(height: AppSpacing.xl),
+        ],
+        Text(
+          'Recent Transactions',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
+        if (e.recentEarnings.isEmpty)
+          AppEmptyState(
+            icon: Icons.receipt_long_rounded,
+            title: 'No transactions yet',
+            message: 'Completed trip payouts will appear here.',
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+          )
+        else
+          ...e.recentEarnings.map(
+            (item) => _TransactionTile(item: item, palette: palette),
+          ),
+      ],
     );
   }
 }
@@ -174,47 +144,65 @@ class _EarningsPageState extends State<EarningsPage> {
 
 class _HeroCard extends StatelessWidget {
   final HelperEarnings earnings;
-  const _HeroCard({required this.earnings});
+  final AppColors palette;
+
+  const _HeroCard({required this.earnings, required this.palette});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(AppSpacing.giga),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00C896), Color(0xFF007A5E)],
+        gradient: LinearGradient(
+          colors: [
+            palette.success,
+            Color.lerp(palette.success, Colors.black, 0.35)!,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00C896).withOpacity(0.3),
+            color: palette.success.withValues(alpha: 0.35),
             blurRadius: 24,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, AppSpacing.sm),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Today's Earnings",
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 6),
-          Text('\$${earnings.today.toStringAsFixed(2)}',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 44,
-                  fontWeight: FontWeight.bold,
-                  height: 1.1)),
-          const SizedBox(height: 14),
+          Text(
+            "Today's Earnings",
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
+          Text(
+            '\$${earnings.today.toStringAsFixed(2)}',
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md + AppSpacing.xs),
           Row(
             children: [
-              const Icon(Icons.trending_up_rounded,
-                  color: Colors.white70, size: 16),
-              const SizedBox(width: 6),
-              Text('${earnings.completedTrips} trips completed',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              Icon(
+                Icons.trending_up_rounded,
+                color: Colors.white.withValues(alpha: 0.85),
+                size: AppSize.iconSm,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                '${earnings.completedTrips} trips completed',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
             ],
           ),
         ],
@@ -226,28 +214,43 @@ class _HeroCard extends StatelessWidget {
 class _PCard extends StatelessWidget {
   final String label;
   final double amount;
-  final Color color;
-  const _PCard(
-      {required this.label, required this.amount, required this.color});
+  final Color accent;
+  final AppColors palette;
+
+  const _PCard({
+    required this.label,
+    required this.amount,
+    required this.accent,
+    required this.palette,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F3C),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(color: Colors.white54, fontSize: 12)),
-          const SizedBox(height: 6),
-          Text('\$${amount.toStringAsFixed(0)}',
-              style: TextStyle(
-                  color: color, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '\$${amount.toStringAsFixed(0)}',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );
@@ -256,37 +259,52 @@ class _PCard extends StatelessWidget {
 
 class _StatsCard extends StatelessWidget {
   final int trips;
-  const _StatsCard({required this.trips});
+  final AppColors palette;
+
+  const _StatsCard({required this.trips, required this.palette});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(20)),
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: palette.border.withValues(alpha: 0.65)),
+      ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(AppSpacing.sm + AppSpacing.xs),
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
+              color: palette.primarySoft.withValues(
+                alpha: palette.isDark ? 0.45 : 0.9,
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.md + AppSpacing.xs),
             ),
-            child: const Icon(Icons.directions_car_rounded,
-                color: Color(0xFF6C63FF), size: 22),
+            child: Icon(
+              Icons.directions_car_rounded,
+              color: palette.primary,
+              size: AppSize.iconMd + AppSpacing.xxs,
+            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpacing.md + AppSpacing.xs),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$trips',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold)),
-              const Text('Total Completed Trips',
-                  style: TextStyle(color: Colors.white54, fontSize: 12)),
+              Text(
+                '$trips',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'Total Completed Trips',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.textSecondary,
+                ),
+              ),
             ],
           ),
         ],
@@ -295,21 +313,24 @@ class _StatsCard extends StatelessWidget {
   }
 }
 
-// ── Bar Chart ─────────────────────────────────────────────────────────────────
-
 class _BarChart extends StatelessWidget {
   final List<ChartDataPoint> data;
-  const _BarChart({required this.data});
+  final AppColors palette;
+
+  const _BarChart({required this.data, required this.palette});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final maxV = data.fold(0.0, (p, d) => d.value > p ? d.value : p);
     return Container(
       height: 160,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(20)),
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: palette.border.withValues(alpha: 0.5)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -319,28 +340,36 @@ class _BarChart extends StatelessWidget {
           return Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Text('\$${d.value.toStringAsFixed(0)}',
-                  style:
-                      const TextStyle(color: Colors.white38, fontSize: 9)),
-              const SizedBox(height: 4),
+              Text(
+                '\$${d.value.toStringAsFixed(0)}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.textMuted,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
               AnimatedContainer(
-                duration: const Duration(milliseconds: 700),
+                duration: AppDurations.slow,
                 curve: Curves.easeOut,
                 width: 22,
                 height: barH.clamp(4.0, 90.0),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6C63FF), Color(0xFF00C896)],
+                  gradient: LinearGradient(
+                    colors: [palette.primary, palette.success],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.xs + AppSpacing.xxs,
+                  ),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(d.label,
-                  style:
-                      const TextStyle(color: Colors.white38, fontSize: 10)),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                d.label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.textMuted,
+                ),
+              ),
             ],
           );
         }).toList(),
@@ -349,56 +378,64 @@ class _BarChart extends StatelessWidget {
   }
 }
 
-// ── Transaction Tile ──────────────────────────────────────────────────────────
-
 class _TransactionTile extends StatelessWidget {
   final EarningItem item;
-  const _TransactionTile({required this.item});
+  final AppColors palette;
+
+  const _TransactionTile({required this.item, required this.palette});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm + AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-          color: const Color(0xFF1A1F3C),
-          borderRadius: BorderRadius.circular(16)),
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: palette.border.withValues(alpha: 0.55)),
+      ),
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF00C896).withOpacity(0.1),
+              color: palette.successSoft.withValues(alpha: 0.6),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.payments_rounded,
-                color: Color(0xFF00C896), size: 20),
+            child: Icon(
+              Icons.payments_rounded,
+              color: palette.success,
+              size: AppSize.iconMd,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.travelerName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13)),
+                Text(
+                  item.travelerName,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 Text(
                   '${item.date.day}/${item.date.month}/${item.date.year}',
-                  style:
-                      const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.textSecondary,
+                  ),
                 ),
               ],
             ),
           ),
           Text(
             '+\$${item.amount.toStringAsFixed(2)}',
-            style: const TextStyle(
-                color: Color(0xFF00C896),
-                fontWeight: FontWeight.bold,
-                fontSize: 15),
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: palette.success,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),

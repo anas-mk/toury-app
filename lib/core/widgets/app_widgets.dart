@@ -20,6 +20,7 @@ export 'app_loading.dart';
 export 'app_network_image.dart';
 export 'app_section_header.dart';
 export 'app_snackbar.dart';
+export 'app_scaffold.dart';
 export 'basic_app_bar.dart';
 export 'booking_status_chip.dart';
 export 'brand_widgets.dart';

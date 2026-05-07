@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
+import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../cubit/helper_invoices_cubit.dart';
 
@@ -34,43 +38,29 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return BlocProvider.value(
       value: _cubit,
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Receipt'),
-        ),
+      child: AppScaffold(
+        appBar: const BasicAppBar(title: 'Receipt', centerTitle: false),
         body: BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
           builder: (context, state) {
             if (state is InvoiceHtmlLoading) {
-              return const Center(child: CircularProgressIndicator(color: AppColor.primaryColor));
+              return const Center(child: AppLoading(fullScreen: false));
             }
 
             if (state is InvoicesError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
-                    const SizedBox(height: 12),
-                    Text(state.message, style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
-                  ],
-                ),
+              return AppErrorState(
+                title: 'Receipt unavailable',
+                message: state.message,
+                onRetry: () => _cubit.loadHtml(widget.invoiceId),
               );
             }
 
             if (state is InvoiceHtmlLoaded) {
-              // Render HTML as plain receipt card since webview is not installed
-              return _HtmlReceiptCard(html: state.html, invoiceId: state.invoiceId);
+              return _HtmlReceiptCard(
+                html: state.html,
+                invoiceId: state.invoiceId,
+              );
             }
 
             return const SizedBox.shrink();
@@ -100,66 +90,91 @@ class _HtmlReceiptCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
     final plainText = _stripTags(html);
 
     return Column(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.spaceLG),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.xxl),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.xxl),
+                  decoration: BoxDecoration(
+                    color: palette.surfaceElevated,
+                    borderRadius: BorderRadius.circular(
+                      AppRadius.md + AppSpacing.xs,
+                    ),
+                    border: Border.all(color: palette.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: palette.isDark ? 0.35 : 0.06,
+                        ),
+                        blurRadius: AppSpacing.xxl,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: SelectableText(
-                plainText,
-                style: TextStyle(
-                  color: isDark ? Colors.white : const Color(0xFF1A1A2E),
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  height: 1.6,
+                  child: SelectableText(
+                    plainText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.textPrimary,
+                      fontFamily: 'monospace',
+                      height: 1.6,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
         Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.pageGutter,
+            AppSpacing.md,
+            AppSpacing.pageGutter,
+            AppSpacing.xxl + MediaQuery.paddingOf(context).bottom,
+          ),
           decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
-            border: Border(top: BorderSide(color: AppColor.lightBorder)),
+            color: palette.scaffold,
+            border: Border(top: BorderSide(color: palette.border)),
           ),
           child: Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    // With url_launcher: launchUrl(Uri.parse('${ApiConfig.baseUrl}/helper/invoices/$invoiceId/view'))
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Add url_launcher to open in browser'),
-                        backgroundColor: theme.dialogBackgroundColor,
-                      ),
+                    AppSnackbar.info(
+                      context,
+                      'Add url_launcher to open this receipt in the browser.',
                     );
                   },
-                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                  label: const Text('Open in Browser'),
+                  icon: Icon(
+                    Icons.open_in_browser_rounded,
+                    size: AppSize.iconSm,
+                    color: palette.textPrimary,
+                  ),
+                  label: Text(
+                    'Open in Browser',
+                    style: TextStyle(color: palette.textPrimary),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: isDark ? Colors.white70 : Colors.black87,
-                    side: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    foregroundColor: palette.textPrimary,
+                    side: BorderSide(color: palette.border),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.md + AppSpacing.sm,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppRadius.sm + AppSpacing.xs,
+                      ),
+                    ),
                   ),
                 ),
               ),

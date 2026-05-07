@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../../core/widgets/app_loading.dart';
 import '../../../domain/entities/helper_availability_state.dart';
 import '../../cubit/helper_bookings_cubits.dart';
 
@@ -20,26 +22,29 @@ class AvailabilityToggleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOnline = currentStatus == HelperAvailabilityState.availableNow;
-    
+
     return BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
       builder: (context, availState) {
         final isUpdating = availState is AvailabilityUpdating;
-        
+
         return AnimatedContainer(
           duration: const Duration(milliseconds: 500),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppSpacing.pageGutter),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isOnline
-                  ? [BrandTokens.primaryBlue, BrandTokens.primaryBlue.withValues(alpha: 0.8)]
+                  ? [
+                      BrandTokens.primaryBlue,
+                      BrandTokens.primaryBlue.withValues(alpha: 0.8),
+                    ]
                   : [BrandTokens.surfaceWhite, BrandTokens.surfaceWhite],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: isOnline 
-                  ? Colors.white.withValues(alpha: 0.2) 
+              color: isOnline
+                  ? Colors.white.withValues(alpha: 0.2)
                   : BrandTokens.borderSoft.withValues(alpha: 0.6),
             ),
             boxShadow: [
@@ -69,14 +74,18 @@ class AvailabilityToggleCard extends StatelessWidget {
                         Text(
                           isOnline ? 'Active & Online' : 'Currently Offline',
                           style: BrandTypography.title(
-                            color: isOnline ? Colors.white : BrandTokens.textPrimary,
+                            color: isOnline
+                                ? Colors.white
+                                : BrandTokens.textPrimary,
                           ),
                         ),
                         Text(
-                          isOnline ? 'You are visible to travelers' : 'Tap the toggle to go online',
+                          isOnline
+                              ? 'You are visible to travelers'
+                              : 'Tap the toggle to go online',
                           style: BrandTypography.caption(
-                            color: isOnline 
-                                ? Colors.white.withValues(alpha: 0.8) 
+                            color: isOnline
+                                ? Colors.white.withValues(alpha: 0.8)
                                 : BrandTokens.textSecondary,
                           ),
                         ),
@@ -84,19 +93,26 @@ class AvailabilityToggleCard extends StatelessWidget {
                     ),
                   ),
                   if (isUpdating)
-                    const SizedBox(
+                    SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(
-                        color: BrandTokens.primaryBlue, 
-                        strokeWidth: 2
+                      child: AppSpinner(
+                        size: 22,
+                        strokeWidth: 2,
+                        color: isOnline
+                            ? Colors.white
+                            : BrandTokens.primaryBlue,
                       ),
                     )
                   else
                     Switch.adaptive(
                       value: isOnline,
                       onChanged: (val) {
-                        onStatusChanged(val ? HelperAvailabilityState.availableNow : HelperAvailabilityState.offline);
+                        onStatusChanged(
+                          val
+                              ? HelperAvailabilityState.availableNow
+                              : HelperAvailabilityState.offline,
+                        );
                       },
                       activeTrackColor: Colors.white.withValues(alpha: 0.3),
                       inactiveTrackColor: BrandTokens.borderSoft,
@@ -105,8 +121,10 @@ class AvailabilityToggleCard extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Divider(
-                color: isOnline ? Colors.white.withValues(alpha: 0.15) : BrandTokens.borderSoft, 
-                height: 1
+                color: isOnline
+                    ? Colors.white.withValues(alpha: 0.15)
+                    : BrandTokens.borderSoft,
+                height: 1,
               ),
               const SizedBox(height: 16),
               SingleChildScrollView(
@@ -148,10 +166,17 @@ class _PulseIndicator extends StatelessWidget {
           width: 12,
           height: 12,
           decoration: BoxDecoration(
-            color: isOnline ? Colors.white : BrandTokens.textSecondary.withValues(alpha: 0.3),
+            color: isOnline
+                ? Colors.white
+                : BrandTokens.textSecondary.withValues(alpha: 0.3),
             shape: BoxShape.circle,
             boxShadow: isOnline
-                ? [BoxShadow(color: Colors.white.withValues(alpha: 0.8), blurRadius: 10)]
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      blurRadius: 10,
+                    ),
+                  ]
                 : null,
           ),
         ),
@@ -182,18 +207,22 @@ class _StatusChip extends StatelessWidget {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? (isOnline ? Colors.white : BrandTokens.primaryBlue) 
-              : (isOnline ? Colors.white.withValues(alpha: 0.1) : BrandTokens.borderSoft.withValues(alpha: 0.3)),
+          color: isSelected
+              ? (isOnline ? Colors.white : BrandTokens.primaryBlue)
+              : (isOnline
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : BrandTokens.borderSoft.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           _label(status),
-            style: BrandTypography.caption(
-                color: isSelected 
-                    ? (isOnline ? BrandTokens.primaryBlue : Colors.white) 
-                    : (isOnline ? Colors.white.withValues(alpha: 0.7) : BrandTokens.textSecondary),
-            ),
+          style: BrandTypography.caption(
+            color: isSelected
+                ? (isOnline ? BrandTokens.primaryBlue : Colors.white)
+                : (isOnline
+                      ? Colors.white.withValues(alpha: 0.7)
+                      : BrandTokens.textSecondary),
+          ),
         ),
       ),
     );
@@ -201,10 +230,14 @@ class _StatusChip extends StatelessWidget {
 
   String _label(HelperAvailabilityState s) {
     switch (s) {
-      case HelperAvailabilityState.availableNow:  return '🟢 Online';
-      case HelperAvailabilityState.scheduledOnly: return '📅 Scheduled';
-      case HelperAvailabilityState.busy:          return '🔴 Busy';
-      case HelperAvailabilityState.offline:       return '⚫ Offline';
+      case HelperAvailabilityState.availableNow:
+        return '🟢 Online';
+      case HelperAvailabilityState.scheduledOnly:
+        return '📅 Scheduled';
+      case HelperAvailabilityState.busy:
+        return '🔴 Busy';
+      case HelperAvailabilityState.offline:
+        return '⚫ Offline';
     }
   }
 }

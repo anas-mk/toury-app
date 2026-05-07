@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../../../../core/widgets/hero_header.dart';
 
 /// Step 1 - booking entry point.
@@ -19,10 +21,13 @@ class BookingHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: ListView(
         padding: EdgeInsets.zero,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         children: [
           HeroBand(
             title: 'Book a helper',
@@ -33,10 +38,10 @@ class BookingHomePage extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              AppTheme.spaceLG,
-              AppTheme.spaceLG,
-              AppTheme.spaceLG,
-              AppTheme.space2XL,
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.huge,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -44,11 +49,11 @@ class BookingHomePage extends StatelessWidget {
                 _PrimaryInstantCard(
                   onTap: () => context.push(AppRouter.instantTripDetails),
                 ),
-                const SizedBox(height: AppTheme.spaceMD),
+                const SizedBox(height: AppSpacing.lg),
                 _SecondaryScheduledCard(
                   onTap: () => context.push(AppRouter.scheduledSearch),
                 ),
-                const SizedBox(height: AppTheme.spaceLG),
+                const SizedBox(height: AppSpacing.xxl),
                 const _WhyStrip(),
               ],
             ),
@@ -86,7 +91,7 @@ class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
         onTapUp: (_) => setState(() => _down = false),
         onTap: widget.onTap,
         child: Container(
-          padding: const EdgeInsets.all(AppTheme.spaceLG),
+          padding: const EdgeInsets.all(AppSpacing.xxl),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
@@ -109,13 +114,12 @@ class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusFull),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                     ),
                     child: const Text(
                       'INSTANT',
@@ -143,7 +147,7 @@ class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppTheme.spaceMD),
+              const SizedBox(height: AppSpacing.lg),
               const Text(
                 'Book a helper now',
                 style: TextStyle(
@@ -154,7 +158,7 @@ class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
                   letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: AppSpacing.xs + AppSpacing.xxs),
               const Text(
                 'Match instantly with a verified local helper near you. '
                 'Most helpers respond in under 5 minutes.',
@@ -165,19 +169,18 @@ class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: AppTheme.spaceMD),
+              const SizedBox(height: AppSpacing.lg),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceMD,
-                      vertical: 10,
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm + AppSpacing.xs,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius:
-                          BorderRadius.circular(AppTheme.radiusFull),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -190,7 +193,7 @@ class _PrimaryInstantCardState extends State<_PrimaryInstantCard> {
                             fontSize: 13,
                           ),
                         ),
-                        SizedBox(width: 6),
+                        SizedBox(width: AppSpacing.sm),
                         Icon(
                           Icons.arrow_forward_rounded,
                           color: AppColor.secondaryColor,
@@ -227,7 +230,7 @@ class _SecondaryScheduledCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppTheme.radiusXL),
         child: Container(
-          padding: const EdgeInsets.all(AppTheme.spaceMD),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppTheme.radiusXL),
             border: Border.all(color: AppColor.lightBorder),
@@ -247,7 +250,7 @@ class _SecondaryScheduledCard extends StatelessWidget {
                   size: 24,
                 ),
               ),
-              const SizedBox(width: AppTheme.spaceMD),
+              const SizedBox(width: AppSpacing.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +317,7 @@ class _WhyStrip extends StatelessWidget {
       children: [
         for (var i = 0; i < items.length; i++) ...[
           Expanded(child: _WhyChip(data: items[i])),
-          if (i != items.length - 1) const SizedBox(width: AppTheme.spaceSM),
+          if (i != items.length - 1) const SizedBox(width: AppSpacing.sm),
         ],
       ],
     );
@@ -343,8 +346,8 @@ class _WhyChip extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSM,
-        vertical: AppTheme.spaceMD,
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.lg,
       ),
       decoration: BoxDecoration(
         color: theme.cardColor,
@@ -362,7 +365,7 @@ class _WhyChip extends StatelessWidget {
             ),
             child: Icon(data.icon, color: data.color, size: 18),
           ),
-          const SizedBox(height: AppTheme.spaceSM),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             data.title,
             style: theme.textTheme.bodyMedium?.copyWith(

@@ -9,6 +9,7 @@ import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/app_payment_method.dart';
 import '../../../domain/entities/booking_detail.dart';
@@ -376,17 +377,10 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
         ),
       );
     } else if (state is InstantBookingCancelled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Request cancelled: ${state.reason}')),
-      );
+      AppSnackbar.info(context, 'Request cancelled: ${state.reason}');
       context.go(AppRouter.bookingHome);
     } else if (state is InstantBookingError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.message),
-          backgroundColor: AppColor.errorColor,
-        ),
-      );
+      AppSnackbar.error(context, state.message);
     }
   }
 }

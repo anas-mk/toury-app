@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
@@ -66,7 +67,7 @@ class _LoginPageState extends State<LoginPage>
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
@@ -82,13 +83,11 @@ class _LoginPageState extends State<LoginPage>
             child: SlideTransition(
               position: _slideAnimation,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spaceLG,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: AppTheme.spaceLG),
+                    const SizedBox(height: AppSpacing.xxl),
                     // Logo
                     Center(
                       child: Hero(
@@ -100,7 +99,7 @@ class _LoginPageState extends State<LoginPage>
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppTheme.spaceXL),
+                    const SizedBox(height: AppSpacing.xxxl),
 
                     // Welcome Text
                     Text(
@@ -110,15 +109,17 @@ class _LoginPageState extends State<LoginPage>
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppTheme.spaceSM),
+                    const SizedBox(height: AppSpacing.sm),
                     Text(
                       "Enter your email to continue",
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppTheme.space2XL),
+                    const SizedBox(height: AppSpacing.huge),
 
                     // Login Form
                     Form(
@@ -131,7 +132,7 @@ class _LoginPageState extends State<LoginPage>
                             label: l10n.email,
                             hintText: "example@email.com",
                           ),
-                          const SizedBox(height: AppTheme.spaceXL),
+                          const SizedBox(height: AppSpacing.xxxl),
 
                           CustomButton(
                             text: l10n.continueText,
@@ -142,7 +143,7 @@ class _LoginPageState extends State<LoginPage>
                       ),
                     ),
 
-                    const SizedBox(height: AppTheme.space2XL),
+                    const SizedBox(height: AppSpacing.huge),
 
                     // Divider
                     Row(
@@ -150,13 +151,13 @@ class _LoginPageState extends State<LoginPage>
                         const Expanded(child: Divider()),
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: AppTheme.spaceMD,
+                            horizontal: AppSpacing.lg,
                           ),
                           child: Text(
                             l10n.or,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.4,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.4,
                               ),
                             ),
                           ),
@@ -165,7 +166,7 @@ class _LoginPageState extends State<LoginPage>
                       ],
                     ),
 
-                    const SizedBox(height: AppTheme.space2XL),
+                    const SizedBox(height: AppSpacing.huge),
 
                     // Social Login
                     SocialLoginButton(
@@ -179,7 +180,7 @@ class _LoginPageState extends State<LoginPage>
                       isLoading: state is AuthLoading,
                     ),
 
-                    const SizedBox(height: AppTheme.space2XL),
+                    const SizedBox(height: AppSpacing.huge),
 
                     // Register Link
                     Row(

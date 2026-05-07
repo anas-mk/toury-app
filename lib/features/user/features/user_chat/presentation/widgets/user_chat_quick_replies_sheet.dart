@@ -3,25 +3,23 @@ import 'package:flutter/material.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_dimens.dart';
 
-/// Quick replies bottom sheet shown from [HelperChatPage].
-///
-/// Dedicated `ChatInputBar` lives in `chat_input_bar.dart`.
-class QuickRepliesSheet extends StatelessWidget {
-  final Function(String) onReply;
+/// Bottom sheet UX aligned with helper chat quick replies; copy is traveler-focused.
+class UserChatQuickRepliesSheet extends StatelessWidget {
+  final void Function(String) onReply;
 
-  const QuickRepliesSheet({super.key, required this.onReply});
+  const UserChatQuickRepliesSheet({super.key, required this.onReply});
+
+  static const replies = [
+    "I'm at the pickup spot",
+    "Running a few minutes late",
+    "Can you share your ETA?",
+    "Thanks for accepting",
+  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = AppColors.of(context);
-    final replies = [
-      "I'm on my way",
-      "I arrived",
-      'Please share exact location',
-      'Running 5 minutes late',
-      'Thank you',
-    ];
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -38,10 +36,10 @@ class QuickRepliesSheet extends StatelessWidget {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Quick Replies',
+            'Quick replies',
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
               color: palette.textPrimary,

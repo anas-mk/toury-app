@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
@@ -37,15 +38,11 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
           // wait for SignalR `BookingPaymentChanged` → Paid|Failed.
           context.push(AppRouter.paymentProcessing, extra: state.payment);
         } else if (state is PaymentFailed) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),
-          );
+          AppSnackbar.error(context, state.message);
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(loc.translate('payment_method')),
-        ),
+        appBar: AppBar(title: Text(loc.translate('payment_method'))),
         body: Padding(
           padding: const EdgeInsets.all(AppTheme.spaceLG),
           child: Column(
@@ -56,7 +53,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                 style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: AppTheme.spaceXL),
-              
+
               _buildMethodTile(
                 id: 'MockCard',
                 title: loc.translate('credit_card'),
@@ -70,9 +67,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                 subtitle: loc.translate('pay_to_helper'),
                 icon: Icons.payments_rounded,
               ),
-              
+
               const Spacer(),
-              
+
               BlocBuilder<PaymentCubit, PaymentState>(
                 builder: (context, state) {
                   return CustomButton(
@@ -103,22 +100,28 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   }) {
     final isSelected = _selectedMethod == id;
     final theme = Theme.of(context);
+    final palette = AppColors.of(context);
 
     return InkWell(
       onTap: () => setState(() => _selectedMethod = id),
       child: Container(
         padding: const EdgeInsets.all(AppTheme.spaceMD),
         decoration: BoxDecoration(
-          color: isSelected ? AppColor.primaryColor.withOpacity(0.05) : Colors.transparent,
+          color: isSelected
+              ? palette.primary.withValues(alpha: 0.05)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
           border: Border.all(
-            color: isSelected ? AppColor.primaryColor : AppColor.lightBorder,
+            color: isSelected ? palette.primary : palette.border,
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? AppColor.primaryColor : AppColor.lightTextSecondary),
+            Icon(
+              icon,
+              color: isSelected ? palette.primary : palette.textSecondary,
+            ),
             const SizedBox(width: AppTheme.spaceMD),
             Expanded(
               child: Column(
@@ -127,20 +130,22 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                   Text(
                     title,
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text(subtitle, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
             Radio<String>(
+              // ignore: deprecated_member_use
               value: id,
+              // ignore: deprecated_member_use
               groupValue: _selectedMethod,
               activeColor: AppColor.primaryColor,
+              // ignore: deprecated_member_use
               onChanged: (val) => setState(() => _selectedMethod = val!),
             ),
           ],

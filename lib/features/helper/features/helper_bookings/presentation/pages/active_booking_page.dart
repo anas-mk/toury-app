@@ -9,9 +9,14 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_dialog.dart';
+import '../../../../../../core/widgets/map_tracking_chrome.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/brand_typography.dart';
 import '../../../helper_ratings/presentation/pages/rate_user_page.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../../../../core/services/auth_service.dart';
@@ -59,7 +64,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   RouteResult? _lastRoute; // cached for the info chip
   bool _isFollowing = true;
   bool _isNavigationMode = false;
-  Timer? _routeDebounce;   // throttle real-time updates to 1 call / 10 s
+  Timer? _routeDebounce; // throttle real-time updates to 1 call / 10 s
   bool _isRouteFetchInFlight = false;
   DateTime? _lastRouteFetchAt;
   double? _lastRouteFromLat;
@@ -83,7 +88,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     _getLatestTracking = sl<helper_track.GetLatestLocationUseCase>();
     _getTrackingHistory = sl<helper_track.GetTrackingHistoryUseCase>();
     _getLocationStatus = sl<helper_location.GetLocationStatusUseCase>();
-    
+
     // Start trip tracking if we have an ID
     if (widget.bookingId.isNotEmpty) {
       _didPrimeTracking = true;
@@ -115,11 +120,13 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     mapboxMap.logo.updateSettings(LogoSettings(enabled: false));
     mapboxMap.attribution.updateSettings(AttributionSettings(enabled: false));
     mapboxMap.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-    _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
-    _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+    _pointAnnotationManager = await mapboxMap.annotations
+        .createPointAnnotationManager();
+    _polylineAnnotationManager = await mapboxMap.annotations
+        .createPolylineAnnotationManager();
     // Create the helper marker manager LAST so it renders on top of pins/lines.
-    _helperPointAnnotationManager =
-        await mapboxMap.annotations.createPointAnnotationManager();
+    _helperPointAnnotationManager = await mapboxMap.annotations
+        .createPointAnnotationManager();
     if (_helperLat != null && _helperLng != null) {
       unawaited(_updateHelperMarker(_helperLat!, _helperLng!));
     }
@@ -130,10 +137,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   void _recenter(double lat, double lng) {
-    _mapboxMap?.setCamera(CameraOptions(
-      center: Point(coordinates: Position(lng, lat)),
-      zoom: 15,
-    ));
+    _mapboxMap?.setCamera(
+      CameraOptions(center: Point(coordinates: Position(lng, lat)), zoom: 15),
+    );
   }
 
   void _recenterNavigation(double lat, double lng, {double? heading}) {
@@ -193,7 +199,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     required double toLng,
     required HelperBooking booking,
   }) async {
-    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null)
+      return;
     if (_isRouteFetchInFlight) return;
     _isRouteFetchInFlight = true;
 
@@ -202,19 +209,29 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       await _polylineAnnotationManager!.deleteAll();
 
       // Draw pickup & destination pins.
-      await _pointAnnotationManager!.create(PointAnnotationOptions(
-        geometry: Point(coordinates: Position(booking.pickupLng, booking.pickupLat)),
-        iconImage: 'marker-15',
-        textField: 'Pickup',
-        textOffset: [0.0, -2.5],
-      ));
-      await _pointAnnotationManager!.create(PointAnnotationOptions(
-        geometry:
-            Point(coordinates: Position(booking.destinationLng, booking.destinationLat)),
-        iconImage: 'marker-15',
-        textField: 'Destination',
-        textOffset: [0.0, -2.5],
-      ));
+      await _pointAnnotationManager!.create(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(booking.pickupLng, booking.pickupLat),
+          ),
+          iconImage: 'marker-15',
+          textField: 'Pickup',
+          textOffset: [0.0, -2.5],
+        ),
+      );
+      await _pointAnnotationManager!.create(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(
+              booking.destinationLng,
+              booking.destinationLat,
+            ),
+          ),
+          iconImage: 'marker-15',
+          textField: 'Destination',
+          textOffset: [0.0, -2.5],
+        ),
+      );
       // Fetch real road route.
       final route = await _directions.getRoute(
         fromLat: fromLat,
@@ -226,15 +243,16 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
       if (route == null || route.coordinates.isEmpty) {
         // Fallback: straight line so the map still shows something.
-        await _polylineAnnotationManager!.create(PolylineAnnotationOptions(
-          geometry: LineString(coordinates: [
-            Position(fromLng, fromLat),
-            Position(toLng, toLat),
-          ]),
-          lineColor: BrandTokens.primaryBlue.toARGB32(),
-          lineWidth: 3.5,
-          lineOpacity: 0.6,
-        ));
+        await _polylineAnnotationManager!.create(
+          PolylineAnnotationOptions(
+            geometry: LineString(
+              coordinates: [Position(fromLng, fromLat), Position(toLng, toLat)],
+            ),
+            lineColor: BrandTokens.primaryBlue.toARGB32(),
+            lineWidth: 3.5,
+            lineOpacity: 0.6,
+          ),
+        );
         await _drawHistoryPolyline();
         return;
       }
@@ -243,14 +261,18 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       if (mounted) setState(() => _lastRoute = route);
 
       // Convert [[lng, lat], ...] → Mapbox Position list.
-      final positions = route.coordinates.map((c) => Position(c[0], c[1])).toList();
+      final positions = route.coordinates
+          .map((c) => Position(c[0], c[1]))
+          .toList();
 
-      await _polylineAnnotationManager!.create(PolylineAnnotationOptions(
-        geometry: LineString(coordinates: positions),
-        lineColor: BrandTokens.primaryBlue.toARGB32(),
-        lineWidth: 5.0,
-        lineOpacity: 0.85,
-      ));
+      await _polylineAnnotationManager!.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(coordinates: positions),
+          lineColor: BrandTokens.primaryBlue.toARGB32(),
+          lineWidth: 5.0,
+          lineOpacity: 0.85,
+        ),
+      );
       await _drawHistoryPolyline();
       _lastRouteFetchAt = DateTime.now();
       _lastRouteFromLat = fromLat;
@@ -261,7 +283,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   Future<void> _drawHistoryPolyline() async {
-    if (_polylineAnnotationManager == null || _trackingHistory.length < 2) return;
+    if (_polylineAnnotationManager == null || _trackingHistory.length < 2)
+      return;
     final historyPositions = _trackingHistory
         .map((p) => Position(p.longitude, p.latitude))
         .toList();
@@ -300,7 +323,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     }
 
     if (_currentBooking != null && _helperLat != null && _helperLng != null) {
-      final arrived = _distanceMeters(
+      final arrived =
+          _distanceMeters(
             _helperLat!,
             _helperLng!,
             _currentBooking!.pickupLat,
@@ -323,7 +347,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       _lastRouteMode = mode;
       return true;
     }
-    if (_lastRouteFetchAt == null || _lastRouteFromLat == null || _lastRouteFromLng == null) {
+    if (_lastRouteFetchAt == null ||
+        _lastRouteFromLat == null ||
+        _lastRouteFromLng == null) {
       return true;
     }
     final movedMeters = _distanceMeters(
@@ -350,8 +376,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       } catch (_) {}
       _helperMarker = null;
     }
-    final normalizedHeading =
-        (heading != null && heading.isFinite) ? heading : 0.0;
+    final normalizedHeading = (heading != null && heading.isFinite)
+        ? heading
+        : 0.0;
     try {
       _helperMarker = await manager.create(
         PointAnnotationOptions(
@@ -390,16 +417,12 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     return s == 'inprogress' || s == 'started' || s == 'active';
   }
 
-  double _distanceMeters(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
+  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
     const earthRadius = 6371000.0;
     final dLat = _degToRad(lat2 - lat1);
     final dLon = _degToRad(lon2 - lon1);
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_degToRad(lat1)) *
             math.cos(_degToRad(lat2)) *
             math.sin(dLon / 2) *
@@ -426,34 +449,38 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
             listener: (context, state) {
               if (state is TripActionSuccess) {
                 if (state.actionType == 'start') {
-                  _showSnack(context, '🚀 Trip started!');
+                  AppSnackbar.success(context, '🚀 Trip started!');
                   setState(() => _isNavigationMode = true);
                   _activeCubit.load();
                 } else if (state.actionType == 'end') {
                   final earnings = state.result as double? ?? 0.0;
                   final booking = _currentBooking;
-                  _showEarningsDialog(context, earnings, onDismiss: () {
-                    if (booking != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RateUserPage(
-                            bookingId: booking.id,
-                            travelerName: booking.travelerName,
-                            travelerAvatar: booking.travelerImage ?? '',
+                  _showEarningsDialog(
+                    context,
+                    earnings,
+                    onDismiss: () {
+                      if (booking != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RateUserPage(
+                              bookingId: booking.id,
+                              travelerName: booking.travelerName,
+                              travelerAvatar: booking.travelerImage ?? '',
+                            ),
                           ),
-                        ),
-                      ).then((_) {
-                        if (!mounted) return;
+                        ).then((_) {
+                          if (!mounted) return;
+                          _completeTripAndExit();
+                        });
+                      } else {
                         _completeTripAndExit();
-                      });
-                    } else {
-                      _completeTripAndExit();
-                    }
-                  });
+                      }
+                    },
+                  );
                 }
               } else if (state is TripActionError) {
-                _showSnack(context, state.message, isError: true);
+                AppSnackbar.error(context, state.message);
               }
             },
           ),
@@ -463,8 +490,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           body: BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
               if (state is ActiveBookingLoading) {
-                return const Center(
-                    child: CircularProgressIndicator(color: BrandTokens.primaryBlue));
+                return const Center(child: AppLoading(fullScreen: false));
               }
               if (state is ActiveBookingLoaded && state.booking != null) {
                 _currentBooking = state.booking;
@@ -486,22 +512,26 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     final status = booking.status.toLowerCase();
     final isStarted = _isTripStarted(booking);
     final navMode = _isNavigationMode || isStarted;
-    
+
     final initialCenter = isStarted
         ? Position(booking.destinationLng, booking.destinationLat)
         : Position(booking.pickupLng, booking.pickupLat);
+    final sheetExtents = MapTrackingLayout.helperSheetExtents(context);
+    final palette = AppColors.of(context);
 
     return Stack(
       children: [
         // 1. Full Screen Map
-        MapWidget(
-          key: const ValueKey("activeBookingMap"),
-          cameraOptions: CameraOptions(
-            center: Point(coordinates: initialCenter),
-            zoom: 15.0,
+        RepaintBoundary(
+          child: MapWidget(
+            key: const ValueKey("activeBookingMap"),
+            cameraOptions: CameraOptions(
+              center: Point(coordinates: initialCenter),
+              zoom: 15.0,
+            ),
+            styleUri: MapboxStyles.LIGHT,
+            onMapCreated: _onMapCreated,
           ),
-          styleUri: MapboxStyles.LIGHT,
-          onMapCreated: _onMapCreated,
         ),
 
         // Helper Location Logic (UI-less BlocBuilder to handle camera movement)
@@ -519,7 +549,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                   heading: locState.location.heading,
                 ),
               );
-              final arrived = _distanceMeters(
+              final arrived =
+                  _distanceMeters(
                     lat,
                     lng,
                     booking.pickupLat,
@@ -549,20 +580,22 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
         // 2. Top Controls
         Positioned(
-          top: MediaQuery.of(context).padding.top + 8,
-          left: AppTheme.spaceMD,
-          child: ActiveBlurredCircleButton(
+          top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+          left: AppSpacing.lg,
+          child: MapFloatingGlassButton(
             icon: Icons.arrow_back_rounded,
+            tone: MapFloatingGlassTone.darkOnMap,
             onTap: () => context.pop(),
           ),
         ),
         Positioned(
-          top: MediaQuery.of(context).padding.top + 8,
-          right: AppTheme.spaceMD,
+          top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+          right: AppSpacing.lg,
           child: BlocBuilder<HelperLocationCubit, HelperLocationState>(
             builder: (context, locState) {
-              return ActiveBlurredCircleButton(
+              return MapFloatingGlassButton(
                 icon: Icons.my_location_rounded,
+                tone: MapFloatingGlassTone.darkOnMap,
                 onTap: () {
                   if (locState is HelperLocationTracking) {
                     setState(() => _isFollowing = true);
@@ -579,8 +612,12 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                       );
                     }
                   } else {
-                    final lat = isStarted ? booking.destinationLat : booking.pickupLat;
-                    final lng = isStarted ? booking.destinationLng : booking.pickupLng;
+                    final lat = isStarted
+                        ? booking.destinationLat
+                        : booking.pickupLat;
+                    final lng = isStarted
+                        ? booking.destinationLng
+                        : booking.pickupLng;
                     _recenter(lat, lng);
                   }
                 },
@@ -597,11 +634,14 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: isStarted
-                      ? BrandTokens.successGreen.withValues(alpha: 0.92)
-                      : BrandTokens.warningAmber.withValues(alpha: 0.92),
+                      ? palette.success.withValues(alpha: 0.92)
+                      : palette.warning.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(999),
                   boxShadow: [
                     BoxShadow(
@@ -622,7 +662,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
               ),
               if (_lastRoute != null) ...[
                 const SizedBox(height: 8),
-                ActiveRouteInfoChip(
+                MapRouteInfoChip(
                   distance: _lastRoute!.distanceLabel,
                   duration: _lastRoute!.durationLabel,
                 ),
@@ -636,9 +676,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           bloc: _sosCubit,
           builder: (context, sosState) {
             return DraggableScrollableSheet(
-              initialChildSize: 0.38,
-              minChildSize: 0.22,
-              maxChildSize: 0.75,
+              initialChildSize: sheetExtents.initial,
+              minChildSize: sheetExtents.min,
+              maxChildSize: sheetExtents.max,
               builder: (context, scrollController) {
                 return ActiveTrackingSheet(
                   scrollController: scrollController,
@@ -646,7 +686,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                   isStarted: isStarted,
                   status: status,
                   hasArrivedAtPickup: _hasArrivedAtPickup,
-                  distanceToPickupMeters: (_helperLat != null && _helperLng != null)
+                  distanceToPickupMeters:
+                      (_helperLat != null && _helperLng != null)
                       ? _distanceMeters(
                           _helperLat!,
                           _helperLng!,
@@ -655,18 +696,18 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                         )
                       : null,
                   sosState: sosState,
-                  onEndTrip: () => _confirmEnd(context, booking),
+                  onEndTrip: () => unawaited(_confirmEnd(context, booking)),
                   onStartTrip: () => _tripActionCubit.startTrip(booking),
-              onChat: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => HelperChatPage(
-                    bookingId: booking.id,
-                    userName: booking.travelerName,
-                    userAvatar: booking.travelerImage,
+                  onChat: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => HelperChatPage(
+                        bookingId: booking.id,
+                        userName: booking.travelerName,
+                        userAvatar: booking.travelerImage,
+                      ),
+                    ),
                   ),
-                ),
-              ),
                   onCancelSos: _sosCubit.deactivatePanic,
                 );
               },
@@ -676,15 +717,13 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
         // 4. SOS Button (Floating)
         Positioned(
-          right: AppTheme.spaceMD,
-          bottom: MediaQuery.of(context).size.height * 0.38 + 16,
+          right: AppSpacing.lg,
+          bottom: MapTrackingLayout.floatingButtonBottomInset(
+            context,
+            sheetPeekFraction: sheetExtents.initial,
+          ),
           child: HelperSosFloatingButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('SOS Button Pressed'), duration: Duration(seconds: 1)),
-              );
-              _openSosSheet(context);
-            },
+            onPressed: () => _openSosSheet(context),
           ),
         ),
 
@@ -692,14 +731,17 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
         BlocBuilder<HelperSosCubit, HelperSosState>(
           bloc: _sosCubit,
           builder: (context, sosState) {
-            if (sosState.status == SosStatus.active || sosState.status == SosStatus.activating) {
+            if (sosState.status == SosStatus.active ||
+                sosState.status == SosStatus.activating) {
               return Positioned(
                 top: MediaQuery.of(context).padding.top + 60,
-                left: AppTheme.spaceMD,
-                right: AppTheme.spaceMD,
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
                 child: HelperSosActiveBanner(
                   onCancel: _sosCubit.deactivatePanic,
-                  isCancelling: sosState.status == SosStatus.deactivating || sosState.status == SosStatus.activating,
+                  isCancelling:
+                      sosState.status == SosStatus.deactivating ||
+                      sosState.status == SosStatus.activating,
                 ),
               );
             }
@@ -722,7 +764,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           lat = locState.location.latitude;
           lng = locState.location.longitude;
         }
-        
+
         try {
           await _sosCubit.activatePanic(
             bookingId: widget.bookingId,
@@ -746,137 +788,140 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     if (mounted) context.pop();
   }
 
-  void _confirmEnd(BuildContext context, HelperBooking booking) {
-    showDialog(
+  Future<void> _confirmEnd(BuildContext context, HelperBooking booking) async {
+    final ok = await AppDialog.confirm(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: BrandTokens.surfaceWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text('End Trip?', style: BrandTypography.headline(color: BrandTokens.textPrimary)),
-        content: Text('Mark this trip as completed?', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _tripActionCubit.endTrip(booking);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BrandTokens.dangerRed,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('End Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      title: 'End Trip?',
+      message: 'Mark this trip as completed?',
+      confirmLabel: 'End Trip',
+      tone: AppDialogTone.danger,
+      barrierDismissible: true,
     );
+    if (ok && context.mounted) {
+      _tripActionCubit.endTrip(booking);
+    }
   }
 
   Widget _buildNoTrip(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: BrandTokens.successGreen.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_circle_outline_rounded,
-                color: BrandTokens.successGreen, size: 60),
-          ),
-          const SizedBox(height: 24),
-          Text('No Active Trip', style: BrandTypography.headline()),
-          const SizedBox(height: 8),
-          Text("You don't have an active booking right now", style: BrandTypography.body(color: BrandTokens.textSecondary)),
-          const SizedBox(height: 28),
-          ElevatedButton(
-            onPressed: () => context.pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BrandTokens.primaryBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            child: const Text('Back to Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+      child: AppEmptyState(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'No Active Trip',
+        message: "You don't have an active booking right now",
+        actionLabel: 'Back to Dashboard',
+        onAction: () => context.pop(),
       ),
     );
   }
 
-  void _showEarningsDialog(BuildContext context, double earnings, {VoidCallback? onDismiss}) {
-    showDialog(
+  void _showEarningsDialog(
+    BuildContext context,
+    double earnings, {
+    VoidCallback? onDismiss,
+  }) {
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Dialog(
-        backgroundColor: BrandTokens.surfaceWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(color: BrandTokens.successGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.check_rounded, color: Colors.white, size: 36),
-              ),
-              const SizedBox(height: 20),
-              Text('Trip Completed! 🎉', style: BrandTypography.headline()),
-              const SizedBox(height: 6),
-              Text('You earned', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-              const SizedBox(height: 4),
-              Text('\$${earnings.toStringAsFixed(2)}',
-                  style: BrandTypography.title(color: BrandTokens.successGreen).copyWith(fontSize: 42)),
-              const SizedBox(height: 8),
-              Text('How was your traveler?', style: BrandTypography.caption(color: BrandTokens.textSecondary)),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.star_rounded, color: Colors.white),
-                  label: const Text('Rate Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    onDismiss?.call();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: BrandTokens.primaryBlue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (dlgCtx) {
+        final theme = Theme.of(dlgCtx);
+        final palette = AppColors.of(dlgCtx);
+        return Dialog(
+          backgroundColor: palette.surfaceElevated,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xxl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: AppSize.avatarXl,
+                  height: AppSize.avatarXl,
+                  decoration: BoxDecoration(
+                    color: palette.success,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: AppSize.icon2Xl + 4,
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.pop();
-                },
-                child: Text('Skip', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Trip Completed! 🎉',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
+                Text(
+                  'You earned',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  '\$${earnings.toStringAsFixed(2)}',
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: palette.success,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 42,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'How was your traveler?',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xl + AppSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  height: AppSize.buttonMd,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.star_rounded, color: Colors.white),
+                    label: Text(
+                      'Rate Traveler',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(dlgCtx);
+                      onDismiss?.call();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dlgCtx);
+                    if (dlgCtx.mounted) dlgCtx.pop();
+                  },
+                  child: Text(
+                    'Skip',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showSnack(BuildContext context, String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? BrandTokens.dangerRed : BrandTokens.successGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(12),
-      ),
+        );
+      },
     );
   }
 }
-

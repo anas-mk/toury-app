@@ -3,15 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:shimmer/shimmer.dart';
-
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/services/realtime/app_realtime_cubit.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../../../../core/widgets/booking_status_chip.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/my_bookings_cubit.dart';
@@ -48,6 +51,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final palette = AppColors.of(context);
 
     return BlocProvider(
       create: (_) {
@@ -56,8 +60,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
         sl<AppRealtimeCubit>().registerMyBookings(cubit);
         return cubit;
       },
-      child: Scaffold(
-        backgroundColor: BrandTokens.bgSoft,
+      child: AppScaffold(
         body: SafeArea(
           bottom: false,
           child: Column(
@@ -68,31 +71,45 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                   builder: (context, state) {
                     if (state is MyBookingsLoading ||
                         state is MyBookingsInitial) {
-                      return const _BookingsSkeleton();
+                      return const Center(child: AppLoading(fullScreen: false));
                     }
                     if (state is MyBookingsError) {
-                      return _BookingsError(
-                        message: state.message,
-                        onRetry: () =>
-                            context.read<MyBookingsCubit>().refreshBookings(),
+                      return Center(
+                        child: AppErrorState(
+                          title: 'Could not load trips',
+                          message: state.message,
+                          onRetry: () =>
+                              context.read<MyBookingsCubit>().refreshBookings(),
+                        ),
                       );
                     }
                     if (state is MyBookingsLoaded) {
                       if (state.bookings.isEmpty) {
                         return RefreshIndicator.adaptive(
-                          color: BrandTokens.primaryBlue,
+                          color: palette.primary,
                           onRefresh: () =>
                               context.read<MyBookingsCubit>().refreshBookings(),
                           child: ListView(
                             physics: const AlwaysScrollableScrollPhysics(
                               parent: BouncingScrollPhysics(),
                             ),
-                            children: [_BookingsEmpty(loc: loc)],
+                            padding: EdgeInsets.only(
+                              top: AppSpacing.xxxl + AppSpacing.lg,
+                            ),
+                            children: [
+                              AppEmptyState(
+                                icon: Icons.luggage_rounded,
+                                title: loc.translate('no_bookings_yet'),
+                                message:
+                                    'Your trips will appear here once you '
+                                    'book your first helper.',
+                              ),
+                            ],
                           ),
                         );
                       }
                       return RefreshIndicator.adaptive(
-                        color: BrandTokens.primaryBlue,
+                        color: palette.primary,
                         onRefresh: () =>
                             context.read<MyBookingsCubit>().refreshBookings(),
                         child: _BookingsList(bookings: state.bookings),
@@ -121,7 +138,12 @@ class _BookingsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageGutter,
+        AppSpacing.sm,
+        AppSpacing.pageGutter,
+        AppSpacing.lg,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -129,7 +151,7 @@ class _BookingsHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: BrandTypography.headline()),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Your travel history with RAFIQ',
                   style: BrandTypography.caption(),
@@ -159,7 +181,13 @@ class _BookingsList extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+      addAutomaticKeepAlives: false,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageGutter,
+        0,
+        AppSpacing.pageGutter,
+        AppSpacing.xxxl,
+      ),
       itemCount: groups.length,
       itemBuilder: (context, i) {
         final g = groups[i];
@@ -167,7 +195,10 @@ class _BookingsList extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.only(top: i == 0 ? 4 : 18, bottom: 10),
+              padding: EdgeInsets.only(
+                top: i == 0 ? AppSpacing.xs : AppSpacing.pageGutter,
+                bottom: AppSpacing.sm + AppSpacing.xs,
+              ),
               child: Text(
                 g.label,
                 style: BrandTypography.overline(
@@ -178,7 +209,9 @@ class _BookingsList extends StatelessWidget {
             for (var j = 0; j < g.items.length; j++)
               Padding(
                 padding: EdgeInsets.only(
-                  bottom: j == g.items.length - 1 ? 0 : 10,
+                  bottom: j == g.items.length - 1
+                      ? 0
+                      : AppSpacing.sm + AppSpacing.xs,
                 ),
                 child: _BookingRow(booking: g.items[j]),
               ),
@@ -231,15 +264,15 @@ class _BookingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: InkWell(
         onTap: () => _open(context),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
           decoration: BoxDecoration(
             color: BrandTokens.surfaceWhite,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             boxShadow: BrandTokens.cardShadow,
             border: Border.all(
               color: BrandTokens.borderSoft.withValues(alpha: 0.6),
@@ -249,7 +282,7 @@ class _BookingRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Avatar(booking: booking),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,18 +298,18 @@ class _BookingRow extends StatelessWidget {
                             style: BrandTypography.title(),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: AppSpacing.sm),
                         BookingStatusChip(status: booking.status, dense: true),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       booking.helper?.name ?? 'No helper assigned yet',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: BrandTypography.caption(),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
                     Row(
                       children: [
                         const Icon(
@@ -284,14 +317,14 @@ class _BookingRow extends StatelessWidget {
                           size: 13,
                           color: BrandTokens.textSecondary,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: AppSpacing.xs),
                         Text(
                           DateFormat(
                             'EEE, MMM d',
                           ).format(booking.requestedDate.toLocal()),
                           style: BrandTypography.caption(),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: AppSpacing.sm + AppSpacing.xs),
                         Container(
                           width: 3,
                           height: 3,
@@ -300,13 +333,13 @@ class _BookingRow extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: AppSpacing.sm + AppSpacing.xs),
                         const Icon(
                           Icons.schedule_rounded,
                           size: 13,
                           color: BrandTokens.textSecondary,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: AppSpacing.xs),
                         Text(
                           _formatDuration(booking.durationInMinutes),
                           style: BrandTypography.caption(),
@@ -330,10 +363,7 @@ class _BookingRow extends StatelessWidget {
     // Both Instant and Scheduled bookings now share the same unified
     // detail screen (`/booking-details/:id`). The page reads the booking
     // type from the entity and renders the right CTAs.
-    context.pushNamed(
-      'booking-details',
-      pathParameters: {'id': booking.id},
-    );
+    context.pushNamed('booking-details', pathParameters: {'id': booking.id});
   }
 
   static String _formatDuration(int minutes) {
@@ -412,131 +442,6 @@ class _PriceLabel extends StatelessWidget {
             ? BrandTokens.accentAmberText
             : BrandTokens.textSecondary,
       ),
-    );
-  }
-}
-
-// ============================================================================
-//  EMPTY / ERROR / SKELETON
-// ============================================================================
-
-class _BookingsEmpty extends StatelessWidget {
-  final AppLocalizations loc;
-  const _BookingsEmpty({required this.loc});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 80, 20, 32),
-      child: Column(
-        children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              gradient: BrandTokens.amberGradient,
-              shape: BoxShape.circle,
-              boxShadow: BrandTokens.ctaAmberGlow,
-            ),
-            child: const Icon(
-              Icons.luggage_rounded,
-              color: Colors.white,
-              size: 44,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            loc.translate('no_bookings_yet'),
-            textAlign: TextAlign.center,
-            style: BrandTypography.title(),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Your trips will appear here once you book your first helper.',
-            textAlign: TextAlign.center,
-            style: BrandTypography.caption(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BookingsError extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _BookingsError({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: BrandTokens.dangerSos,
-            ),
-            const SizedBox(height: 12),
-            Text('Could not load trips', style: BrandTypography.title()),
-            const SizedBox(height: 4),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: BrandTypography.caption(),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                onRetry();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: BrandTokens.primaryBlue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                ),
-              ),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BookingsSkeleton extends StatelessWidget {
-  const _BookingsSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-      children: [
-        for (var i = 0; i < 5; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Shimmer.fromColors(
-              baseColor: const Color(0xFFE7EAF6),
-              highlightColor: const Color(0xFFF6F8FE),
-              period: const Duration(milliseconds: 1400),
-              child: Container(
-                height: 96,
-                decoration: BoxDecoration(
-                  color: BrandTokens.surfaceWhite,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

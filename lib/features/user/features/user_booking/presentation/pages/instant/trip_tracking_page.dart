@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show ValueListenable, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
@@ -16,8 +15,11 @@ import '../../../../../../../core/services/signalr/booking_tracking_hub_service.
 import '../../../../../../../core/services/sos/active_sos_state.dart';
 import '../../../../../../../core/services/sos/sos_service.dart';
 import '../../../../../../../core/theme/app_color.dart';
+import '../../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../../core/widgets/app_snackbar.dart';
+import '../../../../../../../core/widgets/map_tracking_chrome.dart';
 import '../../../domain/entities/app_payment_method.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/helper_search_result.dart';
@@ -28,7 +30,7 @@ import '../../widgets/sos/sos_active_banner.dart';
 import '../../widgets/sos/sos_floating_button.dart';
 import '../../widgets/sos/sos_sheet.dart';
 
-/// Step 10 â€” live tracking screen. Listens to `HelperLocationUpdate` for
+/// Step 10 — live tracking screen. Listens to `HelperLocationUpdate` for
 /// helper position + ETA, and to `BookingTripEnded` for completion.
 class TripTrackingPage extends StatefulWidget {
   final InstantBookingCubit cubit;
@@ -56,7 +58,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   StreamSubscription<BookingTripEndedEvent>? _tripEndedSub;
   StreamSubscription<ActiveSosState?>? _sosSub;
 
-  HelperLocationUpdateEvent? _latest;
+  /// Live packets update often; isolate from full-page setState rebuilds.
+  final ValueNotifier<HelperLocationUpdateEvent?> _liveLocation =
+      ValueNotifier<HelperLocationUpdateEvent?>(null);
   ActiveSosState? _activeSos;
   bool _tripEnded = false;
   bool _cancelingSos = false;
@@ -107,6 +111,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   @override
   void dispose() {
     _isDisposed = true;
+    _liveLocation.dispose();
     _locationSub?.cancel();
     _tripEndedSub?.cancel();
     _sosSub?.cancel();
@@ -265,9 +270,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   void _onLocation(HelperLocationUpdateEvent event) {
     if (_isDisposed) return;
-    setState(() {
-      _latest = event;
-    });
+    _liveLocation.value = event;
 
     // Smooth-follow camera.
     _mapboxMap?.setCamera(
@@ -334,9 +337,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
       context.go(AppRouter.bookingHome);
       return;
     }
-    context.go(
-      AppRouter.instantPayNow.replaceFirst(':id', widget.bookingId),
-    );
+    context.go(AppRouter.instantPayNow.replaceFirst(':id', widget.bookingId));
   }
 
   Future<void> _onCancel(BuildContext ctx) async {
@@ -359,8 +360,10 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open phone dialer')),
+      AppSnackbar.show(
+        context,
+        message: 'Could not open phone dialer',
+        tone: AppSnackTone.warning,
       );
     }
   }
@@ -385,9 +388,11 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
       },
     );
     if (ok != true || !mounted) return;
-    ScaffoldMessenger.of(
+    AppSnackbar.show(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Support has been alerted')));
+      message: 'Support has been alerted',
+      tone: AppSnackTone.success,
+    );
   }
 
   Future<void> _cancelSos() async {
@@ -401,28 +406,29 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
       setState(() {
         _cancelingSos = false;
       });
-      ScaffoldMessenger.of(
+      AppSnackbar.show(
         context,
-      ).showSnackBar(const SnackBar(content: Text('SOS cancelled')));
+        message: 'SOS cancelled',
+        tone: AppSnackTone.success,
+      );
       return;
     }
     setState(() {
       _cancelingSos = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.message ?? 'Could not cancel SOS. Please retry.'),
-      ),
+    AppSnackbar.show(
+      context,
+      message: result.message ?? 'Could not cancel SOS. Please retry.',
+      tone: AppSnackTone.danger,
     );
   }
 
   void _recenter() {
-    if (_latest != null) {
+    final live = _liveLocation.value;
+    if (live != null) {
       _mapboxMap?.setCamera(
         CameraOptions(
-          center: Point(
-            coordinates: Position(_latest!.longitude, _latest!.latitude),
-          ),
+          center: Point(coordinates: Position(live.longitude, live.latitude)),
           zoom: 16,
         ),
       );
@@ -431,6 +437,12 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final sheetExtents = MapTrackingLayout.sheetExtents(context);
+    final sosButtonBottom = MapTrackingLayout.floatingButtonBottomInset(
+      context,
+      sheetPeekFraction: sheetExtents.initial,
+    );
+
     return BlocProvider.value(
       value: widget.cubit,
       child: PopScope(
@@ -439,115 +451,121 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
           if (!didPop) context.go(AppRouter.home);
         },
         child: Scaffold(
-          body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
-            builder: (context, state) {
-              // Removed LatLng variables - now handled in _onMapCreated
-              final booking = _bookingFrom(state);
-              final sosButtonBottom =
-                  MediaQuery.of(context).size.height * 0.32 + AppTheme.spaceMD;
-              // Draw route whenever booking data is available and map is ready
-              if (booking != null && _mapReady && !_initialRouteDrawn) {
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _drawRoute(booking),
-                );
-              }
-              return Stack(
-                children: [
-                  MapWidget(
-                    key: const ValueKey('tripTrackingMap'),
-                    cameraOptions: CameraOptions(
-                      center: Point(
-                        coordinates: Position(
-                          booking?.pickupLongitude ?? (_latest?.longitude ?? 0),
-                          booking?.pickupLatitude ?? (_latest?.latitude ?? 0),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              BlocSelector<
+                InstantBookingCubit,
+                InstantBookingState,
+                BookingDetail?
+              >(
+                selector: _bookingFrom,
+                builder: (context, booking) {
+                  final liveLon = _liveLocation.value?.longitude ?? 0.0;
+                  final liveLat = _liveLocation.value?.latitude ?? 0.0;
+                  if (booking != null && _mapReady && !_initialRouteDrawn) {
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _drawRoute(booking),
+                    );
+                  }
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      RepaintBoundary(
+                        child: MapWidget(
+                          key: const ValueKey('tripTrackingMap'),
+                          cameraOptions: CameraOptions(
+                            center: Point(
+                              coordinates: Position(
+                                booking?.pickupLongitude ?? liveLon,
+                                booking?.pickupLatitude ?? liveLat,
+                              ),
+                            ),
+                            zoom: (booking == null ? 3.0 : 15.0),
+                          ),
+                          styleUri: MapboxStyles.LIGHT,
+                          onMapCreated: _onMapCreated,
                         ),
                       ),
-                      zoom: (booking == null ? 3.0 : 15.0),
-                    ),
-                    styleUri: MapboxStyles.LIGHT,
-                    onMapCreated: _onMapCreated,
-                  ),
-                  // Top-left circular blurred back button.
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 8,
-                    left: AppTheme.spaceMD,
-                    child: _BlurredCircleButton(
-                      icon: Icons.arrow_back_rounded,
-                      onTap: () => context.go(AppRouter.home),
-                    ),
-                  ),
-                  // Top-right recenter.
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 8,
-                    right: AppTheme.spaceMD,
-                    child: _BlurredCircleButton(
-                      icon: Icons.my_location_rounded,
-                      onTap: _recenter,
-                    ),
-                  ),
-                  // OSM attribution.
-                  const Positioned(
-                    right: 6,
-                    bottom: 6,
-                    child: _OsmAttribution(),
-                  ),
-                  // Distance / ETA chip — top-center, visible once route loads.
-                  if (_lastRoute != null)
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 8,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: _RouteInfoChip(
-                          distance: _lastRoute!.distanceLabel,
-                          duration: _lastRoute!.durationLabel,
-                        ),
+                      DraggableScrollableSheet(
+                        initialChildSize: sheetExtents.initial,
+                        minChildSize: sheetExtents.min,
+                        maxChildSize: sheetExtents.max,
+                        builder: (context, scrollController) {
+                          return _TrackingSheet(
+                            scrollController: scrollController,
+                            liveLocation: _liveLocation,
+                            booking: booking,
+                            helperImageUrl:
+                                widget.helper?.profileImageUrl ??
+                                booking?.helper?.profileImageUrl,
+                            helperName:
+                                widget.helper?.fullName ??
+                                booking?.helper?.fullName ??
+                                'Your helper',
+                            onCall: () =>
+                                _callHelper(booking?.helper?.phoneNumber),
+                            onChat: _openChat,
+                            onCancel: (booking?.canCancel ?? false)
+                                ? () => _onCancel(context)
+                                : null,
+                          );
+                        },
                       ),
+                    ],
+                  );
+                },
+              ),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+                left: AppTheme.spaceMD,
+                child: MapFloatingGlassButton(
+                  icon: Icons.arrow_back_rounded,
+                  onTap: () => context.go(AppRouter.home),
+                ),
+              ),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+                right: AppTheme.spaceMD,
+                child: MapFloatingGlassButton(
+                  icon: Icons.my_location_rounded,
+                  onTap: _recenter,
+                ),
+              ),
+              Positioned(
+                right: AppSpacing.sm + AppSpacing.xs,
+                bottom: AppSpacing.sm + AppSpacing.xs,
+                child: const _OsmAttribution(),
+              ),
+              if (_lastRoute != null)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: MapRouteInfoChip(
+                      distance: _lastRoute!.distanceLabel,
+                      duration: _lastRoute!.durationLabel,
                     ),
-                  if (_activeSos != null)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: SosActiveBanner(
-                        onCancel: _cancelSos,
-                        isCancelling: _cancelingSos,
-                      ),
-                    ),
-                  if (!_tripEnded)
-                    Positioned(
-                      right: AppTheme.spaceMD,
-                      bottom: sosButtonBottom,
-                      child: SosFloatingButton(onPressed: _openSosSheet),
-                    ),
-                  // Draggable bottom sheet.
-                  DraggableScrollableSheet(
-                    initialChildSize: 0.32,
-                    minChildSize: 0.18,
-                    maxChildSize: 0.62,
-                    builder: (context, scrollController) {
-                      return _TrackingSheet(
-                        scrollController: scrollController,
-                        latest: _latest,
-                        booking: booking,
-                        helperImageUrl:
-                            widget.helper?.profileImageUrl ??
-                            booking?.helper?.profileImageUrl,
-                        helperName:
-                            widget.helper?.fullName ??
-                            booking?.helper?.fullName ??
-                            'Your helper',
-                        onCall: () => _callHelper(booking?.helper?.phoneNumber),
-                        onChat: _openChat,
-                        onCancel: (booking?.canCancel ?? false)
-                            ? () => _onCancel(context)
-                            : null,
-                      );
-                    },
                   ),
-                ],
-              );
-            },
+                ),
+              if (_activeSos != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SosActiveBanner(
+                    onCancel: _cancelSos,
+                    isCancelling: _cancelingSos,
+                  ),
+                ),
+              if (!_tripEnded)
+                Positioned(
+                  right: AppTheme.spaceMD,
+                  bottom: sosButtonBottom,
+                  child: SosFloatingButton(onPressed: _openSosSheet),
+                ),
+            ],
           ),
         ),
       ),
@@ -561,47 +579,27 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   }
 }
 
-class _BlurredCircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _BlurredCircleButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipOval(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.85),
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(icon, color: Colors.black87),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Required by OpenStreetMap tile-usage policy.
 class _OsmAttribution extends StatelessWidget {
   const _OsmAttribution();
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + AppSpacing.xs,
+        vertical: AppSpacing.xxs,
       ),
-      child: const Text(
-        'Â© OpenStreetMap contributors',
-        style: TextStyle(fontSize: 10, color: Colors.black87),
+      decoration: BoxDecoration(
+        color: palette.surfaceElevated.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
+      ),
+      child: Text(
+        '\u00a9 OpenStreetMap contributors',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: palette.textSecondary,
+        ),
       ),
     );
   }
@@ -609,7 +607,7 @@ class _OsmAttribution extends StatelessWidget {
 
 class _TrackingSheet extends StatelessWidget {
   final ScrollController scrollController;
-  final HelperLocationUpdateEvent? latest;
+  final ValueListenable<HelperLocationUpdateEvent?> liveLocation;
   final BookingDetail? booking;
   final String? helperImageUrl;
   final String helperName;
@@ -619,7 +617,7 @@ class _TrackingSheet extends StatelessWidget {
 
   const _TrackingSheet({
     required this.scrollController,
-    required this.latest,
+    required this.liveLocation,
     required this.booking,
     required this.helperImageUrl,
     required this.helperName,
@@ -630,227 +628,225 @@ class _TrackingSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDestPhase = latest?.phase == 'ToDestination';
-    final eta = isDestPhase
-        ? latest?.etaToDestinationMinutes
-        : latest?.etaToPickupMinutes;
-    final distance = isDestPhase
-        ? latest?.distanceToDestinationKm
-        : latest?.distanceToPickupKm;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    final phaseLabel = latest == null
-        ? 'Connectingâ€¦'
-        : isDestPhase
-        ? 'Heading to destination'
-        : 'On the way to pickup';
+    return MapTrackingSheetSurface(
+      child: ValueListenableBuilder<HelperLocationUpdateEvent?>(
+        valueListenable: liveLocation,
+        builder: (context, latest, _) {
+          final theme = Theme.of(context);
+          final palette = AppColors.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 24,
-            offset: const Offset(0, -8),
-          ),
-        ],
-      ),
-      child: ListView(
-        controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(
-          AppTheme.spaceLG,
-          AppTheme.spaceMD,
-          AppTheme.spaceLG,
-          AppTheme.spaceLG,
-        ),
-        children: [
-          Center(
-            child: Container(
-              width: 48,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppColor.lightBorder,
-                borderRadius: BorderRadius.circular(3),
-              ),
+          final isDestPhase = latest?.phase == 'ToDestination';
+          final eta = isDestPhase
+              ? latest?.etaToDestinationMinutes
+              : latest?.etaToPickupMinutes;
+          final distance = isDestPhase
+              ? latest?.distanceToDestinationKm
+              : latest?.distanceToPickupKm;
+
+          final phaseLabel = latest == null
+              ? 'Connecting\u2026'
+              : isDestPhase
+              ? 'Heading to destination'
+              : 'On the way to pickup';
+
+          return ListView(
+            controller: scrollController,
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
-          ),
-          const SizedBox(height: AppTheme.spaceMD),
-          Row(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              0,
+              AppSpacing.xxl,
+              AppSpacing.xxl + bottomInset,
+            ),
             children: [
-              Stack(
+              const MapTrackingDragHandle(),
+              Row(
                 children: [
-                  AppNetworkImage(
-                    imageUrl: helperImageUrl,
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                  ),
-                  const Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: Icon(
-                      Icons.verified_rounded,
-                      color: AppColor.accentColor,
-                      size: 18,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: AppTheme.spaceMD),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      helperName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                  Stack(
+                    children: [
+                      AppNetworkImage(
+                        imageUrl: helperImageUrl,
+                        width: AppSize.avatarLg - AppSpacing.sm,
+                        height: AppSize.avatarLg - AppSpacing.sm,
+                        borderRadius: (AppSize.avatarLg - AppSpacing.sm) / 2,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
+                      Positioned(
+                        right: -AppSpacing.xxs,
+                        bottom: -AppSpacing.xxs,
+                        child: Icon(
+                          Icons.verified_rounded,
+                          color: palette.success,
+                          size: AppSpacing.lg + AppSpacing.xxs,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColor.accentColor,
-                            shape: BoxShape.circle,
+                        Text(
+                          helperName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          phaseLabel,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColor.lightTextSecondary,
-                          ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Row(
+                          children: [
+                            Container(
+                              width: AppSpacing.sm,
+                              height: AppSpacing.sm,
+                              decoration: BoxDecoration(
+                                color: palette.success,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                phaseLabel,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: palette.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              if (eta != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spaceMD,
-                    vertical: 8,
                   ),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColor.accentColor, AppColor.secondaryColor],
-                    ),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$eta',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
+                  if (eta != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                        vertical: AppSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [palette.success, palette.primary],
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusFull,
                         ),
                       ),
-                      const Text(
-                        'min',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$eta',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            'min',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.95),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              if (distance != null) ...[
+                SizedBox(height: AppSpacing.lg),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.successSoft,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.straighten_rounded,
+                        size: AppSize.iconMd,
+                        color: palette.success,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        '${distance.toStringAsFixed(1)} km away',
+                        style: TextStyle(
+                          color: palette.success,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
                 ),
-            ],
-          ),
-          if (distance != null) ...[
-            const SizedBox(height: AppTheme.spaceMD),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spaceMD,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                color: AppColor.accentColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-              ),
-              child: Row(
+              ],
+              SizedBox(height: AppSpacing.lg),
+              Row(
                 children: [
-                  const Icon(
-                    Icons.straighten_rounded,
-                    size: 16,
-                    color: AppColor.accentColor,
+                  Expanded(
+                    child: _SheetActionBtn(
+                      icon: Icons.phone_rounded,
+                      label: 'Call',
+                      color: palette.primary,
+                      onTap: onCall,
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${distance.toStringAsFixed(1)} km away',
-                    style: const TextStyle(
-                      color: AppColor.accentColor,
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _SheetActionBtn(
+                      icon: Icons.chat_bubble_rounded,
+                      label: 'Chat',
+                      color: palette.success,
+                      onTap: onChat,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-          const SizedBox(height: AppTheme.spaceMD),
-          Row(
-            children: [
-              Expanded(
-                child: _SheetActionBtn(
-                  icon: Icons.phone_rounded,
-                  label: 'Call',
-                  color: AppColor.secondaryColor,
-                  onTap: onCall,
+              if (booking != null) ...[
+                SizedBox(height: AppSpacing.xxl),
+                _MiniRow(
+                  icon: Icons.trip_origin_rounded,
+                  color: palette.success,
+                  label: 'Pickup',
+                  value: booking!.pickupLocationName,
                 ),
-              ),
-              const SizedBox(width: AppTheme.spaceSM),
-              Expanded(
-                child: _SheetActionBtn(
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Chat',
-                  color: AppColor.accentColor,
-                  onTap: onChat,
+                if ((booking!.destinationName ?? '').isNotEmpty) ...[
+                  SizedBox(height: AppSpacing.xs + AppSpacing.xxs),
+                  _MiniRow(
+                    icon: Icons.flag_rounded,
+                    color: palette.danger,
+                    label: 'Destination',
+                    value: booking!.destinationName!,
+                  ),
+                ],
+              ],
+              if (onCancel != null) ...[
+                SizedBox(height: AppSpacing.xxl),
+                OutlinedButton.icon(
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Cancel trip'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(AppSize.buttonMd),
+                    foregroundColor: palette.danger,
+                    side: BorderSide(color: palette.danger, width: 1.4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ],
-          ),
-          if (booking != null) ...[
-            const SizedBox(height: AppTheme.spaceLG),
-            _MiniRow(
-              icon: Icons.trip_origin_rounded,
-              color: AppColor.accentColor,
-              label: 'Pickup',
-              value: booking!.pickupLocationName,
-            ),
-            if ((booking!.destinationName ?? '').isNotEmpty) ...[
-              const SizedBox(height: 6),
-              _MiniRow(
-                icon: Icons.flag_rounded,
-                color: AppColor.errorColor,
-                label: 'Destination',
-                value: booking!.destinationName!,
-              ),
-            ],
-          ],
-          if (onCancel != null) ...[
-            const SizedBox(height: AppTheme.spaceLG),
-            OutlinedButton.icon(
-              onPressed: onCancel,
-              icon: const Icon(Icons.close_rounded),
-              label: const Text('Cancel trip'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: AppColor.errorColor,
-                side: const BorderSide(color: AppColor.errorColor, width: 1.4),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                ),
-              ),
-            ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }
@@ -933,7 +929,7 @@ class _MiniRow extends StatelessWidget {
           child: Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColor.lightTextSecondary,
+              color: AppColors.of(context).textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -947,86 +943,6 @@ class _MiniRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// =============================================================================
-// Route Info Chip — distance & ETA floating on the map
-// =============================================================================
-
-class _RouteInfoChip extends StatelessWidget {
-  final String distance;
-  final String duration;
-  const _RouteInfoChip({required this.distance, required this.duration});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.90),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.7),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Distance
-              const Icon(
-                Icons.straighten_rounded,
-                size: 16,
-                color: Color(0xFF1A73E8),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                distance,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
-              // Divider
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                width: 1,
-                height: 16,
-                color: const Color(0xFFE0E0E0),
-              ),
-              // Duration
-              const Icon(
-                Icons.schedule_rounded,
-                size: 16,
-                color: Color(0xFF1A73E8),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                duration,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

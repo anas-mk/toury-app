@@ -335,6 +335,15 @@ class AppRouter {
     return double.tryParse(value ?? '') ?? fallback;
   }
 
+  static Widget _missingPayloadPage({
+    required String title,
+    required String message,
+  }) {
+    return Scaffold(
+      body: _PlaceholderPage(title: title, message: message, showBack: true),
+    );
+  }
+
   static UserChatPage _buildUserChatPage(GoRouterState state) {
     final id = state.pathParameters['id']!;
     final name = state.uri.queryParameters['name'];
@@ -896,8 +905,9 @@ class AppRouter {
           final extra = state.extra as Map<String, dynamic>?;
           final params = extra?['params'] as ScheduledSearchParams?;
           if (params == null) {
-            return const Scaffold(
-              body: Center(child: Text('Missing search parameters.')),
+            return _missingPayloadPage(
+              title: 'Search unavailable',
+              message: 'Missing search parameters.',
             );
           }
           return ScheduledSearchResultsScreen(params: params);
@@ -922,8 +932,9 @@ class AppRouter {
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           if (extra == null) {
-            return const Scaffold(
-              body: Center(child: Text('Missing review payload.')),
+            return _missingPayloadPage(
+              title: 'Review unavailable',
+              message: 'Missing review payload.',
             );
           }
           return ScheduledReviewScreen(
@@ -1143,10 +1154,9 @@ class AppRouter {
           final paymentId = extra['paymentId'] as String?;
           final bookingId = extra['bookingId'] as String?;
           if (paymentUrl == null || paymentId == null || bookingId == null) {
-            return const Scaffold(
-              body: Center(
-                child: Text('Payment URL is unavailable. Please try again.'),
-              ),
+            return _missingPayloadPage(
+              title: 'Payment unavailable',
+              message: 'Payment URL is unavailable. Please try again.',
             );
           }
           return BlocProvider(

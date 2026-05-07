@@ -49,7 +49,12 @@ class HelperChatLoaded extends HelperChatState {
   }
 
   @override
-  List<Object?> get props => [conversation, messages, hasReachedMax, connectionState];
+  List<Object?> get props => [
+    conversation,
+    messages,
+    hasReachedMax,
+    connectionState,
+  ];
 }
 
 class HelperChatError extends HelperChatState {
@@ -70,7 +75,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
   StreamSubscription? _stateSubscription;
   StreamSubscription? _busSubscription;
   String? _currentBookingId;
-  
+
   // Debounce timer for "Mark as Read" to minimize API calls
   Timer? _markReadDebounce;
 
@@ -103,29 +108,25 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     final convRes = results[0] as Either<Failure, ConversationEntity>;
     final msgRes = results[1] as Either<Failure, List<ChatMessageEntity>>;
 
-    convRes.fold(
-      (f) => emit(HelperChatError(f.message)),
-      (conv) {
-        msgRes.fold(
-          (f) => emit(HelperChatError(f.message)),
-          (messages) {
-            emit(HelperChatLoaded(
-              conversation: conv,
-              messages: messages,
-              hasReachedMax: messages.length < 20,
-              connectionState: hubService.connectionState,
-            ));
-            
-            // Mark as read once on initial open
-            _triggerMarkAsRead();
-            
-            // 3. Start Listening to real-time events
-            _listenToState();
-            _listenToBus();
-          },
+    convRes.fold((f) => emit(HelperChatError(f.message)), (conv) {
+      msgRes.fold((f) => emit(HelperChatError(f.message)), (messages) {
+        emit(
+          HelperChatLoaded(
+            conversation: conv,
+            messages: messages,
+            hasReachedMax: messages.length < 20,
+            connectionState: hubService.connectionState,
+          ),
         );
-      },
-    );
+
+        // Mark as read once on initial open
+        _triggerMarkAsRead();
+
+        // 3. Start Listening to real-time events
+        _listenToState();
+        _listenToBus();
+      });
+    });
   }
 
   /// Manual Fallback: Re-fetch first page if user pulls to refresh
@@ -145,11 +146,13 @@ class HelperChatCubit extends Cubit<HelperChatState> {
       (_) => null,
       (conv) => msgRes.fold(
         (_) => null,
-        (messages) => emit(s.copyWith(
-          conversation: conv,
-          messages: messages,
-          hasReachedMax: messages.length < 20,
-        )),
+        (messages) => emit(
+          s.copyWith(
+            conversation: conv,
+            messages: messages,
+            hasReachedMax: messages.length < 20,
+          ),
+        ),
       ),
     );
   }
@@ -158,7 +161,8 @@ class HelperChatCubit extends Cubit<HelperChatState> {
   void _listenToBus() {
     _busSubscription?.cancel();
     _busSubscription = BookingRealtimeEventBus.instance.stream.listen((event) {
-      if (event is BusChatMessage && event.event.bookingId == _currentBookingId) {
+      if (event is BusChatMessage &&
+          event.event.bookingId == _currentBookingId) {
         _handleIncomingPush(event.event);
       }
     });
@@ -171,7 +175,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
     // Convert push event to entity model
     final msgId = push.messageId ?? push.eventId;
-    
+
     // PREVENT DUPLICATES: Check by ID before inserting
     if (s.messages.any((m) => m.id == msgId)) return;
 
@@ -187,7 +191,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
     // Update UI state directly with the new message
     emit(s.copyWith(messages: [msg, ...s.messages]));
-    
+
     // Trigger debounced mark-as-read if message is from the other party
     if (msg.senderType.toLowerCase() == 'user') {
       _triggerMarkAsRead();
@@ -197,7 +201,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
   /// Debounced strategy for "Mark as Read" to minimize network calls
   void _triggerMarkAsRead() {
     if (_currentBookingId == null) return;
-    
+
     _markReadDebounce?.cancel();
     _markReadDebounce = Timer(const Duration(seconds: 2), () {
       unawaited(markReadUseCase(_currentBookingId!));
@@ -212,8 +216,8 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
     final lastMessage = s.messages.last;
     final result = await getMessagesUseCase(
-      _currentBookingId!, 
-      before: lastMessage.sentAt, 
+      _currentBookingId!,
+      before: lastMessage.sentAt,
       pageSize: 20,
     );
 
@@ -224,14 +228,18 @@ class HelperChatCubit extends Cubit<HelperChatState> {
           emit(s.copyWith(hasReachedMax: true));
           return;
         }
-        
+
         // Filter out duplicates (sanity check)
-        final filtered = newMessages.where((nm) => !s.messages.any((m) => m.id == nm.id)).toList();
-        
-        emit(s.copyWith(
-          messages: [...s.messages, ...filtered],
-          hasReachedMax: newMessages.length < 20,
-        ));
+        final filtered = newMessages
+            .where((nm) => !s.messages.any((m) => m.id == nm.id))
+            .toList();
+
+        emit(
+          s.copyWith(
+            messages: [...s.messages, ...filtered],
+            hasReachedMax: newMessages.length < 20,
+          ),
+        );
       },
     );
   }
@@ -252,7 +260,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
       sentAt: DateTime.now(),
       isPending: true,
     );
-    
+
     // Instant UI update
     emit(s.copyWith(messages: [pendingMsg, ...s.messages]));
 
@@ -264,7 +272,9 @@ class HelperChatCubit extends Cubit<HelperChatState> {
         if (state is HelperChatLoaded) {
           final current = state as HelperChatLoaded;
           final updated = current.messages.map((m) {
-            return m.id == tempId ? m.copyWith(isPending: false, isFailed: true) : m;
+            return m.id == tempId
+                ? m.copyWith(isPending: false, isFailed: true)
+                : m;
           }).toList();
           emit(current.copyWith(messages: updated));
         }
@@ -273,15 +283,18 @@ class HelperChatCubit extends Cubit<HelperChatState> {
         // Handle success: replace temp message with server response
         if (state is HelperChatLoaded) {
           final current = state as HelperChatLoaded;
-          
+
           // If SignalR already pushed this message, just remove the temp one
           final alreadyInList = current.messages.any((m) => m.id == sentMsg.id);
-          
-          final updated = current.messages.map((m) {
-            if (m.id == tempId) return alreadyInList ? null : sentMsg;
-            return m;
-          }).whereType<ChatMessageEntity>().toList();
-          
+
+          final updated = current.messages
+              .map((m) {
+                if (m.id == tempId) return alreadyInList ? null : sentMsg;
+                return m;
+              })
+              .whereType<ChatMessageEntity>()
+              .toList();
+
           emit(current.copyWith(messages: updated));
         }
       },

@@ -75,10 +75,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
             ),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 decoration: BoxDecoration(
                   color: palette.surfaceInset,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppRadius.xxl),
                 ),
                 child: TextField(
                   controller: _controller,
@@ -93,14 +93,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
             AnimatedScale(
               scale: _hasText ? 1.0 : 0.8,
-              duration: const Duration(milliseconds: 200),
+              duration: AppDurations.fast,
               child: GestureDetector(
                 onTap: _hasText ? _send : null,
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: _hasText ? palette.primary : palette.disabledFill,
                     shape: BoxShape.circle,

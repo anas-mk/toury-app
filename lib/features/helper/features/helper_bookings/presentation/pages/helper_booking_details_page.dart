@@ -3,8 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
+import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../widgets/details/booking_status_banner.dart';
@@ -20,13 +27,14 @@ class HelperBookingDetailsPage extends StatefulWidget {
   final bool isRequest; // If true, use RequestDetailsCubit
 
   const HelperBookingDetailsPage({
-    super.key, 
+    super.key,
     required this.bookingId,
     this.isRequest = false,
   });
 
   @override
-  State<HelperBookingDetailsPage> createState() => _HelperBookingDetailsPageState();
+  State<HelperBookingDetailsPage> createState() =>
+      _HelperBookingDetailsPageState();
 }
 
 class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
@@ -62,17 +70,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     super.dispose();
   }
 
-  void _showSnack(BuildContext context, String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? BrandTokens.dangerRed : BrandTokens.successGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -88,14 +85,17 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           BlocListener<AcceptRejectRequestCubit, AcceptRejectRequestState>(
             listener: (context, state) {
               if (state is AcceptSuccess) {
-                _showSnack(context, '✓ Request accepted!');
+                AppSnackbar.success(context, 'Request accepted');
                 final b = state.booking;
-                context.pushReplacement(AppRouter.helperActiveBooking, extra: b.id);
+                context.pushReplacement(
+                  AppRouter.helperActiveBooking,
+                  extra: b.id,
+                );
               } else if (state is RejectSuccess) {
-                _showSnack(context, 'Request declined');
+                AppSnackbar.info(context, 'Request declined');
                 context.pop();
               } else if (state is AcceptRejectFailure) {
-                _showSnack(context, state.message, isError: true);
+                AppSnackbar.error(context, state.message);
               }
             },
           ),
@@ -103,82 +103,91 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
             listener: (context, state) {
               if (state is TripActionSuccess) {
                 if (state.actionType == 'start') {
-                  _showSnack(context, 'Trip started!');
-                  context.pushReplacement(AppRouter.helperActiveBooking, extra: widget.bookingId);
+                  AppSnackbar.success(context, 'Trip started');
+                  context.pushReplacement(
+                    AppRouter.helperActiveBooking,
+                    extra: widget.bookingId,
+                  );
                 } else if (state.actionType == 'end') {
                   _showEarningsDialog(context, state.result as double);
                 }
               } else if (state is TripActionError) {
-                _showSnack(context, state.message, isError: true);
+                AppSnackbar.error(context, state.message);
               }
             },
           ),
         ],
-        child: Scaffold(
-          backgroundColor: BrandTokens.bgSoft,
-          appBar: AppBar(
-            backgroundColor: BrandTokens.surfaceWhite,
-            foregroundColor: BrandTokens.textPrimary,
-            title: Text(widget.isRequest ? 'Trip Request' : 'Booking Details', 
-                style: BrandTypography.title()),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-              onPressed: () => context.pop(),
-            ),
+        child: AppScaffold(
+          appBar: BasicAppBar(
+            title: widget.isRequest ? 'Trip Request' : 'Booking Details',
           ),
-          body: widget.isRequest 
-            ? BlocBuilder<RequestDetailsCubit, RequestDetailsState>(
-                builder: (context, state) {
-                  if (state is RequestDetailsLoading) return _buildLoading();
-                  if (state is RequestDetailsLoaded) return _buildContent(context, state.booking);
-                  if (state is RequestDetailsError) return _buildError(context, state.message, true);
-                  return const SizedBox.shrink();
-                },
-              )
-            : BlocBuilder<HelperBookingDetailsCubit, HelperBookingDetailsState>(
-                builder: (context, state) {
-                  if (state is HelperBookingDetailsLoading) return _buildLoading();
-                  if (state is HelperBookingDetailsLoaded) return _buildContent(context, state.booking);
-                  if (state is HelperBookingDetailsError) return _buildError(context, state.message, false);
-                  return const SizedBox.shrink();
-                },
-              ),
+          body: widget.isRequest
+              ? BlocBuilder<RequestDetailsCubit, RequestDetailsState>(
+                  builder: (context, state) {
+                    if (state is RequestDetailsLoading) return _buildLoading();
+                    if (state is RequestDetailsLoaded)
+                      return _buildContent(context, state.booking);
+                    if (state is RequestDetailsError)
+                      return _buildError(context, state.message, true);
+                    return const SizedBox.shrink();
+                  },
+                )
+              : BlocBuilder<
+                  HelperBookingDetailsCubit,
+                  HelperBookingDetailsState
+                >(
+                  builder: (context, state) {
+                    if (state is HelperBookingDetailsLoading)
+                      return _buildLoading();
+                    if (state is HelperBookingDetailsLoaded)
+                      return _buildContent(context, state.booking);
+                    if (state is HelperBookingDetailsError)
+                      return _buildError(context, state.message, false);
+                    return const SizedBox.shrink();
+                  },
+                ),
         ),
       ),
     );
   }
 
-  Widget _buildLoading() => const Center(child: CircularProgressIndicator.adaptive());
+  Widget _buildLoading() => const Center(child: AppLoading(fullScreen: false));
 
   Widget _buildContent(BuildContext context, HelperBooking booking) {
     final status = booking.status.toLowerCase();
     final isPending = status == 'pending' || status == 'pendinghelperresponse';
-    final isConfirmed = booking.canStartTrip
-        || status == 'confirmed'
-        || status == 'accepted'
-        || status == 'acceptedbyhelper'
-        || status == 'confirmedpaid';
-    final isActive = booking.canEndTrip
-        || status == 'inprogress'
-        || status == 'started'
-        || status == 'active';
+    final isConfirmed =
+        booking.canStartTrip ||
+        status == 'confirmed' ||
+        status == 'accepted' ||
+        status == 'acceptedbyhelper' ||
+        status == 'confirmedpaid';
+    final isActive =
+        booking.canEndTrip ||
+        status == 'inprogress' ||
+        status == 'started' ||
+        status == 'active';
     final isCompleted = status == 'completed';
     final isCancelled = status.contains('cancelled') || status == 'rejected';
 
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.pageGutter,
+            AppSpacing.pageGutter,
+            AppSpacing.pageGutter,
+            AppSpacing.giga + AppSpacing.mega + AppSpacing.xs,
+          ),
           children: [
             BookingStatusBanner(status: booking.status),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
             TravelerInfoSection(booking: booking),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             BookingRouteCard(booking: booking),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             PaymentInfoCard(booking: booking),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _FlowHintCard(
               title: _flowTitle(
                 isPending: isPending,
@@ -195,13 +204,15 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                 isCancelled: isCancelled,
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: AppSpacing.huge),
           ],
         ),
-        
+
         // Dynamic Bottom Actions
         Positioned(
-          left: 0, right: 0, bottom: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           child: _buildBottomActions(
             context,
             booking,
@@ -226,16 +237,32 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     bool isCancelled,
   ) {
     // If there are no actions to show, do not render the container to avoid empty space
-    if (!isPending && !isConfirmed && !isActive && !isCompleted && !isCancelled) {
+    if (!isPending &&
+        !isConfirmed &&
+        !isActive &&
+        !isCompleted &&
+        !isCancelled) {
       return const SizedBox.shrink();
     }
 
+    final palette = AppColors.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageGutter,
+        AppSpacing.xxl,
+        AppSpacing.pageGutter,
+        AppSpacing.mega + AppSpacing.lg + AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
+        color: palette.surfaceElevated,
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
+          BoxShadow(
+            color: palette.textPrimary.withValues(
+              alpha: palette.isDark ? 0.25 : 0.06,
+            ),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
         ],
       ),
       child: Column(
@@ -268,12 +295,13 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                 isLoading: isRejectLoading,
                 isDisabled: isDisabled,
                 onTap: () {
-                  if (widget.isRequest) _requestCubit.optimisticUpdateStatus('Rejected');
+                  if (widget.isRequest)
+                    _requestCubit.optimisticUpdateStatus('Rejected');
                   _acceptRejectCubit.rejectRequest(booking.id);
                 },
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: _ActionBtn(
                 label: 'Accept Request',
@@ -281,7 +309,8 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                 isLoading: isAcceptLoading,
                 isDisabled: isDisabled,
                 onTap: () {
-                  if (widget.isRequest) _requestCubit.optimisticUpdateStatus('Accepted');
+                  if (widget.isRequest)
+                    _requestCubit.optimisticUpdateStatus('Accepted');
                   _acceptRejectCubit.acceptRequest(booking.id);
                 },
               ),
@@ -313,11 +342,14 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                 if (booking.canStartTrip) {
                   _tripActionCubit.start(booking.id);
                 } else {
-                  context.pushReplacement(AppRouter.helperActiveBooking, extra: booking.id);
+                  context.pushReplacement(
+                    AppRouter.helperActiveBooking,
+                    extra: booking.id,
+                  );
                 }
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _ActionBtn(
               label: 'Message Traveler',
               icon: Icons.chat_bubble_outline_rounded,
@@ -350,7 +382,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                 extra: booking.id,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _ActionBtn(
               label: 'Message Traveler',
               icon: Icons.chat_bubble_outline_rounded,
@@ -374,7 +406,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           color: Colors.amber,
           onTap: () => _showRatingSheet(context, booking),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
         _ActionBtn(
           label: 'Back to bookings',
           icon: Icons.home_rounded,
@@ -397,7 +429,10 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   }
 
   void _openChat(BuildContext context, String id) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => HelperChatPage(bookingId: id)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => HelperChatPage(bookingId: id)),
+    );
   }
 
   void _showRatingSheet(BuildContext context, HelperBooking booking) {
@@ -414,57 +449,78 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   }
 
   void _showEarningsDialog(BuildContext context, double earnings) {
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.check_circle_rounded, color: BrandTokens.successGreen, size: 64),
-              const SizedBox(height: 16),
-              Text('Trip Completed!', style: BrandTokens.heading(fontSize: 22)),
-              const SizedBox(height: 8),
-              Text('You earned', style: BrandTypography.caption()),
-              Text('\$${earnings.toStringAsFixed(2)}', style: BrandTokens.numeric(fontSize: 36, color: BrandTokens.successGreen, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    context.pop();
-                    context.pop();
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: BrandTokens.primaryBlue),
-                  child: const Text('Done'),
-                ),
-              ),
-            ],
+      builder: (dlgCtx) {
+        final palette = AppColors.of(dlgCtx);
+        final theme = Theme.of(dlgCtx);
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
           ),
-        ),
-      ),
+          backgroundColor: palette.surfaceElevated,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xxxl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: palette.success,
+                  size: AppSpacing.mega + AppSpacing.lg,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Trip Completed!',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'You earned',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+                Text(
+                  '\$${earnings.toStringAsFixed(2)}',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: palette.success,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxl),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.pop(dlgCtx);
+                      context.pop();
+                    },
+                    child: const Text('Done'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildError(BuildContext context, String msg, bool isReq) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline_rounded, color: BrandTokens.dangerRed, size: 48),
-            const SizedBox(height: 16),
-            Text(msg, textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => isReq ? _requestCubit.load(widget.bookingId) : _detailsCubit.load(widget.bookingId),
-              child: const Text('Retry'),
-            ),
-          ],
+      child: AppErrorState(
+        message: msg,
+        onRetry: () => isReq
+            ? _requestCubit.load(widget.bookingId)
+            : _detailsCubit.load(widget.bookingId),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xxl,
+          vertical: AppSpacing.xl,
         ),
       ),
     );
@@ -493,10 +549,14 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     required bool isCancelled,
   }) {
     if (isPending) return 'Accept or decline this request to continue.';
-    if (isConfirmed) return 'Start trip when traveler is ready, then switch to live tracking.';
-    if (isActive) return 'Use live tracking to navigate and end the trip safely.';
-    if (isCompleted) return 'Rate the traveler and return to your bookings list.';
-    if (isCancelled) return 'This booking has been closed and no further actions are needed.';
+    if (isConfirmed)
+      return 'Start trip when traveler is ready, then switch to live tracking.';
+    if (isActive)
+      return 'Use live tracking to navigate and end the trip safely.';
+    if (isCompleted)
+      return 'Rate the traveler and return to your bookings list.';
+    if (isCancelled)
+      return 'This booking has been closed and no further actions are needed.';
     return 'Review booking information below.';
   }
 }
@@ -508,27 +568,37 @@ class _FlowHintCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
       decoration: BoxDecoration(
-        color: BrandTokens.primaryBlue.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BrandTokens.primaryBlue.withValues(alpha: 0.14)),
+        color: palette.primarySoft.withValues(
+          alpha: palette.isDark ? 0.35 : 0.65,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: palette.primary.withValues(alpha: 0.22)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, color: BrandTokens.primaryBlue, size: 20),
-          const SizedBox(width: 10),
+          Icon(
+            Icons.info_outline_rounded,
+            color: palette.primary,
+            size: AppSize.iconMd + AppSpacing.xxs,
+          ),
+          const SizedBox(width: AppSpacing.sm + AppSpacing.xxs),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: BrandTypography.body(weight: FontWeight.bold)),
-                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: BrandTypography.body(weight: FontWeight.bold),
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   subtitle,
-                  style: BrandTypography.caption(color: BrandTokens.textSecondary),
+                  style: BrandTypography.caption(color: palette.textSecondary),
                 ),
               ],
             ),
@@ -549,10 +619,10 @@ class _ActionBtn extends StatelessWidget {
   final bool isDisabled;
 
   const _ActionBtn({
-    required this.label, 
-    this.icon, 
-    required this.color, 
-    required this.onTap, 
+    required this.label,
+    this.icon,
+    required this.color,
+    required this.onTap,
     this.outline = false,
     this.isLoading = false,
     this.isDisabled = false,
@@ -560,44 +630,62 @@ class _ActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     final effectiveOnTap = isDisabled ? null : onTap;
     final contentColor = outline ? color : Colors.white;
 
-    Widget childContent = isLoading 
+    Widget childContent = isLoading
         ? SizedBox(
-            width: 24, height: 24, 
-            child: CircularProgressIndicator(color: contentColor, strokeWidth: 2.5)
+            width: 24,
+            height: 24,
+            child: AppSpinner(size: 24, strokeWidth: 2.5, color: contentColor),
           )
         : Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) Icon(icon, color: contentColor, size: 20),
-              if (icon != null) const SizedBox(width: 8),
-              Text(label, style: BrandTypography.body(color: contentColor, weight: FontWeight.bold)),
+              if (icon != null)
+                Icon(icon, color: contentColor, size: AppSize.iconMd),
+              if (icon != null) const SizedBox(width: AppSpacing.sm),
+              Text(
+                label,
+                style: BrandTypography.body(
+                  color: contentColor,
+                  weight: FontWeight.bold,
+                ),
+              ),
             ],
           );
 
     if (outline) {
       return SizedBox(
-        width: double.infinity, height: 56,
+        width: double.infinity,
+        height: AppSize.buttonLg,
         child: OutlinedButton(
           onPressed: effectiveOnTap,
           style: OutlinedButton.styleFrom(
-            side: BorderSide(color: isDisabled ? Colors.grey : color, width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            side: BorderSide(
+              color: isDisabled ? palette.border : color,
+              width: AppSize.border,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
           ),
           child: childContent,
         ),
       );
     }
     return SizedBox(
-      width: double.infinity, height: 56,
+      width: double.infinity,
+      height: AppSize.buttonLg,
       child: ElevatedButton(
         onPressed: effectiveOnTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          disabledBackgroundColor: Colors.grey.shade400,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          disabledBackgroundColor: palette.disabledFill,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
           elevation: 0,
         ),
         child: childContent,

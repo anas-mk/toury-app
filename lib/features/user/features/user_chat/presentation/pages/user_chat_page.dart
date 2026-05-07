@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/theme/app_color.dart';
+
+import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../auth/data/datasources/auth_local_data_source.dart';
-import '../cubit/user_chat_cubit.dart';
-import '../widgets/chat_message_bubble.dart';
-import '../widgets/chat_input_bar.dart';
 import '../../data/services/user_chat_signalr_service.dart';
+import '../cubit/user_chat_cubit.dart';
+import '../widgets/chat_input_bar.dart';
+import '../widgets/chat_message_bubble.dart';
+import '../widgets/user_chat_quick_replies_sheet.dart';
 
 class UserChatPage extends StatefulWidget {
   final String bookingId;
@@ -45,7 +52,8 @@ class _UserChatPageState extends State<UserChatPage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.82) {
       _cubit.loadMore();
     }
   }
@@ -59,73 +67,192 @@ class _UserChatPageState extends State<UserChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return BlocProvider.value(
       value: _cubit,
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: _buildAppBar(context),
+      child: AppScaffold(
+        resizeToAvoidBottomInset: true,
+        appBar: _UserChatAppBar(
+          fallbackName: widget.helperName,
+          fallbackAvatar: widget.helperImage,
+        ),
         body: Column(
           children: [
             Expanded(
               child: BlocBuilder<UserChatCubit, UserChatState>(
                 builder: (context, state) {
                   if (state is UserChatLoading) {
-                    return _buildLoading();
-                  } else if (state is UserChatLoaded) {
-                    return _buildMessageList(state);
-                  } else if (state is UserChatError) {
-                    return _buildError(state.message);
+                    return const Center(child: AppLoading(fullScreen: false));
+                  }
+                  if (state is UserChatLoaded) {
+                    return _buildMessageList(context, state);
+                  }
+                  if (state is UserChatError) {
+                    return AppErrorState(
+                      message: state.message,
+                      onRetry: _init,
+                    );
                   }
                   return const SizedBox.shrink();
                 },
               ),
             ),
-            _buildInput(),
+            ChatInputBar(
+              onSend: _cubit.sendMessage,
+              onQuickReply: () {
+                showModalBottomSheet<void>(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => UserChatQuickRepliesSheet(onReply: _cubit.sendMessage),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppBar(
-      elevation: 0,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-        onPressed: () => Navigator.pop(context),
+  Widget _buildMessageList(BuildContext context, UserChatLoaded state) {
+    if (state.messages.isEmpty) {
+      return _buildEmptyState(context, state);
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+      physics: const AlwaysScrollableScrollPhysics(),
+      addAutomaticKeepAlives: false,
+      itemCount: state.messages.length + (state.hasReachedMax ? 0 : 1),
+      itemBuilder: (context, index) {
+        if (index == state.messages.length) {
+          return const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: Center(child: AppSpinner.large()),
+          );
+        }
+
+        final message = state.messages[index];
+        final isMe = message.senderType.toLowerCase() == 'user';
+
+        return ChatMessageBubble(
+          key: ValueKey(message.id),
+          message: message,
+          isMe: isMe,
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, UserChatLoaded state) {
+    final h = MediaQuery.sizeOf(context).height;
+    return ListView(
+      reverse: true,
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.pageGutter,
+        vertical: AppSpacing.xl,
       ),
-      titleSpacing: 0,
+      children: [
+        SizedBox(height: h * 0.22),
+        AppEmptyState(
+          icon: Icons.chat_bubble_outline_rounded,
+          title: 'No messages yet',
+          message: 'Start a conversation with ${state.conversation.helper.name}',
+          padding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+}
+
+/// App bar mirrored from helper chat UX; resolves helper avatar via API base.
+class _UserChatAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String? fallbackName;
+  final String? fallbackAvatar;
+
+  const _UserChatAppBar({
+    required this.fallbackName,
+    required this.fallbackAvatar,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    final canPop = Navigator.of(context).canPop();
+
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      leading: canPop
+          ? IconButton(
+              splashRadius: 20,
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: palette.textPrimary,
+                size: AppSize.iconMd,
+              ),
+              onPressed: () => Navigator.maybePop(context),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            )
+          : null,
+      titleSpacing: AppSpacing.sm,
       title: BlocBuilder<UserChatCubit, UserChatState>(
         builder: (context, state) {
-          final String name = (state is UserChatLoaded) ? state.conversation.helper.name : (widget.helperName ?? 'Chat');
-          final String imageUrl = (state is UserChatLoaded) ? state.conversation.helper.profileImageUrl : (widget.helperImage ?? '');
-          
+          final name = (state is UserChatLoaded)
+              ? state.conversation.helper.name
+              : (fallbackName ?? 'Chat');
+          final imageUrl = (state is UserChatLoaded)
+              ? state.conversation.helper.profileImageUrl
+              : (fallbackAvatar ?? '');
+
           return Row(
             children: [
               CircleAvatar(
-                radius: 18,
-                backgroundImage: imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
-                backgroundColor: AppColor.primaryColor.withOpacity(0.1),
+                radius: AppSize.avatarMd / 2,
+                backgroundImage: imageUrl.isNotEmpty
+                    ? NetworkImage(ApiConfig.resolveImageUrl(imageUrl))
+                    : null,
+                backgroundColor: palette.primarySoft,
                 child: imageUrl.isEmpty && name != 'Chat'
-                    ? Text(name[0].toUpperCase(), style: const TextStyle(color: AppColor.primaryColor, fontSize: 14))
-                    : (imageUrl.isEmpty ? const Icon(Icons.person, size: 20, color: AppColor.primaryColor) : null),
+                    ? Text(
+                        name[0].toUpperCase(),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: palette.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    : (imageUrl.isEmpty
+                        ? Icon(
+                            Icons.person_rounded,
+                            size: AppSize.iconMd,
+                            color: palette.primary,
+                          )
+                        : null),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       name,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (state is UserChatLoaded)
-                      _buildConnectionStatus(context, state.connectionState),
+                      _UserConnectionChip(state.connectionState),
                   ],
                 ),
               ),
@@ -135,116 +262,52 @@ class _UserChatPageState extends State<UserChatPage> {
       ),
     );
   }
+}
 
-  Widget _buildConnectionStatus(BuildContext context, UserChatSignalRState state) {
+class _UserConnectionChip extends StatelessWidget {
+  final UserChatSignalRState connectionState;
+
+  const _UserConnectionChip(this.connectionState);
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    String text = '';
-    Color color = theme.colorScheme.onSurface.withOpacity(0.4);
-    
-    switch (state) {
+    final palette = AppColors.of(context);
+    late final String label;
+    late final Color indicator;
+
+    switch (connectionState) {
       case UserChatSignalRState.connected:
-        text = 'Online';
-        color = const Color(0xFF00C896);
+        label = 'Online';
+        indicator = palette.success;
         break;
       case UserChatSignalRState.connecting:
-        text = 'Connecting...';
-        color = Colors.amber;
+        label = 'Connecting...';
+        indicator = palette.warning;
         break;
       case UserChatSignalRState.disconnected:
       case UserChatSignalRState.error:
-        text = 'Offline';
-        color = theme.colorScheme.onSurface.withOpacity(0.3);
+        label = 'Offline';
+        indicator = palette.textMuted;
         break;
     }
-    
+
     return Row(
       children: [
         Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          width: AppSpacing.xs + AppSpacing.xxs,
+          height: AppSpacing.xs + AppSpacing.xxs,
+          decoration: BoxDecoration(color: indicator, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 6),
-        Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500)),
-      ],
-    );
-  }
-
-  Widget _buildMessageList(UserChatLoaded state) {
-    if (state.messages.isEmpty) {
-      return _buildEmptyState(state);
-    }
-
-    return ListView.builder(
-      controller: _scrollController,
-      reverse: true,
-      padding: const EdgeInsets.only(top: 16, bottom: 8),
-      itemCount: state.messages.length + (state.hasReachedMax ? 0 : 1),
-      itemBuilder: (context, index) {
-        if (index == state.messages.length) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
-
-        final message = state.messages[index];
-        final isMe = message.senderType.toLowerCase() == 'user';
-        
-        return ChatMessageBubble(
-          message: message,
-          isMe: isMe,
-        );
-      },
-    );
-  }
-
-  Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator());
-  }
-
-  Widget _buildError(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceXL),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _init,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(UserChatLoaded state) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.chat_bubble_outline_rounded, color: Theme.of(context).dividerColor, size: 64),
-          const SizedBox(height: 16),
-          Text(
-            'Start a conversation with ${state.conversation.helper.name}',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: indicator,
+            fontWeight: FontWeight.w600,
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInput() {
-    return ChatInputBar(
-      onSend: (text) => _cubit.sendMessage(text),
+        ),
+      ],
     );
   }
 }

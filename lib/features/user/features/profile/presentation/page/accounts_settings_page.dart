@@ -4,10 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../core/utils/jwt_payload.dart';
+import '../../../../../../core/widgets/app_dialog.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 
 /// Phase 2 redesign — Account & Settings (light polish).
 ///
@@ -25,12 +29,16 @@ class AccountSettingsPage extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final identity = _resolveIdentity();
 
-    return Scaffold(
-      backgroundColor: BrandTokens.bgSoft,
+    return AppScaffold(
       body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.pageGutter,
+            AppSpacing.sm,
+            AppSpacing.pageGutter,
+            AppSpacing.xxxl,
+          ),
           children: [
             _Header(title: loc.translate('account')),
             const SizedBox(height: 16),
@@ -92,9 +100,7 @@ class AccountSettingsPage extends StatelessWidget {
             Center(
               child: Text(
                 'RAFIQ - Your Way, Your Tour.',
-                style: BrandTypography.caption(
-                  color: BrandTokens.textMuted,
-                ),
+                style: BrandTypography.caption(color: BrandTokens.textMuted),
               ),
             ),
           ],
@@ -132,32 +138,17 @@ class AccountSettingsPage extends StatelessWidget {
 
   Future<void> _confirmLogout(BuildContext context) async {
     HapticFeedback.lightImpact();
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Log out?'),
-          content: const Text(
-            'You will be signed out of this device. Your active trips and SOS sessions stay safe on the server.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: BrandTokens.dangerSos,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Log out'),
-            ),
-          ],
-        );
-      },
+      title: 'Log out?',
+      message:
+          'You will be signed out of this device. Your active trips and SOS sessions stay safe on the server.',
+      confirmLabel: 'Log out',
+      cancelLabel: 'Cancel',
+      tone: AppDialogTone.danger,
+      icon: Icons.logout_rounded,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
     try {
       await sl<AuthService>().clearAuth();
     } catch (_) {

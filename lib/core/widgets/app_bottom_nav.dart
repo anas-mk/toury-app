@@ -93,63 +93,75 @@ class _NavTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? palette.primary : palette.textSecondary;
 
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: item.label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const StadiumBorder(),
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.symmetric(
-                horizontal: selected ? AppSpacing.md : AppSpacing.sm,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: selected
-                    ? palette.primarySoft.withValues(
-                        alpha: palette.isDark ? 0.6 : 1.0,
-                      )
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    selected ? (item.activeIcon ?? item.icon) : item.icon,
-                    color: color,
-                    size: AppSize.iconLg,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Showing icon+label needs considerably more room than a single tab on
+        // small devices (especially with 5 tabs). Keep icon-only when narrow.
+        final canShowSelectedLabel = selected && constraints.maxWidth >= 112;
+        return Semantics(
+          button: true,
+          selected: selected,
+          label: item.label,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const StadiumBorder(),
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: Colors.transparent,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: canShowSelectedLabel
+                        ? AppSpacing.md
+                        : AppSpacing.sm,
+                    vertical: AppSpacing.sm,
                   ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    child: selected
-                        ? Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: Text(
-                              item.label,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: color,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? palette.primarySoft.withValues(
+                            alpha: palette.isDark ? 0.6 : 1.0,
                           )
-                        : const SizedBox.shrink(),
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        selected ? (item.activeIcon ?? item.icon) : item.icon,
+                        color: color,
+                        size: AppSize.iconLg,
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: canShowSelectedLabel
+                            ? Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.fade,
+                                  softWrap: false,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: color,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
