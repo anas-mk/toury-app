@@ -1,23 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:ui';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/config/api_config.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../../../helper_bookings/domain/entities/helper_availability_state.dart';
-import '../../../helper_bookings/presentation/cubit/incoming_requests_cubit.dart';
 import '../../data/services/helper_location_signalr_service.dart';
 import '../cubit/helper_location_cubit.dart';
 import '../cubit/location_status_cubits.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
-import '../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
-
-const String _mapboxToken = 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg';
 
 class HelperLocationPage extends StatefulWidget {
   const HelperLocationPage({super.key});
@@ -30,7 +26,9 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
   late final HelperLocationCubit _locationCubit;
   late final LocationStatusCubit _statusCubit;
   late final HelperAvailabilityCubit _availabilityCubit;
-  final MapController _mapController = MapController();
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _pointAnnotationManager;
+  PointAnnotation? _currentLocationMarker;
   bool _following = true;
   late AnimationController _pulseController;
 
@@ -48,6 +46,39 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
 
     _initTracking();
     _statusCubit.loadStatus();
+  }
+
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    _mapboxMap = mapboxMap;
+    _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+    
+    final state = _locationCubit.state;
+    if (state is HelperLocationTracking) {
+      _updateMapPosition(state.location.latitude, state.location.longitude);
+    }
+  }
+
+  void _updateMapPosition(double lat, double lng) {
+    if (_mapboxMap == null) return;
+    _mapboxMap!.setCamera(CameraOptions(
+      center: Point(coordinates: Position(lng, lat)),
+      zoom: 16.0,
+    ));
+    _updateMarker(lat, lng);
+  }
+
+  void _updateMarker(double lat, double lng) async {
+    if (_pointAnnotationManager == null) return;
+    if (_currentLocationMarker != null) {
+      _pointAnnotationManager!.delete(_currentLocationMarker!);
+    }
+    _currentLocationMarker = await _pointAnnotationManager!.create(
+      PointAnnotationOptions(
+        geometry: Point(coordinates: Position(lng, lat)),
+        iconImage: 'marker-15',
+        iconSize: 2.0,
+      ),
+    );
   }
 
   Future<void> _initTracking() async {
@@ -160,64 +191,23 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
             BlocConsumer<HelperLocationCubit, HelperLocationState>(
               listener: (context, state) {
                 if (state is HelperLocationTracking && _following) {
-                  _mapController.move(
-                    LatLng(state.location.latitude, state.location.longitude),
-                    _mapController.camera.zoom,
-                  );
+                  _updateMapPosition(state.location.latitude, state.location.longitude);
                 }
               },
               builder: (context, state) {
-                LatLng initialCenter = const LatLng(30.0444, 31.2357);
+                Position initialPosition = Position(31.2357, 30.0444);
                 if (state is HelperLocationTracking) {
-                  initialCenter = LatLng(state.location.latitude, state.location.longitude);
+                  initialPosition = Position(state.location.longitude, state.location.latitude);
                 }
 
-                return FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: initialCenter,
-                    initialZoom: 16,
-                    onPositionChanged: (pos, hasGesture) {
-                      if (hasGesture) setState(() => _following = false);
-                    },
+                return MapWidget(
+                  key: const ValueKey("mapWidget"),
+                  cameraOptions: CameraOptions(
+                    center: Point(coordinates: initialPosition),
+                    zoom: 16.0,
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxToken',
-                      additionalOptions: const {
-                        'accessToken': _mapboxToken,
-                      },
-                      tileProvider: CachedTileProvider(),
-                      userAgentPackageName: 'com.toury.app',
-                    ),
-                    if (state is HelperLocationTracking) ...[
-                      CircleLayer(
-                        circles: [
-                          CircleMarker(
-                            point: LatLng(state.location.latitude, state.location.longitude),
-                            radius: 150,
-                            useRadiusInMeter: true,
-                            color: theme.colorScheme.secondary.withOpacity(0.1),
-                            borderColor: theme.colorScheme.secondary.withOpacity(0.3),
-                            borderStrokeWidth: 1,
-                          ),
-                        ],
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: LatLng(state.location.latitude, state.location.longitude),
-                            width: 80,
-                            height: 80,
-                            child: _LocationMarker(
-                              heading: state.location.heading ?? 0,
-                              pulseAnimation: _pulseController,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                  styleUri: MapboxStyles.LIGHT,
+                  onMapCreated: _onMapCreated,
                 );
               },
             ),
@@ -242,7 +232,7 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                       setState(() => _following = true);
                       final state = _locationCubit.state;
                       if (state is HelperLocationTracking) {
-                        _mapController.move(LatLng(state.location.latitude, state.location.longitude), 16);
+                        _updateMapPosition(state.location.latitude, state.location.longitude);
                       }
                     },
                     isActive: _following,
@@ -250,12 +240,20 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
                   SizedBox(height: AppTheme.spaceSM),
                   _MapControlBtn(
                     icon: Icons.add_rounded,
-                    onTap: () => _mapController.move(_mapController.camera.center, _mapController.camera.zoom + 1),
+                    onTap: () {
+                      _mapboxMap?.getCameraState().then((state) {
+                        _mapboxMap?.setCamera(CameraOptions(zoom: state.zoom + 1));
+                      });
+                    },
                   ),
                   SizedBox(height: AppTheme.spaceSM),
                   _MapControlBtn(
                     icon: Icons.remove_rounded,
-                    onTap: () => _mapController.move(_mapController.camera.center, _mapController.camera.zoom - 1),
+                    onTap: () {
+                      _mapboxMap?.getCameraState().then((state) {
+                        _mapboxMap?.setCamera(CameraOptions(zoom: state.zoom - 1));
+                      });
+                    },
                   ),
                 ],
               ),

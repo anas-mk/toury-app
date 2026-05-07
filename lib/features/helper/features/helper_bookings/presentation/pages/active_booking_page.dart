@@ -3,24 +3,21 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/config/api_config.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
-import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
-import '../../../../../../core/services/maps/cached_tile_provider.dart';
-import '../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../core/router/app_router.dart';
 import '../../../helper_ratings/presentation/pages/rate_user_page.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/services/location/mapbox_directions_service.dart';
 import '../../../helper_sos/presentation/widgets/helper_sos_floating_button.dart';
 import '../../../helper_sos/presentation/widgets/helper_sos_sheet.dart';
 import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
@@ -37,9 +34,14 @@ class ActiveBookingPage extends StatefulWidget {
 class _ActiveBookingPageState extends State<ActiveBookingPage> {
   late final ActiveBookingCubit _activeCubit;
   late final TripActionCubit _tripActionCubit;
-  final MapController _mapController = MapController();
-  HelperBooking? _currentBooking; // cached for use in listeners
-  bool _isFollowing = true; // Auto-pan flag
+  final _directions = MapboxDirectionsService();
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _pointAnnotationManager;
+  PolylineAnnotationManager? _polylineAnnotationManager;
+  HelperBooking? _currentBooking;
+  RouteResult? _lastRoute; // cached for the info chip
+  bool _isFollowing = true;
+  Timer? _routeDebounce;   // throttle real-time updates to 1 call / 10 s
 
   @override
   void initState() {
@@ -61,12 +63,119 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   @override
   void dispose() {
-    _mapController.dispose();
+    _routeDebounce?.cancel();
     super.dispose();
   }
 
-  void _recenter(LatLng pos) {
-    _mapController.move(pos, 15);
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    _mapboxMap = mapboxMap;
+    _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+    _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+    
+    if (_currentBooking != null) {
+      _drawRoute(_currentBooking!);
+    }
+  }
+
+  void _recenter(double lat, double lng) {
+    _mapboxMap?.setCamera(CameraOptions(
+      center: Point(coordinates: Position(lng, lat)),
+      zoom: 15,
+    ));
+  }
+
+  // ── Route drawing ───────────────────────────────────────────────────────
+
+  /// Initial draw: route from pickup → destination using Directions API.
+  void _drawRoute(HelperBooking booking) async {
+    await _fetchAndDrawRoute(
+      fromLat: booking.pickupLat,
+      fromLng: booking.pickupLng,
+      toLat: booking.destinationLat,
+      toLng: booking.destinationLng,
+      booking: booking,
+    );
+  }
+
+  /// Called when the helper's GPS updates — re-routes from helper → destination.
+  void _onHelperLocationForRoute(double helperLat, double helperLng) {
+    final booking = _currentBooking;
+    if (booking == null) return;
+    // Debounce: only re-fetch every 10 seconds to respect API limits.
+    if (_routeDebounce?.isActive == true) return;
+    _routeDebounce = Timer(const Duration(seconds: 10), () {});
+    _fetchAndDrawRoute(
+      fromLat: helperLat,
+      fromLng: helperLng,
+      toLat: booking.destinationLat,
+      toLng: booking.destinationLng,
+      booking: booking,
+    );
+  }
+
+  Future<void> _fetchAndDrawRoute({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+    required HelperBooking booking,
+  }) async {
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
+
+    await _pointAnnotationManager!.deleteAll();
+    await _polylineAnnotationManager!.deleteAll();
+
+    // Draw pickup & destination pins.
+    await _pointAnnotationManager!.create(PointAnnotationOptions(
+      geometry: Point(coordinates: Position(booking.pickupLng, booking.pickupLat)),
+      iconImage: 'marker-15',
+      textField: 'Pickup',
+      textOffset: [0.0, -2.5],
+    ));
+    await _pointAnnotationManager!.create(PointAnnotationOptions(
+      geometry: Point(coordinates: Position(booking.destinationLng, booking.destinationLat)),
+      iconImage: 'marker-15',
+      textField: 'Destination',
+      textOffset: [0.0, -2.5],
+    ));
+
+    // Fetch real road route.
+    final route = await _directions.getRoute(
+      fromLat: fromLat,
+      fromLng: fromLng,
+      toLat: toLat,
+      toLng: toLng,
+      profile: 'driving',
+    );
+
+    if (route == null || route.coordinates.isEmpty) {
+      // Fallback: straight line so the map still shows something.
+      await _polylineAnnotationManager!.create(PolylineAnnotationOptions(
+        geometry: LineString(coordinates: [
+          Position(fromLng, fromLat),
+          Position(toLng, toLat),
+        ]),
+        lineColor: BrandTokens.primaryBlue.value,
+        lineWidth: 3.5,
+        lineOpacity: 0.6,
+      ));
+      return;
+    }
+
+    // Cache for the distance/duration chip.
+    if (mounted) setState(() => _lastRoute = route);
+
+    // Convert [[lng, lat], ...] → Mapbox Position list.
+    final positions = route.coordinates
+        .map((c) => Position(c[0], c[1]))
+        .toList();
+
+    await _polylineAnnotationManager!.create(PolylineAnnotationOptions(
+      geometry: LineString(coordinates: positions),
+      lineColor: BrandTokens.primaryBlue.value,
+      lineWidth: 5.0,
+      lineOpacity: 0.85,
+    ));
   }
 
   @override
@@ -145,89 +254,34 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     final status = booking.status.toLowerCase();
     final isStarted = status == 'inprogress' || status == 'started';
     
-    final pickup = LatLng(booking.pickupLat, booking.pickupLng);
-    final destination = LatLng(booking.destinationLat, booking.destinationLng);
-    final initialCenter = isStarted ? destination : pickup;
+    final initialCenter = isStarted ? Position(booking.destinationLng, booking.destinationLat) : Position(booking.pickupLng, booking.pickupLat);
 
     return Stack(
       children: [
         // 1. Full Screen Map
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: initialCenter,
-            initialZoom: 15,
-            onPositionChanged: (pos, hasGesture) {
-              if (hasGesture && _isFollowing) {
-                setState(() => _isFollowing = false);
-              }
-            },
+        MapWidget(
+          key: const ValueKey("activeBookingMap"),
+          cameraOptions: CameraOptions(
+            center: Point(coordinates: initialCenter),
+            zoom: 15.0,
           ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}@2x?access_token={accessToken}',
-              additionalOptions: const {
-                'accessToken': 'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg',
-              },
-              tileProvider: CachedTileProvider(),
-            ),
-            PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: [pickup, destination],
-                  color: BrandTokens.primaryBlue.withValues(alpha: 0.4),
-                  strokeWidth: 4,
-                  pattern: StrokePattern.dashed(segments: const [10.0, 6.0]),
-                ),
-              ],
-            ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: pickup,
-                  width: 44,
-                  height: 44,
-                  child: const _PinDot(color: BrandTokens.successGreen, icon: Icons.trip_origin_rounded),
-                ),
-                Marker(
-                  point: destination,
-                  width: 44,
-                  height: 44,
-                  child: const _PinDot(color: BrandTokens.dangerRed, icon: Icons.flag_rounded),
-                ),
-              ],
-            ),
-            // Helper Location Marker Layer
-            BlocBuilder<HelperLocationCubit, HelperLocationState>(
-              builder: (context, locState) {
-                if (locState is HelperLocationTracking) {
-                  final pos = LatLng(locState.location.latitude, locState.location.longitude);
-                  
-                  // Auto-follow logic
-                  if (_isFollowing) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _mapController.move(pos, _mapController.camera.zoom);
-                    });
-                  }
-
-                  return MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: pos,
-                        width: 60,
-                        height: 60,
-                        child: _HelperMarker(rotation: locState.location.heading ?? 0),
-                      ),
-                    ],
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
+          styleUri: MapboxStyles.LIGHT,
+          onMapCreated: _onMapCreated,
         ),
 
-
+        // Helper Location Logic (UI-less BlocBuilder to handle camera movement)
+        BlocListener<HelperLocationCubit, HelperLocationState>(
+          listener: (context, locState) {
+            if (locState is HelperLocationTracking) {
+              final lat = locState.location.latitude;
+              final lng = locState.location.longitude;
+              if (_isFollowing) _recenter(lat, lng);
+              // Re-draw route from helper's current position → destination.
+              _onHelperLocationForRoute(lat, lng);
+            }
+          },
+          child: const SizedBox.shrink(),
+        ),
 
         // 2. Blurred Top Buttons
         Positioned(
@@ -248,15 +302,31 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                 onTap: () {
                   if (locState is HelperLocationTracking) {
                     setState(() => _isFollowing = true);
-                    _recenter(LatLng(locState.location.latitude, locState.location.longitude));
+                    _recenter(locState.location.latitude, locState.location.longitude);
                   } else {
-                    _recenter(initialCenter);
+                    final lat = isStarted ? booking.destinationLat : booking.pickupLat;
+                    final lng = isStarted ? booking.destinationLng : booking.pickupLng;
+                    _recenter(lat, lng);
                   }
                 },
               );
             },
           ),
         ),
+
+        // Route info chip — top-center, shows km + ETA once route is loaded.
+        if (_lastRoute != null)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 64,
+            right: 64,
+            child: Center(
+              child: _RouteInfoChip(
+                distance: _lastRoute!.distanceLabel,
+                duration: _lastRoute!.durationLabel,
+              ),
+            ),
+          ),
 
         // 3. Draggable Tracking Sheet
         BlocBuilder<HelperSosCubit, HelperSosState>(
@@ -936,6 +1006,71 @@ class _HelperMarker extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// =============================================================================
+// Route Info Chip — distance & ETA floating on the map
+// =============================================================================
+
+class _RouteInfoChip extends StatelessWidget {
+  final String distance;
+  final String duration;
+  const _RouteInfoChip({required this.distance, required this.duration});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.90),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.7),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.straighten_rounded, size: 16,
+                  color: BrandTokens.primaryBlue),
+              const SizedBox(width: 6),
+              Text(distance,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: BrandTokens.textPrimary)),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                width: 1,
+                height: 16,
+                color: BrandTokens.borderSoft,
+              ),
+              const Icon(Icons.schedule_rounded, size: 16,
+                  color: BrandTokens.primaryBlue),
+              const SizedBox(width: 6),
+              Text(duration,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: BrandTokens.textPrimary)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

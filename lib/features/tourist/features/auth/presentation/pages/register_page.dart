@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 import '../../../../../../core/localization/app_localizations.dart';

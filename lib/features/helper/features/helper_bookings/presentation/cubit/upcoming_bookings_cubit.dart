@@ -2,10 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/helper_booking_entities.dart';
-import '../../domain/entities/helper_earnings_entities.dart';
 import '../../domain/usecases/helper_bookings_usecases.dart';
 import 'dart:async';
-import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 
 // UPCOMING BOOKINGS CUBIT
 abstract class UpcomingBookingsState extends Equatable {

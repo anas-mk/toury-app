@@ -123,8 +123,7 @@ class CustomButton extends StatelessWidget {
   }
 
   ButtonStyle _getButtonStyle(ThemeData theme) {
-    final isDark = theme.brightness == Brightness.dark;
-    
+
     final baseStyle = ButtonStyle(
       shape: WidgetStateProperty.all(
         RoundedRectangleBorder(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
@@ -94,7 +93,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   }
 
   Future<void> _pickOnMap() async {
-    final result = await Navigator.of(context).push<LatLng>(
+    final result = await Navigator.of(context).push<Map<String, double>>(
       MaterialPageRoute(
         builder: (_) => MapPickerPage(
           initialLat: _locationPicked ? _lat : null,
@@ -104,8 +103,8 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
     );
     if (result != null) {
       setState(() {
-        _lat = result.latitude;
-        _lng = result.longitude;
+        _lat = result['lat']!;
+        _lng = result['lng']!;
         _locationPicked = true;
         _resolvedCity = null;
         _resolvedCountry = null;

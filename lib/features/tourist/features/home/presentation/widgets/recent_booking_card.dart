@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:toury/features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/widgets/app_network_image.dart';
 
 class RecentBookingCard extends StatelessWidget {
   final BookingDetailEntity booking;

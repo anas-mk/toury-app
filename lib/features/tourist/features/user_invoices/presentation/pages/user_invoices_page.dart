@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
