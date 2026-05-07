@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:toury/features/helper/features/helper_chat/data/services/helper_chat_signalr_service.dart';
+import 'package:signalr_netcore/hub_connection.dart';
 import 'package:toury/core/config/api_config.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/app_color.dart';
@@ -143,22 +143,23 @@ class _HelperChatPageState extends State<HelperChatPage> {
     );
   }
 
-  Widget _buildConnectionStatus(BuildContext context, ChatSignalRState state) {
+  Widget _buildConnectionStatus(BuildContext context, HubConnectionState state) {
     final theme = Theme.of(context);
     String text = '';
     Color color = theme.brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary;
     
     switch (state) {
-      case ChatSignalRState.connected:
+      case HubConnectionState.Connected:
         text = 'Online';
         color = const Color(0xFF00C896);
         break;
-      case ChatSignalRState.connecting:
+      case HubConnectionState.Connecting:
+      case HubConnectionState.Reconnecting:
         text = 'Connecting...';
         color = Colors.amber;
         break;
-      case ChatSignalRState.disconnected:
-      case ChatSignalRState.error:
+      case HubConnectionState.Disconnected:
+      case HubConnectionState.Disconnecting:
         text = 'Offline';
         color = theme.brightness == Brightness.dark ? BrandTokens.textMuted : BrandTokens.textSecondary;
         break;

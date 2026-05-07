@@ -27,6 +27,13 @@ class HelperSosCubit extends Cubit<HelperSosState> {
     String? reason,
     String? note,
   }) async {
+    if (bookingId.trim().isEmpty) {
+      emit(const HelperSosState(
+        status: SosStatus.error,
+        errorMessage: 'Cannot trigger SOS without active booking ID.',
+      ));
+      return;
+    }
     emit(const HelperSosState(status: SosStatus.activating));
     try {
       await sosService.triggerPanicAlert(

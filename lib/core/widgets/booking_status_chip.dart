@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_color.dart';
 import '../theme/app_theme.dart';
-import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
+import '../../features/user/features/user_booking/domain/entities/booking_detail_entity.dart';
 
 /// Pill-shaped color-coded chip used everywhere a booking status is shown.
 ///
@@ -85,6 +85,8 @@ class BookingStatusChip extends StatelessWidget {
       case BookingStatus.cancelledByUser:
         return _StatusSpec('Cancelled', AppColor.errorColor);
       case BookingStatus.cancelledByHelper:
+        return _StatusSpec('Cancelled', AppColor.errorColor);
+      case BookingStatus.cancelledByTraveler:
         return _StatusSpec('Cancelled', AppColor.errorColor);
       case BookingStatus.cancelledBySystem:
         return _StatusSpec('Cancelled', AppColor.errorColor);

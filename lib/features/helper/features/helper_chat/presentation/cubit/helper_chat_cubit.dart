@@ -3,8 +3,9 @@ import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:signalr_netcore/hub_connection.dart';
 import '../../../../../../core/errors/failures.dart';
-import '../../data/services/helper_chat_signalr_service.dart';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../domain/entities/helper_chat_entities.dart';
 import '../../domain/usecases/helper_chat_usecases.dart';
 
@@ -24,7 +25,7 @@ class HelperChatLoaded extends HelperChatState {
   final ConversationEntity conversation;
   final List<ChatMessageEntity> messages;
   final bool hasReachedMax;
-  final ChatSignalRState connectionState;
+  final HubConnectionState connectionState;
 
   HelperChatLoaded({
     required this.conversation,
@@ -37,7 +38,7 @@ class HelperChatLoaded extends HelperChatState {
     ConversationEntity? conversation,
     List<ChatMessageEntity>? messages,
     bool? hasReachedMax,
-    ChatSignalRState? connectionState,
+    HubConnectionState? connectionState,
   }) {
     return HelperChatLoaded(
       conversation: conversation ?? this.conversation,
@@ -64,8 +65,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
   final GetMessagesUseCase getMessagesUseCase;
   final SendMessageUseCase sendMessageUseCase;
   final MarkReadUseCase markReadUseCase;
-  final ConnectChatUseCase connectChatUseCase;
-  final HelperChatSignalRService signalRService;
+  final BookingTrackingHubService hubService;
 
   StreamSubscription? _stateSubscription;
   StreamSubscription? _busSubscription;
@@ -79,8 +79,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     required this.getMessagesUseCase,
     required this.sendMessageUseCase,
     required this.markReadUseCase,
-    required this.connectChatUseCase,
-    required this.signalRService,
+    required this.hubService,
   }) : super(HelperChatInitial());
 
   /// Initial Load: Fetch messages ONLY once when opening the chat
@@ -90,10 +89,9 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
     // 1. Connect SignalR (Primary Source of Truth)
     try {
-      await connectChatUseCase(token);
-      await signalRService.joinBookingRoom(bookingId);
+      await hubService.connect(token);
     } catch (e) {
-      debugPrint('SignalR Join Room Error: $e');
+      debugPrint('SignalR connect error: $e');
     }
 
     // 2. Initial Data Load (Conversation + Page 1 Messages)
@@ -115,7 +113,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
               conversation: conv,
               messages: messages,
               hasReachedMax: messages.length < 20,
-              connectionState: signalRService.currentState,
+              connectionState: hubService.connectionState,
             ));
             
             // Mark as read once on initial open
@@ -292,7 +290,7 @@ class HelperChatCubit extends Cubit<HelperChatState> {
 
   void _listenToState() {
     _stateSubscription?.cancel();
-    _stateSubscription = signalRService.stateStream.listen((conState) {
+    _stateSubscription = hubService.connectionStateStream.listen((conState) {
       if (state is HelperChatLoaded) {
         emit((state as HelperChatLoaded).copyWith(connectionState: conState));
       }
@@ -304,9 +302,6 @@ class HelperChatCubit extends Cubit<HelperChatState> {
     _stateSubscription?.cancel();
     _busSubscription?.cancel();
     _markReadDebounce?.cancel();
-    if (_currentBookingId != null) {
-      signalRService.leaveBookingRoom(_currentBookingId!);
-    }
     return super.close();
   }
 }

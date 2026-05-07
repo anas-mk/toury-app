@@ -4,15 +4,12 @@ import '../../../../../../core/errors/failures.dart';
 import '../../domain/entities/helper_chat_entities.dart';
 import '../../domain/repositories/helper_chat_repository.dart';
 import '../datasources/helper_chat_remote_data_source.dart';
-import '../services/helper_chat_signalr_service.dart';
 
 class HelperChatRepositoryImpl implements HelperChatRepository {
   final HelperChatRemoteDataSource remoteDataSource;
-  final HelperChatSignalRService signalRService;
 
   HelperChatRepositoryImpl({
     required this.remoteDataSource,
-    required this.signalRService,
   });
 
   @override
@@ -73,12 +70,4 @@ class HelperChatRepositoryImpl implements HelperChatRepository {
     }
   }
 
-  @override
-  Future<void> connectSignalR(String token) => signalRService.connect(token);
-
-  @override
-  Future<void> disconnectSignalR() => signalRService.disconnect();
-
-  @override
-  Stream<ChatMessageEntity> get messageStream => signalRService.messageStream;
 }

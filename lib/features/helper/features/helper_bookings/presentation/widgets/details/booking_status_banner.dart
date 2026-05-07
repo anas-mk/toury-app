@@ -38,21 +38,36 @@ class BookingStatusBanner extends StatelessWidget {
 
   (Color, String, IconData) _info(String s) {
     switch (s.toLowerCase()) {
+      // Pending states
       case 'pending':
       case 'pendinghelperresponse':
         return (const Color(0xFFFFAB40), 'Pending Your Response', Icons.hourglass_empty_rounded);
-      case 'confirmed':
+      // Confirmed / accepted states (API returns 'AcceptedByHelper')
       case 'accepted':
+      case 'acceptedbyhelper':
+      case 'confirmed':
+      case 'confirmedpaid':
         return (BrandTokens.primaryBlue, 'Confirmed & Upcoming', Icons.check_circle_outline_rounded);
+      // Active trip states (API returns 'InProgress')
       case 'inprogress':
       case 'started':
+      case 'active':
         return (BrandTokens.successGreen, 'Currently In Progress', Icons.navigation_rounded);
+      // Completed
       case 'completed':
         return (BrandTokens.textMuted, 'Trip Completed', Icons.done_all_rounded);
+      // Cancelled variants
       case 'cancelled':
+      case 'cancelledbyhelper':
+      case 'cancelledbytraveler':
+      case 'cancelledbyadmin':
         return (BrandTokens.dangerRed, 'Cancelled', Icons.cancel_outlined);
+      // Rejected
+      case 'rejected':
+      case 'declinedbyhelper':
+        return (BrandTokens.dangerRed, 'Request Declined', Icons.block_rounded);
       default:
-        return (BrandTokens.textMuted, s.toUpperCase(), Icons.info_outline_rounded);
+        return (BrandTokens.textMuted, s, Icons.info_outline_rounded);
     }
   }
 }

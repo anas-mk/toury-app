@@ -154,9 +154,17 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   Widget _buildContent(BuildContext context, HelperBooking booking) {
     final status = booking.status.toLowerCase();
     final isPending = status == 'pending' || status == 'pendinghelperresponse';
-    final isConfirmed = booking.canStartTrip || status == 'confirmed' || status == 'accepted';
-    final isActive = booking.canEndTrip || status == 'inprogress' || status == 'started';
+    final isConfirmed = booking.canStartTrip
+        || status == 'confirmed'
+        || status == 'accepted'
+        || status == 'acceptedbyhelper'
+        || status == 'confirmedpaid';
+    final isActive = booking.canEndTrip
+        || status == 'inprogress'
+        || status == 'started'
+        || status == 'active';
     final isCompleted = status == 'completed';
+    final isCancelled = status.contains('cancelled') || status == 'rejected';
 
     return Stack(
       children: [
@@ -170,6 +178,23 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
             BookingRouteCard(booking: booking),
             const SizedBox(height: 12),
             PaymentInfoCard(booking: booking),
+            const SizedBox(height: 12),
+            _FlowHintCard(
+              title: _flowTitle(
+                isPending: isPending,
+                isConfirmed: isConfirmed,
+                isActive: isActive,
+                isCompleted: isCompleted,
+                isCancelled: isCancelled,
+              ),
+              subtitle: _flowSubtitle(
+                isPending: isPending,
+                isConfirmed: isConfirmed,
+                isActive: isActive,
+                isCompleted: isCompleted,
+                isCancelled: isCancelled,
+              ),
+            ),
             const SizedBox(height: 40),
           ],
         ),
@@ -177,15 +202,33 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         // Dynamic Bottom Actions
         Positioned(
           left: 0, right: 0, bottom: 0,
-          child: _buildBottomActions(context, booking, isPending, isConfirmed, isActive, isCompleted),
+          child: _buildBottomActions(
+            context,
+            booking,
+            isPending,
+            isConfirmed,
+            isActive,
+            isCompleted,
+            isCancelled,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildBottomActions(BuildContext context, HelperBooking booking, bool isPending, bool isConfirmed, bool isActive, bool isCompleted) {
+  Widget _buildBottomActions(
+    BuildContext context,
+    HelperBooking booking,
+    bool isPending,
+    bool isConfirmed,
+    bool isActive,
+    bool isCompleted,
+    bool isCancelled,
+  ) {
     // If there are no actions to show, do not render the container to avoid empty space
-    if (!isPending && !isActive && !isCompleted) return const SizedBox.shrink();
+    if (!isPending && !isConfirmed && !isActive && !isCompleted && !isCancelled) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
@@ -199,8 +242,10 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isPending) _buildRequestActions(context, booking),
+          if (isConfirmed) _buildConfirmedActions(context, booking),
           if (isActive) _buildActiveActions(context, booking),
           if (isCompleted) _buildCompletedActions(context, booking),
+          if (isCancelled) _buildCancelledActions(context),
         ],
       ),
     );
@@ -247,33 +292,107 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     );
   }
 
+  Widget _buildConfirmedActions(BuildContext context, HelperBooking booking) {
+    return BlocBuilder<TripActionCubit, TripActionState>(
+      builder: (context, state) {
+        final isStartLoading =
+            state is TripActionLoading && state.actionType == 'start';
+        final isEndLoading =
+            state is TripActionLoading && state.actionType == 'end';
+        final isDisabled = isStartLoading || isEndLoading;
+
+        return Column(
+          children: [
+            _ActionBtn(
+              label: booking.canStartTrip ? 'Start Trip' : 'Open Live Tracking',
+              icon: Icons.play_circle_fill_rounded,
+              color: BrandTokens.successGreen,
+              isLoading: isStartLoading,
+              isDisabled: isDisabled,
+              onTap: () {
+                if (booking.canStartTrip) {
+                  _tripActionCubit.start(booking.id);
+                } else {
+                  context.pushReplacement(AppRouter.helperActiveBooking, extra: booking.id);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _ActionBtn(
+              label: 'Message Traveler',
+              icon: Icons.chat_bubble_outline_rounded,
+              color: BrandTokens.primaryBlue,
+              outline: true,
+              isDisabled: isDisabled,
+              onTap: () => _openChat(context, booking.id),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildActiveActions(BuildContext context, HelperBooking booking) {
+    return BlocBuilder<TripActionCubit, TripActionState>(
+      builder: (context, state) {
+        final isLoading = state is TripActionLoading;
+
+        return Column(
+          children: [
+            _ActionBtn(
+              label: 'Open Live Tracking',
+              icon: Icons.gps_fixed_rounded,
+              color: BrandTokens.primaryBlue,
+              isLoading: false,
+              isDisabled: isLoading,
+              onTap: () => context.pushReplacement(
+                AppRouter.helperActiveBooking,
+                extra: booking.id,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _ActionBtn(
+              label: 'Message Traveler',
+              icon: Icons.chat_bubble_outline_rounded,
+              color: BrandTokens.primaryBlue,
+              outline: true,
+              isDisabled: isLoading,
+              onTap: () => _openChat(context, booking.id),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCompletedActions(BuildContext context, HelperBooking booking) {
     return Column(
       children: [
         _ActionBtn(
-          label: 'End Trip',
-          icon: Icons.stop_circle_rounded,
-          color: BrandTokens.dangerRed,
-          onTap: () => _confirmEnd(context, booking.id),
+          label: 'Rate Traveler',
+          icon: Icons.star_rounded,
+          color: Colors.amber,
+          onTap: () => _showRatingSheet(context, booking),
         ),
         const SizedBox(height: 12),
         _ActionBtn(
-          label: 'Message Traveler',
-          icon: Icons.chat_bubble_outline_rounded,
+          label: 'Back to bookings',
+          icon: Icons.home_rounded,
           color: BrandTokens.primaryBlue,
           outline: true,
-          onTap: () => _openChat(context, booking.id),
+          onTap: () => context.go(AppRouter.helperBookings),
         ),
       ],
     );
   }
 
-  Widget _buildCompletedActions(BuildContext context, HelperBooking booking) {
+  Widget _buildCancelledActions(BuildContext context) {
     return _ActionBtn(
-      label: 'Rate Traveler',
-      icon: Icons.star_rounded,
-      color: Colors.amber,
-      onTap: () => _showRatingSheet(context, booking),
+      label: 'Back to bookings',
+      icon: Icons.home_rounded,
+      color: BrandTokens.primaryBlue,
+      outline: true,
+      onTap: () => context.go(AppRouter.helperBookings),
     );
   }
 
@@ -290,26 +409,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         bookingId: booking.id,
         travelerName: booking.travelerName,
         travelerAvatar: '',
-      ),
-    );
-  }
-
-  void _confirmEnd(BuildContext context, String bookingId) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('End Trip?'),
-        content: const Text('Are you sure you want to mark this trip as completed?'),
-        actions: [
-          TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              context.pop();
-              _tripActionCubit.end(bookingId);
-            },
-            child: const Text('End Trip', style: TextStyle(color: BrandTokens.dangerRed)),
-          ),
-        ],
       ),
     );
   }
@@ -367,6 +466,74 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String _flowTitle({
+    required bool isPending,
+    required bool isConfirmed,
+    required bool isActive,
+    required bool isCompleted,
+    required bool isCancelled,
+  }) {
+    if (isPending) return 'Action required';
+    if (isConfirmed) return 'Ready to start';
+    if (isActive) return 'Trip is live';
+    if (isCompleted) return 'Trip completed';
+    if (isCancelled) return 'Trip closed';
+    return 'Booking details';
+  }
+
+  String _flowSubtitle({
+    required bool isPending,
+    required bool isConfirmed,
+    required bool isActive,
+    required bool isCompleted,
+    required bool isCancelled,
+  }) {
+    if (isPending) return 'Accept or decline this request to continue.';
+    if (isConfirmed) return 'Start trip when traveler is ready, then switch to live tracking.';
+    if (isActive) return 'Use live tracking to navigate and end the trip safely.';
+    if (isCompleted) return 'Rate the traveler and return to your bookings list.';
+    if (isCancelled) return 'This booking has been closed and no further actions are needed.';
+    return 'Review booking information below.';
+  }
+}
+
+class _FlowHintCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const _FlowHintCard({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: BrandTokens.primaryBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BrandTokens.primaryBlue.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: BrandTokens.primaryBlue, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: BrandTypography.body(weight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: BrandTypography.caption(color: BrandTokens.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

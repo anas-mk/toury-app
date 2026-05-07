@@ -48,12 +48,3 @@ class MarkReadUseCase {
     return repository.markAsRead(bookingId);
   }
 }
-
-class ConnectChatUseCase {
-  final HelperChatRepository repository;
-  ConnectChatUseCase(this.repository);
-
-  Future<void> call(String token) {
-    return repository.connectSignalR(token);
-  }
-}

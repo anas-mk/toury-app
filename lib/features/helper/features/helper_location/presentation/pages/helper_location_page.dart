@@ -5,10 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'dart:ui';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/services/auth_service.dart';
-import '../../../../../../core/config/api_config.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../../../helper_bookings/domain/entities/helper_availability_state.dart';
-import '../../data/services/helper_location_signalr_service.dart';
+import '../../domain/entities/signalr_connection_state.dart';
 import '../cubit/helper_location_cubit.dart';
 import '../cubit/location_status_cubits.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
@@ -30,7 +29,6 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
   PointAnnotationManager? _pointAnnotationManager;
   PointAnnotation? _currentLocationMarker;
   bool _following = true;
-  late AnimationController _pulseController;
 
   @override
   void initState() {
@@ -38,11 +36,6 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
     _locationCubit = sl<HelperLocationCubit>();
     _statusCubit = sl<LocationStatusCubit>();
     _availabilityCubit = sl<HelperAvailabilityCubit>();
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
 
     _initTracking();
     _statusCubit.loadStatus();
@@ -96,14 +89,12 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
 
   @override
   void dispose() {
-    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return MultiBlocProvider(
       providers: [
@@ -293,59 +284,6 @@ class _HelperLocationPageState extends State<HelperLocationPage> with SingleTick
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LocationMarker extends StatelessWidget {
-  final double heading;
-  final Animation<double> pulseAnimation;
-  const _LocationMarker({required this.heading, required this.pulseAnimation});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AnimatedBuilder(
-      animation: pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 60 * pulseAnimation.value,
-              height: 60 * pulseAnimation.value,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.colorScheme.secondary.withOpacity(0.2 * (1 - pulseAnimation.value)),
-              ),
-            ),
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondary,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.secondary.withOpacity(0.5),
-                    blurRadius: 15,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
-            Transform.rotate(
-              angle: (heading * (3.1415926535 / 180)),
-              child: Icon(
-                Icons.navigation_rounded,
-                color: theme.colorScheme.secondary,
-                size: 44,
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

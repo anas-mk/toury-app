@@ -246,6 +246,6 @@ class ApiConfig {
   // ==========================================================================
   // MAPBOX Configuration
   // ==========================================================================
-  static const String mapboxToken = String.fromEnvironment('MAPBOX_TOKEN');
+  static const String mapboxToken = 'pk.eyJ1IjoiYW5hc21rMyIsImEiOiJjbW91YjZ6b3YwMWN3MnJzNTJkZ3Q5MXdhIn0.ofPQP2H_-1H35w5GTpk9IA';
   static const String mapboxDirectionsEndpoint = 'https://api.mapbox.com/directions/v5/mapbox/driving';
 }

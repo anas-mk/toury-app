@@ -18,8 +18,6 @@ import '../../../helper_location/presentation/cubit/location_status_cubits.dart'
 import '../../../helper_location/presentation/widgets/helper_location_status_widget.dart';
 import '../../../helper_service_areas/presentation/widgets/service_area_status_widget.dart';
 import '../../../helper_invoices/presentation/widgets/earnings_preview_card.dart';
-import '../../../helper_reports/presentation/cubit/helper_reports_cubit.dart';
-import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
 
 // Modularized Dashboard Widgets
 import '../widgets/dashboard/availability_toggle_card.dart';
@@ -124,8 +122,6 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
         BlocProvider.value(value: _requestsCubit),
         BlocProvider.value(value: _locCubit),
         BlocProvider.value(value: _statusCubit),
-        BlocProvider(create: (context) => sl<HelperReportsCubit>()..loadReports()),
-        BlocProvider(create: (context) => sl<HelperSosCubit>()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -204,14 +200,19 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     final isDark = theme.brightness == Brightness.dark;
 
     return SliverAppBar(
-      expandedHeight: 120,
+      expandedHeight: 106,
       floating: false,
       pinned: true,
       backgroundColor: theme.scaffoldBackgroundColor,
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          padding: const EdgeInsets.fromLTRB(AppTheme.spaceLG, 50, AppTheme.spaceLG, 0),
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.spaceLG,
+            44,
+            AppTheme.spaceLG,
+            0,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -219,9 +220,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
-                  border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2), width: 2),
+                  border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2), width: 2),
                 ),
                 child: Center(
                   child: Icon(Icons.person_rounded, color: theme.colorScheme.primary, size: 28),
@@ -239,20 +240,13 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                     ),
                   ),
                   Text(
-                    'Captain',
+                    'Helper',
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,
                     ),
                   ),
                 ],
-              ),
-              const Spacer(),
-              _IconButton(
-                icon: Icons.notifications_none_rounded,
-                onTap: () {
-                  HapticService.light();
-                },
               ),
             ],
           ),
@@ -286,6 +280,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                 if (s == HelperAvailabilityState.availableNow) {
                   _locCubit.setAvailabilityState(HelperAvailabilityState.availableNow);
                   final helper = await sl<HelperLocalDataSource>().getCurrentHelper();
+                  if (!context.mounted) return;
                   final token = helper?.token ?? sl<AuthService>().getToken() ?? '';
                   if (token.isEmpty) {
                     _showSnack(context, 'Session expired. Please login again.', isError: true);
@@ -438,28 +433,6 @@ class SectionHeader extends StatelessWidget {
         fontWeight: FontWeight.bold,
         letterSpacing: -0.5,
         color: isDark ? Colors.white : Colors.black,
-      ),
-    );
-  }
-}
-
-class _IconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _IconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spaceSM),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primary.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: theme.colorScheme.primary, size: 22),
       ),
     );
   }

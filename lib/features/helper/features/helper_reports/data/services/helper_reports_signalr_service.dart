@@ -1,29 +1,37 @@
 import 'dart:async';
-import 'package:signalr_netcore/hub_connection.dart';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../models/helper_report_models.dart';
 
 class HelperReportsSignalRService {
-  final HubConnection? _hubConnection; // Reusing or separate? Let's assume shared hub connection if possible, or new one.
-  
+  final BookingTrackingHubService _hubService;
+
   final _resolutionController = StreamController<HelperReportModel>.broadcast();
   Stream<HelperReportModel> get resolutionStream => _resolutionController.stream;
+  StreamSubscription? _hubSub;
 
-  HelperReportsSignalRService(this._hubConnection) {
+  HelperReportsSignalRService(this._hubService) {
     _initListeners();
   }
 
   void _initListeners() {
-    if (_hubConnection == null) return;
-
-    _hubConnection!.on('HelperReportResolved', (args) {
-      if (args != null && args.isNotEmpty) {
-        final data = args[0] as Map<String, dynamic>;
-        _resolutionController.add(HelperReportModel.fromJson(data));
-      }
+    _hubSub?.cancel();
+    _hubSub = _hubService.helperReportResolvedStream.listen((event) {
+      _resolutionController.add(
+        HelperReportModel(
+          reportId: event.reportId,
+          reason: event.resolution ?? 'Report Resolved',
+          details: event.notes ?? '',
+          isResolved: true,
+          resolutionNote: event.notes,
+          createdAt: event.occurredAt ?? DateTime.now().toUtc(),
+          resolvedAt: event.occurredAt ?? DateTime.now().toUtc(),
+        ),
+      );
     });
   }
 
   void dispose() {
+    _hubSub?.cancel();
     _resolutionController.close();
   }
 }

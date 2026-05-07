@@ -124,6 +124,8 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
   Timer? _hubDebounce;
   Timer? _pollingTimer;
   bool _inFlight = false;
+  DateTime? _lastSilentLoadAt;
+  static const Duration _minSilentRefreshInterval = Duration(seconds: 6);
 
   RequestFilterType _currentFilter = RequestFilterType.all;
   int _currentPage = 1;
@@ -166,6 +168,7 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
     RequestFilterType? filter,
     bool silent = false,
   }) async {
+    if (silent && !_shouldRunSilentLoad()) return;
     if (_inFlight) return;
     _inFlight = true;
     if (filter != null) {
@@ -200,6 +203,9 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
       emit(IncomingRequestsError(e.toString(), _currentFilter));
     } finally {
       _inFlight = false;
+      if (silent) {
+        _lastSilentLoadAt = DateTime.now();
+      }
     }
   }
 
@@ -261,6 +267,12 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
     _pollingTimer?.cancel();
     _hubSub?.cancel();
     return super.close();
+  }
+
+  bool _shouldRunSilentLoad() {
+    if (_lastSilentLoadAt == null) return true;
+    return DateTime.now().difference(_lastSilentLoadAt!) >=
+        _minSilentRefreshInterval;
   }
 }
 

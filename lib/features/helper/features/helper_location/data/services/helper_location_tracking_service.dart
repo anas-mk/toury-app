@@ -4,9 +4,9 @@ import 'package:geolocator/geolocator.dart';
 import '../../../../../../core/services/location_service.dart' show LocationService;
 import '../../../../../../core/services/auth_service.dart';
 import '../../domain/entities/helper_location_entities.dart';
+import '../../domain/entities/signalr_connection_state.dart';
 import '../../domain/usecases/helper_location_usecases.dart';
 import '../../../helper_bookings/domain/entities/helper_availability_state.dart';
-import '../services/helper_location_signalr_service.dart';
 
 /// Centralized service for Helper location tracking with strict Auth lifecycle.
 class HelperLocationTrackingService {
@@ -162,14 +162,16 @@ class HelperLocationTrackingService {
   }
 
   void _handlePositionUpdate(Position position) {
+    final speedMps = position.speed.isFinite ? position.speed : 0.0;
+    final speedKmh = speedMps > 0 ? speedMps * 3.6 : 0.0;
     final helperLoc = HelperLocation(
       latitude: position.latitude,
       longitude: position.longitude,
       bookingId: _activeBookingId,
       heading: position.heading,
-      speedKmh: position.speed,
+      speedKmh: speedKmh,
       accuracyMeters: position.accuracy,
-      timestamp: position.timestamp ?? DateTime.now(),
+      timestamp: position.timestamp,
     );
 
     _locationController.add(helperLoc);

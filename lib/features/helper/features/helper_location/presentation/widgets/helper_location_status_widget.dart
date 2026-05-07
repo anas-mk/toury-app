@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'dart:ui';
 import '../cubit/helper_location_cubit.dart';
 import '../cubit/location_status_cubits.dart';
@@ -31,69 +30,71 @@ class HelperLocationStatusWidget extends StatelessWidget {
 
             final Color statusColor = isEligible 
                 ? AppColor.accentColor 
-                : (availability == 'Offline' ? theme.colorScheme.onSurface.withOpacity(0.3) : AppColor.warningColor);
+                : (availability == 'Offline'
+                    ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                    : AppColor.warningColor);
 
-            return GestureDetector(
-              onTap: () => context.push('/helper/location'),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: Container(
-                    padding: const EdgeInsets.all(AppTheme.spaceMD),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                      border: Border.all(color: statusColor.withOpacity(0.15), width: 1.5),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          statusColor.withOpacity(0.05),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        _StatusIcon(color: statusColor, isEligible: isEligible),
-                        const SizedBox(width: AppTheme.spaceMD),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      isTracking ? 'TRACKING ACTIVE' : 'SYSTEM OFFLINE',
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.onSurface,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.2,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _LivePulse(color: statusColor),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                isTracking 
-                                    ? 'Last sync: $secondsSinceUpdate s ago • $availability' 
-                                    : 'Tap to initialize tracking engine',
-                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.4), fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _EligibilityBadge(isEligible: isEligible, availability: availability),
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Container(
+                  padding: const EdgeInsets.all(AppTheme.spaceMD),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusXL),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.15), width: 1.5),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        statusColor.withValues(alpha: 0.05),
+                        Colors.transparent,
                       ],
                     ),
+                  ),
+                  child: Row(
+                    children: [
+                      _StatusIcon(color: statusColor, isEligible: isEligible),
+                      const SizedBox(width: AppTheme.spaceMD),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    isTracking ? 'TRACKING ACTIVE' : 'SYSTEM OFFLINE',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.onSurface,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.2,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _LivePulse(color: statusColor),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isTracking
+                                  ? 'Last sync: $secondsSinceUpdate s ago • $availability'
+                                  : 'Enable Online from dashboard to start tracking',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _EligibilityBadge(isEligible: isEligible, availability: availability),
+                    ],
                   ),
                 ),
               ),
@@ -116,9 +117,9 @@ class _StatusIcon extends StatelessWidget {
       width: 46,
       height: 46,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Center(
         child: Icon(
@@ -161,7 +162,7 @@ class _LivePulseState extends State<_LivePulse> with SingleTickerProviderStateMi
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withOpacity(0.6 * _controller.value),
+                color: widget.color.withValues(alpha: 0.6 * _controller.value),
                 blurRadius: 6 * _controller.value,
                 spreadRadius: 2 * _controller.value,
               ),
@@ -186,9 +187,9 @@ class _EligibilityBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Text(
         label,

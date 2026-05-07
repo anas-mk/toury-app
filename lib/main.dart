@@ -17,13 +17,13 @@ import 'core/services/notifications/notification_router.dart';
 import 'core/services/realtime/app_realtime_cubit.dart';
 import 'core/services/realtime/booking_realtime_event_bus.dart';
 import 'core/services/realtime/hub_lifecycle_observer.dart';
-import 'features/tourist/features/user_ratings/presentation/widgets/mandatory_rating_overlay.dart';
+import 'features/user/features/user_ratings/presentation/widgets/mandatory_rating_overlay.dart';
 import 'core/services/signalr/booking_tracking_hub_service.dart';
 import 'core/services/realtime/realtime_logger.dart';
 import 'core/theme/shader_warmup.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart';
-import 'features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
+import 'features/user/features/auth/presentation/cubit/auth_cubit.dart';
 import 'firebase_options.dart';
 
 

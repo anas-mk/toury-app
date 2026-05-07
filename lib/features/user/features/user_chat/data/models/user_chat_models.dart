@@ -1,0 +1,102 @@
+import 'package:toury/features/user/features/user_chat/domain/entities/user_chat_entities.dart';
+
+class ChatUserModel extends ChatUserEntity {
+  const ChatUserModel({
+    required super.id,
+    required super.name,
+    required super.profileImageUrl,
+  });
+
+  factory ChatUserModel.fromJson(Map<String, dynamic> json) {
+    return ChatUserModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? 'User',
+      profileImageUrl: json['profileImageUrl'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'profileImageUrl': profileImageUrl,
+    };
+  }
+}
+
+class ChatMessageModel extends ChatMessageEntity {
+  const ChatMessageModel({
+    required super.id,
+    required super.senderId,
+    required super.senderType,
+    required super.messageType,
+    required super.text,
+    super.languageCode,
+    required super.isRead,
+    super.readAt,
+    required super.sentAt,
+    super.isPending = false,
+  });
+
+  factory ChatMessageModel.fromJson(Map<String, dynamic> json) {
+    return ChatMessageModel(
+      id: json['id'] ?? '',
+      senderId: json['senderId'] ?? '',
+      senderType: json['senderType'] ?? '',
+      messageType: json['messageType'] ?? 'Text',
+      text: json['text'] ?? '',
+      languageCode: json['languageCode'],
+      isRead: json['isRead'] ?? false,
+      readAt: json['readAt'] != null ? DateTime.parse(json['readAt']) : null,
+      sentAt: DateTime.parse(json['sentAt'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'senderId': senderId,
+      'senderType': senderType,
+      'messageType': messageType,
+      'text': text,
+      'languageCode': languageCode,
+      'isRead': isRead,
+      'readAt': readAt?.toIso8601String(),
+      'sentAt': sentAt.toIso8601String(),
+    };
+  }
+}
+
+class ChatConversationModel extends ChatConversationEntity {
+  const ChatConversationModel({
+    required super.id,
+    required super.bookingId,
+    required super.status,
+    required super.user,
+    required super.helper,
+    required super.createdAt,
+    super.activatedAt,
+    super.archivedAt,
+    super.lastMessageAt,
+    super.lastMessagePreview,
+    required super.messageCount,
+    required super.unreadCount,
+  });
+
+  factory ChatConversationModel.fromJson(Map<String, dynamic> json) {
+    return ChatConversationModel(
+      id: json['id'] ?? '',
+      bookingId: json['bookingId'] ?? '',
+      status: json['status'] ?? '',
+      user: ChatUserModel.fromJson(json['user'] ?? {}),
+      helper: ChatUserModel.fromJson(json['helper'] ?? {}),
+      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      activatedAt: json['activatedAt'] != null ? DateTime.parse(json['activatedAt']) : null,
+      archivedAt: json['archivedAt'] != null ? DateTime.parse(json['archivedAt']) : null,
+      lastMessageAt: json['lastMessageAt'] != null ? DateTime.parse(json['lastMessageAt']) : null,
+      lastMessagePreview: json['lastMessagePreview'],
+      messageCount: json['messageCount'] ?? 0,
+      unreadCount: json['unreadCount'] ?? 0,
+    );
+  }
+}

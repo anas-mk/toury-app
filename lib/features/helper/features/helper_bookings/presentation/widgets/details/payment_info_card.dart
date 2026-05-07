@@ -57,7 +57,7 @@ class PaymentInfoCard extends StatelessWidget {
               ],
             ),
           ),
-          if (booking.status == 'completed')
+          if (booking.status.toLowerCase() == 'completed')
             const Icon(Icons.check_circle_rounded, color: Colors.white, size: 24),
         ],
       ),

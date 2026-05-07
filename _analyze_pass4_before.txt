@@ -315,165 +315,165 @@ warning - The value of the local variable 'isDark' isn't used - lib\features\hel
    info - Don't invoke 'print' in production code - lib\features\splash\presentation\pages\splash_page.dart:63:5 - avoid_print
    info - Don't invoke 'print' in production code - lib\features\splash\presentation\pages\splash_page.dart:77:5 - avoid_print
    info - Don't invoke 'print' in production code - lib\features\splash\presentation\pages\splash_page.dart:78:5 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:54:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:61:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:82:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:83:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:86:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:95:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:102:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:130:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:133:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:150:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:165:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:166:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:180:11 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:205:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:208:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:223:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:233:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:234:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:250:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:253:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:262:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:269:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:284:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:285:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:309:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:318:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:325:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:340:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:343:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:352:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:359:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:374:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:377:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:390:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:401:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:416:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:419:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:437:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:475:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:476:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:501:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:504:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:511:5 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:517:7 - avoid_print
-   info - Don't invoke 'print' in production code - lib\features\tourist\features\auth\data\datasources\auth_remote_data_source.dart:518:7 - avoid_print
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:110:55 - deprecated_member_use
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:120:71 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:121:37 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:138:64 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:200:47 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:233:39 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\enter_password_page.dart:251:39 - dead_null_aware_expression
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\forgot_password_page.dart:81:49 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\login_page.dart:155:52 - deprecated_member_use
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:95:48 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:95:51 - dead_null_aware_expression
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:107:45 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:107:48 - dead_null_aware_expression
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:157:53 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:157:56 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:172:70 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:210:56 - dead_null_aware_expression
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\register_page.dart:234:55 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\register_page.dart:262:35 - deprecated_member_use
-   info - Don't use 'BuildContext's across async gaps - lib\features\tourist\features\auth\presentation\pages\register_page.dart:277:19 - use_build_context_synchronously
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:283:67 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:283:70 - dead_null_aware_expression
-   info - Don't use 'BuildContext's across async gaps - lib\features\tourist\features\auth\presentation\pages\register_page.dart:287:30 - use_build_context_synchronously
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:300:49 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:300:52 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:308:61 - dead_null_aware_expression
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\register_page.dart:322:49 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\register_page.dart:367:80 - deprecated_member_use
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:418:79 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:425:51 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:429:51 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:436:78 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:441:47 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:446:82 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:452:47 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:458:47 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:465:51 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:469:51 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:490:74 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:514:86 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:520:47 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:573:55 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:599:39 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:607:63 - dead_null_aware_expression
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:636:47 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:636:50 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:659:66 - dead_null_aware_expression
-   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\tourist\features\auth\presentation\pages\register_page.dart:672:7 - deprecated_member_use
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:674:44 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:674:47 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:686:78 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:687:82 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:691:48 - dead_null_aware_expression
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\register_page.dart:710:50 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:710:53 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\register_page.dart:722:55 - dead_null_aware_expression
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\reset_password_page.dart:128:49 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:76:35 - deprecated_member_use
-   info - Don't use 'BuildContext's across async gaps - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:99:19 - use_build_context_synchronously
-warning - Dead code - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:127:53 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:127:56 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:137:27 - dead_null_aware_expression
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:162:49 - deprecated_member_use
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:203:39 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:207:39 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:242:60 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:258:72 - dead_null_aware_expression
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\auth\presentation\pages\verify_code_page.dart:278:59 - dead_null_aware_expression
-warning - Unused import: '../../../../../../core/theme/app_theme.dart' - lib\features\tourist\features\home\presentation\pages\home_layout.dart:4:8 - unused_import
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\pages\home_layout.dart:27:35 - deprecated_member_use
-warning - The value of the local variable 'theme' isn't used - lib\features\tourist\features\home\presentation\widgets\active_booking_banner.dart:17:11 - unused_local_variable
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\active_booking_banner.dart:28:42 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\active_booking_banner.dart:30:61 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\active_booking_banner.dart:90:22 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\active_booking_banner.dart:92:41 - deprecated_member_use
-warning - Unused import: '../../../../../../core/widgets/app_network_image.dart' - lib\features\tourist\features\home\presentation\widgets\recent_booking_card.dart:7:8 - unused_import
-warning - Dead code - lib\features\tourist\features\home\presentation\widgets\recent_booking_card.dart:65:71 - dead_code
-warning - The left operand can't be null, so the right operand is never executed - lib\features\tourist\features\home\presentation\widgets\recent_booking_card.dart:65:74 - dead_null_aware_expression
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\upcoming_trip_preview_card.dart:90:39 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\upcoming_trip_preview_card.dart:112:54 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\home\presentation\widgets\upcoming_trip_preview_card.dart:307:37 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\payments\presentation\pages\payment_method_page.dart:112:53 - deprecated_member_use
-   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\tourist\features\payments\presentation\pages\payment_method_page.dart:142:15 - deprecated_member_use
-   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\tourist\features\payments\presentation\pages\payment_method_page.dart:144:15 - deprecated_member_use
-warning - Unused import: 'package:go_router/go_router.dart' - lib\features\tourist\features\profile\presentation\page\accounts_settings_page.dart:2:8 - unused_import
-warning - Unused import: '../../data/models/paged_response_model.dart' - lib\features\tourist\features\user_booking\presentation\cubits\my_bookings_state.dart:3:8 - unused_import
-warning - Unused import: '../cubits/booking_cubit.dart' - lib\features\tourist\features\user_booking\presentation\pages\booking_details_page.dart:14:8 - unused_import
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\booking_details_page.dart:102:50 - deprecated_member_use
-warning - Unused import: '../../../../../../core/localization/app_localizations.dart' - lib\features\tourist\features\user_booking\presentation\pages\helper_profile_page.dart:7:8 - unused_import
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\my_bookings_page.dart:147:22 - deprecated_member_use
-warning - Unused import: '../../../../../../core/router/app_router.dart' - lib\features\tourist\features\user_booking\presentation\pages\scheduled_search_page.dart:9:8 - unused_import
-   info - The private field _hours could be 'final' - lib\features\tourist\features\user_booking\presentation\pages\scheduled_search_page.dart:28:7 - prefer_final_fields
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:167:56 - deprecated_member_use
-warning - The value of the local variable 'theme' isn't used - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:250:11 - unused_local_variable
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:266:35 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:304:29 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:485:38 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:487:57 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:494:80 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:500:48 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:546:37 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking\presentation\widgets\helper_search_card.dart:106:37 - deprecated_member_use
-   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\tourist\features\user_booking\presentation\widgets\instant\cancel_reason_sheet.dart:120:7 - deprecated_member_use
-   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\tourist\features\user_booking\presentation\widgets\instant\cancel_reason_sheet.dart:124:7 - deprecated_member_use
-warning - The value of the local variable 'theme' isn't used - lib\features\tourist\features\user_booking_tracking\presentation\pages\user_booking_tracking_page.dart:38:11 - unused_local_variable
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking_tracking\presentation\pages\user_booking_tracking_page.dart:157:44 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_booking_tracking\presentation\pages\user_booking_tracking_page.dart:224:41 - deprecated_member_use
-warning - The value of the local variable 'theme' isn't used - lib\features\tourist\features\user_chat\presentation\pages\user_chat_page.dart:32:11 - unused_local_variable
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_chat\presentation\pages\user_chat_page.dart:98:51 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_chat\presentation\widgets\chat_message_bubble.dart:34:54 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tourist\features\user_ratings\presentation\pages\helper_reviews_page.dart:161:47 - deprecated_member_use
-warning - The value of the local variable 'theme' isn't used - lib\features\tourist\features\user_ratings\presentation\pages\rate_booking_page.dart:28:11 - unused_local_variable
-   info - Statements in an if should be enclosed in a block - lib\features\tourist\features\user_ratings\presentation\pages\rate_booking_page.dart:81:41 - curly_braces_in_flow_control_structures
-   info - Statements in an if should be enclosed in a block - lib\features\tourist\features\user_ratings\presentation\pages\rate_booking_page.dart:82:32 - curly_braces_in_flow_control_structures
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:54:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:61:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:82:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:83:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:86:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:95:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:102:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:130:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:133:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:150:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:165:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:166:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:180:11 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:205:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:208:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:223:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:233:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:234:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:250:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:253:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:262:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:269:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:284:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:285:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:309:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:318:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:325:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:340:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:343:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:352:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:359:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:374:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:377:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:390:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:401:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:416:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:419:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:437:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:475:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:476:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:501:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:504:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:511:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:517:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\user\features\auth\data\datasources\auth_remote_data_source.dart:518:7 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:110:55 - deprecated_member_use
+warning - Dead code - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:120:71 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:121:37 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:138:64 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:200:47 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:233:39 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\enter_password_page.dart:251:39 - dead_null_aware_expression
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\forgot_password_page.dart:81:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\login_page.dart:155:52 - deprecated_member_use
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:95:48 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:95:51 - dead_null_aware_expression
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:107:45 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:107:48 - dead_null_aware_expression
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:157:53 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:157:56 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:172:70 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:210:56 - dead_null_aware_expression
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\register_page.dart:234:55 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\register_page.dart:262:35 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\features\user\features\auth\presentation\pages\register_page.dart:277:19 - use_build_context_synchronously
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:283:67 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:283:70 - dead_null_aware_expression
+   info - Don't use 'BuildContext's across async gaps - lib\features\user\features\auth\presentation\pages\register_page.dart:287:30 - use_build_context_synchronously
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:300:49 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:300:52 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:308:61 - dead_null_aware_expression
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\register_page.dart:322:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\register_page.dart:367:80 - deprecated_member_use
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:418:79 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:425:51 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:429:51 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:436:78 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:441:47 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:446:82 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:452:47 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:458:47 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:465:51 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:469:51 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:490:74 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:514:86 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:520:47 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:573:55 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:599:39 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:607:63 - dead_null_aware_expression
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:636:47 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:636:50 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:659:66 - dead_null_aware_expression
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\user\features\auth\presentation\pages\register_page.dart:672:7 - deprecated_member_use
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:674:44 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:674:47 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:686:78 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:687:82 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:691:48 - dead_null_aware_expression
+warning - Dead code - lib\features\user\features\auth\presentation\pages\register_page.dart:710:50 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:710:53 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\register_page.dart:722:55 - dead_null_aware_expression
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\reset_password_page.dart:128:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:76:35 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:99:19 - use_build_context_synchronously
+warning - Dead code - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:127:53 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:127:56 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:137:27 - dead_null_aware_expression
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:162:49 - deprecated_member_use
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:203:39 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:207:39 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:242:60 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:258:72 - dead_null_aware_expression
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\auth\presentation\pages\verify_code_page.dart:278:59 - dead_null_aware_expression
+warning - Unused import: '../../../../../../core/theme/app_theme.dart' - lib\features\user\features\home\presentation\pages\home_layout.dart:4:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\pages\home_layout.dart:27:35 - deprecated_member_use
+warning - The value of the local variable 'theme' isn't used - lib\features\user\features\home\presentation\widgets\active_booking_banner.dart:17:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\active_booking_banner.dart:28:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\active_booking_banner.dart:30:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\active_booking_banner.dart:90:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\active_booking_banner.dart:92:41 - deprecated_member_use
+warning - Unused import: '../../../../../../core/widgets/app_network_image.dart' - lib\features\user\features\home\presentation\widgets\recent_booking_card.dart:7:8 - unused_import
+warning - Dead code - lib\features\user\features\home\presentation\widgets\recent_booking_card.dart:65:71 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\features\user\features\home\presentation\widgets\recent_booking_card.dart:65:74 - dead_null_aware_expression
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\upcoming_trip_preview_card.dart:90:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\upcoming_trip_preview_card.dart:112:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\home\presentation\widgets\upcoming_trip_preview_card.dart:307:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\payments\presentation\pages\payment_method_page.dart:112:53 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\user\features\payments\presentation\pages\payment_method_page.dart:142:15 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\user\features\payments\presentation\pages\payment_method_page.dart:144:15 - deprecated_member_use
+warning - Unused import: 'package:go_router/go_router.dart' - lib\features\user\features\profile\presentation\page\accounts_settings_page.dart:2:8 - unused_import
+warning - Unused import: '../../data/models/paged_response_model.dart' - lib\features\user\features\user_booking\presentation\cubits\my_bookings_state.dart:3:8 - unused_import
+warning - Unused import: '../cubits/booking_cubit.dart' - lib\features\user\features\user_booking\presentation\pages\booking_details_page.dart:14:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\booking_details_page.dart:102:50 - deprecated_member_use
+warning - Unused import: '../../../../../../core/localization/app_localizations.dart' - lib\features\user\features\user_booking\presentation\pages\helper_profile_page.dart:7:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\my_bookings_page.dart:147:22 - deprecated_member_use
+warning - Unused import: '../../../../../../core/router/app_router.dart' - lib\features\user\features\user_booking\presentation\pages\scheduled_search_page.dart:9:8 - unused_import
+   info - The private field _hours could be 'final' - lib\features\user\features\user_booking\presentation\pages\scheduled_search_page.dart:28:7 - prefer_final_fields
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:167:56 - deprecated_member_use
+warning - The value of the local variable 'theme' isn't used - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:250:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:266:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:304:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:485:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:487:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:494:80 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:500:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\pages\scheduled_trip_details_page.dart:546:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking\presentation\widgets\helper_search_card.dart:106:37 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\user\features\user_booking\presentation\widgets\instant\cancel_reason_sheet.dart:120:7 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\user\features\user_booking\presentation\widgets\instant\cancel_reason_sheet.dart:124:7 - deprecated_member_use
+warning - The value of the local variable 'theme' isn't used - lib\features\user\features\user_booking_tracking\presentation\pages\user_booking_tracking_page.dart:38:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking_tracking\presentation\pages\user_booking_tracking_page.dart:157:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_booking_tracking\presentation\pages\user_booking_tracking_page.dart:224:41 - deprecated_member_use
+warning - The value of the local variable 'theme' isn't used - lib\features\user\features\user_chat\presentation\pages\user_chat_page.dart:32:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_chat\presentation\pages\user_chat_page.dart:98:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_chat\presentation\widgets\chat_message_bubble.dart:34:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\user\features\user_ratings\presentation\pages\helper_reviews_page.dart:161:47 - deprecated_member_use
+warning - The value of the local variable 'theme' isn't used - lib\features\user\features\user_ratings\presentation\pages\rate_booking_page.dart:28:11 - unused_local_variable
+   info - Statements in an if should be enclosed in a block - lib\features\user\features\user_ratings\presentation\pages\rate_booking_page.dart:81:41 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\user\features\user_ratings\presentation\pages\rate_booking_page.dart:82:32 - curly_braces_in_flow_control_structures
 
 flutter : 474 issues found. (ran in 8.3s)
 At C:\Users\eslam\AppData\Local\Temp\ps-script-fca61c14-4954-43fb-a6e7-83b7a6014a3b.ps1:87 char:1
