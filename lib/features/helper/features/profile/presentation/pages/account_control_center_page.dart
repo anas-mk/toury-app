@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';

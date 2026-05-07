@@ -6,7 +6,6 @@ import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_text_field.dart';
 import '../../../../../../core/widgets/custom_button.dart';
-import '../../../../../../core/widgets/custom_card.dart';
 import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../cubit/auth_cubit.dart';

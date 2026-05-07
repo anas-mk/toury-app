@@ -242,4 +242,10 @@ class ApiConfig {
   static const String trackingHubUrl = '/hubs/booking';
   static String getLatestLocation(String bookingId) => '/booking/$bookingId/tracking/latest';
   static String getTrackingHistory(String bookingId) => '/booking/$bookingId/tracking/history';
+
+  // ==========================================================================
+  // MAPBOX Configuration
+  // ==========================================================================
+  static const String mapboxToken = String.fromEnvironment('MAPBOX_TOKEN');
+  static const String mapboxDirectionsEndpoint = 'https://api.mapbox.com/directions/v5/mapbox/driving';
 }

@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
+import 'core/config/api_config.dart';
 import 'core/di/injection_container.dart' as di;
 import 'core/localization/cubit/localization_cubit.dart';
 import 'core/router/app_router.dart';
@@ -89,6 +91,10 @@ Future<void> _logFcmTokenOnce() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Mapbox SDK 2.x requires the token to be set globally before any MapWidget
+  // is instantiated. ResourceOptions was removed in v2.
+  MapboxOptions.setAccessToken(ApiConfig.mapboxToken);
 
   // Firebase is best-effort: if the native config isn't deployed yet we still
   // want the rest of the app to launch. The MessagingService gracefully

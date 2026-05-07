@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../config/api_config.dart';
 import 'nominatim_service.dart';
 
 /// Mapbox Geocoding API client (Egypt-biased, Arabic-first).
@@ -28,22 +29,11 @@ class MapboxGeocodingService {
   static const String _endpoint =
       'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
-  /// Default public token. Override at build/run time with
-  /// `--dart-define=MAPBOX_TOKEN=...` if you want to ship a different
-  /// (e.g. URL-restricted) token without touching source.
-  static const String _defaultPublicToken =
-      'pk.eyJ1IjoiYmVsYWxmYXd6eSIsImEiOiJjbW9ndWN1OHIwMDFnMnBzYm1wYTlrOGRoIn0.zhWYpDxePVXljYq4-2_OXg';
-
-  static const String _envToken = String.fromEnvironment(
-    'MAPBOX_TOKEN',
-    defaultValue: _defaultPublicToken,
-  );
-
   final Dio _dio;
   final String _token;
 
   MapboxGeocodingService({Dio? dio, String? token})
-      : _token = (token == null || token.isEmpty) ? _envToken : token,
+      : _token = (token == null || token.isEmpty) ? ApiConfig.mapboxToken : token,
         _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 5),

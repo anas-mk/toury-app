@@ -1,5 +1,4 @@
 import '../repositories/helper_bookings_repository.dart';
-import '../entities/helper_booking_entities.dart';
 
 class DeclineBookingUseCase {
   final HelperBookingsRepository repository;
