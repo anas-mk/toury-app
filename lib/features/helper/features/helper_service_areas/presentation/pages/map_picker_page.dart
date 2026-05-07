@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart' hide Position, LocationSettings;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' hide Size;
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/custom_button.dart';
 
-import '../../../../../../core/services/maps/cached_tile_provider.dart';
 
 class MapPickerPage extends StatefulWidget {
   final double? initialLat;
@@ -19,17 +17,19 @@ class MapPickerPage extends StatefulWidget {
 }
 
 class _MapPickerPageState extends State<MapPickerPage> {
-  late LatLng _selected;
-  final MapController _mapController = MapController();
+  double _selectedLat = 30.0444;
+  double _selectedLng = 31.2357;
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _annotationManager;
+  PointAnnotation? _pin;
 
   @override
   void initState() {
     super.initState();
-    _selected = LatLng(
-      widget.initialLat ?? 30.0444,
-      widget.initialLng ?? 31.2357,
-    );
-    if (widget.initialLat == null || widget.initialLng == null) {
+    if (widget.initialLat != null && widget.initialLng != null) {
+      _selectedLat = widget.initialLat!;
+      _selectedLng = widget.initialLng!;
+    } else {
       _tryCenterOnCurrentLocation();
     }
   }
@@ -48,67 +48,68 @@ class _MapPickerPageState extends State<MapPickerPage> {
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
+      final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
 
-      final current = LatLng(position.latitude, position.longitude);
-      setState(() => _selected = current);
-      _mapController.move(current, 15);
+      setState(() {
+        _selectedLat = position.latitude;
+        _selectedLng = position.longitude;
+      });
+      _mapboxMap?.setCamera(CameraOptions(
+        center: Point(coordinates: Position(position.longitude, position.latitude)),
+        zoom: 15,
+      ));
+      _updatePin(position.latitude, position.longitude);
     } catch (_) {
       // Keep fallback center if current location is unavailable.
     }
   }
 
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    _mapboxMap = mapboxMap;
+    _annotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+    _updatePin(_selectedLat, _selectedLng);
+
+    // Listen for map taps to update pin
+    mapboxMap.setOnMapTapListener((context) {
+      final lat = context.point.coordinates.lat.toDouble();
+      final lng = context.point.coordinates.lng.toDouble();
+      setState(() {
+        _selectedLat = lat;
+        _selectedLng = lng;
+      });
+      _updatePin(lat, lng);
+    });
+  }
+
+  void _updatePin(double lat, double lng) async {
+    if (_annotationManager == null) return;
+    if (_pin != null) {
+      await _annotationManager!.delete(_pin!);
+    }
+    _pin = await _annotationManager!.create(PointAnnotationOptions(
+      geometry: Point(coordinates: Position(lng, lat)),
+      iconImage: 'marker-15',
+      iconSize: 2.5,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _selected,
-              initialZoom: 13,
-              onTap: (tapPosition, point) {
-                setState(() => _selected = point);
-              },
+          MapWidget(
+            key: const ValueKey("mapPickerWidget"),
+            cameraOptions: CameraOptions(
+              center: Point(coordinates: Position(_selectedLng, _selectedLat)),
+              zoom: 13.0,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: isDark 
-                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-                subdomains: const ['a', 'b', 'c', 'd'],
-                tileProvider: CachedTileProvider(),
-                userAgentPackageName: 'com.toury.app',
-              ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _selected,
-                    width: 60,
-                    height: 60,
-                    child: Icon(
-                      Icons.location_pin,
-                      color: theme.colorScheme.primary,
-                      size: 48,
-                      shadows: [
-                        Shadow(
-                          blurRadius: 12, 
-                          color: theme.colorScheme.primary.withOpacity(0.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            styleUri: MapboxStyles.LIGHT,
+            onMapCreated: _onMapCreated,
           ),
 
           // ── Top Bar ─────────────────────────────────────────────────────────────
@@ -142,14 +143,14 @@ class _MapPickerPageState extends State<MapPickerPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Tap to pin location', 
+                          'Tap to pin location',
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
+                            color: AppColor.lightTextSecondary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${_selected.latitude.toStringAsFixed(6)}, ${_selected.longitude.toStringAsFixed(6)}',
+                          '${_selectedLat.toStringAsFixed(6)}, ${_selectedLng.toStringAsFixed(6)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             fontFamily: 'monospace',
@@ -169,7 +170,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
             left: 24,
             right: 24,
             child: CustomButton(
-              onPressed: () => Navigator.pop(context, _selected),
+              onPressed: () => Navigator.pop(
+                context,
+                // Return as a simple map so callers don't need latlong2
+                {'lat': _selectedLat, 'lng': _selectedLng},
+              ),
               text: 'Confirm Location',
               icon: Icons.check_circle_rounded,
               isFullWidth: true,

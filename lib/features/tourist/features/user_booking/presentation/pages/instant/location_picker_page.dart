@@ -1,20 +1,16 @@
 import 'dart:async';
 import 'dart:ui' as ui;
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart' hide Position, LocationSettings;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' hide Size;
 import 'package:permission_handler/permission_handler.dart';
-
 import '../../../../../../../core/services/location/mapbox_geocoding_service.dart';
 import '../../../../../../../core/services/location/nominatim_service.dart';
 import '../../../../../../../core/services/location/recent_searches_store.dart';
 import '../../../../../../../core/services/location/search_debouncer.dart';
-import '../../../../../../../core/services/maps/cached_tile_provider.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import 'location_pick_result.dart';
 
@@ -56,9 +52,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   // attempt to read a real position fails AND the user explicitly
   // declined location services. We never substitute mock data for a
   // working GPS reading.
-  static const _cairoFallback = LatLng(30.0444, 31.2357);
+  static const _cairoFallback = _LL(30.0444, 31.2357);
 
-  final MapController _mapController = MapController();
+  MapboxMap? _mapboxMap;
+  double _currentZoom = 16.0;
   final GeocodingService _geo = GeocodingService();
   final RecentSearchesStore _recentStore = RecentSearchesStore();
 
@@ -87,12 +84,12 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   Timer? _reverseDebounce;
   Timer? _bootstrapTimeout;
   CancelToken? _reverseCancel;
-  StreamSubscription<MapEvent>? _mapEventsSub;
+
 
   // ── Live state in ValueNotifiers so high-frequency events (drag,
   // typing, reverse-geocode arrivals) only rebuild the small subtree
   // that listens to the specific notifier.
-  final ValueNotifier<LatLng> _centerVN = ValueNotifier(_cairoFallback);
+  final ValueNotifier<_LL> _centerVN = ValueNotifier(_cairoFallback);
   final ValueNotifier<double> _bearingVN = ValueNotifier(0);
   final ValueNotifier<String?> _labelVN = ValueNotifier(null);
   final ValueNotifier<String?> _addressVN = ValueNotifier(null);
@@ -119,7 +116,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     _searchFocus.addListener(() {
       _focusedVN.value = _searchFocus.hasFocus;
     });
-    _mapEventsSub = _mapController.mapEventStream.listen(_onMapEvent);
+
     unawaited(_loadRecents());
     _bootstrap();
   }
@@ -130,10 +127,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     _reverseDebounce?.cancel();
     _bootstrapTimeout?.cancel();
     _reverseCancel?.cancel('disposed');
-    _mapEventsSub?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
-    _mapController.dispose();
     _centerVN.dispose();
     _bearingVN.dispose();
     _labelVN.dispose();
@@ -159,8 +154,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   Future<void> _bootstrap() async {
     if (widget.initial != null) {
-      _centerVN.value =
-          LatLng(widget.initial!.latitude, widget.initial!.longitude);
+      _centerVN.value = _LL(widget.initial!.latitude, widget.initial!.longitude);
       _labelVN.value = widget.initial!.name;
       _addressVN.value = widget.initial!.address;
       if (mounted) setState(() => _initialised = true);
@@ -174,7 +168,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     final lastKnown = await _safeLastKnown();
     if (!mounted) return;
     if (lastKnown != null) {
-      _centerVN.value = LatLng(lastKnown.latitude, lastKnown.longitude);
+      _centerVN.value = _LL(
+        (lastKnown.latitude as double),
+        (lastKnown.longitude as double),
+      );
       setState(() => _initialised = true);
       _scheduleReverseGeocode(_centerVN.value, immediate: true);
     }
@@ -273,29 +270,20 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   Future<void> _fetchAndApplyCurrentPosition() async {
     try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
+      final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      final next = LatLng(pos.latitude, pos.longitude);
+      final next = _LL(pos.latitude, pos.longitude);
 
       if (!_initialised) {
         _bootstrapTimeout?.cancel();
         _centerVN.value = next;
         setState(() => _initialised = true);
-        try {
-          _mapController.move(next, 16);
-        } catch (_) {/* mapController not ready yet */}
+        _moveCamera(next, 16);
         _scheduleReverseGeocode(next, immediate: true);
         return;
       }
       if (!_userMovedMap) {
-        try {
-          _mapController.move(next, _mapController.camera.zoom);
-        } catch (_) {}
+        _moveCamera(next, _currentZoom);
         _centerVN.value = next;
         _scheduleReverseGeocode(next, immediate: true);
       }
@@ -304,7 +292,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     }
   }
 
-  Future<Position?> _safeLastKnown() async {
+  Future<dynamic> _safeLastKnown() async {
     try {
       return await Geolocator.getLastKnownPosition();
     } catch (_) {
@@ -331,26 +319,29 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   // -------------------- map event handling --------------------
 
-  void _onMapEvent(MapEvent event) {
+  void _onMapCreated(MapboxMap mapboxMap) {
+    _mapboxMap = mapboxMap;
+  }
+
+  void _onCameraChanged(CameraChangedEventData data) {
     if (!mounted) return;
-    if (event is MapEventRotate) {
-      _bearingVN.value = event.camera.rotation;
-      return;
-    }
-    if (event is MapEventMoveStart) {
-      _userMovedMap = true;
-      return;
-    }
-    if (event is MapEventMoveEnd ||
-        event is MapEventFlingAnimationEnd ||
-        event is MapEventDoubleTapZoomEnd ||
-        event is MapEventRotateEnd ||
-        event is MapEventScrollWheelZoom) {
-      _userMovedMap = true;
-      _centerVN.value = event.camera.center;
-      _bearingVN.value = event.camera.rotation;
-      _scheduleReverseGeocode(event.camera.center);
-    }
+    _userMovedMap = true;
+    _mapboxMap?.getCameraState().then((camera) {
+      if (!mounted) return;
+      final coords = camera.center.coordinates;
+      final coord = _LL(coords.lat.toDouble(), coords.lng.toDouble());
+      _centerVN.value = coord;
+      _bearingVN.value = camera.bearing;
+      _currentZoom = camera.zoom;
+      _scheduleReverseGeocode(coord);
+    });
+  }
+
+  void _moveCamera(_LL coord, double zoom) {
+    _mapboxMap?.setCamera(CameraOptions(
+      center: Point(coordinates: Position(coord.longitude, coord.latitude)),
+      zoom: zoom,
+    ));
   }
 
   Future<void> _onUseMyLocation() async {
@@ -363,14 +354,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         _showLocationDeniedSnack();
         return;
       }
-      Position? pos;
+      dynamic pos;
       try {
-        pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 8),
-          ),
-        );
+        pos = await Geolocator.getCurrentPosition();
       } catch (_) {
         pos = await _safeLastKnown();
       }
@@ -385,11 +371,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         );
         return;
       }
-      final next = LatLng(pos.latitude, pos.longitude);
+      final next = _LL(pos.latitude, pos.longitude);
       _userMovedMap = true;
-      try {
-        _mapController.move(next, 16);
-      } catch (_) {}
+      _moveCamera(next, 16);
       _centerVN.value = next;
       _scheduleReverseGeocode(next, immediate: true);
     } finally {
@@ -399,18 +383,15 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   void _onResetBearing() {
     HapticFeedback.selectionClick();
-    try {
-      _mapController.rotate(0);
-    } catch (_) {}
+    _mapboxMap?.setCamera(CameraOptions(bearing: 0.0));
     _bearingVN.value = 0;
   }
 
   void _onZoom(double delta) {
     HapticFeedback.selectionClick();
-    try {
-      final z = (_mapController.camera.zoom + delta).clamp(3.0, 19.0);
-      _mapController.move(_mapController.camera.center, z);
-    } catch (_) {}
+    final z = (_currentZoom + delta).clamp(3.0, 19.0);
+    _mapboxMap?.setCamera(CameraOptions(zoom: z));
+    _currentZoom = z;
   }
 
   // -------------------- search --------------------
@@ -489,11 +470,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       composing: TextRange.empty,
     );
     _hasTextVN.value = r.name.isNotEmpty;
-    final next = LatLng(r.lat, r.lng);
+    final next = _LL(r.lat, r.lng);
     _userMovedMap = true;
-    try {
-      _mapController.move(next, 16);
-    } catch (_) {}
+    _moveCamera(next, 16);
     _centerVN.value = next;
     _labelVN.value = r.name;
     _addressVN.value = r.displayName;
@@ -514,7 +493,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   // -------------------- reverse geocoding --------------------
 
-  void _scheduleReverseGeocode(LatLng latLng, {bool immediate = false}) {
+  void _scheduleReverseGeocode(_LL latLng, {bool immediate = false}) {
     _reverseDebounce?.cancel();
     _reverseCancel?.cancel('superseded');
     _resolvingVN.value = true;
@@ -528,7 +507,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     );
   }
 
-  Future<void> _reverseGeocode(LatLng latLng) async {
+  Future<void> _reverseGeocode(_LL latLng) async {
     final token = CancelToken();
     _reverseCancel = token;
     try {
@@ -603,32 +582,18 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               children: [
                 // 1. The map.
                 RepaintBoundary(
-                  child: FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _centerVN.value,
-                      initialZoom: 16,
-                      minZoom: 3,
-                      maxZoom: 19,
-                      interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.all &
-                            ~InteractiveFlag.rotate,
-                      ),
+                  child: MapWidget(
+                    key: const ValueKey('locationPickerMap'),
+                    cameraOptions: CameraOptions(
+                      center: Point(coordinates: Position(
+                        _centerVN.value.longitude,
+                        _centerVN.value.latitude,
+                      )),
+                      zoom: 16.0,
                     ),
-                    children: [
-                      TileLayer(
-                        // OSM Humanitarian — better Egyptian coverage
-                        // (district / village names) than Carto Voyager.
-                        urlTemplate:
-                            'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c'],
-                        userAgentPackageName: 'app.rafiq.user',
-                        maxZoom: 19,
-                        keepBuffer: 4,
-                        tileDisplay: const TileDisplay.instantaneous(),
-                        tileProvider: CachedTileProvider(),
-                      ),
-                    ],
+                    styleUri: MapboxStyles.LIGHT,
+                    onMapCreated: _onMapCreated,
+                    onCameraChangeListener: _onCameraChanged,
                   ),
                 ),
 
@@ -1512,7 +1477,7 @@ class _FrostedBottomSheet extends StatelessWidget {
   final ValueListenable<String?> labelVN;
   final ValueListenable<String?> addressVN;
   final ValueListenable<bool> resolvingVN;
-  final ValueListenable<LatLng> centerVN;
+  final ValueListenable<_LL> centerVN;
   final VoidCallback onConfirm;
 
   const _FrostedBottomSheet({
@@ -1636,7 +1601,7 @@ class _LiveAddressBlock extends StatelessWidget {
   final bool isPickup;
   final ValueListenable<String?> labelVN;
   final ValueListenable<String?> addressVN;
-  final ValueListenable<LatLng> centerVN;
+  final ValueListenable<_LL> centerVN;
 
   const _LiveAddressBlock({
     required this.isPickup,
@@ -1698,7 +1663,7 @@ class _LiveAddressBlock extends StatelessWidget {
           },
         ),
         const SizedBox(height: 6),
-        ValueListenableBuilder<LatLng>(
+        ValueListenableBuilder<_LL>(
           valueListenable: centerVN,
           builder: (_, center, __) => Text(
             '${center.latitude.toStringAsFixed(5)}, '
@@ -1970,4 +1935,12 @@ class _AttributionChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Lightweight coordinate pair — replaces `package:latlong2` LatLng
+/// with the same property names so migration is zero-friction.
+class _LL {
+  final double latitude;
+  final double longitude;
+  const _LL(this.latitude, this.longitude);
 }

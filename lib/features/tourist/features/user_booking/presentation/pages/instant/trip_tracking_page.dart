@@ -1,18 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' hide Size;
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
-import '../../../../../../../core/services/maps/cached_tile_provider.dart';
+import '../../../../../../../core/services/location/mapbox_directions_service.dart';
 import '../../../../../../../core/services/ratings/pending_rating_tracker.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
@@ -52,7 +49,9 @@ class TripTrackingPage extends StatefulWidget {
 class _TripTrackingPageState extends State<TripTrackingPage> {
   late final BookingTrackingHubService _hub;
   late final SosService _sosService;
-  late final MapController _mapController;
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _markerManager;
+  PolylineAnnotationManager? _polylineManager;
   StreamSubscription<HelperLocationUpdateEvent>? _locationSub;
   StreamSubscription<BookingTripEndedEvent>? _tripEndedSub;
   StreamSubscription<ActiveSosState?>? _sosSub;
@@ -61,13 +60,16 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   ActiveSosState? _activeSos;
   bool _tripEnded = false;
   bool _cancelingSos = false;
+  final _directions = MapboxDirectionsService();
+  Timer? _routeDebounce;
+  PointAnnotation? _helperPin;
+  RouteResult? _lastRoute; // for the distance/ETA chip
 
   @override
   void initState() {
     super.initState();
     _hub = sl<BookingTrackingHubService>();
     _sosService = sl<SosService>();
-    _mapController = MapController();
     _activeSos = _sosService.activeSos;
     _locationSub = _hub.helperLocationUpdateStream
         .where((e) => e.bookingId == widget.bookingId)
@@ -102,13 +104,142 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     _locationSub?.cancel();
     _tripEndedSub?.cancel();
     _sosSub?.cancel();
-    _mapController.dispose();
+    _routeDebounce?.cancel();
     super.dispose();
   }
 
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    _mapboxMap = mapboxMap;
+    _markerManager = await mapboxMap.annotations.createPointAnnotationManager();
+    _polylineManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+    // Draw route if booking already loaded
+    final state = widget.cubit.state;
+    final booking = _bookingFrom(state);
+    if (booking != null) _drawRoute(booking);
+  }
+
+  // ── Route + markers ────────────────────────────────────────────────────
+
+  /// Initial route from pickup → destination using the Directions API.
+  void _drawRoute(BookingDetail booking) async {
+    if (_polylineManager == null || _markerManager == null) return;
+    await _polylineManager!.deleteAll();
+    await _markerManager!.deleteAll();
+    _helperPin = null;
+
+    final pickupLat = booking.pickupLatitude;
+    final pickupLng = booking.pickupLongitude;
+    final destLat = booking.destinationLatitude;
+    final destLng = booking.destinationLongitude;
+
+    // Pickup pin.
+    await _markerManager!.create(PointAnnotationOptions(
+      geometry: Point(coordinates: Position(pickupLng, pickupLat)),
+      iconImage: 'marker-15',
+      iconSize: 1.8,
+    ));
+    // Destination pin.
+    if (destLat != null && destLng != null) {
+      await _markerManager!.create(PointAnnotationOptions(
+        geometry: Point(coordinates: Position(destLng, destLat)),
+        iconImage: 'marker-15',
+        iconSize: 1.8,
+      ));
+    }
+
+    if (destLat == null || destLng == null) return;
+
+    // Fetch real route pickup → destination.
+    await _fetchAndDrawPolyline(
+      fromLat: pickupLat, fromLng: pickupLng,
+      toLat: destLat,      toLng: destLng,
+    );
+  }
+
+  /// Draws the road-following polyline between two points.
+  Future<void> _fetchAndDrawPolyline({
+    required double fromLat, required double fromLng,
+    required double toLat,   required double toLng,
+  }) async {
+    final route = await _directions.getRoute(
+      fromLat: fromLat, fromLng: fromLng,
+      toLat: toLat,     toLng: toLng,
+      profile: 'driving',
+    );
+
+    if (!mounted) return;
+    await _polylineManager?.deleteAll();
+
+    if (route == null || route.coordinates.isEmpty) {
+      // Fallback straight line.
+      await _polylineManager?.create(PolylineAnnotationOptions(
+        geometry: LineString(coordinates: [
+          Position(fromLng, fromLat),
+          Position(toLng, toLat),
+        ]),
+        lineColor: AppColor.accentColor.value,
+        lineWidth: 3.5,
+        lineOpacity: 0.55,
+      ));
+      return;
+    }
+
+    final positions = route.coordinates.map((c) => Position(c[0], c[1])).toList();
+    await _polylineManager?.create(PolylineAnnotationOptions(
+      geometry: LineString(coordinates: positions),
+      lineColor: AppColor.accentColor.value,
+      lineWidth: 5.0,
+      lineOpacity: 0.88,
+    ));
+
+    // Show ETA chip.
+    if (mounted) {
+      setState(() => _lastRoute = route);
+    }
+  }
+
   void _onLocation(HelperLocationUpdateEvent event) {
-    setState(() => _latest = event);
-    _mapController.move(LatLng(event.latitude, event.longitude), 16);
+    setState(() {
+      _latest = event;
+    });
+
+    // Smooth-follow camera.
+    _mapboxMap?.setCamera(CameraOptions(
+      center: Point(coordinates: Position(event.longitude, event.latitude)),
+      zoom: 16,
+    ));
+
+    // Move helper marker in place.
+    _updateHelperPin(event.latitude, event.longitude);
+
+    // Re-fetch route from helper's new position → destination (debounced).
+    if (_routeDebounce?.isActive != true) {
+      _routeDebounce = Timer(const Duration(seconds: 10), () {});
+      final booking = _bookingFrom(widget.cubit.state);
+      if (booking != null &&
+          booking.destinationLatitude != null &&
+          booking.destinationLongitude != null) {
+        _fetchAndDrawPolyline(
+          fromLat: event.latitude,
+          fromLng: event.longitude,
+          toLat: booking.destinationLatitude!,
+          toLng: booking.destinationLongitude!,
+        );
+      }
+    }
+  }
+
+  /// Creates or moves the helper location marker without redrawing all pins.
+  Future<void> _updateHelperPin(double lat, double lng) async {
+    if (_markerManager == null) return;
+    if (_helperPin != null) {
+      try { await _markerManager!.delete(_helperPin!); } catch (_) {}
+    }
+    _helperPin = await _markerManager!.create(PointAnnotationOptions(
+      geometry: Point(coordinates: Position(lng, lat)),
+      iconImage: 'embassy-15', // distinct icon for the moving helper
+      iconSize: 2.0,
+    ));
   }
 
   void _onTripEnded(BookingTripEndedEvent event) {
@@ -211,7 +342,10 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
 
   void _recenter() {
     if (_latest != null) {
-      _mapController.move(LatLng(_latest!.latitude, _latest!.longitude), 16);
+      _mapboxMap?.setCamera(CameraOptions(
+        center: Point(coordinates: Position(_latest!.longitude, _latest!.latitude)),
+        zoom: 16,
+      ));
     }
   }
 
@@ -227,96 +361,27 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
         child: Scaffold(
           body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
             builder: (context, state) {
+              // Removed LatLng variables - now handled in _onMapCreated
               final booking = _bookingFrom(state);
-              final pickup = booking == null
-                  ? null
-                  : LatLng(booking.pickupLatitude, booking.pickupLongitude);
-              final destination =
-                  booking?.destinationLatitude != null &&
-                      booking?.destinationLongitude != null
-                  ? LatLng(
-                      booking!.destinationLatitude!,
-                      booking.destinationLongitude!,
-                    )
-                  : null;
-              final initialCenter =
-                  pickup ??
-                  (_latest != null
-                      ? LatLng(_latest!.latitude, _latest!.longitude)
-                      : const LatLng(0, 0));
               final sosButtonBottom =
                   MediaQuery.of(context).size.height * 0.32 + AppTheme.spaceMD;
-
+              // Draw route whenever booking data is available and map is ready
+              if (booking != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) => _drawRoute(booking));
+              }
               return Stack(
                 children: [
-                  FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: initialCenter,
-                      initialZoom: pickup == null ? 3 : 15,
+                  MapWidget(
+                    key: const ValueKey('tripTrackingMap'),
+                    cameraOptions: CameraOptions(
+                      center: Point(coordinates: Position(
+                        booking?.pickupLongitude ?? (_latest?.longitude ?? 0),
+                        booking?.pickupLatitude ?? (_latest?.latitude ?? 0),
+                      )),
+                      zoom: (booking == null ? 3.0 : 15.0),
                     ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.toury.app',
-                        tileProvider: CachedTileProvider(),
-                      ),
-                      if (pickup != null && destination != null)
-                        PolylineLayer(
-                          polylines: [
-                            Polyline(
-                              points: [pickup, destination],
-                              color: AppColor.accentColor.withValues(
-                                alpha: 0.4,
-                              ),
-                              strokeWidth: 4,
-                              pattern: StrokePattern.dashed(
-                                segments: const [10.0, 6.0],
-                              ),
-                            ),
-                          ],
-                        ),
-                      MarkerLayer(
-                        markers: [
-                          if (pickup != null)
-                            Marker(
-                              point: pickup,
-                              width: 44,
-                              height: 44,
-                              child: const _PinDot(
-                                color: AppColor.accentColor,
-                                icon: Icons.trip_origin_rounded,
-                              ),
-                            ),
-                          if (destination != null)
-                            Marker(
-                              point: destination,
-                              width: 44,
-                              height: 44,
-                              child: const _PinDot(
-                                color: AppColor.errorColor,
-                                icon: Icons.flag_rounded,
-                              ),
-                            ),
-                          if (_latest != null)
-                            Marker(
-                              point: LatLng(
-                                _latest!.latitude,
-                                _latest!.longitude,
-                              ),
-                              width: 60,
-                              height: 60,
-                              child: _HelperMarker(
-                                imageUrl:
-                                    widget.helper?.profileImageUrl ??
-                                    booking?.helper?.profileImageUrl,
-                                heading: _latest!.heading ?? 0,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
+                    styleUri: MapboxStyles.LIGHT,
+                    onMapCreated: _onMapCreated,
                   ),
                   // Top-left circular blurred back button.
                   Positioned(
@@ -342,6 +407,19 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                     bottom: 6,
                     child: _OsmAttribution(),
                   ),
+                  // Distance / ETA chip — top-center, visible once route loads.
+                  if (_lastRoute != null)
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: _RouteInfoChip(
+                          distance: _lastRoute!.distanceLabel,
+                          duration: _lastRoute!.durationLabel,
+                        ),
+                      ),
+                    ),
                   if (_activeSos != null)
                     Positioned(
                       top: 0,
@@ -855,6 +933,78 @@ class _MiniRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// =============================================================================
+// Route Info Chip — distance & ETA floating on the map
+// =============================================================================
+
+class _RouteInfoChip extends StatelessWidget {
+  final String distance;
+  final String duration;
+  const _RouteInfoChip({required this.distance, required this.duration});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.90),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.7),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Distance
+              const Icon(Icons.straighten_rounded, size: 16, color: Color(0xFF1A73E8)),
+              const SizedBox(width: 6),
+              Text(
+                distance,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
+              // Divider
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                width: 1,
+                height: 16,
+                color: const Color(0xFFE0E0E0),
+              ),
+              // Duration
+              const Icon(Icons.schedule_rounded, size: 16, color: Color(0xFF1A73E8)),
+              const SizedBox(width: 6),
+              Text(
+                duration,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

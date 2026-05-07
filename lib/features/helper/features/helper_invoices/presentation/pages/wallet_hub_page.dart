@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
-import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
 import '../../../helper_bookings/domain/entities/helper_earnings_entities.dart';

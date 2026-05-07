@@ -63,7 +63,7 @@ class EligibilityAlert extends StatelessWidget {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ],
       ),

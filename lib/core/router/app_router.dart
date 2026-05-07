@@ -1,7 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:toury/features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
@@ -87,7 +86,6 @@ import '../../features/tourist/features/user_ratings/presentation/pages/helper_r
 import '../../features/tourist/features/user_ratings/presentation/pages/rate_booking_page.dart';
 import '../../features/tourist/features/user_chat/presentation/pages/user_chat_page.dart';
 import '../../features/tourist/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
-import '../../features/helper/features/helper_booking_tracking/presentation/cubit/helper_tracking_cubit.dart';
 
 // Helper imports
 import '../../features/helper/features/auth/presentation/pages/helper_login_page.dart';
@@ -104,8 +102,6 @@ import '../../features/helper/features/helper_bookings/presentation/pages/bookin
 import '../../features/helper/features/helper_invoices/presentation/pages/wallet_hub_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
-import '../../features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
-import '../../features/helper/features/helper_bookings/presentation/cubit/booking_actions_cubits.dart';
 
 import 'dart:async';
 
@@ -1136,8 +1132,10 @@ class AppRouter {
 
           return UserBookingTrackingPage(
             bookingId: id,
-            pickupLocation: LatLng(pickupLat, pickupLng),
-            destinationLocation: LatLng(destLat, destLng),
+            pickupLat: pickupLat,
+            pickupLng: pickupLng,
+            destinationLat: destLat,
+            destinationLng: destLng,
           );
         },
       ),

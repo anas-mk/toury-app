@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../domain/entities/invoice_entity.dart';
 
 class UserInvoiceDetailPage extends StatelessWidget {

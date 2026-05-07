@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
 import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_state.dart';
@@ -16,14 +15,18 @@ import '../cubit/tracking_state.dart';
 
 class UserBookingTrackingPage extends StatefulWidget {
   final String bookingId;
-  final LatLng? pickupLocation;
-  final LatLng? destinationLocation;
+  final double? pickupLat;
+  final double? pickupLng;
+  final double? destinationLat;
+  final double? destinationLng;
 
   const UserBookingTrackingPage({
     super.key,
     required this.bookingId,
-    this.pickupLocation,
-    this.destinationLocation,
+    this.pickupLat,
+    this.pickupLng,
+    this.destinationLat,
+    this.destinationLng,
   });
 
   @override
@@ -32,7 +35,8 @@ class UserBookingTrackingPage extends StatefulWidget {
 }
 
 class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
-  final MapController _mapController = MapController();
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _markerManager;
   bool _following = true;
 
   @override
@@ -56,61 +60,34 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
                 if (state is TrackingActive &&
                     state.latestPoint != null &&
                     _following) {
-                  _mapController.move(
-                    LatLng(
-                      state.latestPoint!.latitude,
+                  _mapboxMap?.setCamera(CameraOptions(
+                    center: Point(coordinates: Position(
                       state.latestPoint!.longitude,
-                    ),
-                    _mapController.camera.zoom,
-                  );
+                      state.latestPoint!.latitude,
+                    )),
+                    zoom: _mapboxMap == null ? 15 : null,
+                  ));
                 }
               },
               builder: (context, state) {
-                LatLng initialCenter = const LatLng(
-                  30.0444,
-                  31.2357,
-                ); // Default Cairo
+                double initialLat = 30.0444;
+                double initialLng = 31.2357;
                 if (state is TrackingActive && state.latestPoint != null) {
-                  initialCenter = LatLng(
-                    state.latestPoint!.latitude,
-                    state.latestPoint!.longitude,
-                  );
+                  initialLat = state.latestPoint!.latitude;
+                  initialLng = state.latestPoint!.longitude;
                 }
 
-                return FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: initialCenter,
-                    initialZoom: 15,
-                    onPositionChanged: (pos, hasGesture) {
-                      if (hasGesture) setState(() => _following = false);
-                    },
+                return MapWidget(
+                  key: const ValueKey('trackingMap'),
+                  cameraOptions: CameraOptions(
+                    center: Point(coordinates: Position(initialLng, initialLat)),
+                    zoom: 15.0,
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                      subdomains: const ['a', 'b', 'c', 'd'],
-                    ),
-                    if (state is TrackingActive &&
-                        state.latestPoint != null) ...[
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: LatLng(
-                              state.latestPoint!.latitude,
-                              state.latestPoint!.longitude,
-                            ),
-                            width: 60,
-                            height: 60,
-                            child: _HelperMarker(
-                              heading: state.latestPoint!.heading ?? 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                  styleUri: MapboxStyles.LIGHT,
+                  onMapCreated: (map) async {
+                    _mapboxMap = map;
+                    _markerManager = await map.annotations.createPointAnnotationManager();
+                  },
                 );
               },
             ),
@@ -151,13 +128,13 @@ class _UserBookingTrackingPageState extends State<UserBookingTrackingPage> {
                   setState(() => _following = true);
                   final state = context.read<TrackingCubit>().state;
                   if (state is TrackingActive && state.latestPoint != null) {
-                    _mapController.move(
-                      LatLng(
-                        state.latestPoint!.latitude,
+                    _mapboxMap?.setCamera(CameraOptions(
+                      center: Point(coordinates: Position(
                         state.latestPoint!.longitude,
-                      ),
-                      15,
-                    );
+                        state.latestPoint!.latitude,
+                      )),
+                      zoom: 15,
+                    ));
                   }
                 },
               ),
