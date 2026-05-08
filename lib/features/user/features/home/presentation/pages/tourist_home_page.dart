@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,19 +18,18 @@ import '../../../user_booking/presentation/cubits/booking_status_state.dart';
 import '../../../user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../../user_booking/presentation/cubits/my_bookings_state.dart';
 
-/// RAFIQ tourist home — Pass #5 redesign.
+/// RAFIQ tourist home — mobility-focused shell.
 ///
 /// Design intent
 /// -------------
-/// 2026 fintech / travel feel. The shell is a single CustomScrollView
+/// Transportation-style layout: clear hierarchy, fast booking CTAs, minimal
+/// decorative chrome. The shell is a single CustomScrollView
 /// because nested scrolling kills perceived speed; everything below the
 /// hero lives in one SliverList that streams in.
 ///
-///   1. Animated mesh hero with organic blob bottom edge.
-///      A glass weather-style "live status" chip floats over the mesh.
-///   2. Bento grid (2 cols x 2 rows). Big amber Instant tile spans 2
-///      cols on top; below it three small tiles: Scheduled, My trips,
-///      Wallet teaser.
+///   1. Animated mesh hero (navy / teal) with organic blob bottom edge.
+///   2. Bento grid: full-width primary “Instant” CTA, two small tiles, then
+///      a light account / settings row.
 ///   3. Active trip "live" card (only when there's an active booking)
 ///      with a PulseDot + ETA-style chip. Tap = open booking details.
 ///   4. Recent trips horizontal carousel (snap, peek next item).
@@ -136,6 +133,7 @@ class _TouristHomePageState extends State<TouristHomePage> {
                 firstName: _firstName,
                 greeting: greeting,
                 onAvatarTap: () => context.go('/account-settings'),
+                onDestinationTap: () => context.push(AppRouter.instantTripDetails),
               ),
             ),
             SliverPadding(
@@ -242,18 +240,20 @@ class _TouristHomePageState extends State<TouristHomePage> {
 }
 
 // ============================================================================
-//  HERO  (animated mesh + organic blob bottom)
+//  HERO  (compact navy header + destination search bar)
 // ============================================================================
 
 class _HomeHero extends StatelessWidget {
   final String? firstName;
   final String greeting;
   final VoidCallback onAvatarTap;
+  final VoidCallback onDestinationTap;
 
   const _HomeHero({
     required this.firstName,
     required this.greeting,
     required this.onAvatarTap,
+    required this.onDestinationTap,
   });
 
   @override
@@ -262,72 +262,173 @@ class _HomeHero extends StatelessWidget {
     final initial = (firstName != null && firstName!.isNotEmpty)
         ? firstName![0]
         : 'T';
-    return ClipPath(
-      clipper: const _HomeHeroBlobClipper(),
-      child: SizedBox(
-        height: 268 + mediaTop,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const RepaintBoundary(child: MeshGradientBackground()),
-            // Bottom dim so headline reads against bright mesh blobs.
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x140F1655), Color(0x4D0F1655)],
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(20, mediaTop + 14, 20, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── Compact solid-navy header ─────────────────────────────
+        Container(
+          color: BrandTokens.primaryBlue,
+          padding: EdgeInsets.fromLTRB(20, mediaTop + 14, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Wordmark + glass live chip + avatar
-                  Row(
-                    children: [
-                      Text(
-                        BrandTokens.wordmark,
-                        style: BrandTokens.wordmarkStyle(fontSize: 24),
-                      ),
-                      const Spacer(),
-                      const _HeroLiveChip(),
-                      const SizedBox(width: 10),
-                      _HeroAvatar(initial: initial, onTap: onAvatarTap),
-                    ],
+                  Text(
+                    BrandTokens.wordmark,
+                    style: BrandTokens.wordmarkStyle(fontSize: 22),
                   ),
                   const Spacer(),
-                  Text(
-                    greeting,
-                    style: BrandTokens.body(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.85),
-                    ),
+                  // Live dot
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: BrandTokens.successGreen,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Live',
+                        style: BrandTokens.body(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(width: 14),
+                  _HeroAvatar(initial: initial, onTap: onAvatarTap),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                greeting,
+                style: BrandTokens.body(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.72),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                firstName == null || firstName!.isEmpty
+                    ? 'Hi, traveler'
+                    : 'Hi, $firstName',
+                style: BrandTokens.heading(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── Destination search bar — visually fuses with header ───
+        _DestinationBar(onTap: onDestinationTap),
+      ],
+    );
+  }
+}
+
+class _DestinationBar extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DestinationBar({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+          boxShadow: [
+            BoxShadow(
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Location pin with route start indicator
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: BrandTokens.primaryBlue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.search_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    firstName == null || firstName!.isEmpty
-                        ? 'Hi, traveler'
-                        : 'Hi, $firstName',
+                    'Where are you going?',
                     style: BrandTokens.heading(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Where to today?',
-                    style: BrandTokens.body(
                       fontSize: 15,
-                      color: Colors.white.withValues(alpha: 0.85),
+                      fontWeight: FontWeight.w700,
+                      color: BrandTokens.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 1),
+                  Text(
+                    'Tap to pick your destination',
+                    style: BrandTokens.body(
+                      fontSize: 12,
+                      color: BrandTokens.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: BrandTokens.primaryBlue,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Book',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
                 ],
               ),
             ),
@@ -336,38 +437,6 @@ class _HomeHero extends StatelessWidget {
       ),
     );
   }
-}
-
-class _HomeHeroBlobClipper extends CustomClipper<Path> {
-  const _HomeHeroBlobClipper();
-
-  @override
-  Path getClip(Size size) {
-    final p = Path();
-    p.lineTo(0, size.height - 36);
-    p.cubicTo(
-      size.width * 0.25,
-      size.height - 4,
-      size.width * 0.55,
-      size.height - 64,
-      size.width * 0.78,
-      size.height - 30,
-    );
-    p.cubicTo(
-      size.width * 0.92,
-      size.height - 14,
-      size.width,
-      size.height - 38,
-      size.width,
-      size.height - 60,
-    );
-    p.lineTo(size.width, 0);
-    p.close();
-    return p;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _HeroAvatar extends StatelessWidget {
@@ -384,88 +453,23 @@ class _HeroAvatar extends StatelessWidget {
         onTap();
       },
       child: Container(
-        width: 44,
-        height: 44,
+        width: 38,
+        height: 38,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.22),
+          color: Colors.white.withValues(alpha: 0.20),
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.6),
-            width: 1.4,
+            color: Colors.white.withValues(alpha: 0.5),
+            width: 1.5,
           ),
         ),
         child: Text(
           initial.toUpperCase(),
           style: BrandTokens.heading(
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.w800,
             color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Frosted "weather widget" pill floating in the hero.
-class _HeroLiveChip extends StatelessWidget {
-  const _HeroLiveChip();
-
-  @override
-  Widget build(BuildContext context) {
-    // Pass #5 perf: BackdropFilter over an animated subtree (the mesh)
-    // is one of the most expensive operations in Flutter. We keep it
-    // small (sigma 6 instead of 12) and wrap the result in a
-    // RepaintBoundary so the filter result is cached and doesn't
-    // re-blur every time the mesh advances a frame.
-    return RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(40),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(40),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.32),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // The PulseDot widget paints rings up to size*3.6, but here we
-                // only want a small static dot in the chip. Use a plain green
-                // circle to avoid clipping the pulse rings inside the pill.
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: BrandTokens.successGreen,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: BrandTokens.successGreen,
-                        blurRadius: 6,
-                        spreadRadius: -1,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Helpers online',
-                  style: BrandTokens.body(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -525,7 +529,7 @@ class _BentoGrid extends StatelessWidget {
                         ? 'View history'
                         : '$count ${count == 1 ? 'trip' : 'trips'}',
                     icon: Icons.luggage_rounded,
-                    accent: const Color(0xFF6B5BFF),
+                    accent: BrandTokens.primaryBlue,
                     badge: count != null && count > 0 ? '$count' : null,
                     onTap: onMyTrips,
                   );
@@ -541,7 +545,7 @@ class _BentoGrid extends StatelessWidget {
   }
 }
 
-// Big amber tile — primary CTA. Spring-press, pulse dot, parallax arrow.
+// Primary navy CTA — main booking entry (ride-hailing pattern).
 class _BentoInstantTile extends StatefulWidget {
   final VoidCallback onTap;
   const _BentoInstantTile({required this.onTap});
@@ -581,124 +585,95 @@ class _BentoInstantTileState extends State<_BentoInstantTile> {
 
   Widget _build() {
     return Container(
-      height: 148,
+      height: 128,
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
-        gradient: BrandTokens.amberGradient,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: BrandTokens.ctaAmberGlow,
+        color: BrandTokens.primaryBlue,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: BrandTokens.ctaBlueGlow,
       ),
-      child: Stack(
+      child: Row(
         children: [
-          // Decorative blob in the corner.
-          Positioned(
-            right: -30,
-            top: -30,
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.10),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 30,
-            bottom: -50,
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 18, 18),
-            child: Row(
+          // Route-line visual: origin ● — dashed line — destination ■
+          SizedBox(
+            width: 18,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.24),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Icon(
-                    Icons.bolt_rounded,
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.24),
-                          borderRadius: BorderRadius.circular(40),
-                        ),
-                        child: const Text(
-                          'INSTANT',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.6,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Book a helper now',
-                        style: BrandTokens.heading(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'On-demand, responds in minutes',
-                        style: BrandTokens.body(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.92),
-                        ),
-                      ),
-                    ],
+                    shape: BoxShape.circle,
                   ),
                 ),
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 2,
+                  height: 26,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    color: Colors.white.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(1),
                   ),
-                  child: const Icon(
-                    Icons.arrow_forward_rounded,
+                ),
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
                     color: BrandTokens.accentAmber,
-                    size: 20,
+                    borderRadius: BorderRadius.circular(3),
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Current location',
+                  style: BrandTokens.body(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.62),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Book a helper now',
+                  style: BrandTokens.heading(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'On-demand · responds in minutes',
+                  style: BrandTokens.body(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.70),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.arrow_forward_rounded,
+              color: BrandTokens.primaryBlue,
+              size: 20,
             ),
           ),
         ],
@@ -747,32 +722,34 @@ class _BentoSmallTileState extends State<_BentoSmallTile> {
           widget.onTap();
         },
         child: Container(
-          height: 132,
-          padding: const EdgeInsets.all(14),
+          height: 112,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: BrandTokens.borderSoft),
             boxShadow: BrandTokens.cardShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: widget.accent.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(widget.icon, color: widget.accent, size: 20),
+                    child: Icon(widget.icon, color: widget.accent, size: 18),
                   ),
                   const Spacer(),
                   if (widget.badge != null)
                     Container(
-                      constraints: const BoxConstraints(minWidth: 22),
-                      height: 22,
+                      constraints: const BoxConstraints(minWidth: 20),
+                      height: 20,
                       alignment: Alignment.center,
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       decoration: BoxDecoration(
@@ -781,9 +758,9 @@ class _BentoSmallTileState extends State<_BentoSmallTile> {
                       ),
                       child: Text(
                         widget.badge!,
-                        style: BrandTokens.heading(
+                        style: const TextStyle(
                           fontSize: 11,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
                       ),
@@ -794,17 +771,16 @@ class _BentoSmallTileState extends State<_BentoSmallTile> {
               Text(
                 widget.title,
                 style: BrandTokens.heading(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   color: BrandTokens.textPrimary,
-                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 widget.subtitle,
                 style: BrandTokens.body(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: BrandTokens.textSecondary,
                 ),
                 maxLines: 1,
@@ -831,82 +807,55 @@ class _BentoWalletTile extends StatelessWidget {
         onTap();
       },
       child: Container(
-        height: 96,
-        padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          gradient: BrandTokens.primaryGradient,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: BrandTokens.ctaBlueGlow,
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: BrandTokens.borderSoft),
         ),
-        child: Stack(
+        child: Row(
           children: [
-            Positioned(
-              right: -20,
-              top: -20,
-              child: Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.06),
-                ),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.manage_accounts_rounded,
+                color: BrandTokens.primaryBlue,
+                size: 20,
               ),
             ),
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Account & Settings',
+                    style: BrandTokens.heading(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: BrandTokens.textPrimary,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: Colors.white,
-                    size: 22,
+                  Text(
+                    'Profile, payments, support',
+                    style: BrandTokens.body(
+                      fontSize: 12,
+                      color: BrandTokens.textSecondary,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Account',
-                        style: BrandTokens.body(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.78),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Settings & support',
-                        style: BrandTokens.heading(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ],
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: BrandTokens.primaryBlue,
+              size: 20,
             ),
           ],
         ),
@@ -1365,9 +1314,9 @@ class _EmptyTripsCard extends StatelessWidget {
             width: 76,
             height: 76,
             decoration: BoxDecoration(
-              gradient: BrandTokens.amberGradient,
+              gradient: BrandTokens.primaryGradient,
               shape: BoxShape.circle,
-              boxShadow: BrandTokens.ctaAmberGlow,
+              boxShadow: BrandTokens.ctaBlueGlow,
             ),
             child: const Icon(
               Icons.explore_rounded,

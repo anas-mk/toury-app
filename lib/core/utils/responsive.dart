@@ -42,10 +42,13 @@ class Responsive {
   // ── breakpoints ──────────────────────────────────────────────────────
   /// Anything < 360 logical px wide (iPhone SE 1st gen, very old Android).
   bool get isCompact => width < 360;
+
   /// 360–599: typical phone (the great majority).
   bool get isPhone => width >= 360 && width < 600;
+
   /// 600–839: small tablet / large foldable open.
   bool get isTablet => width >= 600 && width < 840;
+
   /// >=840: large tablet, desktop.
   bool get isLarge => width >= 840;
 
@@ -60,7 +63,7 @@ class Responsive {
   // ── shorthand spacing tokens ─────────────────────────────────────────
   double get gapXS => pick(compact: 4.0, phone: 6.0, tablet: 8.0);
   double get gapSM => pick(compact: 8.0, phone: 10.0, tablet: 12.0);
-  double get gap   => pick(compact: 12.0, phone: 16.0, tablet: 20.0);
+  double get gap => pick(compact: 12.0, phone: 16.0, tablet: 20.0);
   double get gapLG => pick(compact: 16.0, phone: 20.0, tablet: 26.0);
   double get gapXL => pick(compact: 22.0, phone: 28.0, tablet: 36.0);
 
@@ -75,9 +78,9 @@ class Responsive {
 
   // ── font sizes (already clamped by textScale) ────────────────────────
   double get fontDisplay => pick(compact: 22.0, phone: 24.0, tablet: 28.0);
-  double get fontTitle   => pick(compact: 16.0, phone: 18.0, tablet: 20.0);
-  double get fontBody    => pick(compact: 13.0, phone: 14.0, tablet: 15.0);
-  double get fontSmall   => pick(compact: 11.0, phone: 12.0, tablet: 13.0);
+  double get fontTitle => pick(compact: 16.0, phone: 18.0, tablet: 20.0);
+  double get fontBody => pick(compact: 13.0, phone: 14.0, tablet: 15.0);
+  double get fontSmall => pick(compact: 11.0, phone: 12.0, tablet: 13.0);
 
   // ── component sizing ────────────────────────────────────────────────
   /// Height of the primary CTA in the bottom action bar.

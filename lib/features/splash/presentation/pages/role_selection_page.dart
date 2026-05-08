@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/brand_tokens.dart';
 import '../../../../core/theme/app_dimens.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 
@@ -24,15 +25,13 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 600),
     )..forward();
-
-    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-
-    _slideAnimation = Tween<double>(
-      begin: 30,
-      end: 0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fadeAnimation =
+        CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slideAnimation = Tween<double>(begin: 24, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
   }
 
   @override
@@ -43,201 +42,218 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final loc = AppLocalizations.of(context);
+    final mediaTop = MediaQuery.of(context).padding.top;
 
     return AppScaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.colorScheme.primary.withValues(alpha: 0.05),
-              theme.scaffoldBackgroundColor,
-              theme.colorScheme.secondary.withValues(alpha: 0.03),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: AnimatedBuilder(
-                      animation: _controller,
-                      builder: (context, child) {
-                        return Opacity(
-                          opacity: _fadeAnimation.value,
-                          child: Transform.translate(
-                            offset: Offset(0, _slideAnimation.value),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xxl,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: AppSpacing.huge),
-                            Center(
-                              child: Image.asset(
-                                'assets/logo/logo.png',
-                                height: 100,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.huge),
-                            Text(
-                              loc.translate('continue_as'),
-                              style: theme.textTheme.displaySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              loc.translate('select_role'),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.6,
-                                ),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppSpacing.huge),
-                            _buildRoleCard(
-                              context,
-                              title: loc.translate('tourist'),
-                              subtitle:
-                                  "Discover places and book amazing trips",
-                              icon: Icons.travel_explore_rounded,
-                              color: theme.colorScheme.primary,
-                              onTap: () => context.push(
-                                AppRouter.login,
-                                extra: 'from_role_selection',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.xxl),
-                            _buildRoleCard(
-                              context,
-                              title: loc.translate('helper'),
-                              subtitle:
-                                  "Join as a partner and earn while helping",
-                              icon: Icons.handshake_rounded,
-                              color: theme.colorScheme.secondary,
-                              onTap: () => context.push(
-                                AppRouter.helperLogin,
-                                extra: 'from_role_selection',
-                              ),
-                            ),
-                            const Spacer(),
-                            const SizedBox(height: AppSpacing.xl),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppSpacing.xl,
-                              ),
-                              child: Text(
-                                "By continuing, you agree to our Terms and Privacy Policy",
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withValues(
-                                    alpha: 0.4,
-                                  ),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Branded top panel ─────────────────────────────────────
+          Container(
+            color: BrandTokens.primaryBlue,
+            padding: EdgeInsets.fromLTRB(24, mediaTop + 20, 24, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.asset(
+                  'assets/logo/logo.png',
+                  height: 52,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Welcome to TOURY',
+                  style: BrandTokens.heading(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.4,
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 6),
+                Text(
+                  'How would you like to continue?',
+                  style: BrandTokens.body(
+                    fontSize: 14,
+                    color: Colors.white.withValues(alpha: 0.78),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+
+          // ── Role cards ────────────────────────────────────────────
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) => Opacity(
+                opacity: _fadeAnimation.value,
+                child: Transform.translate(
+                  offset: Offset(0, _slideAnimation.value),
+                  child: child,
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.xxl),
+                child: Column(
+                  children: [
+                    const SizedBox(height: AppSpacing.sm),
+                    _RoleCard(
+                      title: loc.translate('tourist'),
+                      subtitle: 'Book rides, schedule tours, track live',
+                      icon: Icons.directions_car_rounded,
+                      tag: 'PASSENGER',
+                      onTap: () => context.push(
+                        AppRouter.login,
+                        extra: 'from_role_selection',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    _RoleCard(
+                      title: loc.translate('helper'),
+                      subtitle: 'Drive, guide, and earn on every trip',
+                      icon: Icons.badge_rounded,
+                      tag: 'PARTNER',
+                      onTap: () => context.push(
+                        AppRouter.helperLogin,
+                        extra: 'from_role_selection',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    Text(
+                      'By continuing you agree to our Terms & Privacy Policy',
+                      style: BrandTokens.body(
+                        fontSize: 11,
+                        color: BrandTokens.textMuted,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildRoleCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
+class _RoleCard extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String tag;
+  final VoidCallback onTap;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        child: Ink(
-          padding: const EdgeInsets.all(AppSpacing.xl),
+  const _RoleCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tag,
+    required this.onTap,
+  });
+
+  @override
+  State<_RoleCard> createState() => _RoleCardState();
+}
+
+class _RoleCardState extends State<_RoleCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _pressed ? 0.98 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(AppRadius.xxl),
-            border: Border.all(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.shadowColor.withValues(alpha: 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: BrandTokens.borderSoft),
+            boxShadow: BrandTokens.cardShadow,
           ),
           child: Row(
             children: [
+              // Icon box
               Container(
-                padding: const EdgeInsets.all(AppSpacing.xxl),
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  color: BrandTokens.primaryBlue,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon, color: color, size: 32),
+                child: Icon(widget.icon, color: Colors.white, size: 28),
               ),
-              const SizedBox(width: AppSpacing.xxl),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.5,
+                    Row(
+                      children: [
+                        Text(
+                          widget.title,
+                          style: BrandTokens.heading(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: BrandTokens.textPrimary,
+                          ),
                         ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            widget.tag,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: BrandTokens.primaryBlue,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.subtitle,
+                      style: BrandTokens.body(
+                        fontSize: 13,
+                        color: BrandTokens.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+              const SizedBox(width: 8),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: BrandTokens.bgSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: BrandTokens.primaryBlue,
+                  size: 17,
+                ),
               ),
             ],
           ),

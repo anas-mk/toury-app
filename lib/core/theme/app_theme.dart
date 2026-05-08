@@ -233,7 +233,7 @@ class AppTheme {
           onPrimary: Colors.white,
           primaryContainer: isDark
               ? BrandTokensDark.primaryBlueSoft
-              : const Color(0xFFE0E3FF),
+              : const Color(0xFFE3EDF7),
           onPrimaryContainer: isDark
               ? Colors.white
               : BrandTokens.primaryBlueDark,

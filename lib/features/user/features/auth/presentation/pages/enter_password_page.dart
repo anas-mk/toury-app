@@ -17,7 +17,8 @@ class EnterPasswordPage extends StatefulWidget {
   State<EnterPasswordPage> createState() => _EnterPasswordPageState();
 }
 
-class _EnterPasswordPageState extends State<EnterPasswordPage> with SingleTickerProviderStateMixin {
+class _EnterPasswordPageState extends State<EnterPasswordPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController passwordController = TextEditingController();
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -37,10 +38,7 @@ class _EnterPasswordPageState extends State<EnterPasswordPage> with SingleTicker
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.05),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
     _controller.forward();
   }
@@ -84,7 +82,9 @@ class _EnterPasswordPageState extends State<EnterPasswordPage> with SingleTicker
             child: SlideTransition(
               position: _slideAnimation,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceLG,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -104,7 +104,8 @@ class _EnterPasswordPageState extends State<EnterPasswordPage> with SingleTicker
 
                     // Title
                     Text(
-                      loc.translate("enter_password_title") ?? "Enter Your Password",
+                      loc.translate("enter_password_title") ??
+                          "Enter Your Password",
                       style: theme.textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -141,9 +142,12 @@ class _EnterPasswordPageState extends State<EnterPasswordPage> with SingleTicker
                       child: TextButton(
                         onPressed: state is AuthLoading
                             ? null
-                            : () => context.go('${AppRouter.login}/${AppRouter.forgotPassword}'),
+                            : () => context.go(
+                                '${AppRouter.login}/${AppRouter.forgotPassword}',
+                              ),
                         child: Text(
-                          loc.translate("forgot_password") ?? "Forgot Password?",
+                          loc.translate("forgot_password") ??
+                              "Forgot Password?",
                           style: theme.textTheme.labelLarge?.copyWith(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.bold,

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
@@ -337,8 +339,16 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
         });
       }
     }
-    if (_mapboxMap != null && _currentBooking != null) {
-      _drawRoute(_currentBooking!);
+    // If the map was already created before tracking data arrived, draw the
+    // helper's seed position now (the _onMapCreated guard already handles the
+    // reverse race where the map fires first).
+    if (_mapboxMap != null) {
+      if (_helperLat != null && _helperLng != null) {
+        unawaited(_updateHelperMarker(_helperLat!, _helperLng!));
+      }
+      if (_currentBooking != null) {
+        _drawRoute(_currentBooking!);
+      }
     }
   }
 
@@ -361,13 +371,49 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     return movedMeters >= 35;
   }
 
+  /// Renders a filled blue circle with a white border as a PNG bitmap.
+  /// This avoids relying on sprite icon names that may not exist in the
+  /// current Mapbox style.
+  Future<Uint8List> _buildLocationDotBytes() async {
+    const double size = 56;
+    const double half = size / 2;
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+
+    // White outer ring.
+    canvas.drawCircle(
+      const ui.Offset(half, half),
+      half,
+      ui.Paint()..color = ui.Color(0xFFFFFFFF),
+    );
+    // Blue filled dot.
+    canvas.drawCircle(
+      const ui.Offset(half, half),
+      half - 5,
+      ui.Paint()..color = ui.Color(0xFF1A73E8),
+    );
+    // Inner white highlight for depth.
+    canvas.drawCircle(
+      const ui.Offset(half - 4, half - 4),
+      6,
+      ui.Paint()
+        ..color = ui.Color(0x55FFFFFF)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+    );
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
   Future<void> _updateHelperMarker(
     double lat,
     double lng, {
     double? heading,
   }) async {
     // Use the dedicated helper marker manager so route redraws (which call
-    // deleteAll on the pins manager) never wipe the live arrow.
+    // deleteAll on the pins manager) never wipe the live dot.
     final manager = _helperPointAnnotationManager;
     if (manager == null) return;
     if (_helperMarker != null) {
@@ -376,36 +422,18 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       } catch (_) {}
       _helperMarker = null;
     }
-    final normalizedHeading = (heading != null && heading.isFinite)
-        ? heading
-        : 0.0;
     try {
+      final dotBytes = await _buildLocationDotBytes();
       _helperMarker = await manager.create(
         PointAnnotationOptions(
           geometry: Point(coordinates: Position(lng, lat)),
-          iconImage: 'triangle-15',
-          iconSize: 2.4,
-          iconRotate: normalizedHeading,
+          image: dotBytes,
+          iconSize: 1.0,
           symbolSortKey: 9999,
         ),
       );
     } catch (_) {
-      // Fallback if style sprite doesn't include triangle icon.
-      try {
-        _helperMarker = await manager.create(
-          PointAnnotationOptions(
-            geometry: Point(coordinates: Position(lng, lat)),
-            iconImage: 'embassy-15',
-            iconSize: 2.1,
-            textField: 'You',
-            textColor: BrandTokens.primaryBlue.toARGB32(),
-            textOffset: [0.0, -2.2],
-            symbolSortKey: 9999,
-          ),
-        );
-      } catch (_) {
-        _helperMarker = null;
-      }
+      _helperMarker = null;
     }
   }
 
@@ -520,17 +548,20 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     final palette = AppColors.of(context);
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         // 1. Full Screen Map
-        RepaintBoundary(
-          child: MapWidget(
-            key: const ValueKey("activeBookingMap"),
-            cameraOptions: CameraOptions(
-              center: Point(coordinates: initialCenter),
-              zoom: 15.0,
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: MapWidget(
+              key: const ValueKey("activeBookingMap"),
+              cameraOptions: CameraOptions(
+                center: Point(coordinates: initialCenter),
+                zoom: 15.0,
+              ),
+              styleUri: MapboxStyles.LIGHT,
+              onMapCreated: _onMapCreated,
             ),
-            styleUri: MapboxStyles.LIGHT,
-            onMapCreated: _onMapCreated,
           ),
         ),
 

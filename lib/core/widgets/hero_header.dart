@@ -11,8 +11,8 @@ import 'brand/brand_kit.dart';
 /// canvas is a MeshGradientBackground from the brand kit. We keep this
 /// constant exported because some legacy callers still pass it through.
 const List<Color> kBrandGradient = [
-  AppColor.accentColor,
-  AppColor.secondaryColor,
+  BrandTokens.primaryBlue,
+  BrandTokens.primaryBlueDark,
 ];
 
 /// Shared hero band rendered as a `SliverPersistentHeader` delegate.
@@ -289,7 +289,7 @@ class SectionTitle extends StatelessWidget {
             width: 4,
             height: 18,
             decoration: BoxDecoration(
-              color: AppColor.accentColor,
+              color: theme.colorScheme.primary,
               borderRadius: BorderRadius.circular(2),
             ),
           ),

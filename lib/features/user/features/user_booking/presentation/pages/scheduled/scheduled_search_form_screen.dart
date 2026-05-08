@@ -95,8 +95,11 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   DateTime? get _composedStart {
     if (_date == null || _start == null) return null;
     return DateTime(
-      _date!.year, _date!.month, _date!.day,
-      _start!.hour, _start!.minute,
+      _date!.year,
+      _date!.month,
+      _date!.day,
+      _start!.hour,
+      _start!.minute,
     );
   }
 
@@ -109,8 +112,10 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   bool get _destCoordsValid =>
       _destLat != null &&
       _destLng != null &&
-      _destLat! >= -90 && _destLat! <= 90 &&
-      _destLng! >= -180 && _destLng! <= 180;
+      _destLat! >= -90 &&
+      _destLat! <= 90 &&
+      _destLng! >= -180 &&
+      _destLng! <= 180;
 
   bool get _pickupCoordsValid => _pickupLat != null && _pickupLng != null;
 
@@ -135,7 +140,9 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
       lastDate: now.add(const Duration(days: 365)),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
         ),
         child: child!,
       ),
@@ -209,7 +216,9 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
       initialTime: _start ?? const TimeOfDay(hour: 9, minute: 0),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
         ),
         child: child!,
       ),
@@ -225,8 +234,11 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
 
     // Convert local start time to UTC before sending
     final localStart = DateTime(
-      _date!.year, _date!.month, _date!.day,
-      _start!.hour, _start!.minute,
+      _date!.year,
+      _date!.month,
+      _date!.day,
+      _start!.hour,
+      _start!.minute,
     );
     final utcStart = localStart.toUtc();
     final h = utcStart.hour.toString().padLeft(2, '0');
@@ -315,7 +327,8 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                       if (!_destCoordsValid) ...[
                         const SizedBox(height: 6),
                         _InlineError(
-                          text: 'Tap the map button to mark exactly where you want to go.',
+                          text:
+                              'Tap the map button to mark exactly where you want to go.',
                         ),
                       ],
                     ],
@@ -346,18 +359,21 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                         primaryLabel: _gpsLoading
                             ? 'Getting your location…'
                             : _pickupCoordsValid
-                                ? 'Change pickup pin'
-                                : 'Pick pickup on map',
+                            ? 'Change pickup pin'
+                            : 'Pick pickup on map',
                         coordsPreview: _pickupCoordsValid
                             ? '${_pickupLat!.toStringAsFixed(5)}, ${_pickupLng!.toStringAsFixed(5)}'
                             : null,
                         onTap: _gpsLoading ? () {} : _pickPickup,
                         loading: _gpsLoading,
                       ),
-                      if (_submitted && !_pickupCoordsValid && !_gpsLoading) ...[
+                      if (_submitted &&
+                          !_pickupCoordsValid &&
+                          !_gpsLoading) ...[
                         const SizedBox(height: 6),
                         _InlineError(
-                          text: 'Pickup location is required. Enable GPS or pick on the map.',
+                          text:
+                              'Pickup location is required. Enable GPS or pick on the map.',
                         ),
                       ],
                     ],
@@ -374,7 +390,9 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                         required: true,
                         child: _PickerTile(
                           icon: Icons.event_rounded,
-                          text: _date == null ? 'Pick a date' : _formatDate(_date!),
+                          text: _date == null
+                              ? 'Pick a date'
+                              : _formatDate(_date!),
                           placeholder: _date == null,
                           onTap: _pickDate,
                         ),
@@ -387,7 +405,9 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                         required: true,
                         child: _PickerTile(
                           icon: Icons.schedule_rounded,
-                          text: _start == null ? 'Pick time' : _start!.format(context),
+                          text: _start == null
+                              ? 'Pick time'
+                              : _start!.format(context),
                           placeholder: _start == null,
                           onTap: _pickStart,
                           hasError: _isInPast,
@@ -399,7 +419,8 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
                 if (_isInPast) ...[
                   const SizedBox(height: 6),
                   _InlineError(
-                    text: 'Trip start is in the past. Pick a future date and time.',
+                    text:
+                        'Trip start is in the past. Pick a future date and time.',
                   ),
                 ],
                 const SizedBox(height: 18),
@@ -444,7 +465,20 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
   }
 
   static String _formatDate(DateTime d) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
@@ -464,7 +498,10 @@ class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
     );
   }
 
-  OutlineInputBorder _border({Color color = BrandTokens.borderSoft, double width = 1}) {
+  OutlineInputBorder _border({
+    Color color = BrandTokens.borderSoft,
+    double width = 1,
+  }) {
     return OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
       borderSide: BorderSide(color: color, width: width),
@@ -477,7 +514,11 @@ class _Field extends StatelessWidget {
   final bool required;
   final Widget child;
 
-  const _Field({required this.label, required this.child, this.required = false});
+  const _Field({
+    required this.label,
+    required this.child,
+    this.required = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -486,7 +527,13 @@ class _Field extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(label, style: BrandTypography.body(weight: FontWeight.w600, color: BrandTokens.textPrimary)),
+            Text(
+              label,
+              style: BrandTypography.body(
+                weight: FontWeight.w600,
+                color: BrandTokens.textPrimary,
+              ),
+            ),
             if (!required) ...[
               const SizedBox(width: 8),
               const OptionalChip(compact: true),
@@ -536,18 +583,30 @@ class _PickerTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: hasError ? BrandTokens.dangerRed : BrandTokens.textSecondary, size: 20),
+            Icon(
+              icon,
+              color: hasError
+                  ? BrandTokens.dangerRed
+                  : BrandTokens.textSecondary,
+              size: 20,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 text,
                 overflow: TextOverflow.ellipsis,
                 style: BrandTypography.body(
-                  color: placeholder ? BrandTokens.textMuted : BrandTokens.textPrimary,
+                  color: placeholder
+                      ? BrandTokens.textMuted
+                      : BrandTokens.textPrimary,
                 ),
               ),
             ),
-            const Icon(Icons.keyboard_arrow_down_rounded, color: BrandTokens.textMuted, size: 20),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: BrandTokens.textMuted,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -566,9 +625,18 @@ class _InlineError extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded, size: 14, color: BrandTokens.dangerRed),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 14,
+            color: BrandTokens.dangerRed,
+          ),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: BrandTypography.caption(color: BrandTokens.dangerRed))),
+          Expanded(
+            child: Text(
+              text,
+              style: BrandTypography.caption(color: BrandTokens.dangerRed),
+            ),
+          ),
         ],
       ),
     );
@@ -606,12 +674,26 @@ class _DurationStepper extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.hourglass_top_rounded, color: BrandTokens.textSecondary, size: 20),
+          const Icon(
+            Icons.hourglass_top_rounded,
+            color: BrandTokens.textSecondary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(_formatLabel(minutes), style: BrandTypography.body())),
-          _StepperButton(icon: Icons.remove_rounded, enabled: canDecrement, onTap: () => onChanged(minutes - _stepMinutes)),
+          Expanded(
+            child: Text(_formatLabel(minutes), style: BrandTypography.body()),
+          ),
+          _StepperButton(
+            icon: Icons.remove_rounded,
+            enabled: canDecrement,
+            onTap: () => onChanged(minutes - _stepMinutes),
+          ),
           const SizedBox(width: 8),
-          _StepperButton(icon: Icons.add_rounded, enabled: canIncrement, onTap: () => onChanged(minutes + _stepMinutes)),
+          _StepperButton(
+            icon: Icons.add_rounded,
+            enabled: canIncrement,
+            onTap: () => onChanged(minutes + _stepMinutes),
+          ),
         ],
       ),
     );
@@ -635,12 +717,29 @@ class _TravelersStepper extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.group_rounded, color: BrandTokens.textSecondary, size: 20),
+          const Icon(
+            Icons.group_rounded,
+            color: BrandTokens.textSecondary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text('$value traveler${value == 1 ? '' : 's'}', style: BrandTypography.body())),
-          _StepperButton(icon: Icons.remove_rounded, enabled: value > 1, onTap: () => onChanged(value - 1)),
+          Expanded(
+            child: Text(
+              '$value traveler${value == 1 ? '' : 's'}',
+              style: BrandTypography.body(),
+            ),
+          ),
+          _StepperButton(
+            icon: Icons.remove_rounded,
+            enabled: value > 1,
+            onTap: () => onChanged(value - 1),
+          ),
           const SizedBox(width: 8),
-          _StepperButton(icon: Icons.add_rounded, enabled: value < 12, onTap: () => onChanged(value + 1)),
+          _StepperButton(
+            icon: Icons.add_rounded,
+            enabled: value < 12,
+            onTap: () => onChanged(value + 1),
+          ),
         ],
       ),
     );
@@ -652,7 +751,11 @@ class _StepperButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
 
-  const _StepperButton({required this.icon, required this.enabled, required this.onTap});
+  const _StepperButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -661,11 +764,20 @@ class _StepperButton extends StatelessWidget {
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: enabled ? () { HapticFeedback.selectionClick(); onTap(); } : null,
+        onTap: enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                onTap();
+              }
+            : null,
         child: SizedBox(
           width: 32,
           height: 32,
-          child: Icon(icon, size: 18, color: enabled ? BrandTokens.primaryBlue : BrandTokens.textMuted),
+          child: Icon(
+            icon,
+            size: 18,
+            color: enabled ? BrandTokens.primaryBlue : BrandTokens.textMuted,
+          ),
         ),
       ),
     );
@@ -677,7 +789,11 @@ class _LanguagePicker extends StatelessWidget {
   final List<(String, String)> items;
   final ValueChanged<String> onSelected;
 
-  const _LanguagePicker({required this.selected, required this.items, required this.onSelected});
+  const _LanguagePicker({
+    required this.selected,
+    required this.items,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -690,15 +806,24 @@ class _LanguagePicker extends StatelessWidget {
           final label = items[i].$2;
           final selectedNow = code == selected;
           return GestureDetector(
-            onTap: () { HapticFeedback.selectionClick(); onSelected(code); },
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onSelected(code);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: selectedNow ? BrandTokens.primaryBlue : BrandTokens.surfaceWhite,
+                color: selectedNow
+                    ? BrandTokens.primaryBlue
+                    : BrandTokens.surfaceWhite,
                 borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: selectedNow ? BrandTokens.primaryBlue : BrandTokens.borderSoft),
+                border: Border.all(
+                  color: selectedNow
+                      ? BrandTokens.primaryBlue
+                      : BrandTokens.borderSoft,
+                ),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -728,7 +853,10 @@ class _CarToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () { HapticFeedback.selectionClick(); onChanged(!value); },
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onChanged(!value);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
@@ -738,19 +866,37 @@ class _CarToggle extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.directions_car_rounded, color: value ? BrandTokens.primaryBlue : BrandTokens.textSecondary, size: 20),
+            Icon(
+              Icons.directions_car_rounded,
+              color: value
+                  ? BrandTokens.primaryBlue
+                  : BrandTokens.textSecondary,
+              size: 20,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Helper with car', style: BrandTypography.body(weight: FontWeight.w600)),
+                  Text(
+                    'Helper with car',
+                    style: BrandTypography.body(weight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 2),
-                  Text('Only show helpers driving a car for this trip.', style: BrandTypography.caption(color: BrandTokens.textSecondary)),
+                  Text(
+                    'Only show helpers driving a car for this trip.',
+                    style: BrandTypography.caption(
+                      color: BrandTokens.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Switch.adaptive(value: value, onChanged: onChanged, activeThumbColor: BrandTokens.primaryBlue),
+            Switch.adaptive(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: BrandTokens.primaryBlue,
+            ),
           ],
         ),
       ),
@@ -781,18 +927,31 @@ class _LocationPickButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: hasCoords ? BrandTokens.borderTinted : BrandTokens.surfaceWhite,
+          color: hasCoords
+              ? BrandTokens.borderTinted
+              : BrandTokens.surfaceWhite,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.borderSoft),
+          border: Border.all(
+            color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.borderSoft,
+          ),
         ),
         child: Row(
           children: [
             loading
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: BrandTokens.primaryBlue))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: BrandTokens.primaryBlue,
+                    ),
+                  )
                 : Icon(
                     hasCoords ? Icons.check_circle_rounded : Icons.map_rounded,
                     size: 18,
-                    color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.textSecondary,
+                    color: hasCoords
+                        ? BrandTokens.primaryBlue
+                        : BrandTokens.textSecondary,
                   ),
             const SizedBox(width: 10),
             Expanded(
@@ -804,17 +963,27 @@ class _LocationPickButton extends StatelessWidget {
                     primaryLabel,
                     style: BrandTypography.caption(
                       weight: FontWeight.w700,
-                      color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.textPrimary,
+                      color: hasCoords
+                          ? BrandTokens.primaryBlue
+                          : BrandTokens.textPrimary,
                     ),
                   ),
                   if (coordsPreview != null) ...[
                     const SizedBox(height: 2),
-                    Text(coordsPreview!, style: BrandTypography.caption(color: BrandTokens.textSecondary)),
+                    Text(
+                      coordsPreview!,
+                      style: BrandTypography.caption(
+                        color: BrandTokens.textSecondary,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: BrandTokens.textMuted),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: BrandTokens.textMuted,
+            ),
           ],
         ),
       ),

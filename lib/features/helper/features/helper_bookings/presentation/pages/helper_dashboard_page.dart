@@ -256,7 +256,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                     ),
                   ),
                   Text(
-                    'Helper',
+                    'Partner hub',
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,

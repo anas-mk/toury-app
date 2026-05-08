@@ -12,10 +12,7 @@ import '../cubit/auth_state.dart';
 class VerifyCodePage extends StatefulWidget {
   final String email;
 
-  const VerifyCodePage({
-    super.key,
-    required this.email,
-  });
+  const VerifyCodePage({super.key, required this.email});
 
   @override
   State<VerifyCodePage> createState() => _VerifyCodePageState();
@@ -168,7 +165,9 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                             color: theme.colorScheme.onSurface.withOpacity(0.1),
                             letterSpacing: 12,
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: AppTheme.spaceLG),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: AppTheme.spaceLG,
+                          ),
                         ),
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Code is required';
@@ -195,13 +194,20 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                       // Resend Timer
                       Center(
                         child: TextButton(
-                          onPressed: (state is AuthLoading || !canResend) ? null : resendCode,
+                          onPressed: (state is AuthLoading || !canResend)
+                              ? null
+                              : resendCode,
                           child: Text(
                             canResend
-                                ? (loc.translate("resend_code") ?? "Resend Code")
+                                ? (loc.translate("resend_code") ??
+                                      "Resend Code")
                                 : 'Resend in ${resendTimer}s',
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: canResend ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.4),
+                              color: canResend
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurface.withOpacity(
+                                      0.4,
+                                    ),
                               fontWeight: FontWeight.bold,
                             ),
                           ),

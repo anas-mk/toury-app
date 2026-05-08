@@ -12,10 +12,30 @@ class StatsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stats = [
-      _StatItem('Daily Income', '\$${dashboard.todayEarnings.toStringAsFixed(0)}', Icons.payments_rounded, BrandTokens.successGreen),
-      _StatItem('Requests', '${dashboard.pendingRequestsCount}', Icons.inbox_rounded, Colors.orange),
-      _StatItem('Upcoming', '${dashboard.upcomingTripsCount}', Icons.calendar_today_rounded, BrandTokens.primaryBlue),
-      _StatItem('Success Rate', '${(dashboard.acceptanceRate * 100).toStringAsFixed(0)}%', Icons.verified_rounded, Colors.blueAccent),
+      _StatItem(
+        'Daily Income',
+        '\$${dashboard.todayEarnings.toStringAsFixed(0)}',
+        Icons.payments_rounded,
+        BrandTokens.successGreen,
+      ),
+      _StatItem(
+        'Requests',
+        '${dashboard.pendingRequestsCount}',
+        Icons.inbox_rounded,
+        BrandTokens.warningAmber,
+      ),
+      _StatItem(
+        'Upcoming',
+        '${dashboard.upcomingTripsCount}',
+        Icons.calendar_today_rounded,
+        BrandTokens.accentAmber,
+      ),
+      _StatItem(
+        'Success Rate',
+        '${(dashboard.acceptanceRate * 100).toStringAsFixed(0)}%',
+        Icons.verified_rounded,
+        BrandTokens.primaryBlue,
+      ),
     ];
 
     return GridView.builder(

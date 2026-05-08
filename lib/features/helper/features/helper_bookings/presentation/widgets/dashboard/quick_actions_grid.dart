@@ -11,17 +11,17 @@ class QuickActionsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _ActionItem('Requests', Icons.notifications_active_rounded, Colors.orange, 
+      _ActionItem('Requests', Icons.inbox_rounded, BrandTokens.primaryBlue,
           () => context.push(AppRouter.helperRequests)),
-      _ActionItem('Upcoming', Icons.event_available_rounded, BrandTokens.primaryBlue, 
+      _ActionItem('Upcoming', Icons.event_available_rounded, BrandTokens.accentAmber,
           () => context.push(AppRouter.helperUpcoming)),
-      _ActionItem('History', Icons.history_rounded, Colors.blueAccent, 
+      _ActionItem('History', Icons.receipt_long_rounded, BrandTokens.textSecondary,
           () => context.push(AppRouter.helperHistory)),
-      _ActionItem('My Areas', Icons.map_rounded, BrandTokens.successGreen, 
+      _ActionItem('My Areas', Icons.map_outlined, BrandTokens.successGreen,
           () => context.push(AppRouter.helperServiceAreas)),
-      _ActionItem('Reports', Icons.flag_rounded, BrandTokens.dangerRed, 
+      _ActionItem('Reports', Icons.flag_rounded, BrandTokens.dangerRed,
           () => context.push(AppRouter.helperReports)),
-      _ActionItem('SOS', Icons.sos_rounded, BrandTokens.dangerRed, 
+      _ActionItem('SOS', Icons.sos_rounded, BrandTokens.dangerSos,
           () => context.push(AppRouter.helperSos)),
     ];
 

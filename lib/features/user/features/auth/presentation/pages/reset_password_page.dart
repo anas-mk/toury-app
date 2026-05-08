@@ -20,7 +20,8 @@ class ResetPasswordPage extends StatefulWidget {
 class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final TextEditingController codeController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   int resendTimer = 0;
@@ -150,16 +151,25 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         label: "Reset Code",
                         prefixIcon: Icons.password_rounded,
                         keyboardType: TextInputType.number,
-                        validator: (v) => v == null || v.isEmpty ? 'Code is required' : null,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Code is required' : null,
                       ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: (state is AuthLoading || !canResend) ? null : resendCode,
+                          onPressed: (state is AuthLoading || !canResend)
+                              ? null
+                              : resendCode,
                           child: Text(
-                            canResend ? 'Resend Code' : 'Resend in ${resendTimer}s',
+                            canResend
+                                ? 'Resend Code'
+                                : 'Resend in ${resendTimer}s',
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: canResend ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.4),
+                              color: canResend
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurface.withOpacity(
+                                      0.4,
+                                    ),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -175,8 +185,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         controller: confirmPasswordController,
                         label: "Confirm Password",
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Please confirm password';
-                          if (v != passwordController.text) return 'Passwords do not match';
+                          if (v == null || v.isEmpty)
+                            return 'Please confirm password';
+                          if (v != passwordController.text)
+                            return 'Passwords do not match';
                           return null;
                         },
                       ),
@@ -191,7 +203,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
                       Center(
                         child: TextButton(
-                          onPressed: state is AuthLoading ? null : () => context.go(AppRouter.login),
+                          onPressed: state is AuthLoading
+                              ? null
+                              : () => context.go(AppRouter.login),
                           child: Text(
                             "Back to Login",
                             style: theme.textTheme.labelLarge?.copyWith(

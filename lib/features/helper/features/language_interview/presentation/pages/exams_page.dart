@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../core/theme/app_theme.dart';
 import '../../../../../../core/router/app_router.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
+import '../../data/models/language_model.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
 
@@ -26,32 +35,31 @@ class _ExamsPageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     return BlocListener<ExamsCubit, ExamsState>(
-      listenWhen: (previous, current) => 
-          previous.status != current.status || 
+      listenWhen: (previous, current) =>
+          previous.status != current.status ||
           previous.interview != current.interview,
       listener: (context, state) {
-        if (state.status == ExamsStatus.interviewError && state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage!),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        } else if (state.status == ExamsStatus.interviewStarted || 
-                   state.status == ExamsStatus.interviewLoaded) {
+        if (state.status == ExamsStatus.interviewError &&
+            state.errorMessage != null) {
+          // Inline error handles initial empty-list failures; toast for in-flow errors only.
+          if (state.languages.isNotEmpty) {
+            AppSnackbar.error(context, state.errorMessage!);
+          }
+        } else if (state.status == ExamsStatus.interviewStarted ||
+            state.status == ExamsStatus.interviewLoaded) {
           // POST-SUBMIT LOCK: Never navigate into interview flow after submission
           if (state.isInterviewLocked) return;
 
           if (state.interview != null && !state.isNavigating) {
             final cubit = context.read<ExamsCubit>();
             cubit.setNavigating(true);
-            
-            final needsPreInterview = state.interview!.id != state.completedPreInterviewId;
-            
+
+            final needsPreInterview =
+                state.interview!.id != state.completedPreInterviewId;
+
             // Navigate by path only — no extra needed (cubit is singleton in GetIt)
             if (needsPreInterview) {
               context.push(AppRouter.preInterview);
@@ -61,34 +69,60 @@ class _ExamsPageView extends StatelessWidget {
           }
         }
       },
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
+      child: AppScaffold(
         appBar: AppBar(
-          title: const Text('Language Interviews'),
+          title: Text(
+            'Language Interviews',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
+            ),
+          ),
           backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
           centerTitle: false,
-          foregroundColor: isDark ? Colors.white : Colors.black87,
+          foregroundColor: palette.textPrimary,
         ),
         body: BlocBuilder<ExamsCubit, ExamsState>(
           builder: (context, state) {
-            if (state.status == ExamsStatus.interviewLoading && state.languages.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
+            if (state.status == ExamsStatus.interviewLoading &&
+                state.languages.isEmpty) {
+              return const AppLoading(message: 'Loading languages…');
+            }
+
+            if (state.status == ExamsStatus.interviewError &&
+                state.languages.isEmpty &&
+                state.errorMessage != null) {
+              return AppErrorState(
+                title: 'Could not load interviews',
+                message: state.errorMessage,
+                onRetry: () => context.read<ExamsCubit>().getLanguages(),
+              );
             }
 
             if (state.languages.isEmpty) {
-              return _buildEmptyState(theme, isDark);
+              return AppEmptyState(
+                icon: Icons.translate_rounded,
+                title: 'No language interviews available',
+                message:
+                    'When interviews are enabled for your account, they will appear here.',
+              );
             }
 
             return RefreshIndicator(
+              color: palette.primary,
               onRefresh: () => context.read<ExamsCubit>().getLanguages(),
               child: ListView.separated(
-                padding: const EdgeInsets.all(AppTheme.spaceMD),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.pageGutter,
+                  vertical: AppSpacing.lg,
+                ),
                 itemCount: state.languages.length,
-                separatorBuilder: (context, index) => const SizedBox(height: AppTheme.spaceMD),
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: AppSpacing.md),
                 itemBuilder: (context, index) {
-                  final lang = state.languages[index];
-                  return _LanguageCard(language: lang);
+                  return _LanguageCard(language: state.languages[index]);
                 },
               ),
             );
@@ -97,114 +131,125 @@ class _ExamsPageView extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildEmptyState(ThemeData theme, bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.quiz_outlined, size: 64, color: theme.colorScheme.primary.withOpacity(0.5)),
-          const SizedBox(height: AppTheme.spaceMD),
-          const Text('No language interviews available', style: TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
 }
 
 class _LanguageCard extends StatelessWidget {
-  final dynamic language;
+  final LanguageModel language;
 
   const _LanguageCard({required this.language});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     final hasCooldown = language.nextEligibleTestAt != null;
     final canStart = language.canStartInterview;
     final isContinuing = language.activeInterviewId != null;
 
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: isDark ? theme.colorScheme.surface : Colors.white,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.border.withValues(alpha: 0.35)),
         boxShadow: AppTheme.shadowLight(context),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(AppTheme.spaceSM),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
+              color: palette.primarySoft,
               shape: BoxShape.circle,
             ),
             child: Text(
               language.code,
-              style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: palette.primary,
+              ),
             ),
           ),
-          const SizedBox(width: AppTheme.spaceMD),
+          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   language.name,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
                 ),
+                const SizedBox(height: AppSpacing.xs),
                 if (hasCooldown)
                   Text(
-                    'Retake available on: ${language.nextEligibleTestAt}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.orangeAccent),
+                    'Retake available: ${language.nextEligibleTestAt}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.warning,
+                      fontWeight: FontWeight.w600,
+                    ),
                   )
                 else
                   Text(
-                    language.verificationStatus ?? 'Click to start interview',
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+                    language.verificationStatus ??
+                        'Tap to start your interview',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.textSecondary,
+                    ),
                   ),
               ],
             ),
           ),
-          const SizedBox(width: AppTheme.spaceSM),
-          _buildActionButton(context, theme, canStart, isContinuing, hasCooldown),
+          const SizedBox(width: AppSpacing.sm),
+          _buildActionButton(context, canStart, isContinuing, hasCooldown),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(BuildContext context, ThemeData theme, bool canStart, bool isContinuing, bool hasCooldown) {
-    final compactStyle = ElevatedButton.styleFrom(
-      minimumSize: const Size(80, 40),
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD),
+  Widget _buildActionButton(
+    BuildContext context,
+    bool canStart,
+    bool isContinuing,
+    bool hasCooldown,
+  ) {
+    final compactFilled = FilledButton.styleFrom(
+      minimumSize: const Size(88, AppSize.buttonSm),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      visualDensity: VisualDensity.compact,
     );
 
-    final compactOutlinedStyle = OutlinedButton.styleFrom(
-      minimumSize: const Size(80, 40),
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMD),
+    final compactOutlined = OutlinedButton.styleFrom(
+      minimumSize: const Size(88, AppSize.buttonSm),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      visualDensity: VisualDensity.compact,
     );
 
     if (isContinuing) {
-      return ElevatedButton(
-        onPressed: () => context.read<ExamsCubit>().loadInterview(language.activeInterviewId!),
-        style: compactStyle,
+      return FilledButton(
+        onPressed: () => context.read<ExamsCubit>().loadInterview(
+          language.activeInterviewId!,
+        ),
+        style: compactFilled,
         child: const Text('Continue'),
       );
     }
 
     if (canStart) {
-      return ElevatedButton(
-        onPressed: () => context.read<ExamsCubit>().startInterview(language.code),
-        style: compactStyle,
+      return FilledButton(
+        onPressed: () =>
+            context.read<ExamsCubit>().startInterview(language.code),
+        style: compactFilled,
         child: const Text('Start'),
       );
     }
 
     return OutlinedButton(
       onPressed: null,
-      style: compactOutlinedStyle,
+      style: compactOutlined,
       child: Text(hasCooldown ? 'Locked' : 'Done'),
     );
   }

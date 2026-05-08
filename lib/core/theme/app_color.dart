@@ -86,7 +86,7 @@ class AppColors {
   Color get primaryStrong =>
       isDark ? BrandTokensDark.primaryBlueDark : BrandTokens.primaryBlueDark;
   Color get primarySoft =>
-      isDark ? BrandTokensDark.primaryBlueSoft : const Color(0xFFE0E3FF);
+      isDark ? BrandTokensDark.primaryBlueSoft : const Color(0xFFE3EDF7);
   Color get onPrimary => Colors.white;
 
   Color get accent => BrandTokens.accentAmber;

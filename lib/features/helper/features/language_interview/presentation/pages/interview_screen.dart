@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../../../core/services/camera_service.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_camera_preview.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
 import 'interview_under_review_page.dart';
@@ -152,7 +156,6 @@ class _InterviewScreenState extends State<InterviewScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return BlocListener<ExamsCubit, ExamsState>(
       listenWhen: (prev, cur) => prev.status != cur.status,
@@ -165,10 +168,9 @@ class _InterviewScreenState extends State<InterviewScreen> {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const InterviewUnderReviewPage()),
           );
-        } else if (state.status == ExamsStatus.interviewError && state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.redAccent),
-          );
+        } else if (state.status == ExamsStatus.interviewError &&
+            state.errorMessage != null) {
+          AppSnackbar.error(context, state.errorMessage!);
         }
       },
       child: BlocBuilder<ExamsCubit, ExamsState>(
@@ -182,32 +184,53 @@ class _InterviewScreenState extends State<InterviewScreen> {
         builder: (context, state) {
           final interview = state.interview;
           if (interview == null) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            return AppScaffold(
+              body: const AppLoading(message: 'Loading interview…'),
+            );
           }
 
-          final currentQuestion = interview.questions[state.currentQuestionIndex];
+          final currentQuestion =
+              interview.questions[state.currentQuestionIndex];
           final totalQuestions = interview.totalQuestions;
           final progress = (state.currentQuestionIndex + 1) / totalQuestions;
 
-          return Scaffold(
-            backgroundColor: isDark ? theme.scaffoldBackgroundColor : Colors.white,
+          final palette = AppColors.of(context);
+          final cs = theme.colorScheme;
+
+          return AppScaffold(
             appBar: AppBar(
-              title: Text('${interview.languageName} Interview'),
+              title: Text(
+                '${interview.languageName} interview',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: palette.textPrimary,
+                ),
+              ),
               leading: IconButton(
                 icon: const Icon(Icons.close_rounded),
-                onPressed: state.isNavigating ? null : () => Navigator.pop(context),
+                onPressed: state.isNavigating
+                    ? null
+                    : () => Navigator.pop(context),
               ),
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              foregroundColor: palette.textPrimary,
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(4),
                 child: LinearProgressIndicator(
                   value: progress,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+                  backgroundColor: palette.primarySoft,
+                  valueColor: AlwaysStoppedAnimation<Color>(palette.primary),
+                  minHeight: 4,
                 ),
               ),
             ),
             body: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceLG),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.pageGutter,
+                vertical: AppSpacing.lg,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -216,37 +239,46 @@ class _InterviewScreenState extends State<InterviewScreen> {
                     children: [
                       Text(
                         'Question ${currentQuestion.index + 1} of $totalQuestions',
-                        style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: palette.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      _buildAttemptsBadge(state.attemptsLeft),
+                      _buildAttemptsBadge(context, state.attemptsLeft),
                     ],
                   ),
-                  const SizedBox(height: AppTheme.spaceMD),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
                     currentQuestion.questionText,
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: palette.textPrimary,
+                    ),
                   ),
-                  const SizedBox(height: AppTheme.spaceLG),
+                  const SizedBox(height: AppSpacing.xxl),
 
                   // ── Experience Area ──
                   Expanded(
-                    child: Container(
-                      width: double.infinity,
+                    child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        children: [
-                          _buildMainContent(state),
-                          if (state.isRecording) _buildRecordingOverlay(state),
-                        ],
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            _buildMainContent(state),
+                            if (state.isRecording)
+                              _buildRecordingOverlay(context, state),
+                          ],
+                        ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: AppTheme.spaceLG),
+                  const SizedBox(height: AppSpacing.xxl),
                   _buildActionArea(context, state),
                 ],
               ),
@@ -259,64 +291,89 @@ class _InterviewScreenState extends State<InterviewScreen> {
 
   // ─── Sub-Widgets ──────────────────────────────────────────────────────────────
 
-  Widget _buildAttemptsBadge(int attemptsLeft) {
+  Widget _buildAttemptsBadge(BuildContext context, int attemptsLeft) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    final hasAttempts = attemptsLeft > 0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
-        color: attemptsLeft > 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppTheme.radiusXS),
+        color: hasAttempts ? palette.successSoft : palette.dangerSoft,
+        borderRadius: BorderRadius.circular(AppRadius.xs),
       ),
       child: Text(
         '$attemptsLeft attempts left',
-        style: TextStyle(
-          color: attemptsLeft > 0 ? Colors.green : Colors.red,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: hasAttempts ? palette.success : palette.danger,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
 
   Widget _buildMainContent(ExamsState state) {
-    if (state.status == ExamsStatus.reviewing && _videoPlayerController != null) {
+    if (state.status == ExamsStatus.reviewing &&
+        _videoPlayerController != null) {
       return VideoPlayer(_videoPlayerController!);
     }
 
     // ── Use CameraService.instance.controller for preview ──
     final controller = _camera.controller;
-    if (_localCameraReady && controller != null && controller.value.isInitialized) {
-      return Center(
-        child: AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: CameraPreview(controller),
-        ),
-      );
+    if (_localCameraReady &&
+        controller != null &&
+        controller.value.isInitialized) {
+      return AppCameraPreview(controller: controller);
     }
 
-    return const Center(child: CircularProgressIndicator());
+    return Center(child: AppSpinner.large());
   }
 
-  Widget _buildRecordingOverlay(ExamsState state) {
+  Widget _buildRecordingOverlay(BuildContext context, ExamsState state) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+
     return Positioned(
-      top: 16,
-      left: 16,
-      right: 16,
+      top: AppSpacing.lg,
+      left: AppSpacing.lg,
+      right: AppSpacing.lg,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               _RecordingDot(),
-              const SizedBox(width: 8),
-              const Text('REC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'REC',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: palette.onPrimary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
+              ),
             ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-            child: Text(
-              '${state.recordingDuration}s',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.scrim,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs,
+              ),
+              child: Text(
+                '${state.recordingDuration}s',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: palette.onPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
         ],
@@ -325,29 +382,53 @@ class _InterviewScreenState extends State<InterviewScreen> {
   }
 
   Widget _buildActionArea(BuildContext context, ExamsState state) {
+    final palette = AppColors.of(context);
+    final cs = Theme.of(context).colorScheme;
+
+    final btnShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+    );
+
     // ── Block all interactions during navigation ──
     if (state.isNavigating) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (state.status == ExamsStatus.interviewInProgress || 
-        state.status == ExamsStatus.interviewSubmitting || 
-        state.status == ExamsStatus.interviewUnderReview) {
-      return Center(
-        child: Column(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 8),
-            Text(state.status == ExamsStatus.interviewSubmitting 
-                ? 'Finalizing interview...' 
-                : 'Saving your answer...'),
-          ],
-        ),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppSpinner.large(),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Please wait…',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
+          ),
+        ],
       );
     }
 
-    // The "Complete Interview" button has been removed as per strict 
-    // constraints: automation triggers `finalizeInterview()` automatically. 
+    if (state.status == ExamsStatus.interviewInProgress ||
+        state.status == ExamsStatus.interviewSubmitting ||
+        state.status == ExamsStatus.interviewUnderReview) {
+      final msg = state.status == ExamsStatus.interviewSubmitting
+          ? 'Finalizing interview…'
+          : 'Saving your answer…';
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppSpinner.large(),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            msg,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
+          ),
+        ],
+      );
+    }
+
+    // The "Complete Interview" button has been removed as per strict
+    // constraints: automation triggers `finalizeInterview()` automatically.
 
     if (state.status == ExamsStatus.reviewing) {
       return Row(
@@ -356,24 +437,25 @@ class _InterviewScreenState extends State<InterviewScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _onRetake,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Retake'),
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+                  minimumSize: const Size(0, AppSize.buttonLg),
+                  shape: btnShape,
                 ),
               ),
             ),
-          if (state.attemptsLeft > 0) const SizedBox(width: 16),
+          if (state.attemptsLeft > 0) const SizedBox(width: AppSpacing.lg),
           Expanded(
-            child: ElevatedButton.icon(
+            child: FilledButton.icon(
               onPressed: _onConfirm,
-              icon: const Icon(Icons.check),
+              icon: const Icon(Icons.check_rounded),
               label: const Text('Confirm'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(0, 56),
-                backgroundColor: Colors.green,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, AppSize.buttonLg),
+                backgroundColor: palette.success,
+                foregroundColor: palette.onPrimary,
+                shape: btnShape,
               ),
             ),
           ),
@@ -384,14 +466,17 @@ class _InterviewScreenState extends State<InterviewScreen> {
     // Default: ready to record
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton.icon(
+      child: FilledButton.icon(
         onPressed: state.isRecording ? _stopRecording : _startRecording,
-        icon: Icon(state.isRecording ? Icons.stop : Icons.fiber_manual_record),
-        label: Text(state.isRecording ? 'Stop Recording' : 'Start Recording'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: state.isRecording ? Colors.red : Theme.of(context).colorScheme.primary,
-          minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+        icon: Icon(
+          state.isRecording ? Icons.stop_rounded : Icons.fiber_manual_record,
+        ),
+        label: Text(state.isRecording ? 'Stop recording' : 'Start recording'),
+        style: FilledButton.styleFrom(
+          backgroundColor: state.isRecording ? cs.error : palette.primary,
+          foregroundColor: state.isRecording ? cs.onError : palette.onPrimary,
+          minimumSize: const Size(double.infinity, AppSize.buttonLg),
+          shape: btnShape,
         ),
       ),
     );
@@ -405,15 +490,17 @@ class _RecordingDot extends StatefulWidget {
   _RecordingDotState createState() => _RecordingDotState();
 }
 
-class _RecordingDotState extends State<_RecordingDot> with SingleTickerProviderStateMixin {
+class _RecordingDotState extends State<_RecordingDot>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
-    _animationController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 500))
-          ..repeat(reverse: true);
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -424,12 +511,16 @@ class _RecordingDotState extends State<_RecordingDot> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return FadeTransition(
       opacity: _animationController,
       child: Container(
         width: 12,
         height: 12,
-        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: palette.danger,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }

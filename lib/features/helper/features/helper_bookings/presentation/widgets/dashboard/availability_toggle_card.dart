@@ -214,15 +214,33 @@ class _StatusChip extends StatelessWidget {
                     : BrandTokens.borderSoft.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
-          _label(status),
-          style: BrandTypography.caption(
-            color: isSelected
-                ? (isOnline ? BrandTokens.primaryBlue : Colors.white)
-                : (isOnline
-                      ? Colors.white.withValues(alpha: 0.7)
-                      : BrandTokens.textSecondary),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? _dotColor(status)
+                    : (isOnline
+                          ? Colors.white.withValues(alpha: 0.5)
+                          : BrandTokens.textMuted),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              _label(status),
+              style: BrandTypography.caption(
+                color: isSelected
+                    ? (isOnline ? BrandTokens.primaryBlue : Colors.white)
+                    : (isOnline
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : BrandTokens.textSecondary),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -231,13 +249,26 @@ class _StatusChip extends StatelessWidget {
   String _label(HelperAvailabilityState s) {
     switch (s) {
       case HelperAvailabilityState.availableNow:
-        return '🟢 Online';
+        return 'Online';
       case HelperAvailabilityState.scheduledOnly:
-        return '📅 Scheduled';
+        return 'Scheduled';
       case HelperAvailabilityState.busy:
-        return '🔴 Busy';
+        return 'Busy';
       case HelperAvailabilityState.offline:
-        return '⚫ Offline';
+        return 'Offline';
+    }
+  }
+
+  Color _dotColor(HelperAvailabilityState s) {
+    switch (s) {
+      case HelperAvailabilityState.availableNow:
+        return BrandTokens.successGreen;
+      case HelperAvailabilityState.scheduledOnly:
+        return BrandTokens.accentAmber;
+      case HelperAvailabilityState.busy:
+        return BrandTokens.dangerRed;
+      case HelperAvailabilityState.offline:
+        return BrandTokens.textMuted;
     }
   }
 }

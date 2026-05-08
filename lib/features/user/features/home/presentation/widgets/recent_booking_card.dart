@@ -63,9 +63,7 @@ class RecentBookingCard extends StatelessWidget {
             ),
             const SizedBox(height: AppTheme.spaceXS),
             Text(
-              DateFormat(
-                'MMM dd, yyyy',
-              ).format(booking.requestedDate),
+              DateFormat('MMM dd, yyyy').format(booking.requestedDate),
               style: AppTheme.bodySmall.copyWith(
                 color: AppColor.lightTextSecondary,
               ),

@@ -37,13 +37,13 @@ abstract class BrandTokensDark {
   static const Color textMuted = Color(0xFF6B7592);
 
   // ── Brand (slightly lifted for dark contrast) ──────────────────────
-  /// Brand blue lifts to a brighter Indigo on dark backgrounds so it
-  /// passes WCAG AA contrast on body text.
-  static const Color primaryBlue = Color(0xFF7A82FF);
-  static const Color primaryBlueDark = Color(0xFF5C66FF);
+  /// Brand navy lifts to a readable sky-blue on dark surfaces (pairs with
+  /// light-mode `#0B3D91`).
+  static const Color primaryBlue = Color(0xFF6CB6FF);
+  static const Color primaryBlueDark = Color(0xFF4A9FE8);
 
   /// Tinted background for primary chips/buttons in dark mode.
-  static const Color primaryBlueSoft = Color(0xFF1F2654);
+  static const Color primaryBlueSoft = Color(0xFF132F4A);
 
   // ── Status surfaces ────────────────────────────────────────────────
   static const Color successGreenSoft = Color(0xFF103324);

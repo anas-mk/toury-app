@@ -10,6 +10,7 @@
 
 export 'animations/fade_in_slide.dart';
 export 'app_bottom_nav.dart';
+export 'app_camera_preview.dart';
 export 'app_connection_banner.dart';
 export 'app_dialog.dart';
 export 'app_divider.dart';

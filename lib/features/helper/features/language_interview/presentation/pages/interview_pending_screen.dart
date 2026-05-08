@@ -1,8 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_theme.dart';
+
 import '../../../../../../core/router/app_router.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 
 class InterviewPendingScreen extends StatefulWidget {
   const InterviewPendingScreen({super.key});
@@ -25,7 +30,6 @@ class _InterviewPendingScreenState extends State<InterviewPendingScreen> {
     _timer = Timer(const Duration(seconds: 3), () {
       if (mounted && !_isRedirecting) {
         _isRedirecting = true;
-        // Use goNamed to helperHome which is the root helper page, clearing the stack
         context.go(AppRouter.helperHome);
       }
     });
@@ -40,57 +44,65 @@ class _InterviewPendingScreenState extends State<InterviewPendingScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     return PopScope(
-      canPop: false, // Prevent going back to the interview
-      child: Scaffold(
-        backgroundColor: isDark ? theme.scaffoldBackgroundColor : Colors.white,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppTheme.spaceXL),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // --- Success Illustration ---
-                Container(
-                  padding: const EdgeInsets.all(AppTheme.spaceLG),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.mark_email_read_rounded,
-                    color: Colors.green,
-                    size: 80,
-                  ),
+      canPop: false,
+      child: AppScaffold(
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.pageGutter,
+                  vertical: AppSpacing.xxl,
                 ),
-                const SizedBox(height: AppTheme.spaceXL),
-                
-                // --- Title ---
-                Text(
-                  'Interview Submitted!',
-                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      decoration: BoxDecoration(
+                        color: palette.successSoft,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.mark_email_read_rounded,
+                        color: palette.success,
+                        size: 72,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    Text(
+                      'Interview submitted',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Your interview is under review. You will be notified when the review is complete.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: palette.textSecondary,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.xxxl),
+                    const AppSpinner.large(),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Returning to home…',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: palette.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppTheme.spaceMD),
-                
-                // --- Description ---
-                Text(
-                  'Your interview is now under review by our admin team. You will be notified once the review is complete.',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppTheme.spaceXL),
-                
-                // --- Automatic Redirection Info ---
-                const CircularProgressIndicator(strokeWidth: 2),
-                const SizedBox(height: AppTheme.spaceMD),
-                Text(
-                  'Returning to Home...',
-                  style: theme.textTheme.labelSmall?.copyWith(color: Colors.grey),
-                ),
-              ],
+              ),
             ),
           ),
         ),

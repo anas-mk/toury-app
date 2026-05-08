@@ -41,14 +41,15 @@ class BookingConfirmPage extends StatelessWidget {
             );
           } else if (state is BookingError) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: AppColor.errorColor),
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: AppColor.errorColor,
+              ),
             );
           }
         },
         child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Confirm Booking'),
-          ),
+          appBar: AppBar(title: const Text('Confirm Booking')),
           body: Padding(
             padding: const EdgeInsets.all(AppTheme.spaceLG),
             child: Column(
@@ -101,7 +102,10 @@ class BookingConfirmPage extends StatelessWidget {
   Widget _buildSectionTitle(ThemeData theme, String title) {
     return Text(
       title,
-      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppColor.primaryColor),
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: AppColor.primaryColor,
+      ),
     );
   }
 
@@ -120,7 +124,12 @@ class BookingConfirmPage extends StatelessWidget {
             child: Icon(Icons.person, color: AppColor.primaryColor),
           ),
           const SizedBox(width: AppTheme.spaceMD),
-          Text(helper.name, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            helper.name,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const Spacer(),
           if (helper.hourlyRate != null)
             Text('${helper.hourlyRate!.toStringAsFixed(0)} EGP/hr'),
@@ -142,12 +151,14 @@ class BookingConfirmPage extends StatelessWidget {
     } else {
       final params = searchParams as ScheduledSearchParams;
       city = params.destinationCity;
-      time = '${DateFormat('MMM dd, yyyy').format(params.requestedDate)} at ${params.startTime}';
+      time =
+          '${DateFormat('MMM dd, yyyy').format(params.requestedDate)} at ${params.startTime}';
       duration = params.durationInMinutes;
     }
 
     final durationText = duration >= 60
-        ? '${duration ~/ 60}h ${duration % 60 > 0 ? "${duration % 60}m" : ""}'.trim()
+        ? '${duration ~/ 60}h ${duration % 60 > 0 ? "${duration % 60}m" : ""}'
+              .trim()
         : '${duration}m';
 
     return Column(
@@ -156,7 +167,11 @@ class BookingConfirmPage extends StatelessWidget {
         const SizedBox(height: AppTheme.spaceSM),
         _buildDetailRow(Icons.access_time_rounded, 'Time', time),
         const SizedBox(height: AppTheme.spaceSM),
-        _buildDetailRow(Icons.hourglass_bottom_rounded, 'Duration', durationText),
+        _buildDetailRow(
+          Icons.hourglass_bottom_rounded,
+          'Duration',
+          durationText,
+        ),
       ],
     );
   }
@@ -166,9 +181,17 @@ class BookingConfirmPage extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: AppColor.lightTextSecondary),
         const SizedBox(width: 8),
-        Text('$label:', style: const TextStyle(color: AppColor.lightTextSecondary)),
+        Text(
+          '$label:',
+          style: const TextStyle(color: AppColor.lightTextSecondary),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+        ),
       ],
     );
   }
@@ -194,7 +217,9 @@ class BookingConfirmPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(estimatedPrice != null ? 'Estimated Price' : 'Approx. Price'),
+              Text(
+                estimatedPrice != null ? 'Estimated Price' : 'Approx. Price',
+              ),
               Text('${displayTotal.toStringAsFixed(2)} EGP'),
             ],
           ),
@@ -202,10 +227,16 @@ class BookingConfirmPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Amount', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Total Amount',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               Text(
                 '${displayTotal.toStringAsFixed(2)} EGP',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppColor.accentColor),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColor.accentColor,
+                ),
               ),
             ],
           ),

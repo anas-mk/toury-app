@@ -16,7 +16,8 @@ import '../../core/services/realtime/hub_lifecycle_observer.dart';
 import '../../core/services/realtime/realtime_connection_issue_notifier.dart';
 import '../../core/services/directions/directions_service.dart';
 import '../../core/services/sos/sos_service.dart';
-import '../../features/helper/features/helper_location/data/services/helper_location_tracking_service.dart' show HelperLocationTrackingService;
+import '../../features/helper/features/helper_location/data/services/helper_location_tracking_service.dart'
+    show HelperLocationTrackingService;
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
 
 // ============================================================
@@ -39,7 +40,6 @@ import '../../features/user/features/auth/domain/usecases/forgot_password_usecas
 import '../../features/user/features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/user/features/auth/presentation/cubit/auth_cubit.dart';
 import '../../features/user/features/profile/presentation/cubit/profile_cubit.dart';
-
 
 // ============================================================
 // Helper Auth Feature Imports
@@ -84,7 +84,8 @@ import '../../features/helper/features/profile/domain/usecases/add_car_usecase.d
 import '../../features/helper/features/profile/domain/usecases/delete_car_usecase.dart';
 import '../../features/helper/features/profile/domain/usecases/add_certificate_usecase.dart';
 import '../../features/helper/features/profile/domain/usecases/delete_certificate_usecase.dart';
-import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart' as helper_profile;
+import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart'
+    as helper_profile;
 import '../../features/user/features/user_booking/data/datasources/instant_booking_remote_data_source.dart';
 import '../../features/user/features/user_booking/data/datasources/user_booking_remote_data_source.dart';
 import '../../features/user/features/user_booking/data/repositories/instant_booking_repository_impl.dart';
@@ -134,18 +135,27 @@ import '../../features/user/features/payments/presentation/cubit/payment_cubit.d
 import '../../features/user/features/user_invoices/data/datasources/invoice_remote_datasource.dart';
 import '../../features/user/features/user_invoices/data/repositories/invoice_repository_impl.dart';
 import '../../features/user/features/user_invoices/domain/repositories/invoice_repository.dart';
-import '../../features/user/features/user_invoices/domain/usecases/get_invoices_usecase.dart' as user_inv;
-import '../../features/user/features/user_invoices/domain/usecases/get_invoice_detail_usecase.dart' as user_inv;
-import '../../features/user/features/user_invoices/domain/usecases/get_invoice_by_booking_usecase.dart' as user_inv;
-import '../../features/user/features/user_invoices/domain/usecases/get_invoice_html_usecase.dart' as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoices_usecase.dart'
+    as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoice_detail_usecase.dart'
+    as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoice_by_booking_usecase.dart'
+    as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoice_html_usecase.dart'
+    as user_inv;
 import '../../features/user/features/user_ratings/data/datasources/rating_remote_datasource.dart';
 import '../../features/user/features/user_ratings/data/repositories/rating_repository_impl.dart';
 import '../../features/user/features/user_ratings/domain/repositories/rating_repository.dart';
-import '../../features/user/features/user_ratings/domain/usecases/get_booking_rating_state_usecase.dart' as user_rat;
-import '../../features/user/features/user_ratings/domain/usecases/get_helper_rating_summary_usecase.dart' as user_rat;
-import '../../features/user/features/user_ratings/domain/usecases/get_helper_ratings_usecase.dart' as user_rat;
-import '../../features/user/features/user_ratings/domain/usecases/get_user_rating_summary_usecase.dart' as user_rat;
-import '../../features/user/features/user_ratings/domain/usecases/rate_helper_usecase.dart' as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_booking_rating_state_usecase.dart'
+    as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_helper_rating_summary_usecase.dart'
+    as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_helper_ratings_usecase.dart'
+    as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_user_rating_summary_usecase.dart'
+    as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/rate_helper_usecase.dart'
+    as user_rat;
 import '../../features/user/features/user_booking_tracking/data/datasources/tracking_remote_datasource.dart';
 import '../../features/user/features/user_booking_tracking/data/repositories/tracking_repository_impl.dart';
 import '../../features/user/features/user_booking_tracking/domain/repositories/tracking_repository.dart';
@@ -212,8 +222,10 @@ import '../../features/helper/features/helper_chat/presentation/cubit/helper_cha
 import '../../features/helper/features/helper_booking_tracking/data/datasources/tracking_remote_datasource.dart';
 import '../../features/helper/features/helper_booking_tracking/data/repositories/tracking_repository_impl.dart';
 import '../../features/helper/features/helper_booking_tracking/domain/repositories/tracking_repository.dart';
-import '../../features/helper/features/helper_booking_tracking/domain/usecases/get_latest_location_usecase.dart' as helper_track;
-import '../../features/helper/features/helper_booking_tracking/domain/usecases/get_tracking_history_usecase.dart' as helper_track;
+import '../../features/helper/features/helper_booking_tracking/domain/usecases/get_latest_location_usecase.dart'
+    as helper_track;
+import '../../features/helper/features/helper_booking_tracking/domain/usecases/get_tracking_history_usecase.dart'
+    as helper_track;
 import '../../features/helper/features/helper_booking_tracking/presentation/cubit/helper_tracking_cubit.dart';
 
 import '../../features/helper/features/helper_reports/data/repositories/helper_reports_repository_impl.dart';
@@ -241,7 +253,7 @@ Future<void> init() async {
 
   // Cubits
   sl.registerFactory(
-        () => AuthCubit(
+    () => AuthCubit(
       checkEmailUseCase: sl(),
       verifyPasswordUseCase: sl(),
       registerUseCase: sl(),
@@ -257,9 +269,7 @@ Future<void> init() async {
     ),
   );
 
-  sl.registerFactory(
-        () => ProfileCubit(sl<AuthRepository>()),
-  );
+  sl.registerFactory(() => ProfileCubit(sl<AuthRepository>()));
 
   // Use Cases
   sl.registerLazySingleton(() => CheckEmailUseCase(sl()));
@@ -276,19 +286,16 @@ Future<void> init() async {
 
   // Repository
   sl.registerLazySingleton<AuthRepository>(
-        () => AuthRepositoryImpl(
-      remoteDataSource: sl(),
-      localDataSource: sl(),
-    ),
+    () => AuthRepositoryImpl(remoteDataSource: sl(), localDataSource: sl()),
   );
 
   // Data Sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
-        () => AuthRemoteDataSourceImpl(sl()),
+    () => AuthRemoteDataSourceImpl(sl()),
   );
 
   sl.registerLazySingleton<AuthLocalDataSource>(
-        () => AuthLocalDataSourceImpl(sl()),
+    () => AuthLocalDataSourceImpl(sl()),
   );
 
   // ============================================================
@@ -310,7 +317,6 @@ Future<void> init() async {
     ),
   );
 
-
   // Use Cases
   sl.registerLazySingleton(() => RegisterHelperUseCase(sl()));
   sl.registerLazySingleton(() => HelperLoginUseCase(sl()));
@@ -324,10 +330,8 @@ Future<void> init() async {
 
   // Repository
   sl.registerLazySingleton<HelperAuthRepository>(
-    () => HelperAuthRepositoryImpl(
-      remoteDataSource: sl(),
-      localDataSource: sl(),
-    ),
+    () =>
+        HelperAuthRepositoryImpl(remoteDataSource: sl(), localDataSource: sl()),
   );
 
   // Data Sources
@@ -338,7 +342,6 @@ Future<void> init() async {
   sl.registerLazySingleton<HelperLocalDataSource>(
     () => HelperLocalDataSourceImpl(sl()),
   );
-
 
   // ============================================================
   // Features - Language Interview
@@ -433,22 +436,26 @@ Future<void> init() async {
     sl.registerLazySingleton(() => DirectionsService());
   }
 
-  sl.registerFactory(() => SearchHelpersCubit(
-    searchScheduledHelpersUseCase: sl(),
-    searchInstantHelpersUseCase: sl(),
-    locationCubit: sl<LocationCubit>(),
-  ));
-  sl.registerFactory(() => InstantBookingCubit(
-    searchInstantHelpersUC: sl(),
-    createInstantBookingUC: sl(),
-    cancelInstantBookingUC: sl(),
-    getBookingDetailUC: sl(),
-    getAlternativesUC: sl(),
-    hubService: sl(),
-  ));
-  sl.registerFactory(() => HelperBookingProfileCubit(
-        getHelperBookingProfileUC: sl(),
-      ));
+  sl.registerFactory(
+    () => SearchHelpersCubit(
+      searchScheduledHelpersUseCase: sl(),
+      searchInstantHelpersUseCase: sl(),
+      locationCubit: sl<LocationCubit>(),
+    ),
+  );
+  sl.registerFactory(
+    () => InstantBookingCubit(
+      searchInstantHelpersUC: sl(),
+      createInstantBookingUC: sl(),
+      cancelInstantBookingUC: sl(),
+      getBookingDetailUC: sl(),
+      getAlternativesUC: sl(),
+      hubService: sl(),
+    ),
+  );
+  sl.registerFactory(
+    () => HelperBookingProfileCubit(getHelperBookingProfileUC: sl()),
+  );
 
   // Scheduled-flow cubits. We deliberately reuse:
   //   * SearchHelpersCubit            (already supports searchScheduled)
@@ -456,41 +463,41 @@ Future<void> init() async {
   //   * BookingCubit.createScheduled  (already does the create call)
   //   * UserRatingsCubit / UserInvoicesCubit (shared per guardrails)
   // and only add the two cubits that genuinely need different shapes:
-  sl.registerFactory(() => ScheduledBookingDetailCubit(
-        getBookingDetailUC: sl(),
-        getBookingStatusUC: sl(),
-        hubService: sl(),
-      ));
-  sl.registerFactory(() => ScheduledAlternativesCubit(
-        getAlternativesUC: sl(),
-      ));
+  sl.registerFactory(
+    () => ScheduledBookingDetailCubit(
+      getBookingDetailUC: sl(),
+      getBookingStatusUC: sl(),
+      hubService: sl(),
+    ),
+  );
+  sl.registerFactory(() => ScheduledAlternativesCubit(getAlternativesUC: sl()));
 
-  sl.registerFactory(() => BookingDetailsCubit(
-    getBookingDetailsUseCase: sl(),
-    getHelperProfileUseCase: sl(),
-  ));
-  sl.registerFactory(() => BookingStatusCubit(
-    getBookingStatusUseCase: sl(),
-    getMyBookingsUseCase: sl(),
-    getBookingDetailsUseCase: sl(),
-    hubService: sl(),
-  ));
-  sl.registerFactory(() => MyBookingsCubit(
-    getMyBookingsUseCase: sl(),
-  ));
-  sl.registerFactory(() => CancelBookingCubit(
-    cancelBookingUseCase: sl(),
-  ));
-  sl.registerFactory(() => BookingCubit(
-    createScheduledBookingUseCase: sl(),
-    getBookingDetailsUseCase: sl(),
-    cancelBookingUseCase: sl(),
-    getAlternativesUseCase: sl(),
-  ));
-  
-  sl.registerFactory(() => AlternativesCubit(
-    getAlternativesUseCase: sl(),
-  ));
+  sl.registerFactory(
+    () => BookingDetailsCubit(
+      getBookingDetailsUseCase: sl(),
+      getHelperProfileUseCase: sl(),
+    ),
+  );
+  sl.registerFactory(
+    () => BookingStatusCubit(
+      getBookingStatusUseCase: sl(),
+      getMyBookingsUseCase: sl(),
+      getBookingDetailsUseCase: sl(),
+      hubService: sl(),
+    ),
+  );
+  sl.registerFactory(() => MyBookingsCubit(getMyBookingsUseCase: sl()));
+  sl.registerFactory(() => CancelBookingCubit(cancelBookingUseCase: sl()));
+  sl.registerFactory(
+    () => BookingCubit(
+      createScheduledBookingUseCase: sl(),
+      getBookingDetailsUseCase: sl(),
+      cancelBookingUseCase: sl(),
+      getAlternativesUseCase: sl(),
+    ),
+  );
+
+  sl.registerFactory(() => AlternativesCubit(getAlternativesUseCase: sl()));
 
   // Use Cases
   sl.registerLazySingleton(() => SearchScheduledHelpersUseCase(sl()));
@@ -586,20 +593,25 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerLazySingleton(() => HelperLocationTrackingService(
-    coreLocationService: sl(),
-    authService: sl(),
-    streamUseCase: sl(),
-    updateUseCase: sl(),
-    connectUseCase: sl(),
-    disconnectUseCase: sl(),
-    signalRStateStream: sl<HelperLocationRepository>().signalRStateStream.cast<SignalRConnectionState>(),
-  ));
+  sl.registerLazySingleton(
+    () => HelperLocationTrackingService(
+      coreLocationService: sl(),
+      authService: sl(),
+      streamUseCase: sl(),
+      updateUseCase: sl(),
+      connectUseCase: sl(),
+      disconnectUseCase: sl(),
+      signalRStateStream: sl<HelperLocationRepository>().signalRStateStream
+          .cast<SignalRConnectionState>(),
+    ),
+  );
 
-  sl.registerLazySingleton(() => HelperLocationCubit(
-    trackingService: sl(),
-    getLocationStatusUseCase: sl(),
-  ));
+  sl.registerLazySingleton(
+    () => HelperLocationCubit(
+      trackingService: sl(),
+      getLocationStatusUseCase: sl(),
+    ),
+  );
   sl.registerLazySingleton(() => LocationStatusCubit(getStatusUseCase: sl()));
   sl.registerLazySingleton(() => EligibilityCubit(getEligibilityUseCase: sl()));
 
@@ -613,10 +625,8 @@ Future<void> init() async {
 
   // Repository
   sl.registerLazySingleton<HelperLocationRepository>(
-    () => HelperLocationRepositoryImpl(
-      remoteDataSource: sl(),
-      hubService: sl(),
-    ),
+    () =>
+        HelperLocationRepositoryImpl(remoteDataSource: sl(), hubService: sl()),
   );
 
   // Data Source
@@ -629,12 +639,14 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerFactory(() => ServiceAreasCubit(
-    getAreasUseCase: sl(),
-    createAreaUseCase: sl(),
-    updateAreaUseCase: sl(),
-    deleteAreaUseCase: sl(),
-  ));
+  sl.registerFactory(
+    () => ServiceAreasCubit(
+      getAreasUseCase: sl(),
+      createAreaUseCase: sl(),
+      updateAreaUseCase: sl(),
+      deleteAreaUseCase: sl(),
+    ),
+  );
 
   // Use Cases
   sl.registerLazySingleton(() => GetServiceAreasUseCase(sl()));
@@ -685,13 +697,15 @@ Future<void> init() async {
   // ============================================================
 
   // Cubit (factory — each page gets its own isolated state)
-  sl.registerFactory(() => HelperInvoicesCubit(
-    getInvoicesUseCase: sl(),
-    getDetailUseCase: sl(),
-    getByBookingUseCase: sl(),
-    getSummaryUseCase: sl(),
-    getHtmlUseCase: sl(),
-  ));
+  sl.registerFactory(
+    () => HelperInvoicesCubit(
+      getInvoicesUseCase: sl(),
+      getDetailUseCase: sl(),
+      getByBookingUseCase: sl(),
+      getSummaryUseCase: sl(),
+      getHtmlUseCase: sl(),
+    ),
+  );
 
   // Use Cases
   sl.registerLazySingleton(() => GetInvoicesUseCase(sl()));
@@ -715,12 +729,16 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerFactory(() => HelperRatingsCubit(
-    getReceivedRatingsUseCase: sl(),
-    getRatingsSummaryUseCase: sl(),
-  ));
+  sl.registerFactory(
+    () => HelperRatingsCubit(
+      getReceivedRatingsUseCase: sl(),
+      getRatingsSummaryUseCase: sl(),
+    ),
+  );
   sl.registerFactory(() => RateUserCubit(rateUserUseCase: sl()));
-  sl.registerFactory(() => BookingRatingStateCubit(getBookingRatingStateUseCase: sl()));
+  sl.registerFactory(
+    () => BookingRatingStateCubit(getBookingRatingStateUseCase: sl()),
+  );
 
   // Use Cases
   sl.registerLazySingleton(() => RateUserUseCase(sl()));
@@ -743,13 +761,15 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerFactory(() => HelperChatCubit(
-    getConversationUseCase: sl(),
-    getMessagesUseCase: sl(),
-    sendMessageUseCase: sl(),
-    markReadUseCase: sl(),
-    hubService: sl(),
-  ));
+  sl.registerFactory(
+    () => HelperChatCubit(
+      getConversationUseCase: sl(),
+      getMessagesUseCase: sl(),
+      sendMessageUseCase: sl(),
+      markReadUseCase: sl(),
+      hubService: sl(),
+    ),
+  );
 
   // Use Cases
   sl.registerLazySingleton(() => GetConversationUseCase(sl()));
@@ -759,9 +779,7 @@ Future<void> init() async {
 
   // Repository
   sl.registerLazySingleton<HelperChatRepository>(
-    () => HelperChatRepositoryImpl(
-      remoteDataSource: sl(),
-    ),
+    () => HelperChatRepositoryImpl(remoteDataSource: sl()),
   );
 
   // Data Source
@@ -774,11 +792,13 @@ Future<void> init() async {
   // ============================================================
 
   // Cubits
-  sl.registerFactory(() => HelperReportsCubit(
-    getCachedReportsUseCase: sl(),
-    syncReportsUseCase: sl(),
-    resolutionStream: sl<HelperReportsRepository>().resolutionEvents,
-  ));
+  sl.registerFactory(
+    () => HelperReportsCubit(
+      getCachedReportsUseCase: sl(),
+      syncReportsUseCase: sl(),
+      resolutionStream: sl<HelperReportsRepository>().resolutionEvents,
+    ),
+  );
 
   // Use Cases
   sl.registerLazySingleton(() => GetCachedReportsUseCase(sl()));
@@ -805,7 +825,7 @@ Future<void> init() async {
   // ============================================================
   // Tourist Payments Feature
   // ============================================================
-  
+
   // Data sources
   sl.registerLazySingleton<PaymentRemoteDataSource>(
     () => PaymentRemoteDataSourceImpl(dio: sl()),
@@ -813,9 +833,7 @@ Future<void> init() async {
 
   // Repositories
   sl.registerLazySingleton<PaymentRepository>(
-    () => PaymentRepositoryImpl(
-      remoteDataSource: sl(),
-    ),
+    () => PaymentRepositoryImpl(remoteDataSource: sl()),
   );
 
   // Use cases
@@ -890,7 +908,8 @@ Future<void> init() async {
     () => UserRatingsCubit(
       rateHelperUseCase: sl<user_rat.RateHelperUseCase>(),
       getHelperRatingsUseCase: sl<user_rat.GetHelperRatingsUseCase>(),
-      getHelperRatingSummaryUseCase: sl<user_rat.GetHelperRatingSummaryUseCase>(),
+      getHelperRatingSummaryUseCase:
+          sl<user_rat.GetHelperRatingSummaryUseCase>(),
     ),
   );
 
@@ -945,10 +964,7 @@ Future<void> init() async {
 
   // Repositories
   sl.registerLazySingleton<TrackingRepository>(
-    () => TrackingRepositoryImpl(
-      remoteDataSource: sl(),
-      hubService: sl(),
-    ),
+    () => TrackingRepositoryImpl(remoteDataSource: sl(), hubService: sl()),
   );
 
   // Use cases
@@ -957,18 +973,12 @@ Future<void> init() async {
 
   // Cubits
   sl.registerFactory(
-    () => TrackingCubit(
-      getTrackingUseCase: sl(),
-      hubService: sl(),
-    ),
+    () => TrackingCubit(getTrackingUseCase: sl(), hubService: sl()),
   );
 
   // ============================================================
   // Core - External Dependencies
   // ============================================================
-
-
-
 
   // 3️⃣  SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -985,14 +995,10 @@ Future<void> init() async {
 
   // 6️⃣  MessagingService — coordinates FCM permissions, foreground heads-up,
   //     tap routing, and delegates token registration to DeviceTokenService.
-  sl.registerLazySingleton(
-    () => MessagingService(deviceTokenService: sl()),
-  );
+  sl.registerLazySingleton(() => MessagingService(deviceTokenService: sl()));
 
   // 7️⃣  SOS service — trigger/cancel API + active SOS state.
-  sl.registerLazySingleton(
-    () => SosService(dio: sl(), prefs: sl()),
-  );
+  sl.registerLazySingleton(() => SosService(dio: sl(), prefs: sl()));
 
   // 7️⃣b  AppRealtimeCubit — phase 3 app-wide realtime orchestrator.
   //      Subscribes to the existing event bus and refreshes page-level
@@ -1017,8 +1023,9 @@ Future<void> init() async {
   sl<BookingTrackingHubService>().bindAuthService(sl<AuthService>());
 
   _authTokenHubReconnectSub?.cancel();
-  _authTokenHubReconnectSub =
-      sl<AuthService>().authTokenChanges.listen((token) {
+  _authTokenHubReconnectSub = sl<AuthService>().authTokenChanges.listen((
+    token,
+  ) {
     unawaited(sl<BookingTrackingHubService>().onAccessTokenPersisted(token));
   });
 }

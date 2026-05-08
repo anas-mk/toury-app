@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,7 +8,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/camera_service.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_camera_preview.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
 
@@ -20,7 +23,14 @@ class PreInterviewScreen extends StatefulWidget {
   State<PreInterviewScreen> createState() => _PreInterviewScreenState();
 }
 
-enum PreInterviewState { initializing, idle, recording, preparing, reviewing, error }
+enum PreInterviewState {
+  initializing,
+  idle,
+  recording,
+  preparing,
+  reviewing,
+  error,
+}
 
 class _PreInterviewScreenState extends State<PreInterviewScreen> {
   // ── CameraService is the sole hardware authority ──
@@ -188,7 +198,8 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
 
     // Stop video player first
     try {
-      if (_videoPlayerController != null && _videoPlayerController!.value.isPlaying) {
+      if (_videoPlayerController != null &&
+          _videoPlayerController!.value.isPlaying) {
         await _videoPlayerController!.pause();
       }
     } catch (_) {}
@@ -221,16 +232,27 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
+    final cs = theme.colorScheme;
 
     return PopScope(
-      canPop: _state != PreInterviewState.recording && _state != PreInterviewState.preparing,
-      child: Scaffold(
-        backgroundColor: isDark ? Colors.black : Colors.white,
+      canPop:
+          _state != PreInterviewState.recording &&
+          _state != PreInterviewState.preparing,
+      child: AppScaffold(
+        backgroundColor: palette.scaffold,
         appBar: AppBar(
-          title: const Text('Pre-Interview Test'),
+          title: Text(
+            'Pre-Interview Test',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
+            ),
+          ),
           backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
+          foregroundColor: palette.textPrimary,
         ),
         body: Stack(
           children: [
@@ -239,58 +261,87 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
                 Expanded(
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(AppTheme.spaceLG),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _getHeaderText(),
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: AppTheme.spaceLG),
-                          Container(
-                            height: 400,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[900],
-                              borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-                              border: Border.all(
-                                color: _state == PreInterviewState.error
-                                    ? Colors.red
-                                    : theme.colorScheme.primary,
-                                width: 2,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.pageGutter,
+                        vertical: AppSpacing.lg,
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final targetH = (constraints.maxHeight * 0.62).clamp(
+                            220.0,
+                            460.0,
+                          );
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _getHeaderText(),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: palette.textPrimary,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: _buildMainContent(),
-                          ),
-                        ],
+                              const SizedBox(height: AppSpacing.xxl),
+                              SizedBox(
+                                height: targetH,
+                                width: double.infinity,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: cs.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.lg,
+                                    ),
+                                    border: Border.all(
+                                      color: _state == PreInterviewState.error
+                                          ? palette.danger
+                                          : palette.primary,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.lg,
+                                    ),
+                                    child: _buildMainContent(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(AppTheme.spaceLG),
-                  child: _buildActionButtons(),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.pageGutter,
+                    AppSpacing.sm,
+                    AppSpacing.pageGutter,
+                    AppSpacing.lg,
+                  ),
+                  child: _buildActionButtons(context),
                 ),
               ],
             ),
 
             // ── Full-screen overlay during hardware handoff ──
             if (_state == PreInterviewState.preparing)
-              Container(
-                color: Colors.black54,
+              ColoredBox(
+                color: palette.scrim,
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      const SizedBox(height: AppTheme.spaceLG),
+                      AppSpinner.large(color: palette.onPrimary),
+                      const SizedBox(height: AppSpacing.xxl),
                       Text(
-                        'Preparing interview...',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                        'Preparing interview…',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: palette.onPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
@@ -304,31 +355,47 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
 
   String _getHeaderText() {
     switch (_state) {
-      case PreInterviewState.initializing: return 'Initializing hardware...';
-      case PreInterviewState.idle:         return 'Record a 10s selfie clip to test your setup';
-      case PreInterviewState.recording:    return 'Recording test clip...';
-      case PreInterviewState.preparing:    return 'Secured! Preparing interview...';
-      case PreInterviewState.reviewing:    return 'Does the video and audio look good?';
-      case PreInterviewState.error:        return 'Something went wrong';
+      case PreInterviewState.initializing:
+        return 'Initializing hardware...';
+      case PreInterviewState.idle:
+        return 'Record a 10s selfie clip to test your setup';
+      case PreInterviewState.recording:
+        return 'Recording test clip...';
+      case PreInterviewState.preparing:
+        return 'Secured! Preparing interview...';
+      case PreInterviewState.reviewing:
+        return 'Does the video and audio look good?';
+      case PreInterviewState.error:
+        return 'Something went wrong';
     }
   }
 
   Widget _buildMainContent() {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+
     if (_state == PreInterviewState.error) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text(_errorMessage,
-              style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Text(
+            _errorMessage,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: palette.textInverse,
+              height: 1.45,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
 
     if (_state == PreInterviewState.preparing) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: AppSpinner.large(color: palette.primary));
     }
 
-    if (_state == PreInterviewState.reviewing && _videoPlayerController != null) {
+    if (_state == PreInterviewState.reviewing &&
+        _videoPlayerController != null) {
       return AspectRatio(
         aspectRatio: _videoPlayerController!.value.aspectRatio,
         child: VideoPlayer(_videoPlayerController!),
@@ -339,23 +406,31 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
     final controller = _camera.controller;
     if (controller != null && controller.value.isInitialized) {
       return Stack(
+        fit: StackFit.expand,
         alignment: Alignment.center,
         children: [
-          AspectRatio(
-            aspectRatio: controller.value.aspectRatio,
-            child: CameraPreview(controller),
-          ),
+          AppCameraPreview(controller: controller),
           if (_state == PreInterviewState.recording)
             Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              top: AppSpacing.lg,
+              right: AppSpacing.lg,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                    color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                child: Text(
-                  '${_secondsRemaining}s',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  color: palette.scrim,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Text(
+                    '${_secondsRemaining}s',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: palette.onPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -363,17 +438,28 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
       );
     }
 
-    return const Center(child: CircularProgressIndicator());
+    return Center(child: AppSpinner.large(color: palette.primary));
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final palette = AppColors.of(context);
+
+    final primaryBtnShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+    );
+
     if (_state == PreInterviewState.recording) {
-      return ElevatedButton.icon(
+      return FilledButton.icon(
         onPressed: _stopRecording,
         icon: const Icon(Icons.stop_rounded),
-        label: const Text('Stop Recording'),
-        style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red, minimumSize: const Size(double.infinity, 56)),
+        label: const Text('Stop recording'),
+        style: FilledButton.styleFrom(
+          backgroundColor: cs.error,
+          foregroundColor: cs.onError,
+          minimumSize: const Size(double.infinity, AppSize.buttonLg),
+          shape: primaryBtnShape,
+        ),
       );
     }
 
@@ -383,21 +469,27 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
           Expanded(
             child: OutlinedButton(
               onPressed: _onRetake,
-              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 56)),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, AppSize.buttonLg),
+                shape: primaryBtnShape,
+              ),
               child: const Text('Retake'),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: BlocBuilder<ExamsCubit, ExamsState>(
-              // Only rebuild this button when navigation lock changes
               buildWhen: (prev, cur) => prev.isNavigating != cur.isNavigating,
               builder: (context, state) {
-                return ElevatedButton(
+                return FilledButton(
                   onPressed: state.isNavigating ? null : _onConfirmAndStart,
-                  style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, 56), backgroundColor: Colors.green),
-                  child: const Text('Confirm & Start'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: palette.success,
+                    foregroundColor: palette.onPrimary,
+                    minimumSize: const Size(0, AppSize.buttonLg),
+                    shape: primaryBtnShape,
+                  ),
+                  child: const Text('Confirm & start'),
                 );
               },
             ),
@@ -406,11 +498,14 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
       );
     }
 
-    return ElevatedButton.icon(
+    return FilledButton.icon(
       onPressed: _state == PreInterviewState.idle ? _startRecording : null,
       icon: const Icon(Icons.videocam_rounded),
-      label: const Text('Start Test Recording'),
-      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 56)),
+      label: const Text('Start test recording'),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(double.infinity, AppSize.buttonLg),
+        shape: primaryBtnShape,
+      ),
     );
   }
 }

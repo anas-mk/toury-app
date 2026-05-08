@@ -119,7 +119,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
                       Center(
                         child: TextButton(
-                          onPressed: state is AuthLoading ? null : () => context.go(AppRouter.login),
+                          onPressed: state is AuthLoading
+                              ? null
+                              : () => context.go(AppRouter.login),
                           child: Text(
                             "Back to Login",
                             style: theme.textTheme.labelLarge?.copyWith(
