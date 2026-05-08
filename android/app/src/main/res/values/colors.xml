@@ -6,4 +6,5 @@
         lib/core/theme/app_color.dart so OS pushes feel branded.
     -->
     <color name="notification_color">#FF276EF1</color>
+	<color name="ic_launcher_background">#1B237E</color>
 </resources>

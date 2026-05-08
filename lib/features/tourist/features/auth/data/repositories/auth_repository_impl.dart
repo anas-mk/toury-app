@@ -55,6 +55,83 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, UserEntity>> patchProfile({
+    String? userName,
+    String? phoneNumber,
+    String? gender,
+    DateTime? birthDate,
+    String? country,
+    File? profileImage,
+  }) async {
+    try {
+      final cachedUser = await localDataSource.getCurrentUser();
+
+      if (cachedUser == null || cachedUser.token == null) {
+        return Left(CacheFailure('No user logged in'));
+      }
+      final userId = cachedUser.userId;
+      if (userId == null || userId.isEmpty) {
+        return Left(CacheFailure('Cached user is missing userId'));
+      }
+
+      var updatedUser = await remoteDataSource.patchProfile(
+        token: cachedUser.token!,
+        userId: userId,
+        userName: userName,
+        phoneNumber: phoneNumber,
+        gender: gender,
+        birthDate: birthDate,
+        country: country,
+        profileImage: profileImage,
+      );
+
+      // Backend frequently omits unrelated fields from a partial update
+      // response (e.g. updating just the name returns the user without
+      // `profileImageUrl`, which `UserModel.fromJson` then resolves to the
+      // hard-coded "default" placeholder). Merge the previous values back
+      // in so the locally-cached user keeps its real photo / metadata
+      // unless the caller explicitly changed those fields.
+      updatedUser = updatedUser.copyWith(
+        profileImageUrl: profileImage != null
+            ? updatedUser.profileImageUrl
+            : (_isDefaultOrEmpty(updatedUser.profileImageUrl)
+                ? cachedUser.profileImageUrl
+                : updatedUser.profileImageUrl),
+        phoneNumber: phoneNumber ??
+            (updatedUser.phoneNumber.isEmpty
+                ? cachedUser.phoneNumber
+                : updatedUser.phoneNumber),
+        userName: userName ??
+            (updatedUser.userName.isEmpty
+                ? cachedUser.userName
+                : updatedUser.userName),
+        gender: gender ??
+            (updatedUser.gender.isEmpty
+                ? cachedUser.gender
+                : updatedUser.gender),
+        country: country ??
+            (updatedUser.country.isEmpty
+                ? cachedUser.country
+                : updatedUser.country),
+        birthDate: birthDate ?? updatedUser.birthDate ?? cachedUser.birthDate,
+      );
+
+      await localDataSource.cacheUser(updatedUser);
+      return Right(updatedUser);
+    } catch (e) {
+      return Left(ServerFailure(_cleanErrorMessage(e.toString())));
+    }
+  }
+
+  /// Treats the static "default avatar" URL as "no image" so a partial
+  /// patch can fall back to the previous URL the user actually uploaded.
+  bool _isDefaultOrEmpty(String? url) {
+    if (url == null || url.isEmpty) return true;
+    return url.contains('default.png') ||
+        url.contains('e87ab0a15b2b65662020e614f7e05ef1');
+  }
+
+  @override
   Future<Either<Failure, Map<String, dynamic>>> checkEmail(String email) async {
     try {
       final result = await remoteDataSource.checkEmail(email);
