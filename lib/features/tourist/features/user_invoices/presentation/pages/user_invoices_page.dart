@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/localization/app_localizations.dart';
-import '../../../../../../core/widgets/brand/mesh_gradient.dart';
-import '../../../../../../core/widgets/animations/fade_in_slide.dart';
+import 'package:shimmer/shimmer.dart';
+
 import '../../../../../../core/di/injection_container.dart';
-import '../cubit/user_invoices_cubit.dart';
+import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/utils/jwt_payload.dart';
 import '../../domain/entities/invoice_entity.dart';
+import '../cubit/user_invoices_cubit.dart';
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 class UserInvoicesPage extends StatefulWidget {
   const UserInvoicesPage({super.key});
@@ -18,380 +22,268 @@ class UserInvoicesPage extends StatefulWidget {
 }
 
 class _UserInvoicesPageState extends State<UserInvoicesPage> {
-  late final UserInvoicesCubit _cubit;
+  String? _firstName;
 
   @override
   void initState() {
     super.initState();
-    _cubit = sl<UserInvoicesCubit>()..loadInvoices();
+    try {
+      final token = sl<AuthService>().getToken();
+      final name = JwtPayload.firstName(token);
+      if (name != null && name.isNotEmpty) {
+        _firstName = name[0].toUpperCase() + name.substring(1);
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return BlocProvider.value(
-      value: _cubit,
+    return BlocProvider(
+      create: (_) => sl<UserInvoicesCubit>()..loadInvoices(),
       child: Scaffold(
-        body: Stack(
-          children: [
-            // 1. Mesh Gradient Header
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 280,
-              child: ClipPath(
-                clipper: _HeaderClipper(),
-                child: const MeshGradientBackground(),
-              ),
-            ),
-
-            // 2. Main Content
-            CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverAppBar(
-                  expandedHeight: 0,
-                  floating: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  title: Text(
-                    loc.translate('wallet'),
-                    style: BrandTokens.heading(color: Colors.white),
-                  ),
-                  centerTitle: true,
-                ),
-
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 10),
-                        // Balance Card
-                        FadeInSlide(
-                          duration: const Duration(milliseconds: 600),
-                          child: _WalletBalanceCard(),
-                        ),
-                        const SizedBox(height: 32),
-                        // Transaction Header
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              loc.translate('recent_transactions'),
-                              style: BrandTokens.heading(fontSize: 18),
+        backgroundColor: BrandTokens.bgSoft,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _TopBar(firstName: _firstName),
+              Expanded(
+                child: BlocBuilder<UserInvoicesCubit, UserInvoicesState>(
+                  builder: (context, state) {
+                    if (state is UserInvoicesLoading ||
+                        state is UserInvoicesInitial) {
+                      return const _Skeleton();
+                    }
+                    if (state is UserInvoicesError) {
+                      return _ErrorView(
+                        message: state.message,
+                        onRetry: () =>
+                            context.read<UserInvoicesCubit>().loadInvoices(),
+                      );
+                    }
+                    if (state is UserInvoicesLoaded) {
+                      if (state.invoices.isEmpty) {
+                        return const _EmptyState();
+                      }
+                      return RefreshIndicator.adaptive(
+                        color: BrandTokens.primaryBlue,
+                        onRefresh: () =>
+                            context.read<UserInvoicesCubit>().loadInvoices(),
+                        child: CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          slivers: [
+                            // "Invoices" headline
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    24, 40, 24, 28),
+                                child: Text(
+                                  'Invoices',
+                                  style: BrandTokens.heading(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w700,
+                                    color: BrandTokens.primaryBlue,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ),
                             ),
-                            TextButton(
-                              onPressed: () {},
-                              child: Text(loc.translate('view_all')),
+
+                            // Invoice cards
+                            SliverPadding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (_, i) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 16),
+                                    child: _InvoiceCard(
+                                        invoice: state.invoices[i]),
+                                  ),
+                                  childCount: state.invoices.length,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 3. Transactions List
-                BlocBuilder<UserInvoicesCubit, UserInvoicesState>(
-                  builder: (context, state) {
-                    if (state is UserInvoicesLoading) {
-                      return const SliverFillRemaining(
-                        child: Center(child: CircularProgressIndicator()),
                       );
                     }
-
-                    if (state is UserInvoicesLoaded) {
-                      if (state.invoices.isEmpty) {
-                        return SliverFillRemaining(
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.receipt_long_rounded, 
-                                  size: 64, 
-                                  color: theme.disabledColor.withValues(alpha: 0.3)
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  loc.translate('no_transactions'),
-                                  style: BrandTokens.body(color: theme.disabledColor),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-
-                      return SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final invoice = state.invoices[index];
-                              return FadeInSlide(
-                                delay: Duration(milliseconds: 100 + (index * 50)),
-                                child: _TransactionTile(invoice: invoice),
-                              );
-                            },
-                            childCount: state.invoices.length,
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (state is UserInvoicesError) {
-                      return SliverFillRemaining(
-                        child: Center(child: Text(state.message)),
-                      );
-                    }
-
-                    return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    return const SizedBox.shrink();
                   },
                 ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _WalletBalanceCard extends StatelessWidget {
+// ─── Top bar ──────────────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  final String? firstName;
+  const _TopBar({this.firstName});
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final initial = (firstName?.isNotEmpty ?? false)
+        ? firstName![0].toUpperCase()
+        : null;
 
     return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: isDark 
-          ? Colors.white.withValues(alpha: 0.08) 
-          : Colors.white.withValues(alpha: 0.9),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      child: Row(
+        children: [
+          // User avatar
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: initial != null
+                ? Text(
+                    initial,
+                    style: BrandTokens.heading(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: BrandTokens.primaryBlue,
+                    ),
+                  )
+                : const Icon(
+                    Icons.person_rounded,
+                    color: BrandTokens.primaryBlue,
+                    size: 22,
+                  ),
+          ),
+
+          const Spacer(),
+
+          // RAFIQ wordmark
+          const Text(
+            'RAFIQ',
+            style: TextStyle(
+              inherit: false,
+              fontFamily: 'PermanentMarker',
+              fontSize: 28,
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+
+          const Spacer(),
+
+          // Explore icon
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => HapticFeedback.selectionClick(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.explore_outlined,
+                color: BrandTokens.primaryBlue,
+                size: 22,
+              ),
+            ),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            // Glass effect shine
-            Positioned(
-              top: -50,
-              right: -50,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Total Balance',
-                        style: BrandTokens.body(
-                          color: isDark ? Colors.white70 : Colors.black54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Icon(
-                        Icons.account_balance_wallet_rounded,
-                        color: isDark ? Colors.white54 : BrandTokens.primaryBlue.withValues(alpha: 0.5),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '1,250.00 EGP',
-                    style: BrandTokens.heading(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : BrandTokens.primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.add_rounded,
-                          label: 'Top Up',
-                          onTap: () {},
-                          color: BrandTokens.primaryBlue,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _QuickAction(
-                          icon: Icons.send_rounded,
-                          label: 'Transfer',
-                          onTap: () {},
-                          color: BrandTokens.accentAmber,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color color;
+// ─── Invoice card ──────────────────────────────────────────────────────────────
 
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: color.withValues(alpha: 0.1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: BrandTokens.body(
-                color: color,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TransactionTile extends StatelessWidget {
+class _InvoiceCard extends StatelessWidget {
   final InvoiceEntity invoice;
-  const _TransactionTile({required this.invoice});
+  const _InvoiceCard({required this.invoice});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-        ),
-      ),
-      child: InkWell(
-        onTap: () => context.push('/invoice-detail/${invoice.invoiceId}', extra: invoice),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: BrandTokens.primaryBlue.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.receipt_long_rounded,
-                color: BrandTokens.primaryBlue.withValues(alpha: 0.6),
-                size: 20,
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        context.pushNamed(
+          'user-invoice-detail',
+          pathParameters: {'id': invoice.invoiceId},
+          extra: invoice,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE8E4DF)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F1B237E),
+              blurRadius: 30,
+              offset: Offset(0, 8),
             ),
-            const SizedBox(width: 16),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Left: destination + date
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Trip to ${invoice.destinationCity}',
-                    style: BrandTokens.body(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    DateFormat('MMM d, yyyy • hh:mm a').format(invoice.issuedAt),
+                    invoice.destinationCity,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: BrandTokens.body(
-                      fontSize: 12,
-                      color: theme.disabledColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: BrandTokens.primaryBlue,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('MMM d, yyyy')
+                        .format(invoice.issuedAt.toLocal()),
+                    style: BrandTokens.body(
+                      fontSize: 14,
+                      color: BrandTokens.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
+
+            const SizedBox(width: 16),
+
+            // Right: amount + status badge
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '${invoice.currency} ${invoice.totalAmount.toStringAsFixed(2)}',
+                  '${invoice.totalAmount.toStringAsFixed(0)} ${invoice.currency}',
                   style: BrandTokens.numeric(
-                    fontSize: 16,
-                    color: isDark ? Colors.white : BrandTokens.primaryBlue,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: BrandTokens.primaryBlue,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'PAID',
-                    style: BrandTokens.body(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.green,
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 8),
+                _StatusBadge(paymentStatus: invoice.paymentStatus),
               ],
             ),
           ],
@@ -401,20 +293,198 @@ class _TransactionTile extends StatelessWidget {
   }
 }
 
-class _HeaderClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.lineTo(0, size.height - 60);
-    path.quadraticBezierTo(
-      size.width / 2, size.height,
-      size.width, size.height - 60,
-    );
-    path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
+// ─── Status badge ──────────────────────────────────────────────────────────────
+
+class _StatusBadge extends StatelessWidget {
+  final String paymentStatus;
+  const _StatusBadge({required this.paymentStatus});
 
   @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+  Widget build(BuildContext context) {
+    final lower = paymentStatus.toLowerCase();
+    final isPaid = lower == 'paid';
+    final isPending = lower == 'pending';
+
+    final Color bg;
+    final Color fg;
+
+    if (isPaid) {
+      bg = const Color(0xFFE4E1EA); // surface-variant
+      fg = const Color(0xFF464652); // on-surface-variant
+    } else if (isPending) {
+      bg = const Color(0xFFFFDAD6); // error-container
+      fg = const Color(0xFF93000A); // on-error-container
+    } else {
+      bg = BrandTokens.primaryBlue.withValues(alpha: 0.10);
+      fg = BrandTokens.primaryBlue;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(40),
+      ),
+      child: Text(
+        _capitalize(paymentStatus),
+        style: BrandTokens.heading(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: fg,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+}
+
+// ─── Empty state ───────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.receipt_long_outlined,
+                color: BrandTokens.primaryBlue,
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No invoices yet',
+              style: BrandTokens.heading(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: BrandTokens.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Your trip invoices will appear here after a booking is completed.',
+              textAlign: TextAlign.center,
+              style: BrandTokens.body(
+                  fontSize: 13, color: BrandTokens.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Error ─────────────────────────────────────────────────────────────────────
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: BrandTokens.dangerSos),
+            const SizedBox(height: 12),
+            Text(
+              'Could not load invoices',
+              style: BrandTokens.heading(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: BrandTokens.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: BrandTokens.body(
+                  fontSize: 13, color: BrandTokens.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                onRetry();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: BrandTokens.primaryBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Skeleton ──────────────────────────────────────────────────────────────────
+
+class _Skeleton extends StatelessWidget {
+  const _Skeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE7EAF6),
+      highlightColor: const Color(0xFFF6F8FE),
+      period: const Duration(milliseconds: 1400),
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+        children: [
+          // Headline skeleton
+          Container(
+            width: 130,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(height: 28),
+          // Card skeletons
+          for (var i = 0; i < 5; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                height: 88,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

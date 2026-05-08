@@ -14,6 +14,13 @@ class InvoiceModel extends InvoiceEntity {
     required super.paymentStatus,
     required super.paymentMethod,
     required super.issuedAt,
+    super.basePrice,
+    super.tripDistanceKm,
+    super.durationInMinutes,
+    super.distanceCost,
+    super.durationCost,
+    super.instantSurchargeAmount,
+    super.subtotal,
   });
 
   factory InvoiceModel.fromJson(Map<String, dynamic> json) {
@@ -28,25 +35,18 @@ class InvoiceModel extends InvoiceEntity {
       currency: json['currency'] ?? 'EGP',
       status: json['status'] ?? 'Issued',
       paymentStatus: json['paymentStatus'] ?? 'Pending',
-      paymentMethod: json['paymentMethod'] ?? 'Unknown',
-      issuedAt: DateTime.parse(json['issuedAt'] ?? DateTime.now().toIso8601String()),
+      paymentMethod: json['paymentMethod'] ?? '',
+      issuedAt: DateTime.tryParse(json['issuedAt']?.toString() ?? '') ??
+          DateTime.now(),
+      // Breakdown fields — only present in the detail endpoint
+      basePrice: (json['basePrice'] as num?)?.toDouble(),
+      tripDistanceKm: (json['tripDistanceKm'] as num?)?.toDouble(),
+      durationInMinutes: json['durationInMinutes'] as int?,
+      distanceCost: (json['distanceCost'] as num?)?.toDouble(),
+      durationCost: (json['durationCost'] as num?)?.toDouble(),
+      instantSurchargeAmount:
+          (json['instantSurchargeAmount'] as num?)?.toDouble(),
+      subtotal: (json['subtotal'] as num?)?.toDouble(),
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'invoiceId': invoiceId,
-      'invoiceNumber': invoiceNumber,
-      'bookingId': bookingId,
-      'userName': userName,
-      'helperName': helperName,
-      'destinationCity': destinationCity,
-      'totalAmount': totalAmount,
-      'currency': currency,
-      'status': status,
-      'paymentStatus': paymentStatus,
-      'paymentMethod': paymentMethod,
-      'issuedAt': issuedAt.toIso8601String(),
-    };
   }
 }

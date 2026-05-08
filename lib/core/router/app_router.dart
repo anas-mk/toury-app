@@ -82,6 +82,7 @@ import '../../features/tourist/features/payments/domain/entities/payment_entity.
 import '../../features/tourist/features/user_invoices/presentation/pages/user_invoices_page.dart';
 import '../../features/tourist/features/user_invoices/domain/entities/invoice_entity.dart';
 import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
+import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_view_page.dart';
 import '../../features/tourist/features/user_ratings/presentation/pages/helper_reviews_page.dart';
 import '../../features/tourist/features/user_ratings/presentation/pages/rate_booking_page.dart';
 import '../../features/tourist/features/user_chat/presentation/pages/user_chat_page.dart';
@@ -1045,7 +1046,7 @@ class AppRouter {
         name: 'user-invoice-view',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return UserInvoiceDetailPage(invoiceId: id);
+          return UserInvoiceViewPage(invoiceId: id);
         },
       ),
 
