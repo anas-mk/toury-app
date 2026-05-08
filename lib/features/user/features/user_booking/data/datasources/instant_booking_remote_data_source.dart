@@ -58,10 +58,12 @@ class InstantBookingRemoteDataSourceImpl
         );
         _logResponse('SEARCH', '🛰️', res);
         _ensureSuccess(res);
-        final envelope = res.data as Map<String, dynamic>? ?? {};
-        final helpers = envelopeInstantSearchHelpers(envelope);
-        debugPrint('[InstantSearch] helpers count: ${helpers.length}');
-        return helpers.map(HelperSearchResultModel.fromJson).toList();
+        final envelope = envelopeData(res.data as Map<String, dynamic>);
+        final list = (envelope['helpers'] as List?) ?? [];
+        return list
+            .whereType<Map<String, dynamic>>()
+            .map(HelperSearchResultModel.fromJson)
+            .toList();
       },
       label: 'searchInstantHelpers',
     );

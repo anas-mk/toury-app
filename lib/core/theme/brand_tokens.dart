@@ -1,4 +1,3 @@
-import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -87,9 +86,10 @@ abstract class BrandTokens {
 
   // ── Font helpers ─────────────────────────────────────────────────────────
 
-  /// Pacifico — used ONLY for the RAFIQ wordmark.
+  /// Pacifico — used ONLY for the RAFIQ wordmark (bundled locally).
   static TextStyle wordmarkStyle({double fontSize = 28, Color? color}) =>
-      GoogleFonts.pacifico(
+      TextStyle(
+        fontFamily: 'Pacifico',
         fontSize: fontSize,
         color: color ?? surfaceWhite,
       );

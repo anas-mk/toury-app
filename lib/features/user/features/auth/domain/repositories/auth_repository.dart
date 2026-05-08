@@ -32,6 +32,18 @@ abstract class AuthRepository {
     File? profileImage,
   });
 
+  /// Partial update: only the fields the caller passes are sent to the
+  /// backend (`PUT /Auth/update-profile`). Used by the new profile screen
+  /// which lets users edit one field at a time.
+  Future<Either<Failure, UserEntity>> patchProfile({
+    String? userName,
+    String? phoneNumber,
+    String? gender,
+    DateTime? birthDate,
+    String? country,
+    File? profileImage,
+  });
+
   // Google Authentication
   Future<Either<Failure, Map<String, dynamic>>> googleLogin(String email);
 

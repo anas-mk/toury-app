@@ -258,7 +258,11 @@ Future<void> init() async {
   );
 
   sl.registerFactory(
-        () => ProfileCubit(sl<AuthRepository>()),
+        () => TouristProfileCubit(
+      authRepository: sl<AuthRepository>(),
+      getMyBookingsUseCase: sl<GetMyBookingsUseCase>(),
+      getUserRatingSummaryUseCase: sl<user_rat.GetUserRatingSummaryUseCase>(),
+    ),
   );
 
   // Use Cases

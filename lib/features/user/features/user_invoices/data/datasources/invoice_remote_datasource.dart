@@ -19,7 +19,9 @@ class InvoiceRemoteDataSourceImpl implements InvoiceRemoteDataSource {
   Future<List<InvoiceModel>> getInvoices({int page = 1, int pageSize = 20}) async {
     try {
       final response = await dio.get(ApiConfig.getInvoices(page: page, pageSize: pageSize));
-      final List<dynamic> data = response.data['items'] ?? [];
+      // API wraps the paginated result under response → data → items
+      final List<dynamic> data =
+          (response.data['data'] as Map<String, dynamic>?)?['items'] ?? [];
       return data.map((json) => InvoiceModel.fromJson(json)).toList();
     } on DioException catch (e) {
       throw ServerException(e.response?.data?['message'] ?? e.message ?? 'Server error');
@@ -32,7 +34,9 @@ class InvoiceRemoteDataSourceImpl implements InvoiceRemoteDataSource {
   Future<InvoiceModel> getInvoiceDetail(String invoiceId) async {
     try {
       final response = await dio.get(ApiConfig.getInvoiceDetail(invoiceId));
-      return InvoiceModel.fromJson(response.data);
+      // API wraps result under response → data
+      final data = response.data['data'] as Map<String, dynamic>;
+      return InvoiceModel.fromJson(data);
     } on DioException catch (e) {
       throw ServerException(e.response?.data?['message'] ?? e.message ?? 'Server error');
     } catch (e) {
