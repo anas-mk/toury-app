@@ -6,16 +6,20 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
+
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/camera_service.dart';
+import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/widgets/app_camera_preview.dart';
 import '../../../../../../core/widgets/app_loading.dart';
-import '../../../../../../core/widgets/app_scaffold.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
 
+/// Pre-interview hardware test screen.
+///
+/// Records a 10s test clip so the helper can verify camera + mic before
+/// committing to the actual interview. Hardware is owned by [CameraService].
 class PreInterviewScreen extends StatefulWidget {
   const PreInterviewScreen({super.key});
 
@@ -23,7 +27,7 @@ class PreInterviewScreen extends StatefulWidget {
   State<PreInterviewScreen> createState() => _PreInterviewScreenState();
 }
 
-enum PreInterviewState {
+enum _PreInterviewState {
   initializing,
   idle,
   recording,
@@ -33,15 +37,11 @@ enum PreInterviewState {
 }
 
 class _PreInterviewScreenState extends State<PreInterviewScreen> {
-  // ── CameraService is the sole hardware authority ──
   final _camera = CameraService.instance;
-
-  // ── Cubit cached here — NEVER call context.read() inside dispose() ──
   late ExamsCubit _cubit;
 
-  // ── Local video player for review phase only ──
   VideoPlayerController? _videoPlayerController;
-  PreInterviewState _state = PreInterviewState.initializing;
+  _PreInterviewState _state = _PreInterviewState.initializing;
   String _errorMessage = '';
   File? _testVideoFile;
   Timer? _timer;
@@ -50,10 +50,8 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
   @override
   void initState() {
     super.initState();
-    // Cache cubit reference while widget is alive and context is valid
     _cubit = context.read<ExamsCubit>();
 
-    // POST-SUBMIT LOCK: Eject immediately — do not request permissions or init camera
     if (_cubit.state.isInterviewLocked) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.of(context).pop();
@@ -71,26 +69,24 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
     if (cameraStatus.isGranted && micStatus.isGranted) {
       await _initializeCamera();
     } else {
-      if (mounted) {
-        setState(() {
-          _state = PreInterviewState.error;
-          _errorMessage = 'Camera and Microphone permissions are required.';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _state = _PreInterviewState.error;
+        _errorMessage = 'Camera and Microphone permissions are required.';
+      });
     }
   }
 
   Future<void> _initializeCamera() async {
     try {
       await _camera.initialize();
-      if (mounted) setState(() => _state = PreInterviewState.idle);
+      if (mounted) setState(() => _state = _PreInterviewState.idle);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _state = PreInterviewState.error;
-          _errorMessage = 'Failed to initialize camera: $e';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _state = _PreInterviewState.error;
+        _errorMessage = 'Failed to initialize camera: $e';
+      });
     }
   }
 
@@ -98,7 +94,6 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
   void dispose() {
     _timer?.cancel();
     _videoPlayerController?.dispose();
-    // Delete temp test file — camera hardware owned by CameraService, not disposed here
     _deleteTestFile();
     super.dispose();
   }
@@ -113,7 +108,7 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
     }
   }
 
-  // ─── Recording Logic ──────────────────────────────────────────────────────────
+  // ─── Recording ─────────────────────────────────────────────────────────────
 
   Future<void> _startRecording() async {
     if (!_camera.isInitialized || _camera.isRecording) return;
@@ -121,8 +116,9 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
     try {
       await _camera.startRecording();
       if (!mounted) return;
+      HapticService.medium();
       setState(() {
-        _state = PreInterviewState.recording;
+        _state = _PreInterviewState.recording;
         _secondsRemaining = 10;
       });
       _startTimer();
@@ -150,7 +146,7 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
     _timer?.cancel();
     if (!_camera.isRecording) return;
 
-    if (mounted) setState(() => _state = PreInterviewState.preparing);
+    if (mounted) setState(() => _state = _PreInterviewState.preparing);
 
     try {
       final xFile = await _camera.stopRecording();
@@ -172,31 +168,30 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
       await _videoPlayerController!.initialize();
       await _videoPlayerController!.setLooping(true);
       await _videoPlayerController!.play();
-      if (mounted) setState(() => _state = PreInterviewState.reviewing);
+      if (mounted) setState(() => _state = _PreInterviewState.reviewing);
     } catch (e) {
       debugPrint('PreInterviewScreen: Preview init error: $e');
     }
   }
 
   void _onRetake() {
+    HapticService.light();
     _videoPlayerController?.dispose();
     _videoPlayerController = null;
     _deleteTestFile();
     _testVideoFile = null;
-    setState(() => _state = PreInterviewState.idle);
+    setState(() => _state = _PreInterviewState.idle);
   }
-
-  // ─── Confirm & Navigate ───────────────────────────────────────────────────────
 
   Future<void> _onConfirmAndStart() async {
     if (_cubit.state.isNavigating) return;
 
-    setState(() => _state = PreInterviewState.preparing);
+    HapticService.medium();
+    setState(() => _state = _PreInterviewState.preparing);
     _cubit.setNavigating(true);
 
     _timer?.cancel();
 
-    // Stop video player first
     try {
       if (_videoPlayerController != null &&
           _videoPlayerController!.value.isPlaying) {
@@ -204,292 +199,483 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
       }
     } catch (_) {}
 
-    // Dispose video player
     await _videoPlayerController?.dispose();
     _videoPlayerController = null;
 
-    // Mark pre-interview complete for this session
     final interviewId = _cubit.state.interview?.id ?? '';
     _cubit.completePreInterview(interviewId);
 
-    // Cleanup test file
     _deleteTestFile();
     _testVideoFile = null;
 
-    // Release camera hardware via CameraService
     await _camera.dispose();
-
-    // Safety delay for OS to release audio/camera session
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
-    // Navigate by path only — cubit is singleton, resolved by GoRouter via GetIt
     context.push(AppRouter.interviewScreen);
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────────
+  // ─── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+
+    return PopScope(
+      canPop: _state != _PreInterviewState.recording &&
+          _state != _PreInterviewState.preparing,
+      child: Scaffold(
+        backgroundColor: palette.scaffold,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  _TopBar(
+                    title: 'Pre-Interview Test',
+                    canPop: _state != _PreInterviewState.recording &&
+                        _state != _PreInterviewState.preparing,
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _InstructionCard(state: _state),
+                          const SizedBox(height: 16),
+                          _PreviewFrame(
+                            state: _state,
+                            secondsRemaining: _secondsRemaining,
+                            errorMessage: _errorMessage,
+                            videoPlayerController: _videoPlayerController,
+                            cameraController: _camera.controller,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    child: _ActionArea(
+                      state: _state,
+                      onStart: _startRecording,
+                      onStop: _stopRecording,
+                      onRetake: _onRetake,
+                      onConfirm: _onConfirmAndStart,
+                    ),
+                  ),
+                ],
+              ),
+              if (_state == _PreInterviewState.preparing) const _LoadingScrim(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Top Bar ─────────────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  final String title;
+  final bool canPop;
+
+  const _TopBar({required this.title, required this.canPop});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = AppColors.of(context);
-    final cs = theme.colorScheme;
 
-    return PopScope(
-      canPop:
-          _state != PreInterviewState.recording &&
-          _state != PreInterviewState.preparing,
-      child: AppScaffold(
-        backgroundColor: palette.scaffold,
-        appBar: AppBar(
-          title: Text(
-            'Pre-Interview Test',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: canPop ? () => Navigator.of(context).maybePop() : null,
+            icon: Icon(
+              Icons.arrow_back_rounded,
               color: palette.textPrimary,
             ),
+            style: IconButton.styleFrom(
+              backgroundColor: palette.surface,
+              shape: const CircleBorder(),
+              side: BorderSide(color: palette.border, width: 0.5),
+              padding: const EdgeInsets.all(10),
+            ),
           ),
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: palette.textPrimary,
-        ),
-        body: Stack(
-          children: [
-            Column(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Instruction Card ────────────────────────────────────────────────────────
+
+class _InstructionCard extends StatelessWidget {
+  final _PreInterviewState state;
+
+  const _InstructionCard({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
+    final IconData icon;
+    final String title;
+    final String message;
+    final Color color;
+
+    switch (state) {
+      case _PreInterviewState.initializing:
+        icon = Icons.settings_rounded;
+        title = 'Initializing hardware';
+        message = 'Setting up your camera and microphone…';
+        color = palette.primary;
+        break;
+      case _PreInterviewState.idle:
+        icon = Icons.lightbulb_rounded;
+        title = 'Quick check before we start';
+        message =
+            'Record a 10-second test clip to verify your camera and microphone work properly.';
+        color = palette.primary;
+        break;
+      case _PreInterviewState.recording:
+        icon = Icons.fiber_manual_record;
+        title = 'Recording test clip';
+        message = 'Speak naturally — this is just a sound and video check.';
+        color = palette.danger;
+        break;
+      case _PreInterviewState.preparing:
+        icon = Icons.hourglass_top_rounded;
+        title = 'Securing recording';
+        message = 'Releasing camera and preparing the interview…';
+        color = palette.primary;
+        break;
+      case _PreInterviewState.reviewing:
+        icon = Icons.play_circle_outline_rounded;
+        title = 'How does it look?';
+        message =
+            'If the video and audio look good, confirm to start your interview.';
+        color = const Color(0xFF22C55E);
+        break;
+      case _PreInterviewState.error:
+        icon = Icons.error_outline_rounded;
+        title = 'Something went wrong';
+        message = '';
+        color = palette.danger;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border, width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: palette.isDark ? 0.18 : 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.pageGutter,
-                        vertical: AppSpacing.lg,
-                      ),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final targetH = (constraints.maxHeight * 0.62).clamp(
-                            220.0,
-                            460.0,
-                          );
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                _getHeaderText(),
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: palette.textPrimary,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: AppSpacing.xxl),
-                              SizedBox(
-                                height: targetH,
-                                width: double.infinity,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: cs.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.lg,
-                                    ),
-                                    border: Border.all(
-                                      color: _state == PreInterviewState.error
-                                          ? palette.danger
-                                          : palette.primary,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.lg,
-                                    ),
-                                    child: _buildMainContent(),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                if (message.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: palette.textMuted,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.pageGutter,
-                    AppSpacing.sm,
-                    AppSpacing.pageGutter,
-                    AppSpacing.lg,
-                  ),
-                  child: _buildActionButtons(context),
-                ),
+                ],
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-            // ── Full-screen overlay during hardware handoff ──
-            if (_state == PreInterviewState.preparing)
-              ColoredBox(
-                color: palette.scrim,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AppSpinner.large(color: palette.onPrimary),
-                      const SizedBox(height: AppSpacing.xxl),
-                      Text(
-                        'Preparing interview…',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: palette.onPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+// ─── Preview Frame ───────────────────────────────────────────────────────────
+
+class _PreviewFrame extends StatelessWidget {
+  final _PreInterviewState state;
+  final int secondsRemaining;
+  final String errorMessage;
+  final VideoPlayerController? videoPlayerController;
+  final dynamic cameraController;
+
+  const _PreviewFrame({
+    required this.state,
+    required this.secondsRemaining,
+    required this.errorMessage,
+    required this.videoPlayerController,
+    required this.cameraController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final isError = state == _PreInterviewState.error;
+
+    final frameColor = isError
+        ? palette.danger
+        : state == _PreInterviewState.recording
+            ? palette.danger
+            : palette.primary;
+
+    return AspectRatio(
+      aspectRatio: 3 / 4,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: frameColor.withValues(alpha: isError ? 1.0 : 0.55),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: frameColor.withValues(alpha: 0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildContent(context),
+              if (state == _PreInterviewState.recording)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: _CountdownPill(seconds: secondsRemaining),
+                ),
+              if (state == _PreInterviewState.recording)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: _RecBadge(),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  String _getHeaderText() {
-    switch (_state) {
-      case PreInterviewState.initializing:
-        return 'Initializing hardware...';
-      case PreInterviewState.idle:
-        return 'Record a 10s selfie clip to test your setup';
-      case PreInterviewState.recording:
-        return 'Recording test clip...';
-      case PreInterviewState.preparing:
-        return 'Secured! Preparing interview...';
-      case PreInterviewState.reviewing:
-        return 'Does the video and audio look good?';
-      case PreInterviewState.error:
-        return 'Something went wrong';
-    }
-  }
-
-  Widget _buildMainContent() {
+  Widget _buildContent(BuildContext context) {
     final palette = AppColors.of(context);
-    final theme = Theme.of(context);
 
-    if (_state == PreInterviewState.error) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
+    if (state == _PreInterviewState.error) {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Center(
           child: Text(
-            _errorMessage,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: palette.textInverse,
-              height: 1.45,
-            ),
+            errorMessage,
             textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
           ),
         ),
       );
     }
 
-    if (_state == PreInterviewState.preparing) {
+    if (state == _PreInterviewState.preparing) {
       return Center(child: AppSpinner.large(color: palette.primary));
     }
 
-    if (_state == PreInterviewState.reviewing &&
-        _videoPlayerController != null) {
+    if (state == _PreInterviewState.reviewing &&
+        videoPlayerController != null) {
       return AspectRatio(
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        child: VideoPlayer(_videoPlayerController!),
+        aspectRatio: videoPlayerController!.value.aspectRatio,
+        child: VideoPlayer(videoPlayerController!),
       );
     }
 
-    // ── Always use CameraService.instance.controller for preview ──
-    final controller = _camera.controller;
+    final controller = cameraController;
     if (controller != null && controller.value.isInitialized) {
-      return Stack(
-        fit: StackFit.expand,
-        alignment: Alignment.center,
-        children: [
-          AppCameraPreview(controller: controller),
-          if (_state == PreInterviewState.recording)
-            Positioned(
-              top: AppSpacing.lg,
-              right: AppSpacing.lg,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: palette.scrim,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Text(
-                    '${_secondsRemaining}s',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: palette.onPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
+      return AppCameraPreview(controller: controller);
     }
 
     return Center(child: AppSpinner.large(color: palette.primary));
   }
+}
 
-  Widget _buildActionButtons(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final palette = AppColors.of(context);
+class _RecBadge extends StatefulWidget {
+  @override
+  State<_RecBadge> createState() => _RecBadgeState();
+}
 
-    final primaryBtnShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-    );
+class _RecBadgeState extends State<_RecBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..repeat(reverse: true);
 
-    if (_state == PreInterviewState.recording) {
-      return FilledButton.icon(
-        onPressed: _stopRecording,
-        icon: const Icon(Icons.stop_rounded),
-        label: const Text('Stop recording'),
-        style: FilledButton.styleFrom(
-          backgroundColor: cs.error,
-          foregroundColor: cs.onError,
-          minimumSize: const Size(double.infinity, AppSize.buttonLg),
-          shape: primaryBtnShape,
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _ctrl,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444),
+          borderRadius: BorderRadius.circular(99),
         ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.fiber_manual_record, color: Colors.white, size: 10),
+            SizedBox(width: 4),
+            Text(
+              'REC',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 10.5,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountdownPill extends StatelessWidget {
+  final int seconds;
+  const _CountdownPill({required this.seconds});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_rounded, color: Colors.white, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            '${seconds}s',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Action Area ─────────────────────────────────────────────────────────────
+
+class _ActionArea extends StatelessWidget {
+  final _PreInterviewState state;
+  final VoidCallback onStart;
+  final VoidCallback onStop;
+  final VoidCallback onRetake;
+  final VoidCallback onConfirm;
+
+  const _ActionArea({
+    required this.state,
+    required this.onStart,
+    required this.onStop,
+    required this.onRetake,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (state == _PreInterviewState.recording) {
+      return _GradientButton(
+        label: 'Stop recording',
+        icon: Icons.stop_rounded,
+        colors: const [Color(0xFFEF4444), Color(0xFFDC2626)],
+        onTap: onStop,
       );
     }
 
-    if (_state == PreInterviewState.reviewing) {
+    if (state == _PreInterviewState.reviewing) {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              onPressed: _onRetake,
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, AppSize.buttonLg),
-                shape: primaryBtnShape,
-              ),
-              child: const Text('Retake'),
+            child: _OutlineButton(
+              label: 'Retake',
+              icon: Icons.refresh_rounded,
+              onTap: onRetake,
             ),
           ),
-          const SizedBox(width: AppSpacing.lg),
+          const SizedBox(width: 12),
           Expanded(
             child: BlocBuilder<ExamsCubit, ExamsState>(
-              buildWhen: (prev, cur) => prev.isNavigating != cur.isNavigating,
-              builder: (context, state) {
-                return FilledButton(
-                  onPressed: state.isNavigating ? null : _onConfirmAndStart,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: palette.success,
-                    foregroundColor: palette.onPrimary,
-                    minimumSize: const Size(0, AppSize.buttonLg),
-                    shape: primaryBtnShape,
-                  ),
-                  child: const Text('Confirm & start'),
+              buildWhen: (p, c) => p.isNavigating != c.isNavigating,
+              builder: (context, examsState) {
+                return _GradientButton(
+                  label: 'Confirm & start',
+                  icon: Icons.check_rounded,
+                  colors: const [Color(0xFF22C55E), Color(0xFF16A34A)],
+                  onTap: examsState.isNavigating ? null : onConfirm,
                 );
               },
             ),
@@ -498,13 +684,155 @@ class _PreInterviewScreenState extends State<PreInterviewScreen> {
       );
     }
 
-    return FilledButton.icon(
-      onPressed: _state == PreInterviewState.idle ? _startRecording : null,
-      icon: const Icon(Icons.videocam_rounded),
-      label: const Text('Start test recording'),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(double.infinity, AppSize.buttonLg),
-        shape: primaryBtnShape,
+    return _GradientButton(
+      label: 'Start test recording',
+      icon: Icons.videocam_rounded,
+      onTap: state == _PreInterviewState.idle ? onStart : null,
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final List<Color>? colors;
+
+  const _GradientButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    final disabled = onTap == null;
+
+    final gradColors = disabled
+        ? [palette.border, palette.border]
+        : (colors ?? [palette.primary, const Color(0xFF7B61FF)]);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(colors: gradColors),
+            boxShadow: disabled
+                ? null
+                : [
+                    BoxShadow(
+                      color: gradColors.first.withValues(alpha: 0.32),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+          ),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _OutlineButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.border, width: 0.6),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: palette.textPrimary, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Loading Scrim ───────────────────────────────────────────────────────────
+
+class _LoadingScrim extends StatelessWidget {
+  const _LoadingScrim();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    return Container(
+      color: Colors.black.withValues(alpha: 0.55),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppSpinner.large(color: palette.onPrimary),
+          const SizedBox(height: 16),
+          Text(
+            'Preparing interview…',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: palette.onPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,16 +1,21 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+// Modern bottom-sheet content used by `ActiveBookingPage`. Displays:
+//   • Drag handle.
+//   • Traveler hero block with status pulse + chat shortcut.
+//   • Quick stat chips (Payout in EGP, Language, Type, Distance).
+//   • Pickup / drop-off timeline.
+//   • Sticky action footer (Start Trip / End Trip / SOS cancel).
 
+import 'package:flutter/material.dart';
+
+import '../../../../../../../core/config/api_config.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_dimens.dart';
-import '../../../../../../../core/theme/app_theme.dart';
-import '../../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../../core/utils/currency_format.dart';
 import '../../../../../../../core/widgets/map_tracking_chrome.dart';
-import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
-import '../../../domain/entities/helper_booking_entities.dart';
-import '../../cubit/trip_action_cubit.dart';
 import '../../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
+import '../../../domain/entities/helper_booking_entities.dart';
+import '../shared/booking_action_button.dart';
+import '../shared/route_stop_row.dart';
 
 class ActiveTrackingSheet extends StatelessWidget {
   final ScrollController scrollController;
@@ -54,123 +59,56 @@ class ActiveTrackingSheet extends StatelessWidget {
                 parent: AlwaysScrollableScrollPhysics(),
               ),
               padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xxl,
+                AppSpacing.xl,
                 AppSpacing.sm,
-                AppSpacing.xxl,
+                AppSpacing.xl,
                 0,
               ),
               children: [
                 const MapTrackingDragHandle(),
+                _TravelerHero(
+                  booking: booking,
+                  isStarted: isStarted,
+                  onChat: onChat,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _QuickStatsRow(
+                  booking: booking,
+                  isStarted: isStarted,
+                  distanceToPickupMeters: distanceToPickupMeters,
+                ),
+                const SizedBox(height: AppSpacing.lg),
                 Container(
-                  padding: const EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
                     color: palette.surfaceInset,
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     border: Border.all(
-                      color: palette.border.withValues(alpha: 0.28),
+                      color: palette.border.withValues(alpha: 0.40),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: AppSize.avatarLg - AppSpacing.sm,
-                        height: AppSize.avatarLg - AppSpacing.sm,
-                        decoration: BoxDecoration(
-                          color: palette.primarySoft,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            booking.travelerName.isNotEmpty
-                                ? booking.travelerName[0].toUpperCase()
-                                : '?',
-                            style: BrandTypography.title(
-                              color: palette.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: AppSpacing.lg),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              booking.travelerName,
-                              style: BrandTypography.title(
-                                color: palette.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Row(
-                              children: [
-                                Container(
-                                  width: AppSpacing.sm,
-                                  height: AppSpacing.sm,
-                                  decoration: BoxDecoration(
-                                    color: isStarted
-                                        ? palette.success
-                                        : palette.warning,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Text(
-                                  isStarted
-                                      ? 'Trip in progress'
-                                      : 'Ready to start',
-                                  style: BrandTypography.caption(
-                                    color: palette.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      _SheetIconButton(
-                        icon: Icons.chat_bubble_rounded,
-                        color: palette.primary,
-                        onTap: onChat,
-                      ),
-                    ],
+                  child: RouteStopList(
+                    pickup: booking.pickupLocation,
+                    destination: booking.destinationLocation,
                   ),
-                ),
-                SizedBox(height: AppTheme.spaceXL),
-                Row(
-                  children: [
-                    _StatItem(
-                      label: 'Payout',
-                      value: '\$${booking.payout.toStringAsFixed(0)}',
-                      icon: Icons.attach_money_rounded,
-                    ),
-                    _StatItem(
-                      label: 'Language',
-                      value: booking.language ?? 'Any',
-                      icon: Icons.translate_rounded,
-                    ),
-                    _StatItem(
-                      label: 'Type',
-                      value: booking.isInstant ? 'Instant' : 'Scheduled',
-                      icon: Icons.bolt_rounded,
-                    ),
-                  ],
-                ),
-                SizedBox(height: AppTheme.spaceXL),
-                _RouteInfo(
-                  pickup: booking.pickupLocation,
-                  destination: booking.destinationLocation,
                 ),
                 const SizedBox(height: 120),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.all(AppSpacing.xxl),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.lg,
+              AppSpacing.xl,
+              AppSpacing.lg,
+            ),
             decoration: BoxDecoration(
               color: palette.surfaceElevated,
               border: Border(
-                top: BorderSide(color: palette.border.withValues(alpha: 0.2)),
+                top: BorderSide(
+                  color: palette.border.withValues(alpha: 0.30),
+                ),
               ),
             ),
             child: SafeArea(top: false, child: _buildActions(context)),
@@ -181,30 +119,46 @@ class ActiveTrackingSheet extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context) {
+    final theme = Theme.of(context);
     final palette = AppColors.of(context);
     final s = status.toLowerCase();
     final tripActive =
         isStarted || s.contains('progress') || s.contains('started');
+
     if (booking.canStartTrip || (s.contains('accept') && !tripActive)) {
       final canStartNow = hasArrivedAtPickup;
       final distanceLabel = distanceToPickupMeters == null
           ? 'Calculating distance to pickup...'
           : distanceToPickupMeters! >= 1000
-          ? '${(distanceToPickupMeters! / 1000).toStringAsFixed(1)} km to pickup'
-          : '${distanceToPickupMeters!.round()} m to pickup';
+              ? '${(distanceToPickupMeters! / 1000).toStringAsFixed(1)} km to pickup'
+              : '${distanceToPickupMeters!.round()} m to pickup';
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (!canStartNow) ...[
-            Text(
-              distanceLabel,
-              style: BrandTypography.caption(color: palette.textSecondary),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.directions_car_rounded,
+                  size: AppSize.iconSm,
+                  color: palette.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  distanceLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: AppTheme.spaceSM),
+            const SizedBox(height: AppSpacing.sm),
           ],
-          _TripBtn(
+          BookingActionButton.tripAction(
             label: canStartNow ? 'Start Trip' : 'Reach Pickup to Start',
-            color: BrandTokens.successGreen,
+            color: palette.success,
             icon: Icons.play_arrow_rounded,
             onTap: canStartNow ? onStartTrip : null,
             actionType: 'start',
@@ -214,25 +168,24 @@ class ActiveTrackingSheet extends StatelessWidget {
     }
     if (booking.canEndTrip || tripActive) {
       final isSosActive = sosState.status == SosStatus.active;
-      final isSosPending =
-          sosState.status == SosStatus.deactivating ||
+      final isSosPending = sosState.status == SosStatus.deactivating ||
           sosState.status == SosStatus.activating;
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isSosActive || isSosPending) ...[
-            _TripBtn(
+            BookingActionButton.tripAction(
               label: isSosPending ? 'Cancelling SOS...' : 'Cancel SOS Alert',
-              color: BrandTokens.dangerRed,
+              color: palette.danger,
               icon: Icons.cancel_outlined,
               onTap: isSosPending ? null : onCancelSos,
               actionType: 'cancel_sos',
             ),
-            const SizedBox(height: AppTheme.spaceMD),
+            const SizedBox(height: AppSpacing.md),
           ],
-          _TripBtn(
+          BookingActionButton.tripAction(
             label: 'End Trip',
-            color: BrandTokens.dangerRed,
+            color: palette.danger,
             icon: Icons.stop_circle_rounded,
             onTap: onEndTrip,
             actionType: 'end',
@@ -241,9 +194,9 @@ class ActiveTrackingSheet extends StatelessWidget {
       );
     }
     if (s != 'completed' && s != 'cancelled') {
-      return _TripBtn(
+      return BookingActionButton.tripAction(
         label: 'End Trip',
-        color: BrandTokens.dangerRed,
+        color: palette.danger,
         icon: Icons.stop_circle_rounded,
         onTap: onEndTrip,
         actionType: 'end',
@@ -253,80 +206,74 @@ class ActiveTrackingSheet extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String label, value;
-  final IconData icon;
-  const _StatItem({
-    required this.label,
-    required this.value,
-    required this.icon,
+class _TravelerHero extends StatelessWidget {
+  final HelperBooking booking;
+  final bool isStarted;
+  final VoidCallback onChat;
+  const _TravelerHero({
+    required this.booking,
+    required this.isStarted,
+    required this.onChat,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: BrandTokens.bgSoft.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: BrandTokens.textSecondary, size: 18),
-            const SizedBox(height: 4),
-            Text(value, style: BrandTypography.body(weight: FontWeight.bold)),
-            Text(
-              label,
-              style: BrandTypography.caption(color: BrandTokens.textSecondary),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    final dotColor = isStarted ? palette.success : palette.warning;
 
-class _RouteInfo extends StatelessWidget {
-  final String pickup, destination;
-  const _RouteInfo({required this.pickup, required this.destination});
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
-        color: BrandTokens.bgSoft.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: BrandTokens.borderSoft.withValues(alpha: 0.25),
-        ),
+        color: palette.surfaceInset,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: palette.border.withValues(alpha: 0.30)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          _RouteRow(
-            icon: Icons.trip_origin_rounded,
-            color: BrandTokens.successGreen,
-            label: 'Pickup',
-            value: pickup,
+          _Avatar(
+            name: booking.travelerName,
+            imageUrl: booking.travelerImage,
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: 2,
-                height: 20,
-                color: BrandTokens.borderSoft,
-              ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  booking.travelerName.isEmpty
+                      ? 'Traveler'
+                      : booking.travelerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    _PulseDot(color: dotColor, animate: isStarted),
+                    const SizedBox(width: AppSpacing.xs + 2),
+                    Text(
+                      isStarted ? 'Trip in progress' : 'Heading to pickup',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          _RouteRow(
-            icon: Icons.location_on_rounded,
-            color: BrandTokens.dangerRed,
-            label: 'Drop-off',
-            value: destination,
+          _RoundIconButton(
+            icon: Icons.chat_bubble_rounded,
+            color: palette.primary,
+            onTap: onChat,
           ),
         ],
       ),
@@ -334,40 +281,126 @@ class _RouteInfo extends StatelessWidget {
   }
 }
 
-class _RouteRow extends StatelessWidget {
-  final IconData icon;
+class _PulseDot extends StatefulWidget {
   final Color color;
-  final String label, value;
-  const _RouteRow({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.value,
+  final bool animate;
+  const _PulseDot({required this.color, required this.animate});
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animate) {
+      _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1300),
+      )..repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: widget.color,
+        shape: BoxShape.circle,
+      ),
+    );
+    if (_ctrl == null) return dot;
+    return SizedBox(
+      width: 14,
+      height: 14,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _ctrl!,
+            builder: (_, __) => Container(
+              width: 8 + 6 * _ctrl!.value,
+              height: 8 + 6 * _ctrl!.value,
+              decoration: BoxDecoration(
+                color: widget.color
+                    .withValues(alpha: 0.40 * (1 - _ctrl!.value)),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          dot,
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickStatsRow extends StatelessWidget {
+  final HelperBooking booking;
+  final bool isStarted;
+  final double? distanceToPickupMeters;
+
+  const _QuickStatsRow({
+    required this.booking,
+    required this.isStarted,
+    required this.distanceToPickupMeters,
   });
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+
+    String? distanceLabel;
+    if (!isStarted && distanceToPickupMeters != null) {
+      distanceLabel = distanceToPickupMeters! >= 1000
+          ? '${(distanceToPickupMeters! / 1000).toStringAsFixed(1)} km'
+          : '${distanceToPickupMeters!.round()} m';
+    }
+
     return Row(
       children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: BrandTypography.caption(
-                  color: BrandTokens.textSecondary,
-                ),
-              ),
-              Text(
-                value,
-                style: BrandTypography.body(weight: FontWeight.w600),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          child: _StatTile(
+            label: 'Payout',
+            value: Money.egp(booking.payout, decimals: false),
+            icon: Icons.account_balance_wallet_rounded,
+            color: palette.primary,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _StatTile(
+            label: distanceLabel != null ? 'To Pickup' : 'Type',
+            value: distanceLabel ??
+                (booking.isInstant ? 'Instant' : 'Scheduled'),
+            icon: distanceLabel != null
+                ? Icons.directions_car_rounded
+                : (booking.isInstant
+                    ? Icons.flash_on_rounded
+                    : Icons.event_outlined),
+            color:
+                distanceLabel != null ? palette.success : palette.warning,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _StatTile(
+            label: 'Language',
+            value: booking.language ?? 'Any',
+            icon: Icons.translate_rounded,
+            color: palette.accent,
           ),
         ),
       ],
@@ -375,62 +408,112 @@ class _RouteRow extends StatelessWidget {
   }
 }
 
-class _TripBtn extends StatelessWidget {
-  final String label;
-  final Color color;
+class _StatTile extends StatelessWidget {
+  final String label, value;
   final IconData icon;
-  final VoidCallback? onTap;
-  final String? actionType;
-
-  const _TripBtn({
+  final Color color;
+  const _StatTile({
     required this.label,
-    required this.color,
+    required this.value,
     required this.icon,
-    required this.onTap,
-    this.actionType,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TripActionCubit, TripActionState>(
-      builder: (context, state) {
-        final loading =
-            state is TripActionLoading && state.actionType == actionType;
-        return SizedBox(
-          width: double.infinity,
-          height: 54,
-          child: ElevatedButton.icon(
-            onPressed: loading ? null : onTap,
-            icon: loading
-                ? AppSpinner(color: Colors.white, size: 20, strokeWidth: 2)
-                : Icon(icon, color: Colors.white),
-            label: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.md,
+        horizontal: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: palette.surfaceInset,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.border.withValues(alpha: 0.40)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              elevation: 1.5,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(height: AppSpacing.xs + 1),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: palette.textPrimary,
             ),
           ),
-        );
-      },
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.textMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _SheetIconButton extends StatelessWidget {
+class _Avatar extends StatelessWidget {
+  final String name;
+  final String? imageUrl;
+  const _Avatar({required this.name, this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    final resolved = ApiConfig.resolveImageUrl(imageUrl);
+    final fallback = Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: palette.primary,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+    return Container(
+      width: AppSize.avatarLg - AppSpacing.sm,
+      height: AppSize.avatarLg - AppSpacing.sm,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: palette.primarySoft,
+        border: Border.all(
+          color: palette.primary.withValues(alpha: 0.22),
+          width: 1.2,
+        ),
+      ),
+      child: ClipOval(
+        child: resolved.isNotEmpty
+            ? Image.network(
+                resolved,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+              )
+            : fallback,
+      ),
+    );
+  }
+}
+
+class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  const _SheetIconButton({
+  const _RoundIconButton({
     required this.icon,
     required this.color,
     required this.onTap,
@@ -439,14 +522,14 @@ class _SheetIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: color.withValues(alpha: 0.1),
+      color: color.withValues(alpha: 0.12),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Icon(icon, color: color, size: 24),
+          padding: const EdgeInsets.all(AppSpacing.sm + 2),
+          child: Icon(icon, color: color, size: AppSize.iconMd),
         ),
       ),
     );

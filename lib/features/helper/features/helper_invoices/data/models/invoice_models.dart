@@ -27,7 +27,7 @@ class InvoiceModel extends InvoiceEntity {
         helperName: j['helperName'] ?? '',
         destinationCity: j['destinationCity'] ?? '',
         totalAmount: _parseDouble(j['totalAmount']),
-        currency: j['currency'] ?? 'USD',
+        currency: j['currency'] ?? 'EGP',
         status: j['status'] ?? 'unknown',
         paymentStatus: j['paymentStatus'] ?? 'unknown',
         paymentMethod: j['paymentMethod'] ?? '',
@@ -86,7 +86,7 @@ class InvoiceDetailModel extends InvoiceDetailEntity {
         commissionRate: _parseDouble(j['commissionRate']),
         netAmount: _parseDouble(j['netAmount']),
         totalAmount: _parseDouble(j['totalAmount']),
-        currency: j['currency'] ?? 'USD',
+        currency: j['currency'] ?? 'EGP',
         status: j['status'] ?? 'unknown',
         paymentStatus: j['paymentStatus'] ?? 'unknown',
         paymentMethod: j['paymentMethod'] ?? '',
@@ -113,7 +113,7 @@ class InvoiceSummaryModel extends InvoiceSummaryEntity {
         commissionAmount: _parseDouble(j['commissionAmount']),
         netAmount: _parseDouble(j['netAmount']),
         invoiceCount: (j['invoiceCount'] as num?)?.toInt() ?? 0,
-        currency: j['currency'] ?? 'USD',
+        currency: j['currency'] ?? 'EGP',
       );
 }
 

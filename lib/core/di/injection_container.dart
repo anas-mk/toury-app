@@ -692,7 +692,6 @@ Future<void> init() async {
   sl.registerFactory(() => HelperInvoicesCubit(
     getInvoicesUseCase: sl(),
     getDetailUseCase: sl(),
-    getByBookingUseCase: sl(),
     getSummaryUseCase: sl(),
     getHtmlUseCase: sl(),
   ));
@@ -700,7 +699,6 @@ Future<void> init() async {
   // Use Cases
   sl.registerLazySingleton(() => GetInvoicesUseCase(sl()));
   sl.registerLazySingleton(() => GetInvoiceDetailUseCase(sl()));
-  sl.registerLazySingleton(() => GetInvoiceByBookingUseCase(sl()));
   sl.registerLazySingleton(() => GetInvoiceSummaryUseCase(sl()));
   sl.registerLazySingleton(() => GetInvoiceHtmlUseCase(sl()));
 

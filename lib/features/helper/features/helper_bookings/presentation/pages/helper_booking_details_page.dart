@@ -1,30 +1,48 @@
+// Modernized booking details / request details screen for helpers.
+//
+// Layout (top → bottom):
+//   1. Sliver hero header (gradient background, traveler avatar, status,
+//      payout chip, ID).
+//   2. Status banner (animated when active).
+//   3. Trip Progress stepper.
+//   4. Trip Logistics (route + meta).
+//   5. Traveler card (with chat button + notes).
+//   6. Payout card.
+//   7. Sticky bottom action bar with frosted background.
+
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_dimens.dart';
-import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/utils/currency_format.dart';
 import '../../../../../../core/widgets/app_error_state.dart';
 import '../../../../../../core/widgets/app_loading.dart';
-import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
-import '../../../../../../core/widgets/basic_app_bar.dart';
 import '../../domain/entities/helper_booking_entities.dart';
-import '../cubit/helper_bookings_cubits.dart';
-import '../widgets/details/booking_status_banner.dart';
-import '../widgets/details/traveler_info_section.dart';
-import '../widgets/details/booking_route_card.dart';
-import '../widgets/details/payment_info_card.dart';
-import '../../../helper_ratings/presentation/widgets/booking_rating_sheet.dart';
+import '../../domain/entities/helper_booking_status_x.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
+import '../../../helper_ratings/presentation/widgets/booking_rating_sheet.dart';
+import '../cubit/helper_bookings_cubits.dart';
 import '../cubit/trip_action_cubit.dart';
+import '../widgets/details/booking_progress_stepper.dart';
+import '../widgets/details/booking_route_card.dart';
+import '../widgets/details/booking_status_banner.dart';
+import '../widgets/details/payment_info_card.dart';
+import '../widgets/details/traveler_info_section.dart';
+import '../widgets/shared/booking_action_button.dart';
+import '../widgets/shared/trip_completed_dialog.dart';
 
 class HelperBookingDetailsPage extends StatefulWidget {
   final String bookingId;
-  final bool isRequest; // If true, use RequestDetailsCubit
+  final bool isRequest;
 
   const HelperBookingDetailsPage({
     super.key,
@@ -41,7 +59,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   late final HelperBookingDetailsCubit _detailsCubit;
   late final RequestDetailsCubit _requestCubit;
   late final AcceptRejectRequestCubit _acceptRejectCubit;
-
   late final TripActionCubit _tripActionCubit;
 
   @override
@@ -50,7 +67,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     _detailsCubit = sl<HelperBookingDetailsCubit>();
     _requestCubit = sl<RequestDetailsCubit>();
     _acceptRejectCubit = sl<AcceptRejectRequestCubit>();
-
     _tripActionCubit = sl<TripActionCubit>();
 
     if (widget.isRequest) {
@@ -65,19 +81,18 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     _detailsCubit.close();
     _requestCubit.close();
     _acceptRejectCubit.close();
-
     _tripActionCubit.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _detailsCubit),
         BlocProvider.value(value: _requestCubit),
         BlocProvider.value(value: _acceptRejectCubit),
-
         BlocProvider.value(value: _tripActionCubit),
       ],
       child: MultiBlocListener(
@@ -85,12 +100,20 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           BlocListener<AcceptRejectRequestCubit, AcceptRejectRequestState>(
             listener: (context, state) {
               if (state is AcceptSuccess) {
-                AppSnackbar.success(context, 'Request accepted');
-                final b = state.booking;
-                context.pushReplacement(
-                  AppRouter.helperActiveBooking,
-                  extra: b.id,
+                AppSnackbar.success(
+                  context,
+                  'Request accepted — start the trip when ready',
                 );
+                // Stay on the details page and swap in the server-confirmed
+                // booking so the action bar transitions from "Decline / Accept"
+                // to the confirmed actions ("Chat" + "Start Trip / Open Live
+                // Tracking"). Helper decides when to enter live tracking —
+                // we don't auto-navigate.
+                if (widget.isRequest) {
+                  _requestCubit.setBooking(state.booking);
+                } else {
+                  _detailsCubit.load(widget.bookingId);
+                }
               } else if (state is RejectSuccess) {
                 AppSnackbar.info(context, 'Request declined');
                 context.pop();
@@ -109,7 +132,16 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                     extra: widget.bookingId,
                   );
                 } else if (state.actionType == 'end') {
-                  _showEarningsDialog(context, state.result as double);
+                  // Optimistically clear so the dashboard's active-trip card
+                  // disappears immediately when the user navigates back.
+                  sl<ActiveBookingCubit>().clear();
+                  sl<ActiveBookingCubit>().load(silent: true);
+                  showTripCompletedDialog(
+                    context,
+                    earnings: state.result as double,
+                    primaryLabel: 'Done',
+                    onPrimary: () => context.pop(),
+                  );
                 }
               } else if (state is TripActionError) {
                 AppSnackbar.error(context, state.message);
@@ -117,32 +149,33 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
             },
           ),
         ],
-        child: AppScaffold(
-          appBar: BasicAppBar(
-            title: widget.isRequest ? 'Trip Request' : 'Booking Details',
-          ),
+        child: Scaffold(
+          backgroundColor: palette.scaffold,
           body: widget.isRequest
               ? BlocBuilder<RequestDetailsCubit, RequestDetailsState>(
                   builder: (context, state) {
                     if (state is RequestDetailsLoading) return _buildLoading();
-                    if (state is RequestDetailsLoaded)
+                    if (state is RequestDetailsLoaded) {
                       return _buildContent(context, state.booking);
-                    if (state is RequestDetailsError)
+                    }
+                    if (state is RequestDetailsError) {
                       return _buildError(context, state.message, true);
+                    }
                     return const SizedBox.shrink();
                   },
                 )
-              : BlocBuilder<
-                  HelperBookingDetailsCubit,
-                  HelperBookingDetailsState
-                >(
+              : BlocBuilder<HelperBookingDetailsCubit,
+                  HelperBookingDetailsState>(
                   builder: (context, state) {
-                    if (state is HelperBookingDetailsLoading)
+                    if (state is HelperBookingDetailsLoading) {
                       return _buildLoading();
-                    if (state is HelperBookingDetailsLoaded)
+                    }
+                    if (state is HelperBookingDetailsLoaded) {
                       return _buildContent(context, state.booking);
-                    if (state is HelperBookingDetailsError)
+                    }
+                    if (state is HelperBookingDetailsError) {
                       return _buildError(context, state.message, false);
+                    }
                     return const SizedBox.shrink();
                   },
                 ),
@@ -154,163 +187,116 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   Widget _buildLoading() => const Center(child: AppLoading(fullScreen: false));
 
   Widget _buildContent(BuildContext context, HelperBooking booking) {
-    final status = booking.status.toLowerCase();
-    final isPending = status == 'pending' || status == 'pendinghelperresponse';
-    final isConfirmed =
-        booking.canStartTrip ||
-        status == 'confirmed' ||
-        status == 'accepted' ||
-        status == 'acceptedbyhelper' ||
-        status == 'confirmedpaid';
-    final isActive =
-        booking.canEndTrip ||
-        status == 'inprogress' ||
-        status == 'started' ||
-        status == 'active';
-    final isCompleted = status == 'completed';
-    final isCancelled = status.contains('cancelled') || status == 'rejected';
+    final palette = AppColors.of(context);
+    final hasActions = _hasActions(booking);
 
     return Stack(
       children: [
-        ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.pageGutter,
-            AppSpacing.pageGutter,
-            AppSpacing.pageGutter,
-            AppSpacing.giga + AppSpacing.mega + AppSpacing.xs,
-          ),
-          children: [
-            BookingStatusBanner(status: booking.status),
-            const SizedBox(height: AppSpacing.lg),
-            TravelerInfoSection(booking: booking),
-            const SizedBox(height: AppSpacing.md),
-            BookingRouteCard(booking: booking),
-            const SizedBox(height: AppSpacing.md),
-            PaymentInfoCard(booking: booking),
-            const SizedBox(height: AppSpacing.md),
-            _FlowHintCard(
-              title: _flowTitle(
-                isPending: isPending,
-                isConfirmed: isConfirmed,
-                isActive: isActive,
-                isCompleted: isCompleted,
-                isCancelled: isCancelled,
-              ),
-              subtitle: _flowSubtitle(
-                isPending: isPending,
-                isConfirmed: isConfirmed,
-                isActive: isActive,
-                isCompleted: isCompleted,
-                isCancelled: isCancelled,
+        CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            _SliverHeroHeader(
+              booking: booking,
+              isRequest: widget.isRequest,
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.pageGutter,
+                  AppSpacing.lg,
+                  AppSpacing.pageGutter,
+                  hasActions
+                      ? AppSize.buttonLg + AppSpacing.giga + AppSpacing.lg
+                      : AppSpacing.huge,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BookingStatusBanner(status: booking.status),
+                    const SizedBox(height: AppSpacing.lg),
+                    BookingProgressStepper(booking: booking),
+                    const SizedBox(height: AppSpacing.lg),
+                    BookingRouteCard(booking: booking),
+                    const SizedBox(height: AppSpacing.lg),
+                    TravelerInfoSection(
+                      booking: booking,
+                      onChat: () => _openChat(context, booking),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    PaymentInfoCard(booking: booking),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: AppSpacing.huge),
           ],
         ),
-
-        // Dynamic Bottom Actions
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _buildBottomActions(
-            context,
-            booking,
-            isPending,
-            isConfirmed,
-            isActive,
-            isCompleted,
-            isCancelled,
+        if (hasActions)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _StickyActionBar(
+              palette: palette,
+              child: _buildActionsFor(context, booking),
+            ),
           ),
-        ),
       ],
     );
   }
 
-  Widget _buildBottomActions(
-    BuildContext context,
-    HelperBooking booking,
-    bool isPending,
-    bool isConfirmed,
-    bool isActive,
-    bool isCompleted,
-    bool isCancelled,
-  ) {
-    // If there are no actions to show, do not render the container to avoid empty space
-    if (!isPending &&
-        !isConfirmed &&
-        !isActive &&
-        !isCompleted &&
-        !isCancelled) {
-      return const SizedBox.shrink();
-    }
+  bool _hasActions(HelperBooking b) =>
+      b.isPending ||
+      b.isConfirmed ||
+      b.isActive ||
+      b.isCompleted ||
+      b.isCancelled;
 
-    final palette = AppColors.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.pageGutter,
-        AppSpacing.xxl,
-        AppSpacing.pageGutter,
-        AppSpacing.mega + AppSpacing.lg + AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: palette.surfaceElevated,
-        boxShadow: [
-          BoxShadow(
-            color: palette.textPrimary.withValues(
-              alpha: palette.isDark ? 0.25 : 0.06,
-            ),
-            blurRadius: 12,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isPending) _buildRequestActions(context, booking),
-          if (isConfirmed) _buildConfirmedActions(context, booking),
-          if (isActive) _buildActiveActions(context, booking),
-          if (isCompleted) _buildCompletedActions(context, booking),
-          if (isCancelled) _buildCancelledActions(context),
-        ],
-      ),
-    );
+  Widget _buildActionsFor(BuildContext context, HelperBooking booking) {
+    if (booking.isPending) return _buildRequestActions(booking);
+    if (booking.isConfirmed) return _buildConfirmedActions(booking);
+    if (booking.isActive) return _buildActiveActions(booking);
+    if (booking.isCompleted) return _buildCompletedActions(booking);
+    if (booking.isCancelled) return _buildCancelledActions();
+    return const SizedBox.shrink();
   }
 
-  Widget _buildRequestActions(BuildContext context, HelperBooking booking) {
+  Widget _buildRequestActions(HelperBooking booking) {
     return BlocBuilder<AcceptRejectRequestCubit, AcceptRejectRequestState>(
       builder: (context, state) {
+        final palette = AppColors.of(context);
         final isAcceptLoading = state is AcceptLoading;
         final isRejectLoading = state is RejectLoading;
         final isDisabled = isAcceptLoading || isRejectLoading;
-
         return Row(
           children: [
             Expanded(
-              child: _ActionBtn(
+              child: BookingActionButton(
                 label: 'Decline',
-                color: BrandTokens.dangerRed,
+                color: palette.danger,
                 outline: true,
                 isLoading: isRejectLoading,
                 isDisabled: isDisabled,
                 onTap: () {
-                  if (widget.isRequest)
+                  if (widget.isRequest) {
                     _requestCubit.optimisticUpdateStatus('Rejected');
+                  }
                   _acceptRejectCubit.rejectRequest(booking.id);
                 },
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: _ActionBtn(
-                label: 'Accept Request',
-                color: BrandTokens.successGreen,
+              flex: 2,
+              child: BookingActionButton(
+                label: 'Accept',
+                icon: Icons.check_rounded,
+                color: palette.success,
                 isLoading: isAcceptLoading,
                 isDisabled: isDisabled,
                 onTap: () {
-                  if (widget.isRequest)
+                  if (widget.isRequest) {
                     _requestCubit.optimisticUpdateStatus('Accepted');
+                  }
                   _acceptRejectCubit.acceptRequest(booking.id);
                 },
               ),
@@ -321,117 +307,121 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
     );
   }
 
-  Widget _buildConfirmedActions(BuildContext context, HelperBooking booking) {
+  Widget _buildConfirmedActions(HelperBooking booking) {
     return BlocBuilder<TripActionCubit, TripActionState>(
       builder: (context, state) {
-        final isStartLoading =
-            state is TripActionLoading && state.actionType == 'start';
-        final isEndLoading =
-            state is TripActionLoading && state.actionType == 'end';
-        final isDisabled = isStartLoading || isEndLoading;
-
-        return Column(
-          children: [
-            _ActionBtn(
-              label: booking.canStartTrip ? 'Start Trip' : 'Open Live Tracking',
-              icon: Icons.play_circle_fill_rounded,
-              color: BrandTokens.successGreen,
-              isLoading: isStartLoading,
-              isDisabled: isDisabled,
-              onTap: () {
-                if (booking.canStartTrip) {
-                  _tripActionCubit.start(booking.id);
-                } else {
-                  context.pushReplacement(
-                    AppRouter.helperActiveBooking,
-                    extra: booking.id,
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _ActionBtn(
-              label: 'Message Traveler',
-              icon: Icons.chat_bubble_outline_rounded,
-              color: BrandTokens.primaryBlue,
-              outline: true,
-              isDisabled: isDisabled,
-              onTap: () => _openChat(context, booking.id),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildActiveActions(BuildContext context, HelperBooking booking) {
-    return BlocBuilder<TripActionCubit, TripActionState>(
-      builder: (context, state) {
+        final palette = AppColors.of(context);
         final isLoading = state is TripActionLoading;
-
-        return Column(
+        return Row(
           children: [
-            _ActionBtn(
-              label: 'Open Live Tracking',
-              icon: Icons.gps_fixed_rounded,
-              color: BrandTokens.primaryBlue,
-              isLoading: false,
+            BookingActionButton(
+              label: 'Chat',
+              icon: Icons.chat_bubble_rounded,
+              color: palette.primary,
+              outline: true,
+              isDisabled: isLoading,
+              onTap: () => _openChat(context, booking),
+              height: AppSize.buttonLg,
+            ).inFlex(0, 70),
+            const SizedBox(width: AppSpacing.md),
+            // Always route through live-tracking first — it shows the way to
+            // the pickup, and only enables "Start Trip" once the helper is
+            // actually within the pickup-arrival radius. Calling
+            // `_tripActionCubit.start()` directly here would skip that safety
+            // gate and start the trip the moment the helper accepts.
+            BookingActionButton(
+              label: 'Navigate to Pickup',
+              icon: Icons.navigation_rounded,
+              trailingIcon: Icons.arrow_forward_rounded,
+              color: palette.success,
               isDisabled: isLoading,
               onTap: () => context.pushReplacement(
                 AppRouter.helperActiveBooking,
                 extra: booking.id,
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _ActionBtn(
-              label: 'Message Traveler',
-              icon: Icons.chat_bubble_outline_rounded,
-              color: BrandTokens.primaryBlue,
-              outline: true,
-              isDisabled: isLoading,
-              onTap: () => _openChat(context, booking.id),
-            ),
+            ).inFlex(2, 0),
           ],
         );
       },
     );
   }
 
-  Widget _buildCompletedActions(BuildContext context, HelperBooking booking) {
-    return Column(
+  Widget _buildActiveActions(HelperBooking booking) {
+    return BlocBuilder<TripActionCubit, TripActionState>(
+      builder: (context, state) {
+        final palette = AppColors.of(context);
+        final isLoading = state is TripActionLoading;
+        return Row(
+          children: [
+            BookingActionButton(
+              label: 'Chat',
+              icon: Icons.chat_bubble_rounded,
+              color: palette.primary,
+              outline: true,
+              isDisabled: isLoading,
+              onTap: () => _openChat(context, booking),
+            ).inFlex(0, 70),
+            const SizedBox(width: AppSpacing.md),
+            BookingActionButton(
+              label: 'Open Live Tracking',
+              icon: Icons.gps_fixed_rounded,
+              trailingIcon: Icons.arrow_forward_rounded,
+              color: palette.success,
+              isDisabled: isLoading,
+              onTap: () => context.pushReplacement(
+                AppRouter.helperActiveBooking,
+                extra: booking.id,
+              ),
+            ).inFlex(2, 0),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCompletedActions(HelperBooking booking) {
+    final palette = AppColors.of(context);
+    return Row(
       children: [
-        _ActionBtn(
-          label: 'Rate Traveler',
-          icon: Icons.star_rounded,
-          color: Colors.amber,
-          onTap: () => _showRatingSheet(context, booking),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _ActionBtn(
-          label: 'Back to bookings',
-          icon: Icons.home_rounded,
-          color: BrandTokens.primaryBlue,
+        BookingActionButton(
+          label: 'Back',
+          icon: Icons.arrow_back_rounded,
+          color: palette.primary,
           outline: true,
           onTap: () => context.go(AppRouter.helperBookings),
-        ),
+        ).inFlex(0, 70),
+        const SizedBox(width: AppSpacing.md),
+        BookingActionButton(
+          label: 'Rate Traveler',
+          icon: Icons.star_rounded,
+          color: const Color(0xFFFFB300),
+          onTap: () => _showRatingSheet(context, booking),
+        ).inFlex(2, 0),
       ],
     );
   }
 
-  Widget _buildCancelledActions(BuildContext context) {
-    return _ActionBtn(
-      label: 'Back to bookings',
+  Widget _buildCancelledActions() {
+    final palette = AppColors.of(context);
+    return BookingActionButton(
+      label: 'Back to Bookings',
       icon: Icons.home_rounded,
-      color: BrandTokens.primaryBlue,
+      color: palette.primary,
       outline: true,
       onTap: () => context.go(AppRouter.helperBookings),
     );
   }
 
-  void _openChat(BuildContext context, String id) {
+  void _openChat(BuildContext context, HelperBooking booking) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => HelperChatPage(bookingId: id)),
+      MaterialPageRoute(
+        builder: (_) => HelperChatPage(
+          bookingId: booking.id,
+          userName: booking.travelerName,
+          userAvatar: booking.travelerImage,
+        ),
+      ),
     );
   }
 
@@ -445,69 +435,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         travelerName: booking.travelerName,
         travelerAvatar: '',
       ),
-    );
-  }
-
-  void _showEarningsDialog(BuildContext context, double earnings) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dlgCtx) {
-        final palette = AppColors.of(dlgCtx);
-        final theme = Theme.of(dlgCtx);
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.xxl),
-          ),
-          backgroundColor: palette.surfaceElevated,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xxxl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.check_circle_rounded,
-                  color: palette.success,
-                  size: AppSpacing.mega + AppSpacing.lg,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  'Trip Completed!',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'You earned',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: palette.textSecondary,
-                  ),
-                ),
-                Text(
-                  '\$${earnings.toStringAsFixed(2)}',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: palette.success,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xxl),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.pop(dlgCtx);
-                      context.pop();
-                    },
-                    child: const Text('Done'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -525,170 +452,332 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
       ),
     );
   }
+}
 
-  String _flowTitle({
-    required bool isPending,
-    required bool isConfirmed,
-    required bool isActive,
-    required bool isCompleted,
-    required bool isCancelled,
-  }) {
-    if (isPending) return 'Action required';
-    if (isConfirmed) return 'Ready to start';
-    if (isActive) return 'Trip is live';
-    if (isCompleted) return 'Trip completed';
-    if (isCancelled) return 'Trip closed';
-    return 'Booking details';
-  }
-
-  String _flowSubtitle({
-    required bool isPending,
-    required bool isConfirmed,
-    required bool isActive,
-    required bool isCompleted,
-    required bool isCancelled,
-  }) {
-    if (isPending) return 'Accept or decline this request to continue.';
-    if (isConfirmed)
-      return 'Start trip when traveler is ready, then switch to live tracking.';
-    if (isActive)
-      return 'Use live tracking to navigate and end the trip safely.';
-    if (isCompleted)
-      return 'Rate the traveler and return to your bookings list.';
-    if (isCancelled)
-      return 'This booking has been closed and no further actions are needed.';
-    return 'Review booking information below.';
+extension _Flex on Widget {
+  /// Convenience to wrap a button in a sized [Expanded] inside the action row.
+  Widget inFlex(int flex, double minWidth) {
+    if (flex == 0) {
+      return SizedBox(width: minWidth, child: this);
+    }
+    return Expanded(flex: flex, child: this);
   }
 }
 
-class _FlowHintCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  const _FlowHintCard({required this.title, required this.subtitle});
+class _SliverHeroHeader extends StatelessWidget {
+  final HelperBooking booking;
+  final bool isRequest;
+  const _SliverHeroHeader({required this.booking, required this.isRequest});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final palette = AppColors.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: palette.primarySoft.withValues(
-          alpha: palette.isDark ? 0.35 : 0.65,
+    final accent = _accent(palette);
+
+    return SliverAppBar(
+      expandedHeight: 280,
+      pinned: true,
+      stretch: true,
+      backgroundColor: accent,
+      elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: AppSpacing.sm),
+        child: _GlassIconButton(
+          icon: Icons.arrow_back_rounded,
+          onTap: () => Navigator.of(context).pop(),
         ),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: palette.primary.withValues(alpha: 0.22)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            color: palette.primary,
-            size: AppSize.iconMd + AppSpacing.xxs,
+      title: Text(
+        isRequest ? 'Trip Request' : 'Booking Details',
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.parallax,
+        stretchModes: const [
+          StretchMode.zoomBackground,
+          StretchMode.blurBackground,
+        ],
+        background: _HeroBackground(booking: booking, accent: accent),
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(0),
+        child: Container(
+          height: 24,
+          decoration: BoxDecoration(
+            color: palette.scaffold,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadius.xl),
+            ),
           ),
-          const SizedBox(width: AppSpacing.sm + AppSpacing.xxs),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+      ),
+    );
+  }
+
+  Color _accent(AppColors p) {
+    if (booking.isPending) return p.warning;
+    if (booking.isActive) return p.success;
+    if (booking.isCancelled) return p.danger;
+    if (booking.isCompleted) return p.textMuted;
+    return p.primary;
+  }
+}
+
+class _HeroBackground extends StatelessWidget {
+  final HelperBooking booking;
+  final Color accent;
+  const _HeroBackground({required this.booking, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final resolved = ApiConfig.resolveImageUrl(booking.travelerImage);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                accent,
+                Color.lerp(accent, Colors.black, 0.30)!,
+              ],
+            ),
+          ),
+        ),
+        // Decorative orbs.
+        Positioned(
+          top: -36,
+          right: -36,
+          child: _orb(180, 0.10),
+        ),
+        Positioned(
+          bottom: -50,
+          left: -36,
+          child: _orb(180, 0.06),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.pageGutter,
+              AppSpacing.giga,
+              AppSpacing.pageGutter,
+              AppSpacing.xl,
+            ),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: BrandTypography.body(weight: FontWeight.bold),
+                Container(
+                  width: 78,
+                  height: 78,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.30),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: resolved.isNotEmpty
+                        ? Image.network(
+                            resolved,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _initials(booking.travelerName),
+                          )
+                        : _initials(booking.travelerName),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  subtitle,
-                  style: BrandTypography.caption(color: palette.textSecondary),
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        booking.travelerName.isEmpty
+                            ? 'Traveler'
+                            : booking.travelerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm + 2,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.30),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.event_outlined,
+                              color: Colors.white,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat('MMM d · hh:mm a')
+                                  .format(booking.startTime),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.account_balance_wallet_rounded,
+                              size: 14,
+                              color: accent,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              Money.egp(booking.payout),
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _initials(String name) => Container(
+        color: Colors.white,
+        child: Center(
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: accent,
+            ),
+          ),
+        ),
+      );
+
+  Widget _orb(double size, double alpha) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: alpha),
+          shape: BoxShape.circle,
+        ),
+      );
+}
+
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _GlassIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.22),
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _ActionBtn extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  final Color color;
-  final VoidCallback onTap;
-  final bool outline;
-  final bool isLoading;
-  final bool isDisabled;
-
-  const _ActionBtn({
-    required this.label,
-    this.icon,
-    required this.color,
-    required this.onTap,
-    this.outline = false,
-    this.isLoading = false,
-    this.isDisabled = false,
-  });
+class _StickyActionBar extends StatelessWidget {
+  final AppColors palette;
+  final Widget child;
+  const _StickyActionBar({required this.palette, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final effectiveOnTap = isDisabled ? null : onTap;
-    final contentColor = outline ? color : Colors.white;
-
-    Widget childContent = isLoading
-        ? SizedBox(
-            width: 24,
-            height: 24,
-            child: AppSpinner(size: 24, strokeWidth: 2.5, color: contentColor),
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null)
-                Icon(icon, color: contentColor, size: AppSize.iconMd),
-              if (icon != null) const SizedBox(width: AppSpacing.sm),
-              Text(
-                label,
-                style: BrandTypography.body(
-                  color: contentColor,
-                  weight: FontWeight.bold,
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.surfaceElevated.withValues(alpha: 0.92),
+            border: Border(
+              top: BorderSide(
+                color: palette.border.withValues(alpha: 0.45),
+                width: 0.6,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: palette.isDark ? 0.40 : 0.06,
                 ),
+                blurRadius: 16,
+                offset: const Offset(0, -6),
               ),
             ],
-          );
-
-    if (outline) {
-      return SizedBox(
-        width: double.infinity,
-        height: AppSize.buttonLg,
-        child: OutlinedButton(
-          onPressed: effectiveOnTap,
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: isDisabled ? palette.border : color,
-              width: AppSize.border,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
           ),
-          child: childContent,
-        ),
-      );
-    }
-    return SizedBox(
-      width: double.infinity,
-      height: AppSize.buttonLg,
-      child: ElevatedButton(
-        onPressed: effectiveOnTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          disabledBackgroundColor: palette.disabledFill,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.pageGutter,
+            AppSpacing.lg,
+            AppSpacing.pageGutter,
+            AppSpacing.lg + MediaQuery.of(context).padding.bottom,
           ),
-          elevation: 0,
+          child: SafeArea(top: false, child: child),
         ),
-        child: childContent,
       ),
     );
   }

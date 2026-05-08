@@ -34,12 +34,6 @@ class HelperInvoicesRepositoryImpl implements HelperInvoicesRepository {
   }
 
   @override
-  Future<InvoiceDetailEntity> getInvoiceByBooking(String bookingId) async {
-    final m = await remoteDataSource.getInvoiceByBooking(bookingId);
-    return _mapDetail(m);
-  }
-
-  @override
   Future<InvoiceSummaryEntity> getSummary() async {
     final m = await remoteDataSource.getSummary();
     return InvoiceSummaryEntity(

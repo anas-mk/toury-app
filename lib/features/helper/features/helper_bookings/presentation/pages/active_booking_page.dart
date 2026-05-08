@@ -19,6 +19,9 @@ import '../../../../../../core/widgets/app_empty_state.dart';
 import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/utils/currency_format.dart';
+import '../../domain/entities/helper_booking_status_x.dart';
+import '../widgets/shared/trip_completed_dialog.dart';
 import '../../../helper_ratings/presentation/pages/rate_user_page.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../../../../core/services/auth_service.dart';
@@ -65,8 +68,6 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   HelperBooking? _currentBooking;
   RouteResult? _lastRoute; // cached for the info chip
   bool _isFollowing = true;
-  bool _isNavigationMode = false;
-  Timer? _routeDebounce; // throttle real-time updates to 1 call / 10 s
   bool _isRouteFetchInFlight = false;
   DateTime? _lastRouteFetchAt;
   double? _lastRouteFromLat;
@@ -77,7 +78,10 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   List<TrackingPointEntity> _trackingHistory = const [];
   bool _hasArrivedAtPickup = false;
   bool _didPrimeTracking = false;
-  static const double _pickupArrivalThresholdMeters = 120;
+  // Helper must be within this radius of the pickup before "Start Trip"
+  // becomes tappable on the live-tracking sheet.
+  static const double _pickupArrivalThresholdMeters = 100;
+  static const Duration _routeFetchMinInterval = Duration(seconds: 20);
 
   @override
   void initState() {
@@ -107,7 +111,6 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   @override
   void dispose() {
-    _routeDebounce?.cancel();
     _helperMarker = null;
     _helperPointAnnotationManager = null;
     _pointAnnotationManager = null;
@@ -159,7 +162,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   /// Initial draw: route from pickup → destination using Directions API.
   void _drawRoute(HelperBooking booking) async {
-    final isStarted = _isTripStarted(booking);
+    final isStarted = booking.isTripStarted;
     final fromLat = _helperLat ?? booking.pickupLat;
     final fromLng = _helperLng ?? booking.pickupLng;
     final toLat = isStarted ? booking.destinationLat : booking.pickupLat;
@@ -177,14 +180,17 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   void _onHelperLocationForRoute(double helperLat, double helperLng) {
     final booking = _currentBooking;
     if (booking == null) return;
-    final isStarted = _isTripStarted(booking);
+    final isStarted = booking.isTripStarted;
     final mode = isStarted ? 'to_destination' : 'to_pickup';
     final targetLat = isStarted ? booking.destinationLat : booking.pickupLat;
     final targetLng = isStarted ? booking.destinationLng : booking.pickupLng;
     if (!_shouldFetchRoute(helperLat, helperLng, mode)) return;
-    // Debounce: only re-fetch every 20 seconds to reduce UI/load spikes.
-    if (_routeDebounce?.isActive == true) return;
-    _routeDebounce = Timer(const Duration(seconds: 20), () {});
+    // Debounce: only re-fetch every [_routeFetchMinInterval] to reduce spikes.
+    final lastFetch = _lastRouteFetchAt;
+    if (lastFetch != null &&
+        DateTime.now().difference(lastFetch) < _routeFetchMinInterval) {
+      return;
+    }
     _fetchAndDrawRoute(
       fromLat: helperLat,
       fromLng: helperLng,
@@ -201,8 +207,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     required double toLng,
     required HelperBooking booking,
   }) async {
-    if (_pointAnnotationManager == null || _polylineAnnotationManager == null)
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) {
       return;
+    }
     if (_isRouteFetchInFlight) return;
     _isRouteFetchInFlight = true;
 
@@ -285,8 +292,9 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   Future<void> _drawHistoryPolyline() async {
-    if (_polylineAnnotationManager == null || _trackingHistory.length < 2)
+    if (_polylineAnnotationManager == null || _trackingHistory.length < 2) {
       return;
+    }
     final historyPositions = _trackingHistory
         .map((p) => Position(p.longitude, p.latitude))
         .toList();
@@ -437,14 +445,6 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     }
   }
 
-  bool _isTripStarted(HelperBooking booking) {
-    // Some helper endpoints don't always include a reliable status after start.
-    // `canEndTrip` is a strong signal that the trip is already in progress.
-    if (booking.canEndTrip) return true;
-    final s = booking.status.toLowerCase();
-    return s == 'inprogress' || s == 'started' || s == 'active';
-  }
-
   double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
     const earthRadius = 6371000.0;
     final dLat = _degToRad(lat2 - lat1);
@@ -478,7 +478,6 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
               if (state is TripActionSuccess) {
                 if (state.actionType == 'start') {
                   AppSnackbar.success(context, '🚀 Trip started!');
-                  setState(() => _isNavigationMode = true);
                   _activeCubit.load();
                 } else if (state.actionType == 'end') {
                   final earnings = state.result as double? ?? 0.0;
@@ -538,8 +537,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   Widget _buildModernContent(BuildContext context, HelperBooking booking) {
     final status = booking.status.toLowerCase();
-    final isStarted = _isTripStarted(booking);
-    final navMode = _isNavigationMode || isStarted;
+    final isStarted = booking.isTripStarted;
+    final navMode = isStarted;
 
     final initialCenter = isStarted
         ? Position(booking.destinationLng, booking.destinationLat)
@@ -657,39 +656,17 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           ),
         ),
 
-        // Route info + trip stage pill
+        // Route info + animated trip stage pill
         Positioned(
           top: MediaQuery.of(context).padding.top + 10,
           left: 68,
           right: 68,
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isStarted
-                      ? palette.success.withValues(alpha: 0.92)
-                      : palette.warning.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  isStarted ? 'Trip In Progress' : 'Heading To Pickup',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
+              _ActiveStatusPill(
+                isStarted: isStarted,
+                color: isStarted ? palette.success : palette.warning,
+                payout: booking.payout,
               ),
               if (_lastRoute != null) ...[
                 const SizedBox(height: 8),
@@ -814,7 +791,10 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   void _completeTripAndExit() {
     _locationCubit.stopTripTracking();
-    _activeCubit.clearCurrentId();
+    // Optimistically clear so the dashboard's active-trip card disappears
+    // immediately, even if the backend is briefly slow to flip the booking
+    // status from InProgress → Completed.
+    _activeCubit.clear();
     _activeCubit.load(silent: true);
     if (mounted) context.pop();
   }
@@ -850,109 +830,133 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     double earnings, {
     VoidCallback? onDismiss,
   }) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dlgCtx) {
-        final theme = Theme.of(dlgCtx);
-        final palette = AppColors.of(dlgCtx);
-        return Dialog(
-          backgroundColor: palette.surfaceElevated,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.xxl),
+    showTripCompletedDialog(
+      context,
+      earnings: earnings,
+      title: 'Trip Completed!',
+      subtitle: 'How was your traveler?',
+      primaryLabel: 'Rate Traveler',
+      primaryIcon: Icons.star_rounded,
+      secondaryLabel: 'Skip',
+      onPrimary: onDismiss,
+      // The "Skip" path must also run the same cleanup as the rate-flow,
+      // otherwise the dashboard keeps the stale active-trip card visible.
+      onSecondary: _completeTripAndExit,
+    );
+  }
+}
+
+/// Animated pill that shows the current trip stage (Heading To Pickup / Trip
+/// In Progress) plus the payout in EGP. Pulses softly while the trip is live.
+class _ActiveStatusPill extends StatefulWidget {
+  final bool isStarted;
+  final Color color;
+  final double payout;
+  const _ActiveStatusPill({
+    required this.isStarted,
+    required this.color,
+    required this.payout,
+  });
+
+  @override
+  State<_ActiveStatusPill> createState() => _ActiveStatusPillState();
+}
+
+class _ActiveStatusPillState extends State<_ActiveStatusPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
+      decoration: BoxDecoration(
+        color: widget.color.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xxl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
+                AnimatedBuilder(
+                  animation: _ctrl,
+                  builder: (_, __) => Container(
+                    width: 8 + 10 * _ctrl.value,
+                    height: 8 + 10 * _ctrl.value,
+                    decoration: BoxDecoration(
+                      color: Colors.white
+                          .withValues(alpha: 0.40 * (1 - _ctrl.value)),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
                 Container(
-                  width: AppSize.avatarXl,
-                  height: AppSize.avatarXl,
-                  decoration: BoxDecoration(
-                    color: palette.success,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.check_rounded,
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    size: AppSize.icon2Xl + 4,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                Text(
-                  'Trip Completed! 🎉',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: palette.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
-                Text(
-                  'You earned',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  '\$${earnings.toStringAsFixed(2)}',
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: palette.success,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 42,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'How was your traveler?',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl + AppSpacing.md),
-                SizedBox(
-                  width: double.infinity,
-                  height: AppSize.buttonMd,
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.star_rounded, color: Colors.white),
-                    label: Text(
-                      'Rate Traveler',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(dlgCtx);
-                      onDismiss?.call();
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: palette.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm + AppSpacing.xs),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dlgCtx);
-                    if (dlgCtx.mounted) dlgCtx.pop();
-                  },
-                  child: Text(
-                    'Skip',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: palette.textSecondary,
-                    ),
+                    shape: BoxShape.circle,
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(width: 6),
+          Text(
+            widget.isStarted ? 'Trip In Progress' : 'Heading To Pickup',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              Money.egp(widget.payout, decimals: false),
+              style: TextStyle(
+                color: widget.color,
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

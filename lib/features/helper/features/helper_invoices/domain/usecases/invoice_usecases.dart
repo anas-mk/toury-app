@@ -14,12 +14,6 @@ class GetInvoiceDetailUseCase {
   Future<InvoiceDetailEntity> execute(String invoiceId) => repository.getInvoiceDetail(invoiceId);
 }
 
-class GetInvoiceByBookingUseCase {
-  final HelperInvoicesRepository repository;
-  GetInvoiceByBookingUseCase(this.repository);
-  Future<InvoiceDetailEntity> execute(String bookingId) => repository.getInvoiceByBooking(bookingId);
-}
-
 class GetInvoiceSummaryUseCase {
   final HelperInvoicesRepository repository;
   GetInvoiceSummaryUseCase(this.repository);

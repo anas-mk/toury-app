@@ -61,7 +61,6 @@ class InvoiceHtmlLoaded extends HelperInvoicesState {
 class HelperInvoicesCubit extends Cubit<HelperInvoicesState> {
   final GetInvoicesUseCase getInvoicesUseCase;
   final GetInvoiceDetailUseCase getDetailUseCase;
-  final GetInvoiceByBookingUseCase getByBookingUseCase;
   final GetInvoiceSummaryUseCase getSummaryUseCase;
   final GetInvoiceHtmlUseCase getHtmlUseCase;
 
@@ -75,7 +74,6 @@ class HelperInvoicesCubit extends Cubit<HelperInvoicesState> {
   HelperInvoicesCubit({
     required this.getInvoicesUseCase,
     required this.getDetailUseCase,
-    required this.getByBookingUseCase,
     required this.getSummaryUseCase,
     required this.getHtmlUseCase,
   }) : super(InvoicesInitial());
@@ -139,17 +137,6 @@ class HelperInvoicesCubit extends Cubit<HelperInvoicesState> {
     emit(InvoiceDetailLoading());
     try {
       final detail = await getDetailUseCase.execute(invoiceId);
-      if (!isClosed) emit(InvoiceDetailLoaded(detail));
-    } catch (e) {
-      if (!isClosed) emit(InvoicesError(e.toString()));
-    }
-  }
-
-  Future<void> loadByBooking(String bookingId) async {
-    if (isClosed) return;
-    emit(InvoiceDetailLoading());
-    try {
-      final detail = await getByBookingUseCase.execute(bookingId);
       if (!isClosed) emit(InvoiceDetailLoaded(detail));
     } catch (e) {
       if (!isClosed) emit(InvoicesError(e.toString()));

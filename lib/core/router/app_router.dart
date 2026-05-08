@@ -1,12 +1,11 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:toury/features/tourist/features/profile/presentation/page/accounts_settings_page.dart';
-import 'package:toury/features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
-import 'package:toury/features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
-import '../../features/helper/features/helper_bookings/presentation/pages/earnings_page.dart';
-import '../../features/helper/features/helper_location/presentation/pages/helper_location_page.dart';
+import 'package:toury/features/user/features/profile/presentation/page/accounts_settings_page.dart';
+import 'package:toury/features/user/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import 'package:toury/features/user/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../features/helper/features/helper_location/presentation/pages/eligibility_debug_page.dart';
+import '../../features/helper/features/helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/service_areas_page.dart';
 import '../../features/helper/features/helper_service_areas/presentation/pages/add_edit_service_area_page.dart';
 import '../../features/helper/features/helper_service_areas/domain/entities/service_area_entities.dart'
@@ -16,77 +15,77 @@ import '../../features/helper/features/helper_invoices/presentation/pages/invoic
 import '../../features/helper/features/helper_invoices/presentation/pages/invoice_view_page.dart';
 import '../../features/helper/features/home/presentation/pages/helper_home_layout.dart';
 import '../../features/helper/features/language_interview/presentation/cubit/exams_cubit.dart';
-import '../../features/helper/features/language_interview/presentation/pages/interview_pending_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/interview_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/pre_interview_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/exams_page.dart';
 import '../../features/helper/features/profile/presentation/pages/profile_page.dart';
-import '../../features/tourist/features/home/presentation/pages/tourist_home_page.dart';
-import '../../features/tourist/features/payments/presentation/cubit/payment_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
+import '../../features/user/features/home/presentation/pages/tourist_home_page.dart';
+import '../../features/user/features/payments/presentation/cubit/payment_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
 import '../../features/helper/features/helper_ratings/presentation/pages/helper_ratings_page.dart';
 import '../../features/helper/features/helper_ratings/presentation/pages/rate_user_page.dart';
+import '../../features/helper/features/helper_reports/presentation/pages/helper_reports_page.dart';
+import '../../features/helper/features/helper_reports/presentation/cubit/helper_reports_cubit.dart';
+import '../../features/helper/features/helper_sos/presentation/pages/helper_sos_page.dart';
+import '../../features/helper/features/helper_sos/presentation/cubit/helper_sos_cubit.dart';
 import '../di/injection_container.dart';
 import '../services/notifications/notification_router.dart';
 import '../../features/helper/features/auth/data/datasources/helper_local_data_source.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
 import '../diagnostics/realtime_diagnostics_page.dart';
-import '../../features/tourist/features/auth/presentation/pages/login_page.dart';
-import '../../features/tourist/features/auth/presentation/pages/register_page.dart';
-import '../../features/tourist/features/auth/presentation/pages/enter_password_page.dart';
+import '../../features/user/features/auth/presentation/pages/login_page.dart';
+import '../../features/user/features/auth/presentation/pages/register_page.dart';
+import '../../features/user/features/auth/presentation/pages/enter_password_page.dart';
 import '../../features/splash/presentation/pages/role_selection_page.dart';
-import '../../features/tourist/features/auth/presentation/pages/forgot_password_page.dart'; // ✅ Updated import
-import '../../features/tourist/features/auth/presentation/pages/reset_password_page.dart'; // ✅ New import
-import '../../features/tourist/features/auth/presentation/pages/verify_code_page.dart';
-import '../../features/tourist/features/home/presentation/pages/home_layout.dart';
+import '../../features/user/features/auth/presentation/pages/forgot_password_page.dart'; // ✅ Updated import
+import '../../features/user/features/auth/presentation/pages/reset_password_page.dart'; // ✅ New import
+import '../../features/user/features/auth/presentation/pages/verify_code_page.dart';
+import '../../features/user/features/home/presentation/pages/home_layout.dart';
 import '../../features/helper/features/profile/presentation/pages/account_control_center_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/booking_home_page.dart';
-import '../../features/tourist/features/user_booking/domain/entities/search_params.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_search_form_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_search_results_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_helper_profile_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_review_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_alternatives_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/scheduled/scheduled_booking_detail_screen.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/helper_profile_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/booking_confirm_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/my_bookings_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/booking_home_page.dart';
+import '../../features/user/features/user_booking/domain/entities/search_params.dart';
+import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_search_form_screen.dart';
+import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_search_results_screen.dart';
+import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_helper_profile_screen.dart';
+import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_review_screen.dart';
+import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_alternatives_screen.dart';
+import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_booking_detail_screen.dart';
+import '../../features/user/features/user_booking/presentation/pages/helper_profile_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/booking_confirm_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/my_bookings_page.dart';
 // New instant-flow pages (Step 2 → 10).
-import '../../features/tourist/features/user_booking/presentation/pages/instant/instant_trip_details_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/instant_helpers_list_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/helper_booking_profile_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/booking_review_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/waiting_for_helper_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/booking_alternatives_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/booking_confirmed_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/trip_tracking_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/trip_tracking_entry_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/pay_now_page.dart';
-import '../../features/tourist/features/user_booking/presentation/pages/instant/location_pick_result.dart';
-import '../../features/tourist/features/user_booking/domain/entities/alternatives_response.dart'
-    as instant_alt;
-import '../../features/tourist/features/user_booking/domain/entities/booking_detail.dart'
+import '../../features/user/features/user_booking/presentation/pages/instant/instant_trip_details_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/instant_helpers_list_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/helper_booking_profile_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/booking_review_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/waiting_for_helper_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/booking_alternatives_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/booking_confirmed_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/trip_tracking_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/trip_tracking_entry_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/pay_now_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/instant/location_pick_result.dart';
+import '../../features/user/features/user_booking/domain/entities/alternatives_response.dart';
+import '../../features/user/features/user_booking/domain/entities/booking_detail.dart'
     as instant_booking;
-import '../../features/tourist/features/user_booking/domain/entities/helper_search_result.dart'
+import '../../features/user/features/user_booking/domain/entities/helper_search_result.dart'
     as instant_helper;
-import '../../features/tourist/features/user_booking/domain/entities/instant_search_request.dart'
-    as instant_req;
-import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
-import '../../features/tourist/features/user_booking/domain/entities/helper_booking_entity.dart';
-import '../../features/tourist/features/payments/presentation/pages/payment_method_page.dart';
-import '../../features/tourist/features/payments/presentation/pages/payment_processing_page.dart';
-import '../../features/tourist/features/payments/presentation/pages/payment_webview_page.dart';
-import '../../features/tourist/features/payments/presentation/pages/payment_success_page.dart';
-import '../../features/tourist/features/payments/presentation/pages/payment_failed_page.dart';
-import '../../features/tourist/features/payments/domain/entities/payment_entity.dart';
-import '../../features/tourist/features/user_invoices/presentation/pages/user_invoices_page.dart';
-import '../../features/tourist/features/user_invoices/domain/entities/invoice_entity.dart';
-import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
-import '../../features/tourist/features/user_invoices/presentation/pages/user_invoice_view_page.dart';
-import '../../features/tourist/features/user_ratings/presentation/pages/helper_reviews_page.dart';
-import '../../features/tourist/features/user_ratings/presentation/pages/rate_booking_page.dart';
-import '../../features/tourist/features/user_chat/presentation/pages/user_chat_page.dart';
-import '../../features/tourist/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
+import '../../features/user/features/user_booking/domain/entities/instant_search_request.dart';
+import '../../features/user/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
+import '../../features/user/features/user_booking/domain/entities/helper_booking_entity.dart';
+import '../../features/user/features/payments/presentation/pages/payment_method_page.dart';
+import '../../features/user/features/payments/presentation/pages/payment_processing_page.dart';
+import '../../features/user/features/payments/presentation/pages/payment_webview_page.dart';
+import '../../features/user/features/payments/presentation/pages/payment_success_page.dart';
+import '../../features/user/features/payments/presentation/pages/payment_failed_page.dart';
+import '../../features/user/features/payments/domain/entities/payment_entity.dart';
+import '../../features/user/features/user_invoices/presentation/pages/user_invoices_page.dart';
+import '../../features/user/features/user_invoices/domain/entities/invoice_entity.dart';
+import '../../features/user/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
+import '../../features/user/features/user_ratings/presentation/pages/helper_reviews_page.dart';
+import '../../features/user/features/user_ratings/presentation/pages/rate_booking_page.dart';
+import '../../features/user/features/user_chat/presentation/pages/user_chat_page.dart';
+import '../../features/user/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
 
 // Helper imports
 import '../../features/helper/features/auth/presentation/pages/helper_login_page.dart';
@@ -121,6 +120,104 @@ class GoRouterRefreshStream extends ChangeNotifier {
     _subscription.cancel();
     super.dispose();
   }
+}
+
+class InstantHelpersListRouteArgs {
+  const InstantHelpersListRouteArgs({
+    required this.cubit,
+    required this.searchRequest,
+    required this.pickup,
+    required this.destination,
+    required this.travelers,
+    required this.durationInMinutes,
+    required this.languageCode,
+    required this.requiresCar,
+    required this.notes,
+  });
+  final InstantBookingCubit cubit;
+  final InstantSearchRequest searchRequest;
+  final LocationPickResult pickup;
+  final LocationPickResult destination;
+  final int travelers;
+  final int durationInMinutes;
+  final String? languageCode;
+  final bool requiresCar;
+  final String? notes;
+}
+
+class InstantHelperProfileRouteArgs {
+  const InstantHelperProfileRouteArgs({
+    required this.cubit,
+    required this.helper,
+    required this.pickup,
+    required this.destination,
+    required this.travelers,
+    required this.durationInMinutes,
+    required this.languageCode,
+    required this.requiresCar,
+    required this.notes,
+  });
+  final InstantBookingCubit cubit;
+  final instant_helper.HelperSearchResult helper;
+  final LocationPickResult pickup;
+  final LocationPickResult destination;
+  final int travelers;
+  final int durationInMinutes;
+  final String? languageCode;
+  final bool requiresCar;
+  final String? notes;
+}
+
+class InstantBookingReviewRouteArgs {
+  const InstantBookingReviewRouteArgs({
+    required this.cubit,
+    required this.helper,
+    required this.pickup,
+    required this.destination,
+    required this.travelers,
+    required this.durationInMinutes,
+    required this.languageCode,
+    required this.requiresCar,
+    required this.notes,
+  });
+  final InstantBookingCubit cubit;
+  final instant_helper.HelperSearchResult helper;
+  final LocationPickResult pickup;
+  final LocationPickResult destination;
+  final int travelers;
+  final int durationInMinutes;
+  final String? languageCode;
+  final bool requiresCar;
+  final String? notes;
+}
+
+class InstantWaitingRouteArgs {
+  const InstantWaitingRouteArgs({required this.cubit, required this.helper});
+  final InstantBookingCubit cubit;
+  final instant_helper.HelperSearchResult? helper;
+}
+
+class InstantAlternativesRouteArgs {
+  const InstantAlternativesRouteArgs({
+    required this.cubit,
+    required this.booking,
+    required this.alternatives,
+  });
+  final InstantBookingCubit cubit;
+  final instant_booking.BookingDetail booking;
+  final AlternativesResponse alternatives;
+}
+
+class InstantConfirmedRouteArgs {
+  const InstantConfirmedRouteArgs({required this.cubit, required this.helper});
+  final InstantBookingCubit cubit;
+  final instant_helper.HelperSearchResult? helper;
+}
+
+class InstantTripTrackingRouteArgs {
+  const InstantTripTrackingRouteArgs({required this.cubit, required this.helper});
+  final InstantBookingCubit cubit;
+  final instant_helper.HelperSearchResult? helper;
 }
 
 // Placeholder page for Google
@@ -280,7 +377,6 @@ class AppRouter {
   static const String accountInactive = '/account-inactive';
   static const String interviewScreen = '/interview-screen';
   static const String preInterview = '/pre-interview';
-  static const String interviewPending = '/interview-pending';
 
   // Helper Shell Routes
   static const String helperHome = '/helper/home';
@@ -297,8 +393,6 @@ class AppRouter {
   static const String helperActiveBooking = '/helper/active-booking';
   static const String helperBookingDetails = '/helper/booking-details/:id';
   static const String helperHistory = '/helper/history';
-  static const String helperEarnings = '/helper/earnings';
-  static const String helperLocation = '/helper/location';
   static const String helperEligibilityDebug = '/helper/eligibility-debug';
   static const String helperServiceAreas = '/helper/service-areas';
   static const String helperAddServiceArea = '/helper/add-service-area';
@@ -605,13 +699,6 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const BookingsCenterPage(initialTabIndex: 2),
       ),
-      GoRoute(
-        path: helperEarnings,
-        name: 'helper-earnings',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const EarningsPage(),
-      ),
-
       // 5. Tourist Home & Flow (Shell Route)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -646,13 +733,7 @@ class AppRouter {
               GoRoute(
                 path: myBookings,
                 name: 'my-bookings',
-                builder: (context, state) {
-                  // Optional `?filter=active|upcoming|past` lets other
-                  // screens deep-link straight into a specific tab (e.g.
-                  // the Profile screen's "Trips" stat opens "past").
-                  final filter = state.uri.queryParameters['filter'];
-                  return MyBookingsPage(initialFilter: filter);
-                },
+                builder: (context, state) => const MyBookingsPage(),
               ),
             ],
           ),
@@ -723,12 +804,6 @@ class AppRouter {
           );
         },
       ),
-      GoRoute(
-        path: interviewPending,
-        name: 'interview-pending',
-        builder: (context, state) => const InterviewPendingScreen(),
-      ),
-
       // 7. User Booking Routes
       GoRoute(
         path: bookingHome,
@@ -851,18 +926,17 @@ class AppRouter {
         path: instantHelpersList,
         name: 'instant-helpers-list',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantHelpersListRouteArgs;
           return InstantHelpersListPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
-            searchRequest:
-                extra['searchRequest'] as instant_req.InstantSearchRequest,
-            pickup: extra['pickup'] as LocationPickResult,
-            destination: extra['destination'] as LocationPickResult,
-            travelers: extra['travelers'] as int,
-            durationInMinutes: extra['durationInMinutes'] as int,
-            languageCode: extra['languageCode'] as String?,
-            requiresCar: extra['requiresCar'] as bool,
-            notes: extra['notes'] as String?,
+            cubit: extra.cubit,
+            searchRequest: extra.searchRequest,
+            pickup: extra.pickup,
+            destination: extra.destination,
+            travelers: extra.travelers,
+            durationInMinutes: extra.durationInMinutes,
+            languageCode: extra.languageCode,
+            requiresCar: extra.requiresCar,
+            notes: extra.notes,
           );
         },
       ),
@@ -870,17 +944,17 @@ class AppRouter {
         path: instantHelperProfile,
         name: 'instant-helper-profile',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantHelperProfileRouteArgs;
           return HelperBookingProfilePage(
-            cubit: extra['cubit'] as InstantBookingCubit,
-            helper: extra['helper'] as instant_helper.HelperSearchResult,
-            pickup: extra['pickup'] as LocationPickResult,
-            destination: extra['destination'] as LocationPickResult,
-            travelers: extra['travelers'] as int,
-            durationInMinutes: extra['durationInMinutes'] as int,
-            languageCode: extra['languageCode'] as String?,
-            requiresCar: extra['requiresCar'] as bool,
-            notes: extra['notes'] as String?,
+            cubit: extra.cubit,
+            helper: extra.helper,
+            pickup: extra.pickup,
+            destination: extra.destination,
+            travelers: extra.travelers,
+            durationInMinutes: extra.durationInMinutes,
+            languageCode: extra.languageCode,
+            requiresCar: extra.requiresCar,
+            notes: extra.notes,
           );
         },
       ),
@@ -888,17 +962,17 @@ class AppRouter {
         path: instantBookingReview,
         name: 'instant-booking-review',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantBookingReviewRouteArgs;
           return BookingReviewPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
-            helper: extra['helper'] as instant_helper.HelperSearchResult,
-            pickup: extra['pickup'] as LocationPickResult,
-            destination: extra['destination'] as LocationPickResult,
-            travelers: extra['travelers'] as int,
-            durationInMinutes: extra['durationInMinutes'] as int,
-            languageCode: extra['languageCode'] as String?,
-            requiresCar: extra['requiresCar'] as bool,
-            notes: extra['notes'] as String?,
+            cubit: extra.cubit,
+            helper: extra.helper,
+            pickup: extra.pickup,
+            destination: extra.destination,
+            travelers: extra.travelers,
+            durationInMinutes: extra.durationInMinutes,
+            languageCode: extra.languageCode,
+            requiresCar: extra.requiresCar,
+            notes: extra.notes,
           );
         },
       ),
@@ -907,11 +981,11 @@ class AppRouter {
         name: 'instant-waiting',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantWaitingRouteArgs;
           return WaitingForHelperPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
+            cubit: extra.cubit,
             bookingId: id,
-            helper: extra['helper'] as instant_helper.HelperSearchResult?,
+            helper: extra.helper,
           );
         },
       ),
@@ -919,12 +993,11 @@ class AppRouter {
         path: instantAlternatives,
         name: 'instant-alternatives',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantAlternativesRouteArgs;
           return BookingAlternativesPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
-            booking: extra['booking'] as instant_booking.BookingDetail,
-            alternatives:
-                extra['alternatives'] as instant_alt.AlternativesResponse,
+            cubit: extra.cubit,
+            booking: extra.booking,
+            alternatives: extra.alternatives,
           );
         },
       ),
@@ -933,11 +1006,11 @@ class AppRouter {
         name: 'instant-confirmed',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantConfirmedRouteArgs;
           return BookingConfirmedPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
+            cubit: extra.cubit,
             bookingId: id,
-            helper: extra['helper'] as instant_helper.HelperSearchResult?,
+            helper: extra.helper,
           );
         },
       ),
@@ -946,11 +1019,11 @@ class AppRouter {
         name: 'instant-trip-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as InstantTripTrackingRouteArgs;
           return TripTrackingPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
+            cubit: extra.cubit,
             bookingId: id,
-            helper: extra['helper'] as instant_helper.HelperSearchResult?,
+            helper: extra.helper,
           );
         },
       ),
@@ -967,17 +1040,8 @@ class AppRouter {
         name: 'instant-pay-now',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra;
-          InstantBookingCubit? cubit;
-          var requireRating = false;
-          if (extra is Map<String, dynamic>) {
-            cubit = extra['cubit'] as InstantBookingCubit?;
-            requireRating = extra['requireRating'] == true;
-          }
           return PayNowPage(
             bookingId: id,
-            instantCubit: cubit,
-            requireRating: requireRating,
           );
         },
       ),
@@ -1010,12 +1074,22 @@ class AppRouter {
         name: 'payment-webview',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>;
+          final paymentUrl = extra['paymentUrl'] as String?;
+          final paymentId = extra['paymentId'] as String?;
+          final bookingId = extra['bookingId'] as String?;
+          if (paymentUrl == null || paymentId == null || bookingId == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Payment URL is unavailable. Please try again.'),
+              ),
+            );
+          }
           return BlocProvider(
             create: (_) => sl<PaymentCubit>(),
             child: PaymentWebviewPage(
-              paymentUrl: extra['paymentUrl'],
-              paymentId: extra['paymentId'],
-              bookingId: extra['bookingId'],
+              paymentUrl: paymentUrl,
+              paymentId: paymentId,
+              bookingId: bookingId,
             ),
           );
         },
@@ -1052,7 +1126,7 @@ class AppRouter {
         name: 'user-invoice-view',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return UserInvoiceViewPage(invoiceId: id);
+          return UserInvoiceDetailPage(invoiceId: id);
         },
       ),
 
@@ -1149,17 +1223,6 @@ class AppRouter {
 
 
 
-      // ── Helper Location ──────────────────────────────────────────────────
-      GoRoute(
-        path: helperLocation,
-        name: 'helper-location',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const HelperLocationPage(),
-          transitionsBuilder: _slideUp,
-        ),
-      ),
       GoRoute(
         path: helperEligibilityDebug,
         name: 'helper-eligibility-debug',
@@ -1261,6 +1324,40 @@ class AppRouter {
           );
         },
       ),
+      GoRoute(
+        path: helperReports,
+        name: 'helper-reports',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: BlocProvider<HelperReportsCubit>(
+            create: (_) => sl<HelperReportsCubit>()..loadReports(),
+            child: const HelperReportsPage(),
+          ),
+          transitionsBuilder: _fadeSlide,
+        ),
+      ),
+      GoRoute(
+        path: helperSos,
+        name: 'helper-sos',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final bookingId =
+              state.uri.queryParameters['bookingId'] ??
+              (state.extra is String ? state.extra as String : '');
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: MultiBlocProvider(
+              providers: [
+                BlocProvider<HelperSosCubit>(create: (_) => sl<HelperSosCubit>()),
+                BlocProvider.value(value: sl<HelperLocationCubit>()),
+              ],
+              child: HelperSosPage(bookingId: bookingId),
+            ),
+            transitionsBuilder: _slideUp,
+          );
+        },
+      ),
     ],
 
     // 4. Custom 404 Error Page
@@ -1276,7 +1373,7 @@ class AppRouter {
                 Container(
                   padding: const EdgeInsets.all(AppTheme.spaceXL),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.error.withOpacity(0.1),
+                    color: theme.colorScheme.error.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.error_outline_rounded, size: 64, color: theme.colorScheme.error),
@@ -1291,7 +1388,7 @@ class AppRouter {
                 Text(
                   'The page you are looking for does not exist or has been moved.',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1300,7 +1397,7 @@ class AppRouter {
                   Text(
                     state.uri.toString(),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.3),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                       fontStyle: FontStyle.italic,
                     ),
                     textAlign: TextAlign.center,

@@ -44,6 +44,15 @@ class RequestDetailsCubit extends Cubit<RequestDetailsState> {
       emit(RequestDetailsLoaded(current.copyWith(status: newStatus)));
     }
   }
+
+  /// Replace the loaded booking with a server-confirmed entity (e.g. the
+  /// updated booking returned by the accept-request API). This is preferred
+  /// over [optimisticUpdateStatus] when we already have the new entity, since
+  /// it also refreshes flags like `canStartTrip` / `canEndTrip`.
+  void setBooking(HelperBooking booking) {
+    if (isClosed) return;
+    emit(RequestDetailsLoaded(booking));
+  }
 }
 
 
