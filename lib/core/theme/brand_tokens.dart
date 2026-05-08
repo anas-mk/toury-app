@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// RAFIQ design tokens — transportation / mobility palette.
+/// RAFIQ design tokens — Pass #4 creative palette.
 ///
 /// Source-of-truth for every color, gradient, shadow, and font used by the
 /// brand widget kit (`lib/core/widgets/brand/*`). Pages must NOT hard-code
@@ -10,19 +10,19 @@ import 'package:google_fonts/google_fonts.dart';
 abstract class BrandTokens {
   BrandTokens._();
 
-  // ── Core palette (brand navy #0B3D91 + derived stops) ────────────────────
-  static const Color primaryBlue = Color(0xFF0B3D91);
-  static const Color primaryBlueDark = Color(0xFF062E6E);
+  // ── Core palette (from OtpEmailTemplateFactory.cs) ───────────────────────
+  static const Color primaryBlue = Color(0xFF1B237E);
+  static const Color primaryBlueDark = Color(0xFF0F1655);
   static const Color accentAmber = Color(0xFFF5A623);
   static const Color accentAmberSoft = Color(0xFFFEF3C7);
   static const Color accentAmberBorder = Color(0xFFFDE68A);
   static const Color accentAmberText = Color(0xFFB45309);
 
   static const Color surfaceWhite = Color(0xFFFFFFFF);
-  static const Color bgSoft = Color(0xFFF3F6FA);
+  static const Color bgSoft = Color(0xFFF4F5FB);
   static const Color borderSoft = Color(0xFFE2E8F0);
-  // Tinted border for surfaces against brand navy.
-  static const Color borderTinted = Color(0xFFC8D7E8);
+  // Brief alignment (Phase 1): tinted border for brand-blue surfaces.
+  static const Color borderTinted = Color(0xFFE0E7FF);
 
   static const Color textPrimary = Color(0xFF0F172A);
   static const Color textSecondary = Color(0xFF475569);
@@ -49,17 +49,17 @@ abstract class BrandTokens {
   /// Soft amber glow used under amber CTAs (instead of black shadow).
   static const Color glowAmber = Color(0xFFFFE7A6);
   /// Soft blue glow used under blue CTAs.
-  static const Color glowBlue = Color(0xFFB8D4F0);
+  static const Color glowBlue = Color(0xFFC7CCFF);
 
   /// Soft elevation shadow tinted toward the brand (not gray).
-  static const Color shadowSoft = Color(0x140B3D91);
-  static const Color shadowDeep = Color(0x260B3D91);
+  static const Color shadowSoft = Color(0x141B237E);
+  static const Color shadowDeep = Color(0x261B237E);
 
-  // ── Mesh-gradient palette (animated hero canvas) — navy / teal only ───────
-  static const Color gradientMeshA = Color(0xFF0B3D91);
-  static const Color gradientMeshB = Color(0xFF1568B8);
-  static const Color gradientMeshC = Color(0xFF2AA89A);
-  static const Color gradientMeshD = Color(0xFF041E3D);
+  // ── Mesh-gradient palette (animated hero canvas) ─────────────────────────
+  static const Color gradientMeshA = Color(0xFF1B237E);
+  static const Color gradientMeshB = Color(0xFF6B5BFF);
+  static const Color gradientMeshC = Color(0xFFF5A623);
+  static const Color gradientMeshD = Color(0xFFFF6B9D);
 
   // ── Brand strings ────────────────────────────────────────────────────────
   static const String wordmark = 'RAFIQ';
@@ -86,12 +86,11 @@ abstract class BrandTokens {
 
   // ── Font helpers ─────────────────────────────────────────────────────────
 
-  /// Wordmark — clean geometric sans (mobility apps avoid script logos).
+  /// Pacifico — used ONLY for the RAFIQ wordmark (bundled locally).
   static TextStyle wordmarkStyle({double fontSize = 28, Color? color}) =>
-      GoogleFonts.outfit(
+      TextStyle(
+        fontFamily: 'Pacifico',
         fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.5,
         color: color ?? surfaceWhite,
       );
 

@@ -23,7 +23,12 @@ class UserModel extends UserEntity {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    String? profileImageUrl = json['profileImageUrl'];
+    // The backend isn't 100% consistent with the field name — the
+    // `update-profile` endpoint returns it as `profileImage`, while
+    // most other endpoints use `profileImageUrl`. Read both so a
+    // freshly-uploaded photo is picked up regardless.
+    final rawImage = json['profileImageUrl'] ?? json['profileImage'];
+    String? profileImageUrl = rawImage is String ? rawImage : null;
 
     if (profileImageUrl != null && profileImageUrl.isNotEmpty) {
       if (profileImageUrl.startsWith('/')) {

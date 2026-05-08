@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'app.dart';
@@ -88,6 +89,13 @@ Future<void> _logFcmTokenOnce() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load brand fonts before the first frame so the RAFIQ wordmark is correct.
+  try {
+    final loader = FontLoader('PermanentMarker')
+      ..addFont(rootBundle.load('fonts/PermanentMarker-Regular.ttf'));
+    await loader.load();
+  } catch (_) {}
 
   // Mapbox SDK 2.x requires the token to be set globally before any MapWidget
   // is instantiated. ResourceOptions was removed in v2.

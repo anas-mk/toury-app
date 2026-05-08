@@ -27,6 +27,22 @@ abstract class AuthRemoteDataSource {
     required String country,
     File? profileImage,
   });
+
+  /// Partial profile update — only sends the fields the caller passes.
+  /// Mirrors the swagger contract for `PUT /Auth/update-profile`, where
+  /// `userId` is the only required form field and everything else is
+  /// optional. This is what the new redesigned profile screen calls when
+  /// the user edits a single field at a time.
+  Future<UserModel> patchProfile({
+    required String token,
+    required String userId,
+    String? userName,
+    String? phoneNumber,
+    String? gender,
+    DateTime? birthDate,
+    String? country,
+    File? profileImage,
+  });
   Future<Map<String, dynamic>> googleLogin(String email);
   Future<Map<String, dynamic>> forgotPassword(String email);
   Future<Map<String, dynamic>> resetPassword({
@@ -502,6 +518,85 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception(_handleDioError(e));
     } catch (e) {
       print('❌ Unknown error in updateProfile: $e');
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  // ---------------- PATCH PROFILE (partial / optional fields) ----------------
+  @override
+  Future<UserModel> patchProfile({
+    required String token,
+    required String userId,
+    String? userName,
+    String? phoneNumber,
+    String? gender,
+    DateTime? birthDate,
+    String? country,
+    File? profileImage,
+  }) async {
+    try {
+      print('🔄 Patching profile (partial fields)');
+
+      // Field names match the swagger schema (`UserId`, `UserName`,
+      // `ProfileImage`, …) using PascalCase. ASP.NET Core's default
+      // form binder is case-insensitive, but explicit-case `[FromForm]`
+      // attributes occasionally aren't, so we send exactly what the
+      // contract documents.
+      final Map<String, dynamic> fields = {
+        'UserId': userId,
+      };
+      if (userName != null) fields['UserName'] = userName;
+      if (phoneNumber != null) fields['PhoneNumber'] = phoneNumber;
+      if (gender != null) fields['Gender'] = gender;
+      if (birthDate != null) fields['BirthDate'] = birthDate.toIso8601String();
+      if (country != null) fields['Country'] = country;
+      if (profileImage != null) {
+        fields['ProfileImage'] = await MultipartFile.fromFile(
+          profileImage.path,
+          filename: profileImage.path.split('/').last,
+        );
+      }
+
+      final formData = FormData.fromMap(fields);
+
+      final response = await dio.put(
+        ApiConfig.updateProfile,
+        data: formData,
+        options: Options(
+          headers: ApiConfig.getAuthHeaders(token),
+        ),
+      );
+
+      print('✅ Patch profile response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = response.data is String
+            ? Map<String, dynamic>.from(jsonDecode(response.data))
+            : Map<String, dynamic>.from(response.data);
+
+        final userDataRaw = responseData['domain'] ?? responseData['user'];
+
+        if (userDataRaw == null) {
+          throw Exception('Invalid response format: user not found');
+        }
+
+        final Map<String, dynamic> userData =
+            Map<String, dynamic>.from(userDataRaw);
+
+        final userJson = {
+          ...userData,
+          'token': token,
+        };
+
+        return UserModel.fromJson(userJson);
+      } else {
+        throw Exception('Profile update failed: ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      print('❌ DioException in patchProfile: ${e.message}');
+      throw Exception(_handleDioError(e));
+    } catch (e) {
+      print('❌ Unknown error in patchProfile: $e');
       throw Exception('Unexpected error: $e');
     }
   }
