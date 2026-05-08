@@ -12,6 +12,7 @@ import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/utils/jwt_payload.dart';
 import '../../../../../../core/widgets/booking_status_chip.dart';
 import '../../../../../../core/widgets/brand/brand_kit.dart';
+import '../../../../../../core/widgets/user_avatar.dart';
 import '../../../user_booking/domain/entities/booking_detail_entity.dart';
 import '../../../user_booking/presentation/cubits/booking_status_cubit.dart';
 import '../../../user_booking/presentation/cubits/booking_status_state.dart';
@@ -83,7 +84,9 @@ class _TouristHomePageState extends State<TouristHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: BrandTokens.bgSoft,
+      // Warm cream background from the new design (#FAF8F4) — matches
+      // the cream surface the action card + chips sit on.
+      backgroundColor: const Color(0xFFFAF8F4),
       body: RefreshIndicator.adaptive(
         onRefresh: _refresh,
         color: BrandTokens.primaryBlue,
@@ -93,18 +96,20 @@ class _TouristHomePageState extends State<TouristHomePage> {
             parent: BouncingScrollPhysics(),
           ),
           slivers: [
+            // ── Hero + overlapping action card (in a single Stack) ─
             SliverToBoxAdapter(
-              child: _HomeHero(
+              child: _HomeHeroSection(
                 firstName: _firstName,
                 onInstant: () => context.push(AppRouter.instantTripDetails),
                 onScheduled: () => context.push(AppRouter.scheduledSearch),
               ),
             ),
+
+            // ── Active trip + Recent trips ────────────────────────
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 110),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 140),
               sliver: SliverList(
                 delegate: SliverChildListDelegate.fixed([
-                  // ── Active trip live card ─────────────────────────
                   BlocBuilder<BookingStatusCubit, BookingStatusState>(
                     buildWhen: (a, b) => a.runtimeType != b.runtimeType ||
                         (a is BookingStatusActive &&
@@ -134,13 +139,11 @@ class _TouristHomePageState extends State<TouristHomePage> {
                     },
                   ),
 
-                  // ── Recent trips header ───────────────────────────
                   _RecentTripsHeader(
                     onSeeAll: () => context.go(AppRouter.myBookings),
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Recent trips pills ────────────────────────────
                   BlocBuilder<MyBookingsCubit, MyBookingsState>(
                     builder: (context, state) {
                       if (state is MyBookingsLoading ||
@@ -188,15 +191,19 @@ class _TouristHomePageState extends State<TouristHomePage> {
 }
 
 // ============================================================================
-//  HERO
+//  HERO SECTION (image + greeting + overlapping action card)
 // ============================================================================
 
-class _HomeHero extends StatelessWidget {
+/// Combines the cinematic hero image and the search/CTA action card in a
+/// single stack so the action card can genuinely overlap the bottom of
+/// the hero (vs. `Transform.translate`, which leaves a layout gap and
+/// pushes content below it down by the hero's full height).
+class _HomeHeroSection extends StatelessWidget {
   final String? firstName;
   final VoidCallback onInstant;
   final VoidCallback onScheduled;
 
-  const _HomeHero({
+  const _HomeHeroSection({
     required this.firstName,
     required this.onInstant,
     required this.onScheduled,
@@ -206,17 +213,64 @@ class _HomeHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaTop = MediaQuery.of(context).padding.top;
 
-    // ~67% of a standard 844 logical-px screen, matching Ahmed proportions.
-    const double heroContentHeight = 520.0;
-    final double heroHeight = heroContentHeight + mediaTop;
+    // Hero height matches the reference design (486 px) plus the
+    // status bar so the gradient fully covers the notch area.
+    const double heroVisualHeight = 486.0;
+    final double heroHeight = heroVisualHeight + mediaTop;
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(32),
-        bottomRight: Radius.circular(32),
+    // Action card sits BELOW the hero with only a small overlap, like
+    // the reference's `-mt-8` (32 px). Most of the card is on the
+    // cream background, which keeps the search bar fully legible and
+    // gives the greeting room to breathe in the lower half of the
+    // hero (matching the design).
+    const double cardOverlap = 32.0;
+
+    return SizedBox(
+      // Total section height: hero + the action card height that
+      // protrudes below the hero. We can't measure the card
+      // dynamically, so estimate generously: search 56 + gap 14 +
+      // cta 56 + gap 14 + link 28 + breathing 8 = 176 px protruding
+      // (i.e. card height ~176 - cardOverlap that's hidden by hero).
+      height: heroHeight + 176 - cardOverlap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Hero image + gradient + top bar + greeting.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _HomeHero(firstName: firstName, height: heroHeight),
+          ),
+
+          // Action card overlapping the bottom of the hero by 32 px.
+          Positioned(
+            top: heroHeight - cardOverlap,
+            left: 20,
+            right: 20,
+            child: _ActionCard(
+              onInstant: onInstant,
+              onScheduled: onScheduled,
+            ),
+          ),
+        ],
       ),
-      child: SizedBox(
-      height: heroHeight,
+    );
+  }
+}
+
+class _HomeHero extends StatelessWidget {
+  final String? firstName;
+  final double height;
+
+  const _HomeHero({required this.firstName, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaTop = MediaQuery.of(context).padding.top;
+
+    return SizedBox(
+      height: height,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -228,130 +282,179 @@ class _HomeHero extends StatelessWidget {
                 const RepaintBoundary(child: MeshGradientBackground()),
           ),
 
-          // ── Gradient: top 25% fully clear (image breathes like Ahmed),
-          //    then ramps to dark just before the greeting text zone.
+          // ── Gradient: dark at the very top for top-bar legibility,
+          //    deep enough mid-frame for the greeting, fades to the
+          //    warm cream `bgSoft` at the seam where the action card
+          //    starts overlapping.
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: [0.0, 0.25, 0.36, 0.54, 0.72, 1.0],
+                stops: [0.0, 0.45, 0.85, 1.0],
                 colors: [
-                  Color(0x00000000), // 0%  – fully transparent at top
-                  Color(0x00000000), // 0%  – still clear through top quarter
-                  Color(0x66000000), // 40% – ramps dark just before greeting
-                  Color(0x99000000), // 60% – darkest: name text readability
-                  Color(0x80000000), // 50% – search + CTA zone
-                  Color(0x66000000), // 40% – schedule link at bottom
+                  Color(0x1A000000), // 10% black – legibility for top bar
+                  Color(0x66000000), // 40% black – greeting readability
+                  Color(0xCCFAF8F4), // cream haze before the seam
+                  Color(0xFFFAF8F4), // solid cream — meets scaffold bg
                 ],
               ),
             ),
           ),
 
-          // ── Content column ───────────────────────────────────────
-          Padding(
-            padding: EdgeInsets.fromLTRB(24, mediaTop + 16, 24, 28),
+          // ── Top bar: menu + RAFIQ on left, avatar on right ──────
+          Positioned(
+            top: mediaTop + 12,
+            left: 16,
+            right: 16,
+            child: _HomeTopBar(
+              onMenu: () => context.goNamed('account-settings'),
+              onAvatar: () => context.goNamed('account-settings'),
+            ),
+          ),
+
+          // ── Greeting text — sits in the lower portion of the hero
+          //    (matches `bottom-16` ≈ 64 px in the reference). The
+          //    action card overlaps only the last 32 px of the hero,
+          //    so the greeting stays well clear above it.
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 64,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Top bar: hamburger + RAFIQ on the LEFT (matching reference)
-                Row(
-                  children: [
-                    _HeroIconButton(
-                      icon: Icons.menu_rounded,
-                      onTap: () {},
-                    ),
-                    const SizedBox(width: 12),
-                    RichText(
-                      text: const TextSpan(
-                        text: 'RAFIQ',
-                        style: TextStyle(
-                          inherit: false,
-                          fontFamily: 'PermanentMarker',
-                          fontSize: 32,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              color: Color(0x66000000),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Single spacer pushes ALL content to bottom of hero
-                const Spacer(),
-
-                // "Where to today," – 18px light
                 Text(
                   'Where to today,',
                   style: BrandTokens.body(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w300,
-                    color: Colors.white.withValues(alpha: 0.92),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white.withValues(alpha: 0.95),
                   ),
                 ),
-                const SizedBox(height: 4),
-
-                // User name – 48px bold
+                const SizedBox(height: 2),
                 Text(
                   firstName == null || firstName!.isEmpty
                       ? 'Traveler?'
                       : '$firstName?',
                   style: BrandTokens.heading(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 42,
+                    fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    letterSpacing: -1.0,
+                    letterSpacing: -0.6,
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Search bar – height 64, radius 32
-                const _HeroSearchBar(),
-                const SizedBox(height: 12),
-
-                // Find a Guide Now – height 56, radius 12
-                Hero(
-                  tag: 'instant-cta',
-                  child: _FindGuideButton(onTap: onInstant),
-                ),
-                const SizedBox(height: 12),
-
-                // Schedule for later
-                Center(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      onScheduled();
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        'Schedule for later →',
-                        style: BrandTokens.body(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ).copyWith(
-                          decoration: TextDecoration.underline,
-                          decorationColor: Colors.white.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
               ],
             ),
           ),
         ],
       ),
-      ),
+    );
+  }
+}
+
+// ============================================================================
+//  TOP BAR (menu + RAFIQ wordmark on left, user avatar on right)
+// ============================================================================
+
+class _HomeTopBar extends StatelessWidget {
+  final VoidCallback onMenu;
+  final VoidCallback onAvatar;
+
+  const _HomeTopBar({required this.onMenu, required this.onAvatar});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _HeroIconButton(icon: Icons.menu_rounded, onTap: onMenu),
+        const SizedBox(width: 10),
+        RichText(
+          text: const TextSpan(
+            text: 'RAFIQ',
+            style: TextStyle(
+              inherit: false,
+              fontFamily: 'PermanentMarker',
+              fontSize: 24,
+              color: Colors.white,
+              shadows: [
+                Shadow(color: Color(0x66000000), blurRadius: 8),
+              ],
+            ),
+          ),
+        ),
+        const Spacer(),
+        UserAvatar(
+          size: 36,
+          fontSize: 13,
+          backgroundColor: Colors.white.withValues(alpha: 0.18),
+          foregroundColor: Colors.white,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onAvatar();
+          },
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+//  ACTION CARD — search bar + Find a Guide CTA + Schedule for later link
+// ============================================================================
+
+class _ActionCard extends StatelessWidget {
+  final VoidCallback onInstant;
+  final VoidCallback onScheduled;
+
+  const _ActionCard({required this.onInstant, required this.onScheduled});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Pill-style search bar (height 56, radius 28).
+        const _HeroSearchBar(),
+        const SizedBox(height: 14),
+        Hero(
+          tag: 'instant-cta',
+          child: _FindGuideButton(onTap: onInstant),
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onScheduled();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 4,
+              ),
+              child: Text(
+                'Schedule for later →',
+                style: BrandTokens.body(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: BrandTokens.primaryBlue,
+                ).copyWith(
+                  decoration: TextDecoration.underline,
+                  decorationColor:
+                      BrandTokens.primaryBlue.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -361,26 +464,30 @@ class _HeroSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Spec: height 64px, border-radius 32px, light shadow
+    // Pill search bar — sits on the cream background, soft border to
+    // feel airy (matches the new mock).
     return Container(
-      height: 64,
+      height: 56,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: BrandTokens.borderSoft.withValues(alpha: 0.6),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Row(
         children: [
-          const SizedBox(width: 20),
-          const Icon(
+          const SizedBox(width: 18),
+          Icon(
             Icons.search_rounded,
-            color: BrandTokens.textMuted,
+            color: BrandTokens.primaryBlue.withValues(alpha: 0.85),
             size: 22,
           ),
           const SizedBox(width: 12),
@@ -394,17 +501,17 @@ class _HeroSearchBar extends StatelessWidget {
             ),
           ),
           Container(
-            width: 44,
-            height: 44,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: const BoxDecoration(
-              color: BrandTokens.primaryBlue,
+            width: 40,
+            height: 40,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.arrow_forward_rounded,
-              color: Colors.white,
-              size: 22,
+              color: BrandTokens.primaryBlue,
+              size: 20,
             ),
           ),
         ],
@@ -442,20 +549,26 @@ class _FindGuideButtonState extends State<_FindGuideButton> {
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            gradient: BrandTokens.primaryGradient,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: BrandTokens.ctaBlueGlow,
+            color: BrandTokens.primaryBlue,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.18),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
+              const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Find a Guide Now',
                 style: BrandTokens.heading(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
@@ -481,18 +594,14 @@ class _HeroIconButton extends StatelessWidget {
         onTap();
       },
       child: Container(
-        width: 44,
-        height: 44,
+        width: 36,
+        height: 36,
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
+        decoration: const BoxDecoration(
+          color: Colors.transparent,
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.4),
-            width: 1.2,
-          ),
         ),
-        child: Icon(icon, color: Colors.white, size: 22),
+        child: Icon(icon, color: Colors.white, size: 24),
       ),
     );
   }
@@ -673,41 +782,28 @@ class _RecentTripsHeader extends StatelessWidget {
           child: Text(
             'Recent trips',
             style: BrandTokens.heading(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
               color: BrandTokens.textPrimary,
-              letterSpacing: -0.3,
+              letterSpacing: -0.2,
             ),
           ),
         ),
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             HapticFeedback.selectionClick();
             onSeeAll();
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: BrandTokens.accentAmberSoft,
-              borderRadius: BorderRadius.circular(40),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  'See all',
-                  style: BrandTokens.heading(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: BrandTokens.accentAmberText,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 14,
-                  color: BrandTokens.accentAmberText,
-                ),
-              ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Text(
+              'View all →',
+              style: BrandTokens.body(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: BrandTokens.primaryBlue,
+              ),
             ),
           ),
         ),
@@ -766,8 +862,16 @@ class _TripPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(40),
-          boxShadow: BrandTokens.cardShadow,
-          border: Border.all(color: BrandTokens.borderSoft),
+          border: Border.all(
+            color: BrandTokens.borderSoft.withValues(alpha: 0.6),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

@@ -646,7 +646,13 @@ class AppRouter {
               GoRoute(
                 path: myBookings,
                 name: 'my-bookings',
-                builder: (context, state) => const MyBookingsPage(),
+                builder: (context, state) {
+                  // Optional `?filter=active|upcoming|past` lets other
+                  // screens deep-link straight into a specific tab (e.g.
+                  // the Profile screen's "Trips" stat opens "past").
+                  final filter = state.uri.queryParameters['filter'];
+                  return MyBookingsPage(initialFilter: filter);
+                },
               ),
             ],
           ),

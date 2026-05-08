@@ -11,6 +11,7 @@ import '../../../../../../core/services/realtime/app_realtime_cubit.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/utils/jwt_payload.dart';
 import '../../../../../../core/widgets/booking_status_chip.dart';
+import '../../../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/booking_detail_entity.dart';
 import '../cubits/my_bookings_cubit.dart';
 import '../cubits/my_bookings_state.dart';
@@ -41,7 +42,10 @@ bool _isPast(BookingStatus s) =>
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 class MyBookingsPage extends StatefulWidget {
-  const MyBookingsPage({super.key});
+  /// Optional initial filter (`'active'`, `'upcoming'`, `'past'`) — set
+  /// when other screens deep-link here (Profile's "Trips" bento stat).
+  final String? initialFilter;
+  const MyBookingsPage({super.key, this.initialFilter});
 
   @override
   State<MyBookingsPage> createState() => _MyBookingsPageState();
@@ -55,6 +59,14 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
   @override
   void initState() {
     super.initState();
+    final f = widget.initialFilter?.toLowerCase();
+    if (f == 'past') {
+      _filter = _Filter.past;
+    } else if (f == 'upcoming') {
+      _filter = _Filter.upcoming;
+    } else if (f == 'active') {
+      _filter = _Filter.active;
+    }
     try {
       final token = sl<AuthService>().getToken();
       final name = JwtPayload.firstName(token);
@@ -176,38 +188,19 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = (firstName?.isNotEmpty ?? false)
-        ? firstName![0].toUpperCase()
-        : null;
-
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
-          // User avatar
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: initial != null
-                ? Text(
-                    initial,
-                    style: BrandTokens.heading(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: BrandTokens.primaryBlue,
-                    ),
-                  )
-                : const Icon(
-                    Icons.person_rounded,
-                    color: BrandTokens.primaryBlue,
-                    size: 22,
-                  ),
+          // User avatar — real photo (cached) with initial fallback
+          UserAvatar(
+            size: 40,
+            fontSize: 16,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.goNamed('account-settings');
+            },
           ),
 
           const Spacer(),

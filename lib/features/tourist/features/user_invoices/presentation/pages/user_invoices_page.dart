@@ -9,6 +9,7 @@ import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/services/auth_service.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/utils/jwt_payload.dart';
+import '../../../../../../core/widgets/user_avatar.dart';
 import '../../domain/entities/invoice_entity.dart';
 import '../cubit/user_invoices_cubit.dart';
 
@@ -131,38 +132,19 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = (firstName?.isNotEmpty ?? false)
-        ? firstName![0].toUpperCase()
-        : null;
-
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
-          // User avatar
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: initial != null
-                ? Text(
-                    initial,
-                    style: BrandTokens.heading(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: BrandTokens.primaryBlue,
-                    ),
-                  )
-                : const Icon(
-                    Icons.person_rounded,
-                    color: BrandTokens.primaryBlue,
-                    size: 22,
-                  ),
+          // User avatar — real photo (cached) with initial fallback
+          UserAvatar(
+            size: 40,
+            fontSize: 16,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.goNamed('account-settings');
+            },
           ),
 
           const Spacer(),
