@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:toury/features/helper/features/helper_location/data/services/helper_location_signalr_service.dart';
+import 'package:toury/features/helper/features/helper_location/domain/entities/signalr_connection_state.dart';
 import '../../data/services/helper_location_tracking_service.dart';
 import '../../domain/entities/helper_location_entities.dart';
 import '../../domain/usecases/helper_location_usecases.dart';
@@ -43,17 +43,14 @@ class HelperLocationError extends HelperLocationState {
 class HelperLocationCubit extends Cubit<HelperLocationState> {
   final HelperLocationTrackingService _trackingService;
   final GetLocationStatusUseCase _getStatusUseCase;
-  final GetInstantEligibilityUseCase _getEligibilityUseCase;
 
   StreamSubscription? _locationSubscription;
 
   HelperLocationCubit({
     required HelperLocationTrackingService trackingService,
     required GetLocationStatusUseCase getLocationStatusUseCase,
-    required GetInstantEligibilityUseCase getEligibilityUseCase,
   })  : _trackingService = trackingService,
         _getStatusUseCase = getLocationStatusUseCase,
-        _getEligibilityUseCase = getEligibilityUseCase,
         super(HelperLocationInitial()) {
     
     // Listen to the centralized service
@@ -108,7 +105,7 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
   /// Manually trigger a status refresh (e.g. on pull-to-refresh).
   Future<void> refreshStatus() async {
     try {
-      final status = await _getStatusUseCase;
+      await _getStatusUseCase.execute();
       // You could emit a new state here if needed, or just let the service handle updates.
     } catch (e) {
       if (!isClosed) emit(HelperLocationError(e.toString()));

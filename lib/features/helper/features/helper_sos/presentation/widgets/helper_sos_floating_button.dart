@@ -33,16 +33,10 @@ class HelperSosFloatingButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.sos_rounded, color: BrandTokens.surfaceWhite, size: 24),
-                SizedBox(width: 10),
-                Text(
-                  'SOS',
-                  style: TextStyle(
-                    color: BrandTokens.surfaceWhite,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
-                  ),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: BrandTokens.surfaceWhite,
+                  size: 22,
                 ),
               ],
             ),

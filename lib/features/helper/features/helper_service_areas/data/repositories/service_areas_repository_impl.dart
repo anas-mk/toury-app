@@ -8,12 +8,12 @@ class ServiceAreasRepositoryImpl implements ServiceAreasRepository {
 
   ServiceAreasRepositoryImpl({required this.remoteDataSource});
 
-  /// Explicitly map ServiceAreaModel -> ServiceAreaEntity so the UI layer
-  /// always receives a clean List<ServiceAreaEntity> and never a
-  /// List<ServiceAreaModel>.  This is the root cause of the "firstWhere orElse"
-  /// type crash: the runtime list was List<ServiceAreaModel>, so the inferred
-  /// orElse closure type was () => ServiceAreaModel, making
-  /// () => ServiceAreaEntity an incompatible subtype.
+  /// Explicitly map [ServiceAreaModel] to [ServiceAreaEntity] so the UI layer
+  /// always receives a clean `List<ServiceAreaEntity>` and never a
+  /// `List<ServiceAreaModel>`. This is the root cause of the "firstWhere orElse"
+  /// type crash: the runtime list was `List<ServiceAreaModel>`, so the inferred
+  /// `orElse` closure type was `() => ServiceAreaModel`, making
+  /// `() => ServiceAreaEntity` an incompatible subtype.
   @override
   Future<List<ServiceAreaEntity>> getServiceAreas() async {
     final models = await remoteDataSource.getServiceAreas();

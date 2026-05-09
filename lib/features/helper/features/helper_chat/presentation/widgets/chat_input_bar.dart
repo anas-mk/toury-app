@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 
 class ChatInputBar extends StatefulWidget {
   final Function(String) onSend;
@@ -46,68 +48,94 @@ class _ChatInputBarState extends State<ChatInputBar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
+    return Material(
+      color: palette.surfaceElevated,
+      elevation: 0,
       child: SafeArea(
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.flash_on_rounded, color: Colors.amber),
-              onPressed: widget.onQuickReply,
-            ),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: isDark ? theme.cardColor : Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(28),
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.md,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton.filledTonal(
+                style: IconButton.styleFrom(
+                  backgroundColor: palette.primarySoft,
+                  foregroundColor: palette.primary,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+                onPressed: widget.onQuickReply,
+                icon: const Icon(Icons.bolt_rounded, size: 22),
+                tooltip: 'Quick replies',
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
                 child: TextField(
                   controller: _controller,
-                  style: theme.textTheme.bodyMedium,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.textPrimary,
+                  ),
                   maxLines: 4,
                   minLines: 1,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
                   decoration: InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary),
-                    border: InputBorder.none,
+                    isDense: true,
+                    filled: true,
+                    fillColor: palette.surfaceInset,
+                    hintText: 'Message…',
+                    hintStyle: TextStyle(
+                      color: palette.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            AnimatedScale(
-              scale: _hasText ? 1.0 : 0.8,
-              duration: const Duration(milliseconds: 200),
-              child: GestureDetector(
-                onTap: _hasText ? _send : null,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _hasText ? AppColor.primaryColor : theme.disabledColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.send_rounded,
-                    color: _hasText ? Colors.white : (isDark ? Colors.white38 : Colors.black38),
-                    size: 20,
-                  ),
-                ),
+              const SizedBox(width: AppSpacing.sm),
+              AnimatedSwitcher(
+                duration: AppDurations.fast,
+                child: _hasText
+                    ? FilledButton(
+                        key: const ValueKey('send'),
+                        onPressed: _send,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          maximumSize: const Size(48, 48),
+                          padding: EdgeInsets.zero,
+                          shape: const CircleBorder(),
+                          backgroundColor: palette.primary,
+                          foregroundColor: palette.onPrimary,
+                        ),
+                        child: const Icon(Icons.send_rounded, size: 22),
+                      )
+                    : SizedBox(
+                        key: const ValueKey('placeholder'),
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          Icons.send_rounded,
+                          color: palette.disabledText.withValues(alpha: 0.35),
+                          size: 22,
+                        ),
+                      ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

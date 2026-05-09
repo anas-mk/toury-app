@@ -6,6 +6,7 @@ import '../../domain/usecases/helper_bookings_usecases.dart';
 import 'dart:async';
 import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../core/di/injection_container.dart';
+import 'helper_dashboard_cubit.dart';
 
 // ============================================================================
 // INCOMING REQUESTS CUBIT - Enhanced with Pagination & Filtering
@@ -124,6 +125,8 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
   Timer? _hubDebounce;
   Timer? _pollingTimer;
   bool _inFlight = false;
+  DateTime? _lastSilentLoadAt;
+  static const Duration _minSilentRefreshInterval = Duration(seconds: 6);
 
   RequestFilterType _currentFilter = RequestFilterType.all;
   int _currentPage = 1;
@@ -143,6 +146,9 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
       _hubDebounce = Timer(const Duration(milliseconds: 900), () {
         if (isClosed) return;
         load(silent: true);
+        // Overview "Requests" tile reads [HelperDashboardEntity.pendingRequestsCount];
+        // keep it in sync without a full-page refresh.
+        unawaited(sl<HelperDashboardCubit>().refresh(silent: true));
       });
     });
 
@@ -157,6 +163,7 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
       if (!_inFlight && (state is IncomingRequestsLoaded || state is IncomingRequestsEmpty)) {
         debugPrint('🔄 [IncomingRequestsCubit] Auto-refreshing requests...');
         load(silent: true);
+        unawaited(sl<HelperDashboardCubit>().refresh(silent: true));
       }
     });
   }
@@ -166,6 +173,7 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
     RequestFilterType? filter,
     bool silent = false,
   }) async {
+    if (silent && !_shouldRunSilentLoad()) return;
     if (_inFlight) return;
     _inFlight = true;
     if (filter != null) {
@@ -200,6 +208,9 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
       emit(IncomingRequestsError(e.toString(), _currentFilter));
     } finally {
       _inFlight = false;
+      if (silent) {
+        _lastSilentLoadAt = DateTime.now();
+      }
     }
   }
 
@@ -261,6 +272,12 @@ class IncomingRequestsCubit extends Cubit<IncomingRequestsState> {
     _pollingTimer?.cancel();
     _hubSub?.cancel();
     return super.close();
+  }
+
+  bool _shouldRunSilentLoad() {
+    if (_lastSilentLoadAt == null) return true;
+    return DateTime.now().difference(_lastSilentLoadAt!) >=
+        _minSilentRefreshInterval;
   }
 }
 

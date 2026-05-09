@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_theme.dart';
-import '../../../../../../core/theme/app_color.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/services/haptic_service.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_error_state.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../cubit/helper_invoices_cubit.dart';
 
-/// Renders the invoice HTML using Flutter's built-in text/html approach.
-/// Since no webview package is present, we display it inside a scrollable
-/// container and offer an external link via url_launcher if available.
+/// Renders the helper invoice receipt HTML inside a real WebView.
+///
+/// The backend already returns a fully styled HTML page from
+/// `ApiConfig.helperInvoiceView(id)`, so we feed it directly into the
+/// WebView using `loadHtmlString`. The user-side `UserInvoiceViewPage`
+/// uses the same approach for the tourist receipt.
 class InvoiceViewPage extends StatefulWidget {
   final String invoiceId;
   const InvoiceViewPage({super.key, required this.invoiceId});
@@ -19,11 +29,23 @@ class InvoiceViewPage extends StatefulWidget {
 
 class _InvoiceViewPageState extends State<InvoiceViewPage> {
   late final HelperInvoicesCubit _cubit;
+  late final WebViewController _webController;
+  bool _webReady = false;
 
   @override
   void initState() {
     super.initState();
     _cubit = sl<HelperInvoicesCubit>()..loadHtml(widget.invoiceId);
+    _webController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.transparent)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            if (mounted) setState(() => _webReady = true);
+          },
+        ),
+      );
   }
 
   @override
@@ -32,141 +54,131 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
     super.dispose();
   }
 
+  void _copyInvoiceId() {
+    HapticService.light();
+    Clipboard.setData(ClipboardData(text: widget.invoiceId));
+    if (!mounted) return;
+    AppSnackbar.info(context, 'Invoice ID copied');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return BlocProvider.value(
       value: _cubit,
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
+      child: AppScaffold(
+        backgroundColor: palette.scaffold,
         appBar: AppBar(
+          backgroundColor: palette.scaffold,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: palette.textPrimary,
+              size: 18,
+            ),
             onPressed: () => context.pop(),
           ),
-          title: const Text('Receipt'),
+          title: Text(
+            'Receipt',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
+            ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Copy invoice ID',
+              onPressed: _copyInvoiceId,
+              icon: Icon(
+                Icons.copy_rounded,
+                color: palette.textSecondary,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
         ),
-        body: BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
-          builder: (context, state) {
-            if (state is InvoiceHtmlLoading) {
-              return const Center(child: CircularProgressIndicator(color: AppColor.primaryColor));
+        body: BlocConsumer<HelperInvoicesCubit, HelperInvoicesState>(
+          listenWhen: (_, n) => n is InvoiceHtmlLoaded,
+          listener: (_, state) {
+            if (state is InvoiceHtmlLoaded) {
+              _webController.loadHtmlString(state.html);
             }
-
+          },
+          builder: (context, state) {
             if (state is InvoicesError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColor.errorColor, size: 48),
-                    const SizedBox(height: 12),
-                    Text(state.message, style: TextStyle(color: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary)),
-                  ],
-                ),
+              return AppErrorState(
+                title: 'Receipt unavailable',
+                message: state.message,
+                onRetry: () => _cubit.loadHtml(widget.invoiceId),
               );
             }
 
-            if (state is InvoiceHtmlLoaded) {
-              // Render HTML as plain receipt card since webview is not installed
-              return _HtmlReceiptCard(html: state.html, invoiceId: state.invoiceId);
-            }
-
-            return const SizedBox.shrink();
+            return Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.xl + AppSpacing.xs),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: palette.surfaceElevated,
+                        borderRadius: BorderRadius.circular(
+                          AppRadius.xl + AppSpacing.xs,
+                        ),
+                        border: Border.all(color: palette.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: palette.isDark ? 0.32 : 0.06,
+                            ),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: WebViewWidget(controller: _webController),
+                    ),
+                  ),
+                ),
+                if (state is InvoiceHtmlLoading || !_webReady)
+                  Positioned.fill(
+                    child: Container(
+                      color: palette.scaffold.withValues(alpha: 0.6),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: palette.primary,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Preparing your receipt…',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
           },
         ),
       ),
-    );
-  }
-}
-
-/// Parses and renders the receipt HTML as a structured visual card.
-/// For full browser rendering, add flutter_inappwebview to pubspec.yaml.
-class _HtmlReceiptCard extends StatelessWidget {
-  final String html;
-  final String invoiceId;
-  const _HtmlReceiptCard({required this.html, required this.invoiceId});
-
-  // Strip HTML tags for plain text display
-  String _stripTags(String input) {
-    return input
-        .replaceAll(RegExp(r'<style[^>]*>.*?</style>', dotAll: true), '')
-        .replaceAll(RegExp(r'<[^>]+>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final plainText = _stripTags(html);
-
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.spaceLG),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: SelectableText(
-                plainText,
-                style: TextStyle(
-                  color: isDark ? Colors.white : const Color(0xFF1A1A2E),
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  height: 1.6,
-                ),
-              ),
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
-            border: Border(top: BorderSide(color: AppColor.lightBorder)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // With url_launcher: launchUrl(Uri.parse('${ApiConfig.baseUrl}/helper/invoices/$invoiceId/view'))
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Add url_launcher to open in browser'),
-                        backgroundColor: theme.dialogBackgroundColor,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                  label: const Text('Open in Browser'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isDark ? Colors.white70 : Colors.black87,
-                    side: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black12),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

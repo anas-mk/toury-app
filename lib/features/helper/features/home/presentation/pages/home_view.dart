@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/theme/app_theme.dart';
 
+import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+
+/// Legacy helper home placeholder (shell route uses [HelperDashboardPage]).
+/// Kept styled with brand tokens for consistency if reused.
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
 
@@ -11,94 +13,46 @@ class HomeView extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {},
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverAppBar(
-              floating: true,
-              pinned: true,
-              expandedHeight: 70,
-              backgroundColor: theme.scaffoldBackgroundColor,
-              elevation: 0,
-              title: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {},
-                    child: const CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColor.lightBorder,
-                      child: Icon(Icons.person, color: AppColor.primaryColor),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.spaceMD),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome back,',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColor.lightTextSecondary,
-                        ),
-                      ),
-                      Text(
-                        'Helper Professional',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded),
-                  onPressed: () {},
-                ),
-                const SizedBox(width: AppTheme.spaceMD),
-              ],
-            ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLG),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  const SizedBox(height: AppTheme.spaceMD),
-                  
+                  const SizedBox(height: AppTheme.spaceLG),
                   Container(
                     padding: const EdgeInsets.all(AppTheme.spaceLG),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColor.primaryColor, Color(0xFF333333)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: BrandTokens.primaryGradient,
                       borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                      boxShadow: AppTheme.shadowMedium(context),
+                      boxShadow: BrandTokens.ctaBlueGlow,
                     ),
-                    child: const Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Professional Dashboard',
-                          style: TextStyle(
-                            color: Colors.white,
+                          'Partner hub',
+                          style: BrandTokens.heading(
                             fontSize: 22,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
                           ),
                         ),
-                        SizedBox(height: AppTheme.spaceSM),
+                        const SizedBox(height: AppTheme.spaceSM),
                         Text(
-                          'Manage your profile and certificates here.',
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                          'Trips, earnings, and availability — open Home for your dashboard.',
+                          style: BrandTokens.body(
+                            fontSize: 14,
+                            color: Colors.white.withValues(alpha: 0.88),
+                          ),
                         ),
-                        SizedBox(height: AppTheme.spaceLG),
                       ],
                     ),
                   ),
-                  
-                  const SizedBox(height: AppTheme.spaceXL * 2),
+                  const SizedBox(height: AppTheme.spaceXL),
                 ]),
               ),
             ),

@@ -13,10 +13,18 @@ class HelperSosPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return BlocBuilder<HelperSosCubit, HelperSosState>(
+    return BlocConsumer<HelperSosCubit, HelperSosState>(
+      listener: (context, state) {
+        if (state.status == SosStatus.error && state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: BrandTokens.dangerRed,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
       builder: (context, state) {
         final isActive = state.status == SosStatus.active;
         return Scaffold(
@@ -79,7 +87,7 @@ class _EmergencyWarningCard extends StatelessWidget {
                 ),
                 Text(
                   isActive ? 'Authorities are being notified...' : 'Use this only in real emergency situations.',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.7)),
+                  style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.7)),
                 ),
               ],
             ),
@@ -164,6 +172,18 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
   }
 
   void _confirmPanic(BuildContext context) {
+    final bookingId = widget.bookingId.trim();
+    if (bookingId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot trigger SOS outside an active booking.'),
+          backgroundColor: BrandTokens.dangerRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -212,7 +232,7 @@ class _PanicButtonState extends State<_PanicButton> with SingleTickerProviderSta
                       }
 
                       context.read<HelperSosCubit>().activatePanic(
-                            bookingId: widget.bookingId,
+                            bookingId: bookingId,
                             lat: lat,
                             lng: lng,
                             reason: 'Other',
@@ -293,9 +313,9 @@ class _EmergencyItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -313,8 +333,6 @@ class _EmergencyItem extends StatelessWidget {
 class _SafetyChecklist extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -342,8 +360,6 @@ class _CheckItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(

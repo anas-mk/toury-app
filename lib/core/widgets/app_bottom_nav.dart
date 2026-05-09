@@ -1,0 +1,227 @@
+// lib/core/widgets/app_bottom_nav.dart
+//
+// Unified bottom navigation bar shared by the user (HomeLayout) and
+// helper (HelperHomeLayout) shells.
+//
+// Goals:
+//   - Single source of truth for tab styling, selected/unselected colors,
+//     elevation, and label typography.
+//   - Theme-aware: respects light AND dark mode.
+//   - Accessible: 64 px tall touch targets, semantic labels.
+//   - Visually polished: subtle pill highlight on the active item that
+//     animates between tabs.
+
+import 'package:flutter/material.dart';
+
+import '../theme/app_color.dart';
+import '../theme/app_dimens.dart';
+
+class AppBottomNavItem {
+  final IconData icon;
+  final IconData? activeIcon;
+  final String label;
+
+  /// When > 0, a small count badge is drawn on the tab icon (e.g. incoming requests).
+  final int badgeCount;
+
+  const AppBottomNavItem({
+    required this.icon,
+    required this.label,
+    this.activeIcon,
+    this.badgeCount = 0,
+  });
+}
+
+class AppBottomNavBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final List<AppBottomNavItem> items;
+
+  const AppBottomNavBar({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(top: BorderSide(color: palette.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: AppSize.bottomNav,
+          child: Row(
+            children: [
+              for (var i = 0; i < items.length; i++)
+                Expanded(
+                  child: _NavTile(
+                    item: items[i],
+                    selected: i == currentIndex,
+                    onTap: () => onTap(i),
+                    palette: palette,
+                    theme: theme,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final AppBottomNavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+  final AppColors palette;
+  final ThemeData theme;
+
+  const _NavTile({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+    required this.palette,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? palette.primary : palette.textSecondary;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Showing icon+label needs considerably more room than a single tab on
+        // small devices (especially with 5 tabs). Keep icon-only when narrow.
+        final canShowSelectedLabel = selected && constraints.maxWidth >= 112;
+        return Semantics(
+          button: true,
+          selected: selected,
+          label: item.label,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const StadiumBorder(),
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: Colors.transparent,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: canShowSelectedLabel
+                        ? AppSpacing.md
+                        : AppSpacing.sm,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? palette.primarySoft.withValues(
+                            alpha: palette.isDark ? 0.6 : 1.0,
+                          )
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _BadgedNavIcon(
+                        icon: selected
+                            ? (item.activeIcon ?? item.icon)
+                            : item.icon,
+                        color: color,
+                        size: AppSize.iconLg,
+                        badgeCount: item.badgeCount,
+                        palette: palette,
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: canShowSelectedLabel
+                            ? Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.fade,
+                                  softWrap: false,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: color,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Matches the helper dashboard notification badge (incoming request count).
+class _BadgedNavIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+  final int badgeCount;
+  final AppColors palette;
+
+  const _BadgedNavIcon({
+    required this.icon,
+    required this.color,
+    required this.size,
+    required this.badgeCount,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon, color: color, size: size),
+        if (badgeCount > 0)
+          Positioned(
+            top: -4,
+            right: -8,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF3B5C),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: palette.surface, width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

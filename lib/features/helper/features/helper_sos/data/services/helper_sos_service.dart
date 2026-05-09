@@ -7,6 +7,7 @@ class HelperSosService {
 
   String? _activeSosId;
   String? get activeSosId => _activeSosId;
+  bool get hasActiveSos => _activeSosId != null && _activeSosId!.isNotEmpty;
 
   Future<void> triggerPanicAlert({
     required String bookingId,
@@ -15,6 +16,9 @@ class HelperSosService {
     String? reason,
     String? note,
   }) async {
+    if (bookingId.trim().isEmpty) {
+      throw Exception('Missing booking ID for SOS trigger');
+    }
     final res = await dio.post(
       ApiConfig.helperTriggerSos(bookingId),
       data: {
@@ -36,7 +40,7 @@ class HelperSosService {
   }
 
   Future<void> stopPanicAlert() async {
-    if (_activeSosId == null) return;
+    if (!hasActiveSos) return;
     
     await dio.patch(ApiConfig.helperCancelSos(_activeSosId!));
     _activeSosId = null;

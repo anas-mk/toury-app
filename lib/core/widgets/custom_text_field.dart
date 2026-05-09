@@ -1,7 +1,15 @@
 // lib/core/widgets/custom_text_field.dart
+//
+// Themed text field primitive. The original API
+// (`CustomTextField`, `EmailTextField`, `PasswordTextField`,
+// `PhoneTextField`) is preserved — only the internals are modernized
+// to use unified theme tokens for proper dark mode contrast.
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../theme/app_theme.dart';
+
+import '../theme/app_color.dart';
+import '../theme/app_dimens.dart';
 
 class CustomTextField extends StatefulWidget {
   final String? label;
@@ -47,12 +55,13 @@ class CustomTextField extends StatefulWidget {
   State<CustomTextField> createState() => _CustomTextFieldState();
 }
 
-class _CustomTextFieldState extends State<CustomTextField> with SingleTickerProviderStateMixin {
+class _CustomTextFieldState extends State<CustomTextField> {
   bool _obscureText = true;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = AppColors.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,11 +70,11 @@ class _CustomTextFieldState extends State<CustomTextField> with SingleTickerProv
           Text(
             widget.label!,
             style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.8),
-              fontWeight: FontWeight.bold,
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: AppTheme.spaceSM),
+          const SizedBox(height: AppSpacing.sm),
         ],
         TextFormField(
           controller: widget.controller,
@@ -80,18 +89,24 @@ class _CustomTextFieldState extends State<CustomTextField> with SingleTickerProv
           onTap: widget.onTap,
           focusNode: widget.focusNode,
           textInputAction: widget.textInputAction,
-          style: theme.textTheme.bodyLarge,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: palette.textPrimary,
+          ),
+          cursorColor: palette.primary,
           decoration: InputDecoration(
             hintText: widget.hintText,
-            hintStyle: widget.hintStyle ?? theme.inputDecorationTheme.hintStyle,
+            hintStyle: widget.hintStyle ??
+                theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.textMuted,
+                ),
             prefixIcon: widget.prefixIcon != null
                 ? Icon(
                     widget.prefixIcon,
-                    size: 20,
-                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    size: AppSize.iconMd,
+                    color: palette.textSecondary,
                   )
                 : null,
-            suffixIcon: _buildSuffixIcon(theme),
+            suffixIcon: _buildSuffixIcon(palette),
             counterText: '',
           ),
         ),
@@ -99,13 +114,16 @@ class _CustomTextFieldState extends State<CustomTextField> with SingleTickerProv
     );
   }
 
-  Widget? _buildSuffixIcon(ThemeData theme) {
+  Widget? _buildSuffixIcon(AppColors palette) {
     if (widget.isPassword) {
       return IconButton(
+        splashRadius: 20,
         icon: Icon(
-          _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-          color: theme.colorScheme.onSurface.withOpacity(0.5),
-          size: 20,
+          _obscureText
+              ? Icons.visibility_off_outlined
+              : Icons.visibility_outlined,
+          color: palette.textSecondary,
+          size: AppSize.iconMd,
         ),
         onPressed: () {
           setState(() {

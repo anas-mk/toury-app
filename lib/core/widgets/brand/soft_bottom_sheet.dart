@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/brand_tokens.dart';
-import 'blob_clipper.dart';
+import '../custom_bottom_sheet.dart';
 
 // Modern bottom sheet with drag handle and the same blob top edge as
 // the hero header. Use the static [show] helper as a drop-in replacement
@@ -18,23 +17,7 @@ class SoftBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SheetBlobShape(
-      child: Container(
-        color: BrandTokens.surfaceWhite,
-        padding: const EdgeInsets.only(top: 56),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const _DragHandle(),
-            const SizedBox(height: 8),
-            Padding(padding: padding, child: child),
-            SizedBox(
-              height: MediaQuery.of(context).viewInsets.bottom,
-            ),
-          ],
-        ),
-      ),
-    );
+    return CustomBottomSheet(padding: padding, child: child);
   }
 
   static Future<T?> show<T>({
@@ -51,22 +34,6 @@ class SoftBottomSheet extends StatelessWidget {
       enableDrag: enableDrag,
       backgroundColor: Colors.transparent,
       builder: (_) => SoftBottomSheet(child: child),
-    );
-  }
-}
-
-class _DragHandle extends StatelessWidget {
-  const _DragHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 5,
-      decoration: BoxDecoration(
-        color: BrandTokens.borderSoft,
-        borderRadius: BorderRadius.circular(99),
-      ),
     );
   }
 }

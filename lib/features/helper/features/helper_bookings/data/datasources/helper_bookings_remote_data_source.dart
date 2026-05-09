@@ -227,7 +227,9 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
       _assertOk(res);
       final raw = res.data;
       if (raw == null) return null;
-      final d = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
+      // API wrapper format is typically: { success, message, data }
+      // If `data` exists but is null, there is no active booking.
+      final d = (raw is Map && raw.containsKey('data')) ? raw['data'] : raw;
       if (d == null) return null;
       return HelperBookingModel.fromJson(d as Map<String, dynamic>);
     } on DioException catch (e) {

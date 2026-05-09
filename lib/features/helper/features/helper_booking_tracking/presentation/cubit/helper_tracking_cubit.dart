@@ -89,7 +89,7 @@ class HelperTrackingCubit extends Cubit<HelperTrackingState> {
   @override
   Future<void> close() {
     _signalrSubscription?.cancel();
-    hubService.disconnect();
+    // Shared hub lifecycle is app-scoped; this page should never disconnect it.
     return super.close();
   }
 }

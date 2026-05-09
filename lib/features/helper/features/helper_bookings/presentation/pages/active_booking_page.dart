@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,21 +9,34 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:toury/features/helper/features/helper_bookings/presentation/cubit/trip_action_cubit.dart';
 import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../core/config/api_config.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/widgets/app_dialog.dart';
+import '../../../../../../core/widgets/map_tracking_chrome.dart';
+import '../../../../../../core/widgets/app_empty_state.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/brand_typography.dart';
-import '../../../helper_ratings/presentation/pages/rate_user_page.dart';
+import '../../domain/entities/helper_booking_status_x.dart';
+import '../widgets/shared/trip_completed_dialog.dart';
+import '../../../helper_ratings/presentation/widgets/rate_traveler_dialog.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../../../../core/services/auth_service.dart';
 import '../../../../../../core/services/location/mapbox_directions_service.dart';
+import '../../../helper_booking_tracking/domain/usecases/get_latest_location_usecase.dart'
+    as helper_track;
+import '../../../helper_booking_tracking/domain/usecases/get_tracking_history_usecase.dart'
+    as helper_track;
+import '../../../helper_location/domain/usecases/helper_location_usecases.dart'
+    as helper_location;
+import 'package:toury/core/models/tracking/tracking_point_entity.dart';
 import '../../../helper_sos/presentation/widgets/helper_sos_floating_button.dart';
 import '../../../helper_sos/presentation/widgets/helper_sos_sheet.dart';
 import '../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
 import '../../../helper_sos/presentation/widgets/helper_sos_active_banner.dart';
+import '../widgets/active/active_booking_components.dart';
 
 class ActiveBookingPage extends StatefulWidget {
   final String bookingId;
@@ -34,26 +49,58 @@ class ActiveBookingPage extends StatefulWidget {
 class _ActiveBookingPageState extends State<ActiveBookingPage> {
   late final ActiveBookingCubit _activeCubit;
   late final TripActionCubit _tripActionCubit;
+  late final HelperLocationCubit _locationCubit;
+  late final HelperSosCubit _sosCubit;
+  late final AuthService _authService;
+  late final helper_track.GetLatestLocationUseCase _getLatestTracking;
+  late final helper_track.GetTrackingHistoryUseCase _getTrackingHistory;
+  late final helper_location.GetLocationStatusUseCase _getLocationStatus;
   final _directions = MapboxDirectionsService();
   MapboxMap? _mapboxMap;
+  // Manager for pickup/destination pins (gets cleared on route updates).
   PointAnnotationManager? _pointAnnotationManager;
+  // Dedicated manager for the helper's live marker so it doesn't get wiped
+  // when the route is redrawn.
+  PointAnnotationManager? _helperPointAnnotationManager;
   PolylineAnnotationManager? _polylineAnnotationManager;
+  PointAnnotation? _helperMarker;
   HelperBooking? _currentBooking;
-  RouteResult? _lastRoute; // cached for the info chip
   bool _isFollowing = true;
-  Timer? _routeDebounce;   // throttle real-time updates to 1 call / 10 s
+  bool _isRouteFetchInFlight = false;
+  DateTime? _lastRouteFetchAt;
+  double? _lastRouteFromLat;
+  double? _lastRouteFromLng;
+  String? _lastRouteMode; // to_pickup_driving | to_destination_walking
+  double? _helperLat;
+  double? _helperLng;
+  List<TrackingPointEntity> _trackingHistory = const [];
+  bool _hasArrivedAtPickup = false;
+  bool _didPrimeTracking = false;
+  double? _sheetExtentFraction;
+  // Helper must be within this radius of the pickup before "Start Trip"
+  // becomes tappable on the live-tracking sheet.
+  static const double _pickupArrivalThresholdMeters = 100;
+  static const Duration _routeFetchMinInterval = Duration(seconds: 20);
 
   @override
   void initState() {
     super.initState();
     _activeCubit = sl<ActiveBookingCubit>();
     _tripActionCubit = sl<TripActionCubit>();
-    
+    _locationCubit = sl<HelperLocationCubit>();
+    _sosCubit = sl<HelperSosCubit>();
+    _authService = sl<AuthService>();
+    _getLatestTracking = sl<helper_track.GetLatestLocationUseCase>();
+    _getTrackingHistory = sl<helper_track.GetTrackingHistoryUseCase>();
+    _getLocationStatus = sl<helper_location.GetLocationStatusUseCase>();
+
     // Start trip tracking if we have an ID
     if (widget.bookingId.isNotEmpty) {
-      final token = sl<AuthService>().getToken();
+      _didPrimeTracking = true;
+      _primeTrackingFromApi(widget.bookingId);
+      final token = _authService.getToken();
       if (token != null) {
-        sl<HelperLocationCubit>().startTripTracking(token, widget.bookingId);
+        _locationCubit.startTripTracking(token, widget.bookingId);
       }
       _activeCubit.loadById(widget.bookingId);
     } else {
@@ -63,53 +110,147 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   @override
   void dispose() {
-    _routeDebounce?.cancel();
+    _helperMarker = null;
+    _helperPointAnnotationManager = null;
+    _pointAnnotationManager = null;
+    _polylineAnnotationManager = null;
     super.dispose();
   }
 
   void _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
-    _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
-    _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
-    
+    // Reduce extra native view/plugin work on older Android devices.
+    mapboxMap.compass.updateSettings(CompassSettings(enabled: false));
+    mapboxMap.logo.updateSettings(LogoSettings(enabled: false));
+    mapboxMap.attribution.updateSettings(AttributionSettings(enabled: false));
+    mapboxMap.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+    _pointAnnotationManager = await mapboxMap.annotations
+        .createPointAnnotationManager();
+    _polylineAnnotationManager = await mapboxMap.annotations
+        .createPolylineAnnotationManager();
+    // Create the helper marker manager LAST so it renders on top of pins/lines.
+    _helperPointAnnotationManager = await mapboxMap.annotations
+        .createPointAnnotationManager();
+    if (_helperLat != null && _helperLng != null) {
+      unawaited(_updateHelperMarker(_helperLat!, _helperLng!));
+    }
+
     if (_currentBooking != null) {
       _drawRoute(_currentBooking!);
     }
   }
 
   void _recenter(double lat, double lng) {
-    _mapboxMap?.setCamera(CameraOptions(
-      center: Point(coordinates: Position(lng, lat)),
-      zoom: 15,
-    ));
+    _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 16.0,
+        pitch: 0,
+        bearing: 0,
+      ),
+      MapAnimationOptions(duration: 600),
+    );
+  }
+
+  void _recenterNavigation(
+    double lat,
+    double lng, {
+    double? heading,
+    int animationMs = 600,
+  }) {
+    _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 17.5,
+        pitch: 50,
+        bearing: (heading != null && heading.isFinite) ? heading : null,
+      ),
+      MapAnimationOptions(duration: animationMs),
+    );
   }
 
   // ── Route drawing ───────────────────────────────────────────────────────
 
   /// Initial draw: route from pickup → destination using Directions API.
   void _drawRoute(HelperBooking booking) async {
+    final isStarted = booking.isTripStarted;
+    final profile = _routeProfileForStage(booking, isStarted: isStarted);
+    final fromLat = _helperLat ?? booking.pickupLat;
+    final fromLng = _helperLng ?? booking.pickupLng;
+    final toLat = isStarted ? booking.destinationLat : booking.pickupLat;
+    final toLng = isStarted ? booking.destinationLng : booking.pickupLng;
     await _fetchAndDrawRoute(
-      fromLat: booking.pickupLat,
-      fromLng: booking.pickupLng,
-      toLat: booking.destinationLat,
-      toLng: booking.destinationLng,
+      fromLat: fromLat,
+      fromLng: fromLng,
+      toLat: toLat,
+      toLng: toLng,
       booking: booking,
+      profile: profile,
     );
   }
 
-  /// Called when the helper's GPS updates — re-routes from helper → destination.
+  /// Called when the helper's GPS updates — re-routes dynamically by trip stage.
   void _onHelperLocationForRoute(double helperLat, double helperLng) {
     final booking = _currentBooking;
     if (booking == null) return;
-    // Debounce: only re-fetch every 10 seconds to respect API limits.
-    if (_routeDebounce?.isActive == true) return;
-    _routeDebounce = Timer(const Duration(seconds: 10), () {});
+    final isStarted = booking.isTripStarted;
+    final profile = _routeProfileForStage(booking, isStarted: isStarted);
+    final mode = '${isStarted ? 'to_destination' : 'to_pickup'}_$profile';
+    final targetLat = isStarted ? booking.destinationLat : booking.pickupLat;
+    final targetLng = isStarted ? booking.destinationLng : booking.pickupLng;
+    if (!_shouldFetchRoute(helperLat, helperLng, mode)) return;
+    // Debounce: only re-fetch every [_routeFetchMinInterval] to reduce spikes.
+    final lastFetch = _lastRouteFetchAt;
+    if (lastFetch != null &&
+        DateTime.now().difference(lastFetch) < _routeFetchMinInterval) {
+      return;
+    }
     _fetchAndDrawRoute(
       fromLat: helperLat,
       fromLng: helperLng,
-      toLat: booking.destinationLat,
-      toLng: booking.destinationLng,
+      toLat: targetLat,
+      toLng: targetLng,
       booking: booking,
+      profile: profile,
+    );
+  }
+
+  /// Pickup + destination pins and clears polylines — does not touch
+  /// [_isRouteFetchInFlight] so a live GPS update can fetch the real leg
+  /// immediately (avoids pickup→pickup before first fix).
+  Future<void> _replacePinsAndClearRoute(HelperBooking booking) async {
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) {
+      return;
+    }
+    await _pointAnnotationManager!.deleteAll();
+    await _polylineAnnotationManager!.deleteAll();
+
+    final pickupBytes = await _buildPinBytes(const ui.Color(0xFF34C759));
+    final destBytes = await _buildPinBytes(const ui.Color(0xFFFF3B30));
+    await _pointAnnotationManager!.create(
+      PointAnnotationOptions(
+        geometry: Point(
+          coordinates: Position(booking.pickupLng, booking.pickupLat),
+        ),
+        image: pickupBytes,
+        iconSize: 1.0,
+        iconAnchor: IconAnchor.BOTTOM,
+        symbolSortKey: 100,
+      ),
+    );
+    await _pointAnnotationManager!.create(
+      PointAnnotationOptions(
+        geometry: Point(
+          coordinates: Position(
+            booking.destinationLng,
+            booking.destinationLat,
+          ),
+        ),
+        image: destBytes,
+        iconSize: 1.0,
+        iconAnchor: IconAnchor.BOTTOM,
+        symbolSortKey: 100,
+      ),
     );
   }
 
@@ -119,64 +260,303 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     required double toLat,
     required double toLng,
     required HelperBooking booking,
+    required String profile,
   }) async {
-    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
-
-    await _pointAnnotationManager!.deleteAll();
-    await _polylineAnnotationManager!.deleteAll();
-
-    // Draw pickup & destination pins.
-    await _pointAnnotationManager!.create(PointAnnotationOptions(
-      geometry: Point(coordinates: Position(booking.pickupLng, booking.pickupLat)),
-      iconImage: 'marker-15',
-      textField: 'Pickup',
-      textOffset: [0.0, -2.5],
-    ));
-    await _pointAnnotationManager!.create(PointAnnotationOptions(
-      geometry: Point(coordinates: Position(booking.destinationLng, booking.destinationLat)),
-      iconImage: 'marker-15',
-      textField: 'Destination',
-      textOffset: [0.0, -2.5],
-    ));
-
-    // Fetch real road route.
-    final route = await _directions.getRoute(
-      fromLat: fromLat,
-      fromLng: fromLng,
-      toLat: toLat,
-      toLng: toLng,
-      profile: 'driving',
-    );
-
-    if (route == null || route.coordinates.isEmpty) {
-      // Fallback: straight line so the map still shows something.
-      await _polylineAnnotationManager!.create(PolylineAnnotationOptions(
-        geometry: LineString(coordinates: [
-          Position(fromLng, fromLat),
-          Position(toLng, toLat),
-        ]),
-        lineColor: BrandTokens.primaryBlue.value,
-        lineWidth: 3.5,
-        lineOpacity: 0.6,
-      ));
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) {
       return;
     }
 
-    // Cache for the distance/duration chip.
-    if (mounted) setState(() => _lastRoute = route);
+    final segMeters = _distanceMeters(fromLat, fromLng, toLat, toLng);
+    // Before GPS is seeded we used pickup as both ends → zero-length leg.
+    // Draw pins only; do not call Directions or take [_isRouteFetchInFlight],
+    // so the next location tick can fetch helper→pickup without being dropped.
+    if (segMeters < 12) {
+      await _replacePinsAndClearRoute(booking);
+      await _drawHistoryPolyline();
+      return;
+    }
 
-    // Convert [[lng, lat], ...] → Mapbox Position list.
-    final positions = route.coordinates
-        .map((c) => Position(c[0], c[1]))
-        .toList();
+    if (_isRouteFetchInFlight) return;
+    _isRouteFetchInFlight = true;
 
-    await _polylineAnnotationManager!.create(PolylineAnnotationOptions(
-      geometry: LineString(coordinates: positions),
-      lineColor: BrandTokens.primaryBlue.value,
-      lineWidth: 5.0,
-      lineOpacity: 0.85,
-    ));
+    try {
+      await _replacePinsAndClearRoute(booking);
+
+      // Fetch real road route.
+      final route = await _directions.getRoute(
+        fromLat: fromLat,
+        fromLng: fromLng,
+        toLat: toLat,
+        toLng: toLng,
+        profile: profile,
+      );
+
+      if (route == null || route.coordinates.isEmpty) {
+        // Fallback: straight line so the map still shows something.
+        await _polylineAnnotationManager!.create(
+          PolylineAnnotationOptions(
+            geometry: LineString(
+              coordinates: [Position(fromLng, fromLat), Position(toLng, toLat)],
+            ),
+            lineColor: BrandTokens.primaryBlue.toARGB32(),
+            lineWidth: 3.5,
+            lineOpacity: 0.6,
+          ),
+        );
+        await _drawHistoryPolyline();
+        _lastRouteFetchAt = DateTime.now();
+        _lastRouteFromLat = fromLat;
+        _lastRouteFromLng = fromLng;
+        return;
+      }
+
+      // Convert [[lng, lat], ...] → Mapbox Position list.
+      final positions = route.coordinates
+          .map((c) => Position(c[0], c[1]))
+          .toList();
+
+      await _polylineAnnotationManager!.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(coordinates: positions),
+          lineColor: BrandTokens.primaryBlue.toARGB32(),
+          lineWidth: 5.0,
+          lineOpacity: 0.85,
+        ),
+      );
+      await _drawHistoryPolyline();
+      _lastRouteFetchAt = DateTime.now();
+      _lastRouteFromLat = fromLat;
+      _lastRouteFromLng = fromLng;
+    } finally {
+      _isRouteFetchInFlight = false;
+    }
   }
+
+  Future<void> _drawHistoryPolyline() async {
+    if (_polylineAnnotationManager == null || _trackingHistory.length < 2) {
+      return;
+    }
+    final historyPositions = _trackingHistory
+        .map((p) => Position(p.longitude, p.latitude))
+        .toList();
+    await _polylineAnnotationManager!.create(
+      PolylineAnnotationOptions(
+        geometry: LineString(coordinates: historyPositions),
+        lineColor: BrandTokens.textMuted.toARGB32(),
+        lineWidth: 3.0,
+        lineOpacity: 0.45,
+      ),
+    );
+  }
+
+  Future<void> _primeTrackingFromApi(String bookingId) async {
+    var seededFromTracking = false;
+    final latestResult = await _getLatestTracking(bookingId);
+    latestResult.fold((_) {}, (latest) {
+      _helperLat = latest.latitude;
+      _helperLng = latest.longitude;
+      seededFromTracking = true;
+    });
+
+    final historyResult = await _getTrackingHistory(bookingId);
+    historyResult.fold((_) {}, (history) {
+      _trackingHistory = history;
+    });
+    if (!seededFromTracking && _helperLat == null && _helperLng == null) {
+      // Fallback seed for brand-new trips where tracking has no samples yet.
+      try {
+        final status = await _getLocationStatus.execute();
+        if (status.currentLatitude != null && status.currentLongitude != null) {
+          _helperLat = status.currentLatitude;
+          _helperLng = status.currentLongitude;
+        }
+      } catch (_) {}
+    }
+
+    if (_currentBooking != null && _helperLat != null && _helperLng != null) {
+      final arrived =
+          _distanceMeters(
+            _helperLat!,
+            _helperLng!,
+            _currentBooking!.pickupLat,
+            _currentBooking!.pickupLng,
+          ) <=
+          _pickupArrivalThresholdMeters;
+      if (mounted) {
+        setState(() {
+          _hasArrivedAtPickup = arrived;
+        });
+      }
+    }
+    // If the map was already created before tracking data arrived, draw the
+    // helper's seed position now (the _onMapCreated guard already handles the
+    // reverse race where the map fires first).
+    if (_mapboxMap != null) {
+      if (_helperLat != null && _helperLng != null) {
+        unawaited(_updateHelperMarker(_helperLat!, _helperLng!));
+      }
+      if (_currentBooking != null) {
+        _drawRoute(_currentBooking!);
+      }
+    }
+  }
+
+  bool _shouldFetchRoute(double fromLat, double fromLng, String mode) {
+    if (_lastRouteMode != mode) {
+      _lastRouteMode = mode;
+      return true;
+    }
+    if (_lastRouteFetchAt == null ||
+        _lastRouteFromLat == null ||
+        _lastRouteFromLng == null) {
+      return true;
+    }
+    final movedMeters = _distanceMeters(
+      fromLat,
+      fromLng,
+      _lastRouteFromLat!,
+      _lastRouteFromLng!,
+    );
+    return movedMeters >= 35;
+  }
+
+  String _routeProfileForStage(
+    HelperBooking booking, {
+    required bool isStarted,
+  }) {
+    // Before trip start, helper must navigate TO pickup by road.
+    if (!isStarted) return 'driving';
+    // After start, follow booking transport mode.
+    return booking.requiresCar ? 'driving' : 'walking';
+  }
+
+  /// Renders a filled blue circle with a white border as a PNG bitmap.
+  /// This avoids relying on sprite icon names that may not exist in the
+  /// current Mapbox style.
+  Future<Uint8List> _buildLocationDotBytes() async {
+    const double size = 56;
+    const double half = size / 2;
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+
+    // White outer ring.
+    canvas.drawCircle(
+      const ui.Offset(half, half),
+      half,
+      ui.Paint()..color = ui.Color(0xFFFFFFFF),
+    );
+    // Blue filled dot.
+    canvas.drawCircle(
+      const ui.Offset(half, half),
+      half - 5,
+      ui.Paint()..color = ui.Color(0xFF1A73E8),
+    );
+    // Inner white highlight for depth.
+    canvas.drawCircle(
+      const ui.Offset(half - 4, half - 4),
+      6,
+      ui.Paint()
+        ..color = ui.Color(0x55FFFFFF)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+    );
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  /// Renders a teardrop / map-pin shape in [color] as a PNG bitmap.
+  /// The pin is 48 × 64 px: a circle head on top of a pointed tail pointing down.
+  Future<Uint8List> _buildPinBytes(ui.Color color) async {
+    const double w = 48;
+    const double h = 64;
+    const double r = w / 2;         // circle radius
+    const double cx = w / 2;        // circle center x
+    const double cy = r;            // circle center y (top half)
+    const double tipY = h;          // bottom tip y
+
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+
+    // Shadow
+    final shadowPaint = ui.Paint()
+      ..color = ui.Color(0x33000000)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4);
+    final shadowPath = ui.Path()
+      ..addOval(ui.Rect.fromCircle(center: const ui.Offset(cx, cy + 2), radius: r));
+    canvas.drawPath(shadowPath, shadowPaint);
+
+    // Pin body: circle head
+    final bodyPaint = ui.Paint()..color = color;
+    canvas.drawCircle(const ui.Offset(cx, cy), r - 1, bodyPaint);
+
+    // Pin tail (triangle pointing down)
+    final tailPath = ui.Path()
+      ..moveTo(cx - r * 0.38, cy + r * 0.70)
+      ..lineTo(cx, tipY - 2)
+      ..lineTo(cx + r * 0.38, cy + r * 0.70)
+      ..close();
+    canvas.drawPath(tailPath, bodyPaint);
+
+    // White inner circle (gives depth)
+    canvas.drawCircle(
+      const ui.Offset(cx, cy),
+      r * 0.38,
+      ui.Paint()..color = ui.Color(0xCCFFFFFF),
+    );
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(w.toInt(), h.toInt());
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return data!.buffer.asUint8List();
+  }
+
+  Future<void> _updateHelperMarker(
+    double lat,
+    double lng, {
+    double? heading,
+  }) async {
+    // Use the dedicated helper marker manager so route redraws (which call
+    // deleteAll on the pins manager) never wipe the live dot.
+    final manager = _helperPointAnnotationManager;
+    if (manager == null) return;
+    if (_helperMarker != null) {
+      try {
+        await manager.delete(_helperMarker!);
+      } catch (_) {}
+      _helperMarker = null;
+    }
+    try {
+      final dotBytes = await _buildLocationDotBytes();
+      _helperMarker = await manager.create(
+        PointAnnotationOptions(
+          geometry: Point(coordinates: Position(lng, lat)),
+          image: dotBytes,
+          iconSize: 1.0,
+          symbolSortKey: 9999,
+        ),
+      );
+    } catch (_) {
+      _helperMarker = null;
+    }
+  }
+
+  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371000.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _degToRad(double deg) => deg * math.pi / 180.0;
 
   @override
   Widget build(BuildContext context) {
@@ -185,7 +565,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       providers: [
         BlocProvider.value(value: _activeCubit),
         BlocProvider.value(value: _tripActionCubit),
-        BlocProvider.value(value: sl<HelperLocationCubit>()),
+        BlocProvider.value(value: _locationCubit),
+        BlocProvider.value(value: _sosCubit),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -193,38 +574,38 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
             listener: (context, state) {
               if (state is TripActionSuccess) {
                 if (state.actionType == 'start') {
-                  _showSnack(context, '🚀 Trip started!');
+                  AppSnackbar.success(context, 'Trip started!');
                   _activeCubit.load();
+                  // Switch to navigation-mode camera immediately at the
+                  // helper's current position — NOT at the destination.
+                  if (_helperLat != null && _helperLng != null) {
+                    final locState = _locationCubit.state;
+                    final heading = locState is HelperLocationTracking
+                        ? locState.location.heading
+                        : null;
+                    _recenterNavigation(
+                      _helperLat!,
+                      _helperLng!,
+                      heading: heading,
+                    );
+                  }
                 } else if (state.actionType == 'end') {
                   final earnings = state.result as double? ?? 0.0;
                   final booking = _currentBooking;
-                  _showEarningsDialog(context, earnings, onDismiss: () {
-                    if (booking != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RateUserPage(
-                            bookingId: booking.id,
-                            travelerName: booking.travelerName,
-                            travelerAvatar: booking.travelerImage ?? '',
-                          ),
-                        ),
-                      ).then((_) {
-                        sl<HelperLocationCubit>().stopTripTracking();
-                        _activeCubit.clearCurrentId();
-                        _activeCubit.load(silent: true);
-                        context.pop();
-                      });
-                    } else {
-                      sl<HelperLocationCubit>().stopTripTracking();
-                      _activeCubit.clearCurrentId();
-                      _activeCubit.load(silent: true);
-                      context.pop();
-                    }
-                  });
+                  _showEarningsDialog(
+                    context,
+                    earnings,
+                    onDismiss: () {
+                      if (booking != null) {
+                        _openRateTravelerDialog(context, booking);
+                      } else {
+                        _completeTripAndExit();
+                      }
+                    },
+                  );
                 }
               } else if (state is TripActionError) {
-                _showSnack(context, state.message, isError: true);
+                AppSnackbar.error(context, state.message);
               }
             },
           ),
@@ -234,12 +615,18 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           body: BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
               if (state is ActiveBookingLoading) {
-                return const Center(
-                    child: CircularProgressIndicator(color: BrandTokens.primaryBlue));
+                return const Center(child: AppLoading(fullScreen: false));
               }
               if (state is ActiveBookingLoaded && state.booking != null) {
                 _currentBooking = state.booking;
+                if (!_didPrimeTracking) {
+                  _didPrimeTracking = true;
+                  unawaited(_primeTrackingFromApi(state.booking!.id));
+                }
                 return _buildModernContent(context, state.booking!);
+              }
+              if (state is ActiveBookingError) {
+                return _buildErrorState(context, state.message);
               }
               return _buildNoTrip(context);
             },
@@ -250,23 +637,73 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   Widget _buildModernContent(BuildContext context, HelperBooking booking) {
-    final theme = Theme.of(context);
     final status = booking.status.toLowerCase();
-    final isStarted = status == 'inprogress' || status == 'started';
-    
-    final initialCenter = isStarted ? Position(booking.destinationLng, booking.destinationLat) : Position(booking.pickupLng, booking.pickupLat);
+    final isStarted = booking.isTripStarted;
+
+    // Camera initial center: always prefer the helper's live GPS position.
+    // When started, we are at/near pickup — NOT at destination yet.
+    // Destination is where we're going, not where we open the camera.
+    final initialCenter = (_helperLng != null && _helperLat != null)
+        ? Position(_helperLng!, _helperLat!)
+        : Position(booking.pickupLng, booking.pickupLat);
+    final baseSheetExtents = MapTrackingLayout.helperSheetExtents(context);
+    final sheetExtents = isStarted
+        ? TrackingSheetExtents(
+            // Keep the sheet lower after trip start to maximize map visibility.
+            initial: (baseSheetExtents.initial - 0.08).clamp(
+              baseSheetExtents.min,
+              baseSheetExtents.max,
+            ),
+            min: (baseSheetExtents.min - 0.06).clamp(0.14, 0.45),
+            max: baseSheetExtents.max,
+          )
+        : baseSheetExtents;
+    final liveSheetExtent = ((_sheetExtentFraction ?? sheetExtents.initial)
+            .clamp(sheetExtents.min, sheetExtents.max))
+        .toDouble();
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         // 1. Full Screen Map
-        MapWidget(
-          key: const ValueKey("activeBookingMap"),
-          cameraOptions: CameraOptions(
-            center: Point(coordinates: initialCenter),
-            zoom: 15.0,
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: MapWidget(
+              key: const ValueKey("activeBookingMap"),
+              cameraOptions: CameraOptions(
+                center: Point(coordinates: initialCenter),
+                zoom: 16.0,
+              ),
+              styleUri: Theme.of(context).brightness == Brightness.dark
+                  ? MapboxStyles.DARK
+                  : MapboxStyles.LIGHT,
+              onMapCreated: _onMapCreated,
+              onScrollListener: (_) {
+                // User manually dragged the map — pause auto-follow.
+                if (_isFollowing) setState(() => _isFollowing = false);
+              },
+            ),
           ),
-          styleUri: MapboxStyles.LIGHT,
-          onMapCreated: _onMapCreated,
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.24),
+                    Colors.black.withValues(alpha: 0.08),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.06),
+                    Colors.transparent,
+                  ],
+                  stops: const [0, 0.22, 0.44, 0.78, 1],
+                ),
+              ),
+            ),
+          ),
         ),
 
         // Helper Location Logic (UI-less BlocBuilder to handle camera movement)
@@ -275,7 +712,36 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
             if (locState is HelperLocationTracking) {
               final lat = locState.location.latitude;
               final lng = locState.location.longitude;
-              if (_isFollowing) _recenter(lat, lng);
+              _helperLat = lat;
+              _helperLng = lng;
+              unawaited(
+                _updateHelperMarker(
+                  lat,
+                  lng,
+                  heading: locState.location.heading,
+                ),
+              );
+              final arrived =
+                  _distanceMeters(
+                    lat,
+                    lng,
+                    booking.pickupLat,
+                    booking.pickupLng,
+                  ) <=
+                  _pickupArrivalThresholdMeters;
+              if (_hasArrivedAtPickup != arrived) {
+                setState(() => _hasArrivedAtPickup = arrived);
+              }
+              if (_isFollowing) {
+                // Same turn-by-turn-style camera toward pickup and toward
+                // destination so the map tracks the helper while driving.
+                _recenterNavigation(
+                  lat,
+                  lng,
+                  heading: locState.location.heading,
+                  animationMs: 380,
+                );
+              }
               // Re-draw route from helper's current position → destination.
               _onHelperLocationForRoute(lat, lng);
             }
@@ -283,29 +749,38 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           child: const SizedBox.shrink(),
         ),
 
-        // 2. Blurred Top Buttons
+        // 2. Top Controls
         Positioned(
-          top: MediaQuery.of(context).padding.top + 8,
-          left: AppTheme.spaceMD,
-          child: _BlurredCircleButton(
+          top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+          left: AppSpacing.lg,
+          child: MapFloatingGlassButton(
             icon: Icons.arrow_back_rounded,
+            tone: MapFloatingGlassTone.darkOnMap,
             onTap: () => context.pop(),
           ),
         ),
         Positioned(
-          top: MediaQuery.of(context).padding.top + 8,
-          right: AppTheme.spaceMD,
+          top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+          right: AppSpacing.lg,
           child: BlocBuilder<HelperLocationCubit, HelperLocationState>(
             builder: (context, locState) {
-              return _BlurredCircleButton(
-                icon: Icons.my_location_rounded,
+              return _FollowButton(
+                isFollowing: _isFollowing,
                 onTap: () {
+                  setState(() => _isFollowing = true);
                   if (locState is HelperLocationTracking) {
-                    setState(() => _isFollowing = true);
-                    _recenter(locState.location.latitude, locState.location.longitude);
+                    _recenterNavigation(
+                      locState.location.latitude,
+                      locState.location.longitude,
+                      heading: locState.location.heading,
+                    );
                   } else {
-                    final lat = isStarted ? booking.destinationLat : booking.pickupLat;
-                    final lng = isStarted ? booking.destinationLng : booking.pickupLng;
+                    final lat = isStarted
+                        ? booking.destinationLat
+                        : booking.pickupLat;
+                    final lng = isStarted
+                        ? booking.destinationLng
+                        : booking.pickupLng;
                     _recenter(lat, lng);
                   }
                 },
@@ -314,80 +789,82 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
           ),
         ),
 
-        // Route info chip — top-center, shows km + ETA once route is loaded.
-        if (_lastRoute != null)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 64,
-            right: 64,
-            child: Center(
-              child: _RouteInfoChip(
-                distance: _lastRoute!.distanceLabel,
-                duration: _lastRoute!.durationLabel,
-              ),
-            ),
-          ),
-
         // 3. Draggable Tracking Sheet
         BlocBuilder<HelperSosCubit, HelperSosState>(
-          bloc: sl<HelperSosCubit>(),
+          bloc: _sosCubit,
           builder: (context, sosState) {
-            return DraggableScrollableSheet(
-              initialChildSize: 0.38,
-              minChildSize: 0.22,
-              maxChildSize: 0.75,
-              builder: (context, scrollController) {
-                return _TrackingSheet(
-                  scrollController: scrollController,
-                  booking: booking,
-                  isStarted: isStarted,
-                  status: status,
-                  sosState: sosState,
-                  onEndTrip: () => _confirmEnd(context, booking),
-                  onStartTrip: () => _tripActionCubit.startTrip(booking),
-              onChat: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => HelperChatPage(
-                    bookingId: booking.id,
-                    userName: booking.travelerName,
-                    userAvatar: booking.travelerImage,
-                  ),
-                ),
-              ),
-                  onCancelSos: () => sl<HelperSosCubit>().deactivatePanic(),
-                );
+            return NotificationListener<DraggableScrollableNotification>(
+              onNotification: (notification) {
+                final current = _sheetExtentFraction ?? sheetExtents.initial;
+                if ((current - notification.extent).abs() > 0.001) {
+                  setState(() => _sheetExtentFraction = notification.extent);
+                }
+                return false;
               },
+              child: DraggableScrollableSheet(
+                initialChildSize: sheetExtents.initial,
+                minChildSize: sheetExtents.min,
+                maxChildSize: sheetExtents.max,
+                builder: (context, scrollController) {
+                  return ActiveTrackingSheet(
+                    scrollController: scrollController,
+                    booking: booking,
+                    isStarted: isStarted,
+                    status: status,
+                    hasArrivedAtPickup: _hasArrivedAtPickup,
+                    distanceToPickupMeters:
+                        (_helperLat != null && _helperLng != null)
+                        ? _distanceMeters(
+                            _helperLat!,
+                            _helperLng!,
+                            booking.pickupLat,
+                            booking.pickupLng,
+                          )
+                        : null,
+                    sosState: sosState,
+                    onEndTrip: () => unawaited(_confirmEnd(context, booking)),
+                    onStartTrip: () => _tripActionCubit.startTrip(booking),
+                    onChat: () => HelperChatPage.open(
+                      context,
+                      bookingId: booking.id,
+                      userName: booking.travelerName,
+                      userAvatar: booking.travelerImage,
+                    ),
+                    onCancelSos: _sosCubit.deactivatePanic,
+                  );
+                },
+              ),
             );
           },
         ),
 
         // 4. SOS Button (Floating)
         Positioned(
-          right: AppTheme.spaceMD,
-          bottom: MediaQuery.of(context).size.height * 0.38 + 16,
+          right: AppSpacing.lg,
+          bottom: MapTrackingLayout.floatingButtonBottomInset(
+            context,
+            sheetPeekFraction: liveSheetExtent,
+          ),
           child: HelperSosFloatingButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('SOS Button Pressed'), duration: Duration(seconds: 1)),
-              );
-              _openSosSheet(context);
-            },
+            onPressed: () => _openSosSheet(context),
           ),
         ),
 
         // 5. SOS Active Banner (Top of everything)
         BlocBuilder<HelperSosCubit, HelperSosState>(
-          bloc: sl<HelperSosCubit>(),
+          bloc: _sosCubit,
           builder: (context, sosState) {
-            if (sosState.status == SosStatus.active || sosState.status == SosStatus.activating) {
+            if (sosState.status == SosStatus.active ||
+                sosState.status == SosStatus.activating) {
               return Positioned(
                 top: MediaQuery.of(context).padding.top + 60,
-                left: AppTheme.spaceMD,
-                right: AppTheme.spaceMD,
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
                 child: HelperSosActiveBanner(
-                  onCancel: () => sl<HelperSosCubit>().deactivatePanic(),
-                  isCancelling: sosState.status == SosStatus.deactivating || sosState.status == SosStatus.activating,
+                  onCancel: _sosCubit.deactivatePanic,
+                  isCancelling:
+                      sosState.status == SosStatus.deactivating ||
+                      sosState.status == SosStatus.activating,
                 ),
               );
             }
@@ -399,532 +876,232 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   }
 
   void _openSosSheet(BuildContext context) {
-    debugPrint('ActiveBookingPage: Opening SOS Sheet');
     showHelperSosSheet(
       context,
-      cubit: sl<HelperSosCubit>(),
-      onCancel: () => sl<HelperSosCubit>().deactivatePanic(),
+      cubit: _sosCubit,
+      onCancel: _sosCubit.deactivatePanic,
       onTrigger: (result) async {
-        debugPrint('ActiveBookingPage: SOS Triggered with reason: ${result.reason.apiValue}');
-        final locState = sl<HelperLocationCubit>().state;
+        final locState = _locationCubit.state;
         double lat = 0, lng = 0;
         if (locState is HelperLocationTracking) {
           lat = locState.location.latitude;
           lng = locState.location.longitude;
         }
-        
+
         try {
-          await sl<HelperSosCubit>().activatePanic(
-            bookingId: widget.bookingId,
+          await _sosCubit.activatePanic(
+            bookingId: _currentBooking?.id ?? widget.bookingId,
             lat: lat,
             lng: lng,
             reason: result.reason.apiValue,
             note: result.note,
           );
-          debugPrint('ActiveBookingPage: SOS Activated successfully');
           return null; // Success
         } catch (e) {
-          debugPrint('ActiveBookingPage: SOS Activation failed: $e');
           return e.toString();
         }
       },
     );
   }
 
-  void _confirmEnd(BuildContext context, HelperBooking booking) {
-    showDialog(
+  void _completeTripAndExit() {
+    _locationCubit.stopTripTracking();
+    // Optimistically clear so the dashboard's active-trip card disappears
+    // immediately, even if the backend is briefly slow to flip the booking
+    // status from InProgress → Completed.
+    _activeCubit.clear();
+    _activeCubit.load(silent: true);
+    if (mounted) context.pop();
+  }
+
+  Future<void> _confirmEnd(BuildContext context, HelperBooking booking) async {
+    final ok = await AppDialog.confirm(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: BrandTokens.surfaceWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text('End Trip?', style: BrandTypography.headline(color: BrandTokens.textPrimary)),
-        content: Text('Mark this trip as completed?', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _tripActionCubit.endTrip(booking);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BrandTokens.dangerRed,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('End Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      title: 'End Trip?',
+      message: 'Mark this trip as completed?',
+      confirmLabel: 'End Trip',
+      tone: AppDialogTone.danger,
+      barrierDismissible: true,
     );
+    if (ok && context.mounted) {
+      _tripActionCubit.endTrip(booking);
+    }
   }
 
   Widget _buildNoTrip(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: BrandTokens.successGreen.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_circle_outline_rounded,
-                color: BrandTokens.successGreen, size: 60),
-          ),
-          const SizedBox(height: 24),
-          Text('No Active Trip', style: BrandTypography.headline()),
-          const SizedBox(height: 8),
-          Text("You don't have an active booking right now", style: BrandTypography.body(color: BrandTokens.textSecondary)),
-          const SizedBox(height: 28),
-          ElevatedButton(
-            onPressed: () => context.pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BrandTokens.primaryBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            child: const Text('Back to Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+      child: AppEmptyState(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'No Active Trip',
+        message: "You don't have an active booking right now",
+        actionLabel: 'Back to Dashboard',
+        onAction: () => context.pop(),
       ),
     );
   }
 
-  void _showEarningsDialog(BuildContext context, double earnings, {VoidCallback? onDismiss}) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        backgroundColor: BrandTokens.surfaceWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(color: BrandTokens.successGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.check_rounded, color: Colors.white, size: 36),
-              ),
-              const SizedBox(height: 20),
-              Text('Trip Completed! 🎉', style: BrandTypography.headline()),
-              const SizedBox(height: 6),
-              Text('You earned', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-              const SizedBox(height: 4),
-              Text('\$${earnings.toStringAsFixed(2)}',
-                  style: BrandTypography.title(color: BrandTokens.successGreen).copyWith(fontSize: 42)),
-              const SizedBox(height: 8),
-              Text('How was your traveler?', style: BrandTypography.caption(color: BrandTokens.textSecondary)),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.star_rounded, color: Colors.white),
-                  label: const Text('Rate Traveler', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    onDismiss?.call();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: BrandTokens.primaryBlue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.pop();
-                },
-                child: Text('Skip', style: BrandTypography.body(color: BrandTokens.textSecondary)),
-              ),
-            ],
-          ),
-        ),
+  Widget _buildErrorState(BuildContext context, String message) {
+    return Center(
+      child: AppEmptyState(
+        icon: Icons.error_outline_rounded,
+        title: 'Unable to load active trip',
+        message: message,
+        actionLabel: 'Try Again',
+        onAction: () {
+          final id = widget.bookingId;
+          if (id.isNotEmpty) {
+            _activeCubit.loadById(id);
+            return;
+          }
+          _activeCubit.load();
+        },
       ),
     );
   }
 
-  void _showSnack(BuildContext context, String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? BrandTokens.dangerRed : BrandTokens.successGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(12),
-      ),
+  void _showEarningsDialog(
+    BuildContext context,
+    double earnings, {
+    VoidCallback? onDismiss,
+  }) {
+    showTripCompletedDialog(
+      context,
+      earnings: earnings,
+      title: 'Trip Completed!',
+      subtitle: 'How was your traveler?',
+      primaryLabel: 'Rate Traveler',
+      showPrimaryLeadingIcon: false,
+      secondaryLabel: 'Skip',
+      onPrimary: onDismiss,
+      // The "Skip" path must also run the same cleanup as the rate-flow,
+      // otherwise the dashboard keeps the stale active-trip card visible.
+      onSecondary: _completeTripAndExit,
     );
+  }
+
+  Future<void> _openRateTravelerDialog(
+    BuildContext context,
+    HelperBooking booking,
+  ) async {
+    await openRateTravelerForBooking(
+      context,
+      bookingId: booking.id,
+      travelerName: booking.travelerName,
+      travelerAvatar: booking.travelerImage ?? '',
+    );
+    if (!mounted) return;
+    _completeTripAndExit();
   }
 }
 
-class _TrackingSheet extends StatelessWidget {
-  final ScrollController scrollController;
-  final HelperBooking booking;
-  final bool isStarted;
-  final String status;
-  final VoidCallback onEndTrip;
-  final VoidCallback onStartTrip;
-  final VoidCallback onChat;
-  final HelperSosState sosState;
-  final VoidCallback onCancelSos;
+/// Floating button that shows whether the map is currently following the
+/// helper's position. When following is active the button is highlighted in
+/// blue; when the user has manually panned away it becomes a neutral glass
+/// button prompting them to re-engage following.
+class _FollowButton extends StatelessWidget {
+  final bool isFollowing;
+  final VoidCallback onTap;
 
-
-  const _TrackingSheet({
-    required this.scrollController,
-    required this.booking,
-    required this.isStarted,
-    required this.status,
-    required this.onEndTrip,
-    required this.onStartTrip,
-    required this.onChat,
-    required this.sosState,
-    required this.onCancelSos,
-  });
+  const _FollowButton({required this.isFollowing, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    const double size = AppSize.icon2Xl + AppSize.iconSm;
+    if (isFollowing) {
+      return ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Material(
+            color: const Color(0xFF1A73E8).withValues(alpha: 0.88),
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: const Icon(
+                  Icons.my_location_rounded,
+                  color: Colors.white,
+                  size: AppSize.iconLg,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    // Not following — show neutral glass button with a pulsing ring to
+    // indicate that tapping will re-engage auto-follow.
+    return _PulsingFollowButton(size: size, onTap: onTap);
+  }
+}
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0A0E1A) : BrandTokens.surfaceWhite,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: BrandTokens.borderSoft,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(AppTheme.spaceLG, AppTheme.spaceLG, AppTheme.spaceLG, 0),
-              children: [
-                // Traveler Info Row
-                Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: BrandTokens.primaryBlue.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          booking.travelerName.isNotEmpty ? booking.travelerName[0].toUpperCase() : '?',
-                          style: BrandTypography.title(color: BrandTokens.primaryBlue),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppTheme.spaceMD),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(booking.travelerName, style: BrandTypography.title()),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: isStarted ? BrandTokens.successGreen : BrandTokens.warningAmber,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isStarted ? 'Trip in progress' : 'Ready to start',
-                                style: BrandTypography.caption(color: BrandTokens.textSecondary),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    _SheetIconButton(icon: Icons.chat_bubble_rounded, color: BrandTokens.primaryBlue, onTap: onChat),
-                  ],
-                ),
-                
-                const SizedBox(height: AppTheme.spaceXL),
-                
-                // Stats Row
-                Row(
-                  children: [
-                    _StatItem(label: 'Payout', value: '\$${booking.payout.toStringAsFixed(0)}', icon: Icons.attach_money_rounded),
-                    _StatItem(label: 'Language', value: booking.language ?? 'Any', icon: Icons.translate_rounded),
-                    _StatItem(label: 'Type', value: booking.isInstant ? 'Instant' : 'Scheduled', icon: Icons.bolt_rounded),
-                  ],
-                ),
-                
-                const SizedBox(height: AppTheme.spaceXL),
-                
-                // Route
-                _RouteInfo(pickup: booking.pickupLocation, destination: booking.destinationLocation),
-                const SizedBox(height: 120), // Padding for fixed buttons
-              ],
-            ),
-          ),
-          
-          // Fixed Actions at Bottom
-          Container(
-            padding: const EdgeInsets.all(AppTheme.spaceLG),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0A0E1A) : BrandTokens.surfaceWhite,
-              border: Border(top: BorderSide(color: BrandTokens.borderSoft.withValues(alpha: 0.2))),
-            ),
-            child: SafeArea(
-              top: false,
-              child: _buildActions(),
-            ),
-          ),
-        ],
-      ),
-    );
+class _PulsingFollowButton extends StatefulWidget {
+  final double size;
+  final VoidCallback onTap;
+  const _PulsingFollowButton({required this.size, required this.onTap});
+
+  @override
+  State<_PulsingFollowButton> createState() => _PulsingFollowButtonState();
+}
+
+class _PulsingFollowButtonState extends State<_PulsingFollowButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
   }
 
-  Widget _buildActions() {
-    final s = status.toLowerCase();
-    final tripActive = isStarted || s.contains('progress') || s.contains('started');
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
-    // Case 1: Trip can be started (Accepted/Confirmed but not in progress)
-    if (booking.canStartTrip || (s.contains('accept') && !tripActive)) {
-      return _TripBtn(
-        label: 'Start Trip',
-        color: BrandTokens.successGreen,
-        icon: Icons.play_arrow_rounded,
-        onTap: onStartTrip,
-        actionType: 'start',
-      );
-    } 
-    
-    // Case 2: Trip is active (In Progress)
-    if (booking.canEndTrip || tripActive) {
-      final isSosActive = sosState.status == SosStatus.active;
-      final isSosPending = sosState.status == SosStatus.deactivating || sosState.status == SosStatus.activating;
-
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isSosActive || isSosPending) ...[
-            _TripBtn(
-              label: isSosPending ? 'Cancelling SOS...' : 'Cancel SOS Alert',
-              color: BrandTokens.dangerRed,
-              icon: Icons.cancel_outlined,
-              onTap: isSosPending ? null : onCancelSos,
-              actionType: 'cancel_sos',
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Pulsing outer ring
+            Container(
+              width: widget.size + 12 * _ctrl.value,
+              height: widget.size + 12 * _ctrl.value,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(
+                  alpha: 0.28 * (1 - _ctrl.value),
+                ),
+              ),
             ),
-            const SizedBox(height: AppTheme.spaceMD),
+            child!,
           ],
-          _TripBtn(
-            label: 'End Trip',
-            color: BrandTokens.dangerRed,
-            icon: Icons.stop_circle_rounded,
-            onTap: onEndTrip,
-            actionType: 'end',
-          ),
-        ],
-      );
-    }
-
-    // Fallback: Just show End Trip if nothing else matches but it's not completed
-    if (s != 'completed' && s != 'cancelled') {
-       return _TripBtn(
-          label: 'End Trip',
-          color: BrandTokens.dangerRed,
-          icon: Icons.stop_circle_rounded,
-          onTap: onEndTrip,
-          actionType: 'end',
-        );
-    }
-
-    return const SizedBox.shrink();
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String label, value;
-  final IconData icon;
-  const _StatItem({required this.label, required this.value, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: BrandTokens.textSecondary, size: 20),
-          const SizedBox(height: 4),
-          Text(value, style: BrandTypography.body(weight: FontWeight.bold)),
-          Text(label, style: BrandTypography.caption(color: BrandTokens.textSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
-class _RouteInfo extends StatelessWidget {
-  final String pickup, destination;
-  const _RouteInfo({required this.pickup, required this.destination});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: BrandTokens.borderSoft.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          _RouteRow(icon: Icons.trip_origin_rounded, color: BrandTokens.successGreen, label: 'Pickup', value: pickup),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(width: 2, height: 20, color: BrandTokens.borderSoft),
-            ),
-          ),
-          _RouteRow(icon: Icons.location_on_rounded, color: BrandTokens.dangerRed, label: 'Drop-off', value: destination),
-        ],
-      ),
-    );
-  }
-}
-
-class _RouteRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label, value;
-  const _RouteRow({required this.icon, required this.color, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: BrandTypography.caption(color: BrandTokens.textSecondary)),
-              Text(value, style: BrandTypography.body(weight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TripBtn extends StatelessWidget {
-  final String label;
-  final Color color;
-  final IconData icon;
-   final VoidCallback? onTap;
-  final bool outline;
-
-  final String? actionType;
-
-  const _TripBtn({
-    required this.label,
-    required this.color,
-    required this.icon,
-    required this.onTap,
-    this.outline = false,
-    this.actionType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<TripActionCubit, TripActionState>(
-      builder: (context, state) {
-        final loading = state is TripActionLoading && state.actionType == actionType;
-        return SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: loading ? null : onTap,
-            icon: loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(icon, color: outline ? color : Colors.white),
-            label: Text(label, style: TextStyle(color: outline ? color : Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: outline ? Colors.transparent : color,
-              elevation: 0,
-              side: outline ? BorderSide(color: color, width: 2) : null,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-          ),
         );
       },
-    );
-  }
-}
-
-class _SheetIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  const _SheetIconButton({required this.icon, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.1),
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Icon(icon, color: color, size: 24),
-        ),
-      ),
-    );
-  }
-}
-
-class _BlurredCircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _BlurredCircleButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipOval(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.8),
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(icon, color: Colors.black87),
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Material(
+            color: Colors.black.withValues(alpha: 0.26),
+            child: InkWell(
+              onTap: widget.onTap,
+              child: SizedBox(
+                width: widget.size,
+                height: widget.size,
+                child: const Icon(
+                  Icons.location_searching_rounded,
+                  color: Colors.white,
+                  size: AppSize.iconLg,
+                ),
+              ),
             ),
           ),
         ),
@@ -933,144 +1110,3 @@ class _BlurredCircleButton extends StatelessWidget {
   }
 }
 
-class _PinDot extends StatelessWidget {
-  final Color color;
-  final IconData icon;
-  const _PinDot({required this.color, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 3)),
-        ],
-        border: Border.all(color: color, width: 2.5),
-      ),
-      alignment: Alignment.center,
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-}
-
-class _HelperMarker extends StatelessWidget {
-  final double rotation;
-  const _HelperMarker({required this.rotation});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Outer glow
-        Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: BrandTokens.primaryBlue.withValues(alpha: 0.2),
-          ),
-        ),
-        // Helper Dot
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: BrandTokens.primaryBlue,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
-        // Directional Arrow
-        Transform.rotate(
-          angle: rotation * (math.pi / 180),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.navigation_rounded,
-                size: 20,
-                color: BrandTokens.primaryBlue,
-              ),
-              const SizedBox(height: 28), 
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================================
-// Route Info Chip — distance & ETA floating on the map
-// =============================================================================
-
-class _RouteInfoChip extends StatelessWidget {
-  final String distance;
-  final String duration;
-  const _RouteInfoChip({required this.distance, required this.duration});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.90),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.7),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.straighten_rounded, size: 16,
-                  color: BrandTokens.primaryBlue),
-              const SizedBox(width: 6),
-              Text(distance,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: BrandTokens.textPrimary)),
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                width: 1,
-                height: 16,
-                color: BrandTokens.borderSoft,
-              ),
-              const Icon(Icons.schedule_rounded, size: 16,
-                  color: BrandTokens.primaryBlue),
-              const SizedBox(width: 6),
-              Text(duration,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: BrandTokens.textPrimary)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

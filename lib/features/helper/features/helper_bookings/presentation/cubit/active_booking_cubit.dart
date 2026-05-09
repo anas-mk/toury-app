@@ -93,6 +93,18 @@ class ActiveBookingCubit extends Cubit<ActiveBookingState> {
 
   void clearCurrentId() => _currentId = null;
 
+  /// Optimistically marks "no active booking" on the client side.
+  ///
+  /// Use this immediately after a trip completes / cancels so screens that
+  /// listen to this cubit (dashboard active-trip card, etc.) update right
+  /// away — without waiting for the next backend fetch which can return a
+  /// stale "InProgress" payload due to caching or eventual consistency.
+  void clear() {
+    _currentId = null;
+    if (isClosed) return;
+    emit(const ActiveBookingLoaded(null));
+  }
+
   @override
   Future<void> close() {
     _hubDebounce?.cancel();

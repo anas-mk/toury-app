@@ -1,11 +1,14 @@
+// Modernized route card showing pickup → destination on a polished timeline
+// alongside grouped meta-stats (date, time, duration, travelers).
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:toury/core/widgets/custom_card.dart';
-import 'package:toury/features/helper/features/helper_bookings/domain/entities/helper_booking_entities.dart';
 
-import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
-
+import '../../../../../../../core/theme/app_color.dart';
+import '../../../../../../../core/theme/app_dimens.dart';
+import '../../../domain/entities/helper_booking_entities.dart';
+import '../../pages/route_preview_page.dart';
+import '../shared/route_stop_row.dart';
 
 class BookingRouteCard extends StatelessWidget {
   final HelperBooking booking;
@@ -13,115 +16,239 @@ class BookingRouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('TRIP LOGISTICS', style: BrandTypography.caption(weight: FontWeight.bold, color: BrandTokens.textMuted)),
-          const SizedBox(height: 20),
-          _buildLocationItem(
-            icon: Icons.circle_outlined,
-            color: BrandTokens.successGreen,
-            title: 'Pickup Location',
-            value: booking.pickupLocation,
-          ),
-          _buildConnector(),
-          _buildLocationItem(
-            icon: Icons.location_on_rounded,
-            color: BrandTokens.dangerRed,
-            title: 'Destination',
-            value: booking.destinationLocation,
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Divider(height: 1, color: BrandTokens.borderSoft),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDetailItem(
-                  Icons.calendar_today_rounded,
-                  'Date',
-                  DateFormat('EEE, MMM d, yyyy').format(booking.startTime),
-                ),
-              ),
-              Expanded(
-                child: _buildDetailItem(
-                  Icons.access_time_rounded,
-                  'Time',
-                  DateFormat('hh:mm a').format(booking.startTime),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDetailItem(
-                  Icons.timer_outlined,
-                  'Duration',
-                  '${booking.durationInMinutes} Minutes',
-                ),
-              ),
-              Expanded(
-                child: _buildDetailItem(
-                  Icons.people_outline_rounded,
-                  'Travelers',
-                  '${booking.travelersCount} People',
-                ),
-              ),
-            ],
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: palette.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.30 : 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildLocationItem({required IconData icon, required Color color, required String title, required String value}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: BrandTypography.caption(color: BrandTokens.textMuted)),
-              Text(value, style: BrandTypography.body(weight: FontWeight.w600)),
-            ],
-          ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Trip Logistics',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: palette.textPrimary,
+                letterSpacing: -0.1,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            // Timeline
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: palette.surfaceInset,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(
+                  color: palette.border.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Column(
+                children: [
+                  RouteStopRow(
+                    icon: Icons.circle,
+                    color: palette.success,
+                    label: 'PICKUP',
+                    value: booking.pickupLocation,
+                    emphasize: true,
+                  ),
+                  const RouteStopConnector(height: 24),
+                  RouteStopRow(
+                    icon: Icons.location_on_rounded,
+                    color: palette.danger,
+                    label: 'DESTINATION',
+                    value: booking.destinationLocation,
+                    emphasize: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            // ── Show on Map button ──────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              child: _ShowOnMapButton(booking: booking),
+            ),
+            // Meta stats grid
+            Row(
+              children: [
+                Expanded(
+                  child: _MetaTile(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Date',
+                    value:
+                        DateFormat('EEE, MMM d').format(booking.startTime),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _MetaTile(
+                    icon: Icons.access_time_rounded,
+                    label: 'Time',
+                    value: DateFormat('hh:mm a').format(booking.startTime),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetaTile(
+                    icon: Icons.timer_outlined,
+                    label: 'Duration',
+                    value: _formatDuration(booking.durationInMinutes),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _MetaTile(
+                    icon: Icons.people_outline_rounded,
+                    label: 'Travelers',
+                    value: '${booking.travelersCount} '
+                        '${booking.travelersCount == 1 ? "Person" : "People"}',
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildConnector() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 7.5),
-      child: Container(
-        width: 1,
-        height: 20,
-        color: BrandTokens.borderSoft,
       ),
     );
   }
 
-  Widget _buildDetailItem(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: BrandTokens.primaryBlue),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: BrandTokens.body(fontSize: 10, color: BrandTokens.textMuted)),
-            Text(value, style: BrandTokens.body(fontSize: 12, fontWeight: FontWeight.w600)),
-          ],
+  String _formatDuration(int minutes) {
+    if (minutes < 60) return '$minutes min';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}m';
+  }
+}
+
+class _ShowOnMapButton extends StatelessWidget {
+  final HelperBooking booking;
+  const _ShowOnMapButton({required this.booking});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: () => RoutePreviewPage.show(context, booking),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.md + 2,
+            horizontal: AppSpacing.lg,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                palette.primary.withValues(alpha: 0.12),
+                palette.primary.withValues(alpha: 0.06),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: palette.primary.withValues(alpha: 0.28),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              'Show Route on Map',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _MetaTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MetaTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: palette.surfaceInset,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.border.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.xs + 1),
+            decoration: BoxDecoration(
+              color: palette.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.xs),
+            ),
+            child: Icon(icon, color: palette.primary, size: AppSize.iconSm),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: palette.textMuted,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: palette.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

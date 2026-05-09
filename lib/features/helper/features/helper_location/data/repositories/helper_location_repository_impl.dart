@@ -1,16 +1,18 @@
 import '../../domain/entities/helper_location_entities.dart';
+import '../../domain/entities/signalr_connection_state.dart';
 import '../../domain/repositories/helper_location_repository.dart';
+import '../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
+import 'package:signalr_netcore/hub_connection.dart';
 import '../datasources/helper_location_remote_data_source.dart';
 import '../models/helper_location_models.dart';
-import '../services/helper_location_signalr_service.dart';
 
 class HelperLocationRepositoryImpl implements HelperLocationRepository {
   final HelperLocationRemoteDataSource remoteDataSource;
-  final HelperLocationSignalRService signalRService;
+  final BookingTrackingHubService hubService;
 
   HelperLocationRepositoryImpl({
     required this.remoteDataSource,
-    required this.signalRService,
+    required this.hubService,
   });
 
   @override
@@ -35,17 +37,18 @@ class HelperLocationRepositoryImpl implements HelperLocationRepository {
       );
 
   @override
-  Future<void> connectSignalR(String token) => signalRService.connect(token);
+  Future<void> connectSignalR(String token) => hubService.connect(token);
 
   @override
-  Future<void> disconnectSignalR() => signalRService.disconnect();
+  Future<void> disconnectSignalR() async {
+    // Shared hub lifecycle is managed globally, never disconnect from a feature.
+  }
 
   @override
   Future<void> streamLocationViaSignalR(HelperLocation location) async {
-    await signalRService.sendLocation(
-      lat: location.latitude,
-      lng: location.longitude,
-      bookingId: location.bookingId,
+    await hubService.sendLocation(
+      location.latitude,
+      location.longitude,
       heading: location.heading,
       speedKmh: location.speedKmh,
       accuracyMeters: location.accuracyMeters,
@@ -53,5 +56,19 @@ class HelperLocationRepositoryImpl implements HelperLocationRepository {
   }
 
   @override
-  Stream<SignalRConnectionState> get signalRStateStream => signalRService.stateStream;
+  Stream<SignalRConnectionState> get signalRStateStream =>
+      hubService.connectionStateStream.map(_mapHubState);
+
+  SignalRConnectionState _mapHubState(HubConnectionState state) {
+    switch (state) {
+      case HubConnectionState.Connected:
+        return SignalRConnectionState.connected;
+      case HubConnectionState.Connecting:
+      case HubConnectionState.Reconnecting:
+        return SignalRConnectionState.connecting;
+      case HubConnectionState.Disconnecting:
+      case HubConnectionState.Disconnected:
+        return SignalRConnectionState.disconnected;
+    }
+  }
 }

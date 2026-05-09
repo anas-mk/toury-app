@@ -12,9 +12,4 @@ abstract class HelperChatRepository {
   });
   Future<Either<Failure, ChatMessageEntity>> sendMessage(String bookingId, String text);
   Future<Either<Failure, void>> markAsRead(String bookingId);
-  
-  // Real-time
-  Future<void> connectSignalR(String token);
-  Future<void> disconnectSignalR();
-  Stream<ChatMessageEntity> get messageStream;
 }

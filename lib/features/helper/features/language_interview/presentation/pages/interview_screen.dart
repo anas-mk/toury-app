@@ -1,16 +1,24 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_player/video_player.dart';
+
 import '../../../../../../core/services/camera_service.dart';
-import '../../../../../../core/theme/app_theme.dart';
+import '../../../../../../core/services/haptic_service.dart';
+import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/widgets/app_camera_preview.dart';
+import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_snackbar.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
 import 'interview_under_review_page.dart';
 
+/// Active interview screen — records & submits each answer.
+///
+/// Hardware is owned by [CameraService]. Submission flow + question state is
+/// driven by [ExamsCubit].
 class InterviewScreen extends StatefulWidget {
   final String interviewId;
 
@@ -21,13 +29,9 @@ class InterviewScreen extends StatefulWidget {
 }
 
 class _InterviewScreenState extends State<InterviewScreen> {
-  // ── CameraService is the sole hardware authority ──
   final _camera = CameraService.instance;
-
-  // ── Cubit cached here — NEVER call context.read() inside dispose() ──
   late ExamsCubit _cubit;
 
-  // ── Only local video-player for review phase ──
   VideoPlayerController? _videoPlayerController;
   Timer? _timer;
   File? _recordedFile;
@@ -36,10 +40,8 @@ class _InterviewScreenState extends State<InterviewScreen> {
   @override
   void initState() {
     super.initState();
-    // Cache cubit reference while widget is alive and context is valid
     _cubit = context.read<ExamsCubit>();
 
-    // POST-SUBMIT LOCK: Eject immediately — never allow camera init on a locked session
     if (_cubit.state.isInterviewLocked) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.of(context).pop();
@@ -55,7 +57,7 @@ class _InterviewScreenState extends State<InterviewScreen> {
       await _camera.initialize();
       if (mounted) setState(() => _localCameraReady = true);
     } catch (e) {
-      debugPrint('InterviewScreen: Camera init via CameraService failed: $e');
+      debugPrint('InterviewScreen: Camera init failed: $e');
     }
   }
 
@@ -63,21 +65,20 @@ class _InterviewScreenState extends State<InterviewScreen> {
   void dispose() {
     _timer?.cancel();
     _videoPlayerController?.dispose();
-    // Safe: using cached reference — never access context in dispose()
     _cubit.cancelPendingRequests();
     super.dispose();
   }
 
-  // ─── Recording Control ────────────────────────────────────────────────────────
+  // ─── Recording ─────────────────────────────────────────────────────────────
 
   Future<void> _startRecording() async {
-    // Secondary defense: block camera engagement if session is locked
     if (_cubit.state.isInterviewLocked) return;
     if (!_camera.isInitialized || _camera.isRecording) return;
 
     try {
       await _camera.startRecording();
       if (!mounted) return;
+      HapticService.medium();
       context.read<ExamsCubit>().startRecording();
       _startTimer();
     } catch (e) {
@@ -125,9 +126,10 @@ class _InterviewScreenState extends State<InterviewScreen> {
     if (mounted) setState(() {});
   }
 
-  // ─── Actions ─────────────────────────────────────────────────────────────────
+  // ─── Actions ──────────────────────────────────────────────────────────────
 
   void _onRetake() {
+    HapticService.light();
     setState(() {
       _recordedFile = null;
       _videoPlayerController?.dispose();
@@ -138,6 +140,7 @@ class _InterviewScreenState extends State<InterviewScreen> {
 
   void _onConfirm() {
     if (_recordedFile == null) return;
+    HapticService.medium();
     final file = _recordedFile!;
     setState(() {
       _recordedFile = null;
@@ -147,12 +150,11 @@ class _InterviewScreenState extends State<InterviewScreen> {
     context.read<ExamsCubit>().submitAnswer(file);
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────────
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
     return BlocListener<ExamsCubit, ExamsState>(
       listenWhen: (prev, cur) => prev.status != cur.status,
@@ -165,14 +167,12 @@ class _InterviewScreenState extends State<InterviewScreen> {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const InterviewUnderReviewPage()),
           );
-        } else if (state.status == ExamsStatus.interviewError && state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.redAccent),
-          );
+        } else if (state.status == ExamsStatus.interviewError &&
+            state.errorMessage != null) {
+          AppSnackbar.error(context, state.errorMessage!);
         }
       },
       child: BlocBuilder<ExamsCubit, ExamsState>(
-        // ── Only rebuild when statuses or question data change, not on every timer tick ──
         buildWhen: (prev, cur) =>
             prev.status != cur.status ||
             prev.currentQuestionIndex != cur.currentQuestionIndex ||
@@ -182,72 +182,65 @@ class _InterviewScreenState extends State<InterviewScreen> {
         builder: (context, state) {
           final interview = state.interview;
           if (interview == null) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            return Scaffold(
+              backgroundColor: palette.scaffold,
+              body: const AppLoading(message: 'Loading interview…'),
+            );
           }
 
-          final currentQuestion = interview.questions[state.currentQuestionIndex];
+          final currentQuestion =
+              interview.questions[state.currentQuestionIndex];
           final totalQuestions = interview.totalQuestions;
-          final progress = (state.currentQuestionIndex + 1) / totalQuestions;
 
           return Scaffold(
-            backgroundColor: isDark ? theme.scaffoldBackgroundColor : Colors.white,
-            appBar: AppBar(
-              title: Text('${interview.languageName} Interview'),
-              leading: IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: state.isNavigating ? null : () => Navigator.pop(context),
-              ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(4),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
-                ),
-              ),
-            ),
-            body: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceLG),
+            backgroundColor: palette.scaffold,
+            body: SafeArea(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Question ${currentQuestion.index + 1} of $totalQuestions',
-                        style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
-                      ),
-                      _buildAttemptsBadge(state.attemptsLeft),
-                    ],
+                  _Header(
+                    languageName: interview.languageName,
+                    currentIndex: state.currentQuestionIndex + 1,
+                    totalQuestions: totalQuestions,
+                    canPop: !state.isNavigating,
                   ),
-                  const SizedBox(height: AppTheme.spaceMD),
-                  Text(
-                    currentQuestion.questionText,
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  _ProgressBar(
+                    current: state.currentQuestionIndex + 1,
+                    total: totalQuestions,
                   ),
-                  const SizedBox(height: AppTheme.spaceLG),
-
-                  // ── Experience Area ──
                   Expanded(
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _buildMainContent(state),
-                          if (state.isRecording) _buildRecordingOverlay(state),
+                          _QuestionCard(
+                            questionNumber: currentQuestion.index + 1,
+                            totalQuestions: totalQuestions,
+                            questionText: currentQuestion.questionText,
+                            attemptsLeft: state.attemptsLeft,
+                          ),
+                          const SizedBox(height: 14),
+                          _RecordingFrame(
+                            state: state,
+                            videoPlayerController: _videoPlayerController,
+                            cameraController: _camera.controller,
+                            localCameraReady: _localCameraReady,
+                          ),
                         ],
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: AppTheme.spaceLG),
-                  _buildActionArea(context, state),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    child: _ActionArea(
+                      state: state,
+                      onStart: _startRecording,
+                      onStop: _stopRecording,
+                      onRetake: _onRetake,
+                      onConfirm: _onConfirm,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -256,180 +249,628 @@ class _InterviewScreenState extends State<InterviewScreen> {
       ),
     );
   }
+}
 
-  // ─── Sub-Widgets ──────────────────────────────────────────────────────────────
+// ─── Header ──────────────────────────────────────────────────────────────────
 
-  Widget _buildAttemptsBadge(int attemptsLeft) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: attemptsLeft > 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppTheme.radiusXS),
+class _Header extends StatelessWidget {
+  final String languageName;
+  final int currentIndex;
+  final int totalQuestions;
+  final bool canPop;
+
+  const _Header({
+    required this.languageName,
+    required this.currentIndex,
+    required this.totalQuestions,
+    required this.canPop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: canPop ? () => Navigator.of(context).maybePop() : null,
+            icon: Icon(Icons.close_rounded, color: palette.textPrimary),
+            style: IconButton.styleFrom(
+              backgroundColor: palette.surface,
+              shape: const CircleBorder(),
+              side: BorderSide(color: palette.border, width: 0.5),
+              padding: const EdgeInsets.all(10),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$languageName interview',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Question $currentIndex of $totalQuestions',
+                  style: TextStyle(
+                    color: palette.textMuted,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      child: Text(
-        '$attemptsLeft attempts left',
-        style: TextStyle(
-          color: attemptsLeft > 0 ? Colors.green : Colors.red,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
+    );
+  }
+}
+
+// ─── Progress Bar ────────────────────────────────────────────────────────────
+
+class _ProgressBar extends StatelessWidget {
+  final int current;
+  final int total;
+
+  const _ProgressBar({required this.current, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final progress = total == 0 ? 0.0 : current / total;
+
+    return Semantics(
+      value: '${(progress * 100).toInt()}%',
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+        child: Row(
+          children: List.generate(total, (i) {
+            final filled = i < current;
+            return Expanded(
+              child: Container(
+                margin: EdgeInsets.only(right: i == total - 1 ? 0 : 6),
+                height: 4,
+                decoration: BoxDecoration(
+                  gradient: filled
+                      ? LinearGradient(
+                          colors: [
+                            palette.primary,
+                            const Color(0xFF7B61FF),
+                          ],
+                        )
+                      : null,
+                  color: filled ? null : palette.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            );
+          }),
         ),
       ),
     );
   }
+}
 
-  Widget _buildMainContent(ExamsState state) {
-    if (state.status == ExamsStatus.reviewing && _videoPlayerController != null) {
-      return VideoPlayer(_videoPlayerController!);
-    }
+// ─── Question Card ───────────────────────────────────────────────────────────
 
-    // ── Use CameraService.instance.controller for preview ──
-    final controller = _camera.controller;
-    if (_localCameraReady && controller != null && controller.value.isInitialized) {
-      return Center(
-        child: AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: CameraPreview(controller),
+class _QuestionCard extends StatelessWidget {
+  final int questionNumber;
+  final int totalQuestions;
+  final String questionText;
+  final int attemptsLeft;
+
+  const _QuestionCard({
+    required this.questionNumber,
+    required this.totalQuestions,
+    required this.questionText,
+    required this.attemptsLeft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: palette.isDark
+              ? [
+                  palette.primary.withValues(alpha: 0.18),
+                  const Color(0xFF7B61FF).withValues(alpha: 0.10),
+                ]
+              : [
+                  palette.primary.withValues(alpha: 0.10),
+                  const Color(0xFF7B61FF).withValues(alpha: 0.06),
+                ],
         ),
-      );
-    }
-
-    return const Center(child: CircularProgressIndicator());
-  }
-
-  Widget _buildRecordingOverlay(ExamsState state) {
-    return Positioned(
-      top: 16,
-      left: 16,
-      right: 16,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: palette.primary.withValues(alpha: 0.25),
+          width: 0.6,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _RecordingDot(),
-              const SizedBox(width: 8),
-              const Text('REC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-            child: Text(
-              '${state.recordingDuration}s',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionArea(BuildContext context, ExamsState state) {
-    // ── Block all interactions during navigation ──
-    if (state.isNavigating) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (state.status == ExamsStatus.interviewInProgress || 
-        state.status == ExamsStatus.interviewSubmitting || 
-        state.status == ExamsStatus.interviewUnderReview) {
-      return Center(
-        child: Column(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 8),
-            Text(state.status == ExamsStatus.interviewSubmitting 
-                ? 'Finalizing interview...' 
-                : 'Saving your answer...'),
-          ],
-        ),
-      );
-    }
-
-    // The "Complete Interview" button has been removed as per strict 
-    // constraints: automation triggers `finalizeInterview()` automatically. 
-
-    if (state.status == ExamsStatus.reviewing) {
-      return Row(
-        children: [
-          if (state.attemptsLeft > 0)
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _onRetake,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retake'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: palette.primary,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  'Q$questionNumber/$totalQuestions',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
-            ),
-          if (state.attemptsLeft > 0) const SizedBox(width: 16),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _onConfirm,
-              icon: const Icon(Icons.check),
-              label: const Text('Confirm'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(0, 56),
-                backgroundColor: Colors.green,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
-              ),
+              const Spacer(),
+              _AttemptsBadge(attemptsLeft: attemptsLeft),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            questionText,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 16.5,
+              height: 1.35,
             ),
           ),
         ],
-      );
-    }
-
-    // Default: ready to record
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: state.isRecording ? _stopRecording : _startRecording,
-        icon: Icon(state.isRecording ? Icons.stop : Icons.fiber_manual_record),
-        label: Text(state.isRecording ? 'Stop Recording' : 'Start Recording'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: state.isRecording ? Colors.red : Theme.of(context).colorScheme.primary,
-          minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMD)),
-        ),
       ),
     );
   }
 }
 
-// ─── Recording Dot Animation (unchanged) ─────────────────────────────────────
+class _AttemptsBadge extends StatelessWidget {
+  final int attemptsLeft;
 
-class _RecordingDot extends StatefulWidget {
+  const _AttemptsBadge({required this.attemptsLeft});
+
   @override
-  _RecordingDotState createState() => _RecordingDotState();
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final has = attemptsLeft > 0;
+    final color = has ? const Color(0xFF22C55E) : palette.danger;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.32), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.replay_rounded, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$attemptsLeft attempts left',
+            style: TextStyle(
+              color: color,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _RecordingDotState extends State<_RecordingDot> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+// ─── Recording Frame ─────────────────────────────────────────────────────────
+
+class _RecordingFrame extends StatelessWidget {
+  final ExamsState state;
+  final VideoPlayerController? videoPlayerController;
+  final dynamic cameraController;
+  final bool localCameraReady;
+
+  const _RecordingFrame({
+    required this.state,
+    required this.videoPlayerController,
+    required this.cameraController,
+    required this.localCameraReady,
+  });
 
   @override
-  void initState() {
-    super.initState();
-    _animationController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 500))
-          ..repeat(reverse: true);
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final isRecording = state.isRecording;
+    final color = isRecording ? palette.danger : palette.primary;
+
+    return AspectRatio(
+      aspectRatio: 3 / 4,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: color.withValues(alpha: 0.55),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.20),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildContent(context),
+              if (isRecording)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: _RecBadge(),
+                ),
+              if (isRecording)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: _CountdownPill(seconds: state.recordingDuration),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
+
+  Widget _buildContent(BuildContext context) {
+    final palette = AppColors.of(context);
+
+    if (state.status == ExamsStatus.reviewing &&
+        videoPlayerController != null) {
+      return VideoPlayer(videoPlayerController!);
+    }
+
+    final controller = cameraController;
+    if (localCameraReady &&
+        controller != null &&
+        controller.value.isInitialized) {
+      return AppCameraPreview(controller: controller);
+    }
+
+    return Center(child: AppSpinner.large(color: palette.primary));
+  }
+}
+
+class _RecBadge extends StatefulWidget {
+  @override
+  State<_RecBadge> createState() => _RecBadgeState();
+}
+
+class _RecBadgeState extends State<_RecBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..repeat(reverse: true);
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: _animationController,
+      opacity: _ctrl,
       child: Container(
-        width: 12,
-        height: 12,
-        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444),
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.fiber_manual_record, color: Colors.white, size: 10),
+            SizedBox(width: 4),
+            Text(
+              'REC',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 10.5,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountdownPill extends StatelessWidget {
+  final int seconds;
+  const _CountdownPill({required this.seconds});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_rounded, color: Colors.white, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            '${seconds}s',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Action Area ─────────────────────────────────────────────────────────────
+
+class _ActionArea extends StatelessWidget {
+  final ExamsState state;
+  final VoidCallback onStart;
+  final VoidCallback onStop;
+  final VoidCallback onRetake;
+  final VoidCallback onConfirm;
+
+  const _ActionArea({
+    required this.state,
+    required this.onStart,
+    required this.onStop,
+    required this.onRetake,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isNavigating) {
+      return _StatusFooter(label: 'Please wait…');
+    }
+
+    if (state.status == ExamsStatus.interviewInProgress ||
+        state.status == ExamsStatus.interviewSubmitting ||
+        state.status == ExamsStatus.interviewUnderReview) {
+      final msg = state.status == ExamsStatus.interviewSubmitting
+          ? 'Finalizing interview…'
+          : 'Saving your answer…';
+      return _StatusFooter(label: msg);
+    }
+
+    if (state.status == ExamsStatus.reviewing) {
+      return Row(
+        children: [
+          if (state.attemptsLeft > 0)
+            Expanded(
+              child: _OutlineButton(
+                label: 'Retake',
+                icon: Icons.refresh_rounded,
+                onTap: onRetake,
+              ),
+            ),
+          if (state.attemptsLeft > 0) const SizedBox(width: 12),
+          Expanded(
+            child: _GradientButton(
+              label: 'Confirm',
+              icon: Icons.check_rounded,
+              colors: const [Color(0xFF22C55E), Color(0xFF16A34A)],
+              onTap: onConfirm,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (state.isRecording) {
+      return _GradientButton(
+        label: 'Stop recording',
+        icon: Icons.stop_rounded,
+        colors: const [Color(0xFFEF4444), Color(0xFFDC2626)],
+        onTap: onStop,
+      );
+    }
+
+    return _GradientButton(
+      label: 'Start recording',
+      icon: Icons.fiber_manual_record,
+      onTap: onStart,
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final List<Color>? colors;
+
+  const _GradientButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    final disabled = onTap == null;
+
+    final gradColors = disabled
+        ? [palette.border, palette.border]
+        : (colors ?? [palette.primary, const Color(0xFF7B61FF)]);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(colors: gradColors),
+            boxShadow: disabled
+                ? null
+                : [
+                    BoxShadow(
+                      color: gradColors.first.withValues(alpha: 0.32),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+          ),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _OutlineButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.border, width: 0.6),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: palette.textPrimary, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusFooter extends StatelessWidget {
+  final String label;
+
+  const _StatusFooter({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border, width: 0.5),
+      ),
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppSpinner(color: palette.primary),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

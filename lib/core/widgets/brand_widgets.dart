@@ -1,9 +1,25 @@
+// lib/core/widgets/brand_widgets.dart
+//
+// Legacy brand widget shims kept for backward compatibility with screens
+// imported BEFORE the new `brand/` widget kit existed.
+//
+// IMPORTANT: every type here previously hard-coded its own color/shadow
+// values, sometimes conflicting with the canonical brand kit (most
+// notably `BrandCard`, which had two competing implementations). They
+// are now thin theme-aware wrappers around the unified design system,
+// so every existing import keeps compiling but renders the modern look.
+//
+// New screens should import the canonical brand kit instead:
+//   import 'package:toury/core/widgets/brand/brand_kit.dart';
+
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-import '../theme/brand_tokens.dart';
+import '../theme/app_color.dart';
+import '../theme/app_dimens.dart';
+import '../theme/app_shadows.dart';
+import 'app_section_header.dart';
 
-/// Section heading using [BrandTokens] typography colors (no raw hex in pages).
+/// Legacy section title — delegates to the unified [AppSectionHeader].
 class BrandSectionTitle extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -12,71 +28,68 @@ class BrandSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: BrandTokens.textPrimary,
-          ),
-        ),
-        if ((subtitle ?? '').isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            subtitle!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: BrandTokens.textSecondary,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ],
+    return AppSectionHeader(
+      title: title,
+      subtitle: subtitle,
+      padding: EdgeInsets.zero,
     );
   }
 }
 
-/// Card shell: surface, border, and soft shadow from [BrandTokens].
+/// Legacy brand card. Renamed under-the-hood: this is the SAME class
+/// callers historically imported from `brand_widgets.dart`, but it now
+/// renders identically to the canonical card in `brand/brand_card_v2.dart`.
 class BrandCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final double radius;
+  final VoidCallback? onTap;
 
   const BrandCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(AppTheme.spaceMD),
+    this.padding = const EdgeInsets.all(AppSpacing.md),
+    this.margin = EdgeInsets.zero,
+    this.radius = AppRadius.lg,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final palette = AppColors.of(context);
+
+    final card = Container(
       padding: padding,
+      margin: margin,
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        border: Border.all(color: BrandTokens.borderSoft),
-        boxShadow: [
-          BoxShadow(
-            color: BrandTokens.shadowSoft,
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: palette.border),
+        boxShadow: AppShadows.sm(context),
       ),
       child: child,
+    );
+
+    if (onTap == null) return card;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(radius),
+        onTap: onTap,
+        child: card,
+      ),
     );
   }
 }
 
-/// Primary filled button on the RAFIQ blue gradient.
+/// Legacy primary action button. Delegates to [FilledButton] with
+/// app-themed styling.
 class BrandPrimaryButton extends StatelessWidget {
   final String label;
   final IconData? icon;
   final bool isLoading;
   final VoidCallback? onPressed;
-  /// When `false`, the button looks muted but may still receive [onPressed].
   final bool visualEnabled;
 
   const BrandPrimaryButton({
@@ -90,72 +103,58 @@ class BrandPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
     final interactive = onPressed != null && !isLoading;
     final muted = interactive && !visualEnabled;
+
     return Opacity(
       opacity: isLoading ? 1.0 : (muted ? 0.55 : 1.0),
-      child: Container(
-        height: 56,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-          gradient: const LinearGradient(
-            colors: [
-              BrandTokens.primaryBlue,
-              BrandTokens.primaryBlueDark,
-            ],
-          ),
-          boxShadow: (interactive && visualEnabled)
-              ? [
-                  BoxShadow(
-                    color: BrandTokens.primaryBlue.withValues(alpha: 0.28),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            onTap: interactive ? onPressed : null,
-            child: Center(
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, color: Colors.white, size: 22),
-                          const SizedBox(width: 10),
-                        ],
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
+      child: SizedBox(
+        height: AppSize.buttonLg,
+        child: FilledButton(
+          onPressed: interactive ? onPressed : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: palette.primary,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
           ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: Colors.white,
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, color: Colors.white, size: AppSize.iconLg),
+                      const SizedBox(width: AppSpacing.sm),
+                    ],
+                    Text(
+                      label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
   }
 }
 
-/// Outlined action using brand blues.
+/// Legacy outlined button — delegates to [OutlinedButton] with
+/// app-themed styling.
 class BrandOutlinedButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -168,25 +167,34 @@ class BrandOutlinedButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: BrandTokens.primaryBlue,
-        side: const BorderSide(color: BrandTokens.borderSoft, width: 1.5),
+        foregroundColor: palette.primary,
+        side: BorderSide(color: palette.border, width: 1.5),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spaceLG,
-          vertical: 14,
+          horizontal: AppSpacing.xxl,
+          vertical: AppSpacing.md,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusLG),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      child: Text(
+        label,
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: palette.primary,
+        ),
+      ),
     );
   }
 }
 
-/// Small tonal chip for filters or metadata.
+/// Legacy filter chip.
 class BrandChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -201,28 +209,32 @@ class BrandChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md + 2,
+            vertical: AppSpacing.sm,
+          ),
           decoration: BoxDecoration(
-            color: selected
-                ? BrandTokens.primaryBlue.withValues(alpha: 0.12)
-                : BrandTokens.bgSoft,
-            borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            color: selected ? palette.primarySoft : palette.surface,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
-              color: selected ? BrandTokens.primaryBlue : BrandTokens.borderSoft,
+              color: selected ? palette.primary : palette.border,
+              width: selected ? 1.2 : 1.0,
             ),
           ),
           child: Text(
             label,
-            style: TextStyle(
+            style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: selected ? BrandTokens.primaryBlue : BrandTokens.textSecondary,
+              color: selected ? palette.primary : palette.textSecondary,
             ),
           ),
         ),

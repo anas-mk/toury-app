@@ -22,23 +22,23 @@ import '../../features/helper/features/language_interview/presentation/cubit/exa
 // ============================================================
 // Tourist Auth Feature Imports
 // ============================================================
-import '../../features/tourist/features/auth/data/repositories/auth_repository_impl.dart';
-import '../../features/tourist/features/auth/domain/repositories/auth_repository.dart';
-import '../../features/tourist/features/auth/domain/usecases/get_cached_user_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/resend_verification_code_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/verify_code_usecase.dart';
-import '../../features/tourist/features/profile/domain/usecases/update_profile_usecase.dart';
-import '../../features/tourist/features/auth/data/datasources/auth_local_data_source.dart';
-import '../../features/tourist/features/auth/data/datasources/auth_remote_data_source.dart';
-import '../../features/tourist/features/auth/domain/usecases/check_email_usecas.dart';
-import '../../features/tourist/features/auth/domain/usecases/google_login_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/logout_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/register_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/verify_password_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/forgot_password_usecase.dart';
-import '../../features/tourist/features/auth/domain/usecases/reset_password_usecase.dart';
-import '../../features/tourist/features/auth/presentation/cubit/auth_cubit.dart';
-import '../../features/tourist/features/profile/presentation/cubit/profile_cubit.dart';
+import '../../features/user/features/auth/data/repositories/auth_repository_impl.dart';
+import '../../features/user/features/auth/domain/repositories/auth_repository.dart';
+import '../../features/user/features/auth/domain/usecases/get_cached_user_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/resend_verification_code_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/verify_code_usecase.dart';
+import '../../features/user/features/profile/domain/usecases/update_profile_usecase.dart';
+import '../../features/user/features/auth/data/datasources/auth_local_data_source.dart';
+import '../../features/user/features/auth/data/datasources/auth_remote_data_source.dart';
+import '../../features/user/features/auth/domain/usecases/check_email_usecas.dart';
+import '../../features/user/features/auth/domain/usecases/google_login_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/logout_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/register_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/verify_password_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/forgot_password_usecase.dart';
+import '../../features/user/features/auth/domain/usecases/reset_password_usecase.dart';
+import '../../features/user/features/auth/presentation/cubit/auth_cubit.dart';
+import '../../features/user/features/profile/presentation/cubit/profile_cubit.dart';
 
 
 // ============================================================
@@ -85,80 +85,80 @@ import '../../features/helper/features/profile/domain/usecases/delete_car_usecas
 import '../../features/helper/features/profile/domain/usecases/add_certificate_usecase.dart';
 import '../../features/helper/features/profile/domain/usecases/delete_certificate_usecase.dart';
 import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart' as helper_profile;
-import '../../features/tourist/features/user_booking/data/datasources/instant_booking_remote_data_source.dart';
-import '../../features/tourist/features/user_booking/data/datasources/user_booking_remote_data_source.dart';
-import '../../features/tourist/features/user_booking/data/repositories/instant_booking_repository_impl.dart';
-import '../../features/tourist/features/user_booking/data/repositories/user_booking_repository_impl.dart';
-import '../../features/tourist/features/user_booking/domain/repositories/instant_booking_repository.dart';
-import '../../features/tourist/features/user_booking/domain/repositories/user_booking_repository.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/booking_actions_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/create_booking_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_booking_details_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_helper_profile_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/get_my_bookings_usecase.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/cancel_instant_booking_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/create_instant_booking_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/get_alternatives_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/get_booking_detail_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/get_booking_status_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/get_helper_profile_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/instant/search_instant_helpers_uc.dart';
-import '../../features/tourist/features/user_booking/domain/usecases/search_helpers_usecase.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/alternatives_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_details_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/cancel_booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/helper_booking_profile_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/scheduled/scheduled_alternatives_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/scheduled/scheduled_booking_detail_cubit.dart';
-import '../../features/tourist/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
-import '../../features/tourist/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
-import '../../features/tourist/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
-import '../../features/tourist/features/user_chat/presentation/cubit/user_chat_cubit.dart';
-import '../../features/tourist/features/user_booking_tracking/presentation/cubit/tracking_cubit.dart';
+import '../../features/user/features/user_booking/data/datasources/instant_booking_remote_data_source.dart';
+import '../../features/user/features/user_booking/data/datasources/user_booking_remote_data_source.dart';
+import '../../features/user/features/user_booking/data/repositories/instant_booking_repository_impl.dart';
+import '../../features/user/features/user_booking/data/repositories/user_booking_repository_impl.dart';
+import '../../features/user/features/user_booking/domain/repositories/instant_booking_repository.dart';
+import '../../features/user/features/user_booking/domain/repositories/user_booking_repository.dart';
+import '../../features/user/features/user_booking/domain/usecases/booking_actions_usecase.dart';
+import '../../features/user/features/user_booking/domain/usecases/create_booking_usecase.dart';
+import '../../features/user/features/user_booking/domain/usecases/get_booking_details_usecase.dart';
+import '../../features/user/features/user_booking/domain/usecases/get_helper_profile_usecase.dart';
+import '../../features/user/features/user_booking/domain/usecases/get_my_bookings_usecase.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/cancel_instant_booking_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/create_instant_booking_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/get_alternatives_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/get_booking_detail_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/get_booking_status_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/get_helper_profile_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/instant/search_instant_helpers_uc.dart';
+import '../../features/user/features/user_booking/domain/usecases/search_helpers_usecase.dart';
+import '../../features/user/features/user_booking/presentation/cubits/alternatives_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/booking_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/booking_details_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/cancel_booking_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/helper_booking_profile_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/instant_booking_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/scheduled/scheduled_alternatives_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/scheduled/scheduled_booking_detail_cubit.dart';
+import '../../features/user/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
+import '../../features/user/features/user_invoices/presentation/cubit/user_invoices_cubit.dart';
+import '../../features/user/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
+import '../../features/user/features/user_chat/presentation/cubit/user_chat_cubit.dart';
+import '../../features/user/features/user_booking_tracking/presentation/cubit/tracking_cubit.dart';
 
 // ============================================================
 // Tourist Payments Feature Imports
 // ============================================================
-import '../../features/tourist/features/payments/data/datasources/payment_remote_datasource.dart';
-import '../../features/tourist/features/payments/data/repositories/payment_repository_impl.dart';
-import '../../features/tourist/features/payments/domain/repositories/payment_repository.dart';
-import '../../features/tourist/features/payments/domain/usecases/initiate_payment_usecase.dart';
-import '../../features/tourist/features/payments/domain/usecases/get_payment_usecase.dart';
-import '../../features/tourist/features/payments/domain/usecases/get_latest_payment_usecase.dart';
-import '../../features/tourist/features/payments/domain/usecases/mock_payment_complete_usecase.dart';
-import '../../features/tourist/features/payments/presentation/cubit/payment_cubit.dart';
-import '../../features/tourist/features/user_invoices/data/datasources/invoice_remote_datasource.dart';
-import '../../features/tourist/features/user_invoices/data/repositories/invoice_repository_impl.dart';
-import '../../features/tourist/features/user_invoices/domain/repositories/invoice_repository.dart';
-import '../../features/tourist/features/user_invoices/domain/usecases/get_invoices_usecase.dart' as user_inv;
-import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_detail_usecase.dart' as user_inv;
-import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_by_booking_usecase.dart' as user_inv;
-import '../../features/tourist/features/user_invoices/domain/usecases/get_invoice_html_usecase.dart' as user_inv;
-import '../../features/tourist/features/user_ratings/data/datasources/rating_remote_datasource.dart';
-import '../../features/tourist/features/user_ratings/data/repositories/rating_repository_impl.dart';
-import '../../features/tourist/features/user_ratings/domain/repositories/rating_repository.dart';
-import '../../features/tourist/features/user_ratings/domain/usecases/get_booking_rating_state_usecase.dart' as user_rat;
-import '../../features/tourist/features/user_ratings/domain/usecases/get_helper_rating_summary_usecase.dart' as user_rat;
-import '../../features/tourist/features/user_ratings/domain/usecases/get_helper_ratings_usecase.dart' as user_rat;
-import '../../features/tourist/features/user_ratings/domain/usecases/get_user_rating_summary_usecase.dart' as user_rat;
-import '../../features/tourist/features/user_ratings/domain/usecases/rate_helper_usecase.dart' as user_rat;
-import '../../features/tourist/features/user_booking_tracking/data/datasources/tracking_remote_datasource.dart';
-import '../../features/tourist/features/user_booking_tracking/data/repositories/tracking_repository_impl.dart';
-import '../../features/tourist/features/user_booking_tracking/domain/repositories/tracking_repository.dart';
-import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_latest_location_usecase.dart';
-import '../../features/tourist/features/user_booking_tracking/domain/usecases/get_tracking_history_usecase.dart';
+import '../../features/user/features/payments/data/datasources/payment_remote_datasource.dart';
+import '../../features/user/features/payments/data/repositories/payment_repository_impl.dart';
+import '../../features/user/features/payments/domain/repositories/payment_repository.dart';
+import '../../features/user/features/payments/domain/usecases/initiate_payment_usecase.dart';
+import '../../features/user/features/payments/domain/usecases/get_payment_usecase.dart';
+import '../../features/user/features/payments/domain/usecases/get_latest_payment_usecase.dart';
+import '../../features/user/features/payments/domain/usecases/mock_payment_complete_usecase.dart';
+import '../../features/user/features/payments/presentation/cubit/payment_cubit.dart';
+import '../../features/user/features/user_invoices/data/datasources/invoice_remote_datasource.dart';
+import '../../features/user/features/user_invoices/data/repositories/invoice_repository_impl.dart';
+import '../../features/user/features/user_invoices/domain/repositories/invoice_repository.dart';
+import '../../features/user/features/user_invoices/domain/usecases/get_invoices_usecase.dart' as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoice_detail_usecase.dart' as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoice_by_booking_usecase.dart' as user_inv;
+import '../../features/user/features/user_invoices/domain/usecases/get_invoice_html_usecase.dart' as user_inv;
+import '../../features/user/features/user_ratings/data/datasources/rating_remote_datasource.dart';
+import '../../features/user/features/user_ratings/data/repositories/rating_repository_impl.dart';
+import '../../features/user/features/user_ratings/domain/repositories/rating_repository.dart';
+import '../../features/user/features/user_ratings/domain/usecases/get_booking_rating_state_usecase.dart' as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_helper_rating_summary_usecase.dart' as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_helper_ratings_usecase.dart' as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/get_user_rating_summary_usecase.dart' as user_rat;
+import '../../features/user/features/user_ratings/domain/usecases/rate_helper_usecase.dart' as user_rat;
+import '../../features/user/features/user_booking_tracking/data/datasources/tracking_remote_datasource.dart';
+import '../../features/user/features/user_booking_tracking/data/repositories/tracking_repository_impl.dart';
+import '../../features/user/features/user_booking_tracking/domain/repositories/tracking_repository.dart';
+import '../../features/user/features/user_booking_tracking/domain/usecases/get_latest_location_usecase.dart';
+import '../../features/user/features/user_booking_tracking/domain/usecases/get_tracking_history_usecase.dart';
 import '../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../core/services/location_service.dart';
 import '../../core/services/location_cubit_impl.dart';
-import '../../features/tourist/features/user_chat/data/datasources/user_chat_remote_data_source.dart';
-import '../../features/tourist/features/user_chat/data/repositories/user_chat_repository_impl.dart';
-import '../../features/tourist/features/user_chat/domain/repositories/user_chat_repository.dart';
-import '../../features/tourist/features/user_chat/domain/usecases/user_chat_usecases.dart';
-import '../../features/tourist/features/user_chat/data/services/user_chat_signalr_service.dart';
+import '../../features/user/features/user_chat/data/datasources/user_chat_remote_data_source.dart';
+import '../../features/user/features/user_chat/data/repositories/user_chat_repository_impl.dart';
+import '../../features/user/features/user_chat/domain/repositories/user_chat_repository.dart';
+import '../../features/user/features/user_chat/domain/usecases/user_chat_usecases.dart';
+import '../../features/user/features/user_chat/data/services/user_chat_signalr_service.dart';
 
 // ============================================================
 // Helper Bookings Feature Imports
@@ -175,8 +175,7 @@ import '../../features/helper/features/helper_bookings/presentation/cubit/trip_a
 // ============================================================
 import '../../features/helper/features/helper_location/data/datasources/helper_location_remote_data_source.dart';
 import '../../features/helper/features/helper_location/data/repositories/helper_location_repository_impl.dart';
-import '../../features/helper/features/helper_location/data/services/helper_location_signalr_service.dart';
-import '../../features/helper/features/helper_location/data/services/helper_location_tracker.dart';
+import '../../features/helper/features/helper_location/domain/entities/signalr_connection_state.dart';
 import '../../features/helper/features/helper_location/domain/repositories/helper_location_repository.dart';
 import '../../features/helper/features/helper_location/domain/usecases/helper_location_usecases.dart';
 import '../../features/helper/features/helper_location/presentation/cubit/helper_location_cubit.dart';
@@ -203,7 +202,6 @@ import '../../features/helper/features/helper_ratings/domain/usecases/helper_rat
 import '../../features/helper/features/helper_ratings/presentation/cubit/helper_ratings_cubits.dart';
 import '../../features/helper/features/helper_chat/data/datasources/helper_chat_remote_data_source.dart';
 import '../../features/helper/features/helper_chat/data/repositories/helper_chat_repository_impl.dart';
-import '../../features/helper/features/helper_chat/data/services/helper_chat_signalr_service.dart';
 import '../../features/helper/features/helper_chat/domain/repositories/helper_chat_repository.dart';
 import '../../features/helper/features/helper_chat/domain/usecases/helper_chat_usecases.dart';
 import '../../features/helper/features/helper_chat/presentation/cubit/helper_chat_cubit.dart';
@@ -547,7 +545,7 @@ Future<void> init() async {
   // Features - Helper Bookings
   // ============================================================
 
-  // Cubits — factory so each screen gets a fresh instance
+  // Cubits — shared dashboard/realtime state used across helper tabs.
   sl.registerLazySingleton(() => HelperDashboardCubit(sl(), sl()));
   sl.registerLazySingleton(() => HelperAvailabilityCubit(sl()));
   sl.registerLazySingleton(() => IncomingRequestsCubit(sl()));
@@ -605,7 +603,6 @@ Future<void> init() async {
   sl.registerLazySingleton(() => HelperLocationCubit(
     trackingService: sl(),
     getLocationStatusUseCase: sl(),
-    getEligibilityUseCase: sl(),
   ));
   sl.registerLazySingleton(() => LocationStatusCubit(getStatusUseCase: sl()));
   sl.registerLazySingleton(() => EligibilityCubit(getEligibilityUseCase: sl()));
@@ -622,16 +619,9 @@ Future<void> init() async {
   sl.registerLazySingleton<HelperLocationRepository>(
     () => HelperLocationRepositoryImpl(
       remoteDataSource: sl(),
-      signalRService: sl(),
+      hubService: sl(),
     ),
   );
-
-  // Services
-  sl.registerLazySingleton(() => HelperLocationSignalRService());
-  // NOTE: HelperLocationTracker is deprecated. Keep it registered only if
-  // other legacy modules still depend on it (no GPS stream should be started
-  // from widgets anymore).
-  sl.registerLazySingleton(() => HelperLocationTracker());
 
   // Data Source
   sl.registerLazySingleton<HelperLocationRemoteDataSource>(
@@ -702,7 +692,6 @@ Future<void> init() async {
   sl.registerFactory(() => HelperInvoicesCubit(
     getInvoicesUseCase: sl(),
     getDetailUseCase: sl(),
-    getByBookingUseCase: sl(),
     getSummaryUseCase: sl(),
     getHtmlUseCase: sl(),
   ));
@@ -710,7 +699,6 @@ Future<void> init() async {
   // Use Cases
   sl.registerLazySingleton(() => GetInvoicesUseCase(sl()));
   sl.registerLazySingleton(() => GetInvoiceDetailUseCase(sl()));
-  sl.registerLazySingleton(() => GetInvoiceByBookingUseCase(sl()));
   sl.registerLazySingleton(() => GetInvoiceSummaryUseCase(sl()));
   sl.registerLazySingleton(() => GetInvoiceHtmlUseCase(sl()));
 
@@ -762,8 +750,7 @@ Future<void> init() async {
     getMessagesUseCase: sl(),
     sendMessageUseCase: sl(),
     markReadUseCase: sl(),
-    connectChatUseCase: sl(),
-    signalRService: sl(),
+    hubService: sl(),
   ));
 
   // Use Cases
@@ -771,18 +758,13 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetMessagesUseCase(sl()));
   sl.registerLazySingleton(() => SendMessageUseCase(sl()));
   sl.registerLazySingleton(() => MarkReadUseCase(sl()));
-  sl.registerLazySingleton(() => ConnectChatUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<HelperChatRepository>(
     () => HelperChatRepositoryImpl(
       remoteDataSource: sl(),
-      signalRService: sl(),
     ),
   );
-
-  // Services
-  sl.registerLazySingleton(() => HelperChatSignalRService());
 
   // Data Source
   sl.registerLazySingleton<HelperChatRemoteDataSource>(
@@ -810,7 +792,7 @@ Future<void> init() async {
   );
 
   // Services
-  sl.registerLazySingleton(() => HelperReportsSignalRService(null)); // Placeholder connection
+  sl.registerLazySingleton(() => HelperReportsSignalRService(sl()));
 
   // ============================================================
   // Features - Helper SOS
@@ -1063,6 +1045,14 @@ Dio _createDio() {
   // ── 401 / 403 global handler + token attachment ──────────────────────────
   dio.interceptors.add(AuthInterceptor());
 
+  // ── Convert 4xx responses to DioExceptions ───────────────────────────────
+  // validateStatus is set to accept all < 500 so we receive the structured
+  // error body (e.g. {success:false, message:"..."}) instead of a raw
+  // connection error. This interceptor then re-raises them so every
+  // data source's `on DioException` catch block fires correctly, with the
+  // full body still available via `e.response?.data?['message']`.
+  dio.interceptors.add(_HttpStatusErrorInterceptor());
+
   // ── Debug-only request/response logger (truncating; Pass #4 perf) ───────
   // The default `LogInterceptor` dumps the full body of every request and
   // response, which on a large helpers-list response (or an OSM tile) is
@@ -1074,6 +1064,31 @@ Dio _createDio() {
   }
 
   return dio;
+}
+
+/// Rejects any response with a 4xx status code as a [DioException].
+///
+/// This works in tandem with `validateStatus: (s) => s < 500`: Dio receives
+/// the structured error body (so the message is accessible), but then this
+/// interceptor converts it back into an error so data sources handle it
+/// uniformly through their `on DioException` catch blocks.
+class _HttpStatusErrorInterceptor extends Interceptor {
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final status = response.statusCode ?? 200;
+    if (status >= 400) {
+      handler.reject(
+        DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+          message: response.data?['message']?.toString(),
+        ),
+      );
+    } else {
+      handler.next(response);
+    }
+  }
 }
 
 /// Lightweight Dio logger used only in debug builds.

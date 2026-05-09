@@ -1,74 +1,63 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../../core/theme/app_color.dart';
+
+import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/localization/app_localizations.dart';
+import '../../../../../../core/widgets/app_bottom_nav.dart';
+import '../../../helper_bookings/presentation/cubit/incoming_requests_cubit.dart';
 
 class HelperHomeLayout extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
-  const HelperHomeLayout({
-    super.key,
-    required this.navigationShell,
-  });
+  const HelperHomeLayout({super.key, required this.navigationShell});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context);
 
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: navigationShell.currentIndex,
-          onTap: (index) => navigationShell.goBranch(index),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: isDark ? AppColor.darkSurface : AppColor.lightSurface,
-          selectedItemColor: isDark ? Colors.white : AppColor.primaryColor,
-          unselectedItemColor: isDark ? AppColor.darkTextSecondary : AppColor.lightTextSecondary,
-          selectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            fontSize: 11,
-          ),
-          unselectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-            fontSize: 11,
-          ),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard_rounded),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_outlined),
-              activeIcon: Icon(Icons.assignment_rounded),
-              label: 'Bookings',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              activeIcon: Icon(Icons.account_balance_wallet_rounded),
-              label: 'Wallet',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.language_outlined),
-              activeIcon: Icon(Icons.language_rounded),
-              label: 'Language',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline_rounded),
-              activeIcon: Icon(Icons.person_rounded),
-              label: 'Account',
-            ),
-          ],
+    return BlocProvider.value(
+      value: sl<IncomingRequestsCubit>(),
+      child: Scaffold(
+        body: navigationShell,
+        bottomNavigationBar: BlocBuilder<IncomingRequestsCubit, IncomingRequestsState>(
+          builder: (context, reqState) {
+            var requestCount = 0;
+            if (reqState is IncomingRequestsLoaded) {
+              requestCount = reqState.totalCount;
+            }
+            if (reqState is IncomingRequestsEmpty) {
+              requestCount = 0;
+            }
+
+            return AppBottomNavBar(
+              currentIndex: navigationShell.currentIndex,
+              onTap: (index) => navigationShell.goBranch(index),
+              items: [
+                AppBottomNavItem(
+                  icon: Icons.dashboard_outlined,
+                  activeIcon: Icons.dashboard_rounded,
+                  label: loc.translate('home'),
+                ),
+                AppBottomNavItem(
+                  icon: Icons.assignment_outlined,
+                  activeIcon: Icons.assignment_rounded,
+                  label: loc.translate('bookings'),
+                  badgeCount: requestCount,
+                ),
+                AppBottomNavItem(
+                  icon: Icons.account_balance_wallet_outlined,
+                  activeIcon: Icons.account_balance_wallet_rounded,
+                  label: loc.translate('wallet'),
+                ),
+                AppBottomNavItem(
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: loc.translate('account'),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

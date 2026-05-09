@@ -1,15 +1,16 @@
+// lib/core/widgets/booking_status_chip.dart
+//
+// Pill-shaped status chip used across booking lists, details, and
+// notifications. Public API (`BookingStatusChip(status: ...)`) is
+// preserved — only the visual is modernized to use theme-aware tokens
+// and the unified design system spacing/radius scale.
+
 import 'package:flutter/material.dart';
 
+import '../../features/user/features/user_booking/domain/entities/booking_detail_entity.dart';
 import '../theme/app_color.dart';
-import '../theme/app_theme.dart';
-import '../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
+import '../theme/app_dimens.dart';
 
-/// Pill-shaped color-coded chip used everywhere a booking status is shown.
-///
-/// Design rules from Pass #2:
-///   - rounded full (pill)
-///   - colored background tint + matching text color
-///   - tiny solid dot to make it pop on busy backgrounds
 class BookingStatusChip extends StatelessWidget {
   final BookingStatus status;
   final bool dense;
@@ -22,15 +23,20 @@ class BookingStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spec = _specFor(status);
-    final padH = dense ? 8.0 : AppTheme.spaceSM + 2;
-    final padV = dense ? 2.0 : 4.0;
+    final palette = AppColors.of(context);
+    final spec = _specFor(status, palette);
+    final padH = dense ? 8.0 : 10.0;
+    final padV = dense ? 3.0 : 5.0;
+
     return Container(
       padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
-        color: spec.color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-        border: Border.all(color: spec.color.withValues(alpha: 0.32), width: 1),
+        color: spec.color.withValues(alpha: palette.isDark ? 0.18 : 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(
+          color: spec.color.withValues(alpha: 0.32),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -58,36 +64,38 @@ class BookingStatusChip extends StatelessWidget {
     );
   }
 
-  static _StatusSpec _specFor(BookingStatus s) {
+  static _StatusSpec _specFor(BookingStatus s, AppColors palette) {
     switch (s) {
       case BookingStatus.pendingHelperResponse:
-        return _StatusSpec('Pending', AppColor.warningColor);
+        return _StatusSpec('Pending', palette.warning);
       case BookingStatus.acceptedByHelper:
-        return _StatusSpec('Accepted', AppColor.accentColor);
+        return _StatusSpec('Accepted', palette.success);
       case BookingStatus.confirmedAwaitingPayment:
-        return _StatusSpec('Awaiting payment', AppColor.warningColor);
+        return _StatusSpec('Awaiting payment', palette.warning);
       case BookingStatus.confirmedPaid:
-        return _StatusSpec('Confirmed', AppColor.accentColor);
+        return _StatusSpec('Confirmed', palette.success);
       case BookingStatus.upcoming:
-        return _StatusSpec('Upcoming', AppColor.secondaryColor);
+        return _StatusSpec('Upcoming', palette.primary);
       case BookingStatus.inProgress:
-        return _StatusSpec('In progress', AppColor.secondaryColor);
+        return _StatusSpec('In progress', palette.primary);
       case BookingStatus.completed:
-        return _StatusSpec('Completed', AppColor.accentColor);
+        return _StatusSpec('Completed', palette.success);
       case BookingStatus.declinedByHelper:
-        return _StatusSpec('Declined', AppColor.errorColor);
+        return _StatusSpec('Declined', palette.danger);
       case BookingStatus.expiredNoResponse:
-        return _StatusSpec('Expired', AppColor.errorColor);
+        return _StatusSpec('Expired', palette.danger);
       case BookingStatus.reassignmentInProgress:
-        return _StatusSpec('Reassigning', AppColor.warningColor);
+        return _StatusSpec('Reassigning', palette.warning);
       case BookingStatus.waitingForUserAction:
-        return _StatusSpec('Action needed', AppColor.warningColor);
+        return _StatusSpec('Action needed', palette.warning);
       case BookingStatus.cancelledByUser:
-        return _StatusSpec('Cancelled', AppColor.errorColor);
+        return _StatusSpec('Cancelled', palette.danger);
       case BookingStatus.cancelledByHelper:
-        return _StatusSpec('Cancelled', AppColor.errorColor);
+        return _StatusSpec('Cancelled', palette.danger);
+      case BookingStatus.cancelledByTraveler:
+        return _StatusSpec('Cancelled', palette.danger);
       case BookingStatus.cancelledBySystem:
-        return _StatusSpec('Cancelled', AppColor.errorColor);
+        return _StatusSpec('Cancelled', palette.danger);
     }
   }
 

@@ -1,6 +1,15 @@
+// lib/core/widgets/custom_bottom_nav_bar.dart
+//
+// Legacy bottom nav shim. The active shells (HomeLayout +
+// HelperHomeLayout) now use [AppBottomNavBar] directly. This widget is
+// preserved as a thin wrapper because the symbol is still exported from
+// the public widget barrel and could be imported by older feature
+// branches.
+
 import 'package:flutter/material.dart';
+
 import '../localization/app_localizations.dart';
-import '../theme/app_color.dart';
+import 'app_bottom_nav.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -14,34 +23,25 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final loc = AppLocalizations.of(context);
 
-    return BottomNavigationBar(
+    return AppBottomNavBar(
       currentIndex: currentIndex,
       onTap: onTap,
-      type: BottomNavigationBarType.fixed,
-
-      selectedItemColor: isDark ? Colors.white : AppColor.primaryColor,
-
-      unselectedItemColor: isDark ? Colors.white70 : Colors.grey,
-
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
-
       items: [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
+        AppBottomNavItem(
+          icon: Icons.home_outlined,
+          activeIcon: Icons.home_rounded,
           label: loc.translate('home'),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.explore_rounded),
-          activeIcon: Icon(Icons.explore_rounded),
+        AppBottomNavItem(
+          icon: Icons.explore_outlined,
+          activeIcon: Icons.explore_rounded,
           label: loc.translate('explore'),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
+        AppBottomNavItem(
+          icon: Icons.person_outline_rounded,
+          activeIcon: Icons.person_rounded,
           label: loc.translate('profile'),
         ),
       ],

@@ -1,4 +1,18 @@
+// lib/core/widgets/custom_bottom_sheet.dart
+//
+// Themed modal bottom sheet. The original API is preserved:
+//   • static `CustomBottomSheet.show(...)` returning a Future
+//   • title, subtitle, child, height, padding, isDismissible parameters
+//
+// Internals are modernized to match the rest of the design system —
+// dark mode aware surface color, rounded top corners, subtle drag handle,
+// and consistent paddings.
+
 import 'package:flutter/material.dart';
+
+import '../theme/app_color.dart';
+import '../theme/app_dimens.dart';
+import '../theme/app_shadows.dart';
 
 class CustomBottomSheet extends StatelessWidget {
   final String? title;
@@ -31,7 +45,10 @@ class CustomBottomSheet extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       isDismissible: isDismissible,
+      enableDrag: isDismissible,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      useSafeArea: true,
       builder: (_) => CustomBottomSheet(
         title: title,
         subtitle: subtitle,
@@ -46,68 +63,74 @@ class CustomBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
+    final mediaHeight = MediaQuery.of(context).size.height;
+
+    final initialSize = (height != null
+            ? (height! / mediaHeight).clamp(0.25, 0.95)
+            : 0.5)
+        .toDouble();
 
     return DraggableScrollableSheet(
-      initialChildSize: height != null ? (height! / MediaQuery.of(context).size.height) : 0.45,
+      initialChildSize: initialSize,
       minChildSize: 0.25,
       maxChildSize: 0.95,
       expand: false,
       builder: (_, controller) {
         return Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              if (!isDark)
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 15,
-                  spreadRadius: 3,
-                ),
-            ],
+            color: palette.surfaceElevated,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadius.xxl),
+            ),
+            boxShadow: AppShadows.xl(context),
           ),
-          padding: padding ?? const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: padding ??
+              const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.md,
+                AppSpacing.xl,
+                AppSpacing.xl,
+              ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Drag Handle
               Center(
                 child: Container(
                   width: 40,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 16),
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(10),
+                    color: palette.border,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                 ),
               ),
-
               if (title != null) ...[
                 Text(
                   title!,
                   style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
                   ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle!,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey,
+                      color: palette.textSecondary,
+                      height: 1.4,
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.lg),
               ],
-
-              // Scrollable content
               if (child != null)
                 Expanded(
                   child: SingleChildScrollView(
                     controller: controller,
+                    physics: const BouncingScrollPhysics(),
                     child: child!,
                   ),
                 ),

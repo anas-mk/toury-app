@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../../core/router/app_router.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/auth_service.dart';
-import '../../../../core/theme/app_theme.dart';
-import 'package:go_router/go_router.dart';
+import '../../../../core/theme/app_dimens.dart';
+import '../../../../core/widgets/app_scaffold.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -12,7 +14,8 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
+class _SplashPageState extends State<SplashPage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -86,7 +89,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return AppScaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -97,7 +100,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
             end: Alignment.bottomCenter,
             colors: [
               theme.scaffoldBackgroundColor,
-              theme.colorScheme.primary.withOpacity(0.05),
+              theme.colorScheme.primary.withValues(alpha: 0.05),
               theme.scaffoldBackgroundColor,
             ],
           ),
@@ -108,12 +111,18 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
             Positioned(
               top: -100,
               right: -100,
-              child: _buildCircle(theme.colorScheme.primary.withOpacity(0.05), 300),
+              child: _buildCircle(
+                theme.colorScheme.primary.withValues(alpha: 0.05),
+                300,
+              ),
             ),
             Positioned(
               bottom: -50,
               left: -50,
-              child: _buildCircle(theme.colorScheme.secondary.withOpacity(0.03), 200),
+              child: _buildCircle(
+                theme.colorScheme.secondary.withValues(alpha: 0.03),
+                200,
+              ),
             ),
 
             Center(
@@ -129,12 +138,13 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                         height: 140,
                         fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: AppTheme.spaceXL),
+                      const SizedBox(height: AppSpacing.xl),
                       SizedBox(
-                        width: 40,
+                        width: AppSpacing.huge,
                         height: 2,
                         child: LinearProgressIndicator(
-                          backgroundColor: theme.colorScheme.onSurface.withOpacity(0.1),
+                          backgroundColor: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.1),
                           color: theme.colorScheme.primary,
                         ),
                       ),
@@ -153,10 +163,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

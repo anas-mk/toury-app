@@ -146,9 +146,9 @@ Barrel: `lib/core/widgets/brand/brand_kit.dart`
 * `lib/core/di/injection_container.dart` - `_TruncatingDioLogger` (debug-only)
 * `lib/core/services/realtime/realtime_logger.dart` - `if (kDebugMode)` guard
 * `lib/core/widgets/app_network_image.dart` - `memCacheWidth/Height`; shimmer placeholder
-* `lib/features/tourist/features/user_booking/presentation/cubits/instant_booking_cubit.dart` - kDebugMode log guards
-* `lib/features/tourist/features/user_booking/presentation/pages/instant/trip_tracking_page.dart` - CachedTileProvider, kDebugMode guard, kDebugMode import fix
-* `lib/features/tourist/features/user_booking/presentation/pages/instant/location_picker_page.dart` - CachedTileProvider
+* `lib/features/user/features/user_booking/presentation/cubits/instant_booking_cubit.dart` - kDebugMode log guards
+* `lib/features/user/features/user_booking/presentation/pages/instant/trip_tracking_page.dart` - CachedTileProvider, kDebugMode guard, kDebugMode import fix
+* `lib/features/user/features/user_booking/presentation/pages/instant/location_picker_page.dart` - CachedTileProvider
 * `android/app/build.gradle.kts` - isMinifyEnabled, isShrinkResources, ProGuard wiring
 * `android/app/proguard-rules.pro` *(new)* - keep rules for Flutter / Firebase / SignalR / OkHttp
 * `PERF_BASELINE.md` *(new)* - config audit + live-metric table template
@@ -176,9 +176,9 @@ Barrel: `lib/core/widgets/brand/brand_kit.dart`
 ### Part B.3 - Page redesigns
 
 * `lib/core/widgets/hero_header.dart` - `HeroBand` now uses `MeshGradientBackground` + organic blob clipper. Cascades to 7 pages.
-* `lib/features/tourist/features/home/presentation/pages/tourist_home_page.dart` - bespoke mesh hero, amber-glow Instant CTA, `Hero(tag: 'instant-cta')`
-* `lib/features/tourist/features/user_booking/presentation/pages/instant/waiting_for_helper_page.dart` - mesh hero with blob clip
-* `lib/features/tourist/features/user_booking/presentation/pages/instant/instant_trip_details_page.dart` - `_missingFields`, Tooltip-wrapped CTA, multi-line snackbar listing missing fields
+* `lib/features/user/features/home/presentation/pages/tourist_home_page.dart` - bespoke mesh hero, amber-glow Instant CTA, `Hero(tag: 'instant-cta')`
+* `lib/features/user/features/user_booking/presentation/pages/instant/waiting_for_helper_page.dart` - mesh hero with blob clip
+* `lib/features/user/features/user_booking/presentation/pages/instant/instant_trip_details_page.dart` - `_missingFields`, Tooltip-wrapped CTA, multi-line snackbar listing missing fields
 
 ### Part B.4 - Transitions
 

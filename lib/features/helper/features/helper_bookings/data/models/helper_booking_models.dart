@@ -43,9 +43,21 @@ class HelperBookingModel extends HelperBooking {
     final bookingId = json['bookingId']?.toString() ?? json['id']?.toString() ?? '';
     final bookingType = json['bookingType']?.toString() ?? (json['isInstant'] == true ? 'Instant' : 'Scheduled');
     final isUrgent = json['isUrgent'] ?? false;
-    final travelerName = json['travelerName'] ?? 'Traveler';
-    final travelerCountry = json['travelerCountry'];
-    final travelerImage = json['travelerProfileImage'] ?? json['travelerImage'];
+
+    // The API may return traveler info as a nested object or as flat keys
+    final travelerObj = json['traveler'] as Map<String, dynamic>?;
+    final travelerName = travelerObj?['name']?.toString()
+        ?? travelerObj?['fullName']?.toString()
+        ?? json['travelerName']?.toString()
+        ?? 'Traveler';
+    final travelerCountry = travelerObj?['country']?.toString()
+        ?? json['travelerCountry']?.toString();
+    final travelerImage = travelerObj?['profileImage']?.toString()
+        ?? travelerObj?['profileImageUrl']?.toString()
+        ?? travelerObj?['imageUrl']?.toString()
+        ?? json['travelerProfileImage']?.toString()
+        ?? json['travelerImage']?.toString();
+
     final destinationCity = json['destinationCity'] ?? '';
     final pickupLocation = json['pickupLocationName'] ?? json['pickupLocation'] ?? '';
     final destinationLocation = json['destinationName'] ?? json['destinationLocation'] ?? '';
@@ -74,14 +86,31 @@ class HelperBookingModel extends HelperBooking {
     }
     
     final now = DateTime.now();
-    final startTime = parseDate(json['requestedDate'] ?? json['startTime'], now);
+    // Accept both 'requestedDate' (list endpoint) and 'startTime' (details endpoint)
+    final startTime = parseDate(
+      json['startTime'] ?? json['requestedDate'],
+      now,
+    );
     final endTime = parseNullableDate(json['endTime']);
     final durationInMinutes = (json['durationInMinutes'] as num?)?.toInt() ?? 0;
     final requiresCar = json['requiresCar'] ?? false;
     final travelersCount = (json['travelersCount'] as num?)?.toInt() ?? 1;
     final meetingPointType = json['meetingPointType'];
-    final payout = (json['estimatedPayout'] ?? json['payout'] as num?)?.toDouble() ?? 0.0;
-    final status = json['status'] ?? json['attemptStatus'] ?? 'pending';
+    final payout = (json['estimatedPayout'] ?? json['finalPayout'] ?? json['payout'] as num?)?.toDouble() ?? 0.0;
+    final startedAtRaw = json['startedAt'];
+    final completedAtRaw = json['completedAt'];
+    final cancelledAtRaw = json['cancelledAt'];
+    final hasStartedAt = startedAtRaw != null && startedAtRaw.toString().isNotEmpty;
+    final hasCompletedAt = completedAtRaw != null && completedAtRaw.toString().isNotEmpty;
+    final hasCancelledAt = cancelledAtRaw != null && cancelledAtRaw.toString().isNotEmpty;
+    final status = (json['status'] ?? json['attemptStatus'])?.toString() ??
+        (hasCompletedAt
+            ? 'Completed'
+            : hasCancelledAt
+                ? 'Cancelled'
+                : hasStartedAt
+                    ? 'InProgress'
+                    : 'pending');
     final language = json['requestedLanguage'] ?? json['language'];
     final notes = json['notes'];
     final attemptOrder = (json['attemptOrder'] as num?)?.toInt() ?? 0;

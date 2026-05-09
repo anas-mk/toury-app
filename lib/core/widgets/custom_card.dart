@@ -1,14 +1,21 @@
 // lib/core/widgets/custom_card.dart
+//
+// Reusable card primitive used everywhere in the app. Original API
+// (`CustomCard`, `InfoCard`, `StatCard`) is preserved — only the
+// internals are modernized to use unified theme tokens.
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+
 import '../theme/app_color.dart';
+import '../theme/app_dimens.dart';
+import '../theme/app_shadows.dart';
 
 enum CardVariant {
-  elevated,    
-  outlined,    
-  filled,      
-  glass,       
+  elevated,
+  outlined,
+  filled,
+  glass,
 }
 
 class CustomCard extends StatelessWidget {
@@ -35,16 +42,15 @@ class CustomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = AppColors.of(context);
 
-    final effectivePadding = padding ?? const EdgeInsets.all(AppTheme.spaceLG);
-    final effectiveRadius = borderRadius ?? AppTheme.radiusLG;
+    final effectivePadding = padding ?? const EdgeInsets.all(AppSpacing.lg);
+    final effectiveRadius = borderRadius ?? AppRadius.lg;
 
     Widget cardContent = Container(
       margin: margin,
       padding: effectivePadding,
-      decoration: _buildDecoration(context, isDark, effectiveRadius),
+      decoration: _buildDecoration(context, palette, effectiveRadius),
       child: child,
     );
 
@@ -63,10 +69,15 @@ class CustomCard extends StatelessWidget {
         margin: margin,
         child: Material(
           color: Colors.transparent,
+          borderRadius: BorderRadius.circular(effectiveRadius),
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(effectiveRadius),
-            child: cardContent,
+            child: Container(
+              padding: effectivePadding,
+              decoration: _buildDecoration(context, palette, effectiveRadius),
+              child: child,
+            ),
           ),
         ),
       );
@@ -75,47 +86,47 @@ class CustomCard extends StatelessWidget {
     return cardContent;
   }
 
-  BoxDecoration _buildDecoration(BuildContext context, bool isDark, double radius) {
-    final theme = Theme.of(context);
-
+  BoxDecoration _buildDecoration(
+    BuildContext context,
+    AppColors palette,
+    double radius,
+  ) {
     switch (variant) {
       case CardVariant.elevated:
         return BoxDecoration(
-          color: backgroundColor ?? theme.cardTheme.color,
+          color: backgroundColor ?? palette.surface,
           borderRadius: BorderRadius.circular(radius),
-          boxShadow: AppTheme.shadowMedium(context),
-          border: Border.all(
-            color: isDark ? AppColor.darkBorder : AppColor.lightBorder,
-            width: 0.5,
-          ),
+          boxShadow: AppShadows.md(context),
+          border: Border.all(color: palette.border, width: 0.5),
         );
 
       case CardVariant.outlined:
         return BoxDecoration(
-          color: backgroundColor ?? theme.cardTheme.color,
+          color: backgroundColor ?? palette.surface,
           borderRadius: BorderRadius.circular(radius),
-          border: Border.all(
-            color: isDark ? AppColor.darkBorder : AppColor.lightBorder,
-            width: 1.5,
-          ),
+          border: Border.all(color: palette.border, width: 1.2),
         );
 
       case CardVariant.filled:
         return BoxDecoration(
-          color: backgroundColor ?? theme.colorScheme.primary.withOpacity(0.05),
+          color: backgroundColor ??
+              palette.primary.withValues(alpha: palette.isDark ? 0.10 : 0.05),
           borderRadius: BorderRadius.circular(radius),
         );
 
       case CardVariant.glass:
         return BoxDecoration(
-          color: backgroundColor ?? 
-              (isDark ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.4)),
+          color: backgroundColor ??
+              (palette.isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.white.withValues(alpha: 0.42)),
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
-            width: 1,
+            color: palette.isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.black.withValues(alpha: 0.05),
           ),
-          boxShadow: AppTheme.shadowLight(context),
+          boxShadow: AppShadows.sm(context),
         );
     }
   }
@@ -140,6 +151,8 @@ class InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    final accent = iconColor ?? palette.primary;
 
     return CustomCard(
       onTap: onTap,
@@ -147,18 +160,14 @@ class InfoCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(AppTheme.spaceSM),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: (iconColor ?? theme.colorScheme.primary).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSM),
+              color: accent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(
-              icon,
-              color: iconColor ?? theme.colorScheme.primary,
-              size: 24,
-            ),
+            child: Icon(icon, color: accent, size: AppSize.iconLg),
           ),
-          const SizedBox(width: AppTheme.spaceMD),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,14 +175,15 @@ class InfoCard extends StatelessWidget {
                 Text(
                   title,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    color: palette.textSecondary,
                   ),
                 ),
-                const SizedBox(height: AppTheme.spaceXS),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
                   ),
                 ),
               ],
@@ -183,7 +193,7 @@ class InfoCard extends StatelessWidget {
             Icon(
               Icons.arrow_forward_ios_rounded,
               size: 14,
-              color: theme.colorScheme.onSurface.withOpacity(0.3),
+              color: palette.textMuted,
             ),
         ],
       ),
@@ -210,37 +220,41 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+    final palette = AppColors.of(context);
+
     return CustomCard(
       onTap: onTap,
       isClickable: onTap != null,
       variant: CardVariant.filled,
-      backgroundColor: color.withOpacity(0.08),
-      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceLG),
+      backgroundColor: color.withValues(alpha: palette.isDark ? 0.16 : 0.08),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.lg,
+        horizontal: AppSpacing.md,
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(AppTheme.spaceSM),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.18),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 24, color: color),
+            child: Icon(icon, size: AppSize.iconLg, color: color),
           ),
-          const SizedBox(height: AppTheme.spaceMD),
+          const SizedBox(height: AppSpacing.md),
           Text(
             value,
             style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
-          const SizedBox(height: AppTheme.spaceXS),
+          const SizedBox(height: 2),
           Text(
             title,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              color: palette.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),

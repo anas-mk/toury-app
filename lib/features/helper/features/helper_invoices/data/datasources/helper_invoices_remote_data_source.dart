@@ -5,7 +5,6 @@ import '../models/invoice_models.dart';
 abstract class HelperInvoicesRemoteDataSource {
   Future<List<InvoiceModel>> getInvoices({int page = 1, int pageSize = 20, String? status});
   Future<InvoiceDetailModel> getInvoiceDetail(String invoiceId);
-  Future<InvoiceDetailModel> getInvoiceByBooking(String bookingId);
   Future<InvoiceSummaryModel> getSummary();
   Future<String> getInvoiceHtml(String invoiceId);
 }
@@ -33,15 +32,6 @@ class HelperInvoicesRemoteDataSourceImpl implements HelperInvoicesRemoteDataSour
   @override
   Future<InvoiceDetailModel> getInvoiceDetail(String invoiceId) async {
     final response = await dio.get(ApiConfig.helperInvoiceById(invoiceId));
-    final data = response.data is Map && response.data['data'] != null
-        ? response.data['data']
-        : response.data;
-    return InvoiceDetailModel.fromJson(data as Map<String, dynamic>);
-  }
-
-  @override
-  Future<InvoiceDetailModel> getInvoiceByBooking(String bookingId) async {
-    final response = await dio.get(ApiConfig.helperInvoiceByBooking(bookingId));
     final data = response.data is Map && response.data['data'] != null
         ? response.data['data']
         : response.data;

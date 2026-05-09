@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../features/tourist/features/user_booking/domain/entities/booking_detail_entity.dart';
-import '../../../features/tourist/features/user_booking/presentation/cubits/booking_status_cubit.dart';
-import '../../../features/tourist/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
+import '../../../features/user/features/user_booking/domain/entities/booking_detail_entity.dart';
+import '../../../features/user/features/user_booking/presentation/cubits/booking_status_cubit.dart';
+import '../../../features/user/features/user_booking/presentation/cubits/my_bookings_cubit.dart';
 import '../../di/injection_container.dart';
+import '../auth_service.dart';
 import '../ratings/pending_rating_tracker.dart';
 import '../signalr/booking_hub_events.dart';
 import 'booking_realtime_event_bus.dart';
@@ -130,16 +131,19 @@ class AppRealtimeCubit extends Cubit<AppRealtimeState> {
         'booking=${event.event.bookingId} '
             'price=${event.event.finalPrice ?? '-'}',
       );
-      // Phase 4: persist the pending rating so the overlay can pick it
-      // up even on cold start. The tracker is a singleton — safe to
-      // resolve lazily here since it has no per-event state.
-      final bookingId = event.event.bookingId;
-      if (bookingId.isNotEmpty) {
-        unawaited(sl<PendingRatingTracker>().markPending(bookingId));
+      final currentRole = sl<AuthService>().getRole();
+      final isTouristSession = currentRole == 'tourist';
+
+      // Rating overlay is tourist-only. In helper sessions, the helper
+      // already rates traveler via helper flow; do not trigger tourist overlay.
+      if (isTouristSession) {
+        final bookingId = event.event.bookingId;
+        if (bookingId.isNotEmpty) {
+          unawaited(sl<PendingRatingTracker>().markPending(bookingId));
+        }
+        // Bubble trip-ended event only for tourist overlay consumption.
+        emit(state.copyWith(lastTripEnded: event.event));
       }
-      // Bubble the trip-ended event so the rating overlay (Phase 4) can
-      // pick it up. We never persist it on the cubit beyond one frame.
-      emit(state.copyWith(lastTripEnded: event.event));
       _refreshAllMyBookings('trip-ended');
       _refreshActiveOnAllBookingStatus('trip-ended', event.event.bookingId);
       return;
