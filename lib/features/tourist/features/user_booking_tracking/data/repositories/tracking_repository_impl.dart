@@ -18,7 +18,7 @@ class TrackingRepositoryImpl implements TrackingRepository {
   });
 
   @override
-  Future<Either<Failure, TrackingPointEntity>> getLatestLocation(
+  Future<Either<Failure, TrackingPointEntity?>> getLatestLocation(
     String bookingId,
   ) async {
     try {

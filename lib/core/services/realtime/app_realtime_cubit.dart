@@ -74,6 +74,25 @@ class AppRealtimeCubit extends Cubit<AppRealtimeState> {
     _bookingStatusCubits.remove(cubit);
   }
 
+  /// Tells every registered home-level cubit that a brand-new booking
+  /// was just created on this device so they can re-fetch.
+  ///
+  /// The realtime bus delivers `BookingStatusChanged` updates for
+  /// **subsequent** transitions (helper accepts, declines, …) but it
+  /// does NOT deliver an event the moment a booking is created — that
+  /// is purely a client-side action. Without this hook, the home page
+  /// keeps showing "no active trip" until the user pulls-to-refresh,
+  /// which feels broken right after they confirmed a booking.
+  ///
+  /// Call site: `BookingReviewPage` right after the cubit transitions
+  /// into [InstantBookingCreated]. Safe to call multiple times — the
+  /// downstream cubits are idempotent under reentrancy.
+  void notifyBookingCreated(String bookingId) {
+    _log('notifyBookingCreated', 'booking=$bookingId');
+    _refreshAllMyBookings('booking-created');
+    _refreshActiveOnAllBookingStatus('booking-created', bookingId);
+  }
+
   void _handle(BookingRealtimeBusEvent event) {
     if (event is BusBookingStatusChanged) {
       _log(

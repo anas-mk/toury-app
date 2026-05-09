@@ -18,6 +18,7 @@ import 'core/services/notifications/notification_router.dart';
 import 'core/services/realtime/app_realtime_cubit.dart';
 import 'core/services/realtime/booking_realtime_event_bus.dart';
 import 'core/services/realtime/hub_lifecycle_observer.dart';
+import 'features/tourist/features/user_chat/presentation/unread_chat_tracker.dart';
 import 'features/tourist/features/user_ratings/presentation/widgets/mandatory_rating_overlay.dart';
 import 'core/services/signalr/booking_tracking_hub_service.dart';
 import 'core/services/realtime/realtime_logger.dart';
@@ -93,6 +94,27 @@ Future<void> _logFcmTokenOnce() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Edge-to-edge system bars. Without this Android draws a solid
+  // dark band behind the status bar even when an `AnnotatedRegion`
+  // sets `statusBarColor: transparent` — that's what was leaving the
+  // black bar on top of full-bleed pages like the live-track map.
+  //
+  // We pair it with a global SystemUiOverlayStyle baseline (light
+  // surface, dark icons) so any page that doesn't override via
+  // `AnnotatedRegion` still gets sensible defaults instead of
+  // inheriting whatever Android ROM picked.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarContrastEnforced: false,
+    ),
+  );
+
   // Load brand fonts before the first frame so the RAFIQ wordmark is correct.
   try {
     final loader = FontLoader('PermanentMarker')
@@ -102,7 +124,12 @@ void main() async {
 
   // Mapbox SDK 2.x requires the token to be set globally before any MapWidget
   // is instantiated. ResourceOptions was removed in v2.
-  MapboxOptions.setAccessToken(ApiConfig.mapboxToken);
+  // Only set programmatically when the dart-define was actually provided;
+  // otherwise the empty string would override the mapbox_access_token
+  // string resource in android/app/src/main/res/values/strings.xml.
+  if (ApiConfig.mapboxToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(ApiConfig.mapboxToken);
+  }
 
   // Firebase is best-effort: if the native config isn't deployed yet we still
   // want the rest of the app to launch. The MessagingService gracefully
@@ -209,6 +236,12 @@ void main() async {
   // the same bus and propagates relevant events to currently-mounted
   // page cubits via their existing public refresh APIs.
   di.sl<AppRealtimeCubit>().attach();
+
+  // App-wide unread-chat counter. Listens to `chatMessageStream`
+  // for the entire session so chat icons on the live-track map and
+  // the booking-confirmed page can render an unread badge — even
+  // before the user opens the chat page itself.
+  UnreadChatTracker.attach(di.sl<BookingTrackingHubService>());
 
   // Bind the GoRouter to the NotificationRouter so FCM taps and SignalR
   // navigation triggers can reach the same routes the rest of the app uses.

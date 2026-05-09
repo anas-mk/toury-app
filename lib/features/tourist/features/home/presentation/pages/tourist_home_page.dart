@@ -81,6 +81,55 @@ class _TouristHomePageState extends State<TouristHomePage> {
     ]);
   }
 
+  /// Routes a booking to the most useful detail screen for its
+  /// current status. **Instant** bookings route to the dedicated
+  /// instant flow (radar / confirmed / live track) — they never go
+  /// to the generic Scheduled detail page because that screen is
+  /// built around the Scheduled lifecycle (deposit, free-window
+  /// cancel, …) and feels wrong for an instant trip.
+  ///
+  ///   - Pending instant → "Looking for your helper" radar.
+  ///   - Accepted / paid / upcoming instant → "Helper accepted"
+  ///     confirmation screen.
+  ///   - In-progress instant → live trip tracking map.
+  ///   - Anything Scheduled or anything terminal → unified
+  ///     `booking-details` screen.
+  void _openBooking(BuildContext context, BookingDetailEntity b) {
+    if (b.type == BookingType.instant) {
+      switch (b.status) {
+        case BookingStatus.pendingHelperResponse:
+        case BookingStatus.reassignmentInProgress:
+        case BookingStatus.waitingForUserAction:
+          context.push(
+            AppRouter.instantWaiting.replaceFirst(':id', b.id),
+          );
+          return;
+        case BookingStatus.acceptedByHelper:
+        case BookingStatus.confirmedAwaitingPayment:
+        case BookingStatus.confirmedPaid:
+        case BookingStatus.upcoming:
+          context.push(
+            AppRouter.instantConfirmed.replaceFirst(':id', b.id),
+          );
+          return;
+        case BookingStatus.inProgress:
+          context.push(
+            AppRouter.instantTripTracking.replaceFirst(':id', b.id),
+          );
+          return;
+        default:
+          // Terminal / cancelled / declined — fall through to the
+          // unified detail page so the user can see the history.
+          break;
+      }
+    }
+    context.pushNamed(
+      'booking-details',
+      pathParameters: {'id': b.id},
+      extra: {'booking': b},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,11 +170,7 @@ class _TouristHomePageState extends State<TouristHomePage> {
                           padding: const EdgeInsets.only(bottom: 22),
                           child: _LiveTripCard(
                             booking: state.booking,
-                            onTap: () => context.pushNamed(
-                              'booking-details',
-                              pathParameters: {'id': state.booking.id},
-                              extra: {'booking': state.booking},
-                            ),
+                            onTap: () => _openBooking(context, state.booking),
                           ),
                         );
                       }
@@ -168,11 +213,7 @@ class _TouristHomePageState extends State<TouristHomePage> {
                         }
                         return _RecentTripsPills(
                           bookings: recent,
-                          onTapBooking: (b) => context.pushNamed(
-                            'booking-details',
-                            pathParameters: {'id': b.id},
-                            extra: {'booking': b},
-                          ),
+                          onTapBooking: (b) => _openBooking(context, b),
                         );
                       }
                       return const SizedBox.shrink();

@@ -36,11 +36,16 @@ class LocationPickerPage extends StatefulWidget {
   /// Optional seed position. If `null` we fetch the device's real GPS.
   final LocationPickResult? initial;
 
+  /// When set (pickup screen only) shows a "Meet at destination" shortcut.
+  /// Tapping it returns this location as the pickup result.
+  final LocationPickResult? destinationForMeet;
+
   const LocationPickerPage({
     super.key,
     required this.title,
     required this.isPickup,
     this.initial,
+    this.destinationForMeet,
   });
 
   @override
@@ -74,6 +79,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       return _geo.search(
         query: query,
         limit: 8,
+        language: 'en',
         cancelToken: cancelToken,
         nearLat: c.latitude,
         nearLng: c.longitude,
@@ -464,12 +470,19 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   void _onPickSuggestion(NominatimResult r) {
     HapticFeedback.selectionClick();
     _searchFocus.unfocus();
+    // Remove the listener before setting text so the keystroke handler
+    // does NOT schedule a new debounced search for the selected name.
+    _searchCtrl.removeListener(_onSearchChanged);
     _searchCtrl.value = TextEditingValue(
       text: r.name,
       selection: TextSelection.collapsed(offset: r.name.length),
       composing: TextRange.empty,
     );
+    _searchCtrl.addListener(_onSearchChanged);
+    _searchDebouncer.cancel();
     _hasTextVN.value = r.name.isNotEmpty;
+    _searchingVN.value = false;
+    _searchErrorVN.value = null;
     final next = _LL(r.lat, r.lng);
     _userMovedMap = true;
     _moveCamera(next, 16);
@@ -477,7 +490,6 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     _labelVN.value = r.name;
     _addressVN.value = r.displayName;
     _suggestionsVN.value = const [];
-    _searchErrorVN.value = null;
     unawaited(_recentStore.add(r).then((_) => _loadRecents()));
     _scheduleReverseGeocode(next, immediate: true);
   }
@@ -514,6 +526,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       final r = await _geo.reverse(
         lat: latLng.latitude,
         lng: latLng.longitude,
+        language: 'en',
         cancelToken: token,
       );
       if (!mounted || token.isCancelled) return;
@@ -540,11 +553,45 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   // -------------------- confirm --------------------
 
-  void _confirm() {
+  /// Returns `true` if the current label is still a raw coord pair
+  /// (the picker's fallback when reverse-geocoding has not produced
+  /// a real place name yet).
+  static bool _looksLikeCoords(String s) {
+    return RegExp(r'^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$').hasMatch(s);
+  }
+
+  /// Confirm the current pin. If the resolved label is still in
+  /// coordinate-form (reverse-geocoding hasn't produced a real
+  /// place name) we kick off a fresh reverse-geocode and wait up to
+  /// ~1.5s for it to land before popping. This ensures downstream
+  /// pages (Find a Helper, Confirm Booking, …) almost always see a
+  /// human-readable name like "Saad Ibrahim St" instead of
+  /// "30.09225, 31.26466".
+  Future<void> _confirm() async {
     HapticFeedback.mediumImpact();
     final center = _centerVN.value;
-    final cleanLabel = (_labelVN.value ?? '').trim();
-    final addr = _addressVN.value;
+    var cleanLabel = (_labelVN.value ?? '').trim();
+    var addr = _addressVN.value;
+
+    final needsResolve = cleanLabel.isEmpty || _looksLikeCoords(cleanLabel);
+    if (needsResolve) {
+      // Force an immediate reverse-geocode (cancels any pending
+      // debounce) and wait briefly for it to finish so the saved
+      // name is human-friendly.
+      _scheduleReverseGeocode(center, immediate: true);
+      try {
+        final deadline = DateTime.now().add(const Duration(milliseconds: 1500));
+        while (mounted &&
+            _resolvingVN.value &&
+            DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 80));
+        }
+      } catch (_) {/* fall through with whatever we have */}
+      if (!mounted) return;
+      cleanLabel = (_labelVN.value ?? '').trim();
+      addr = _addressVN.value;
+    }
+
     final fallback = '${center.latitude.toStringAsFixed(5)}, '
         '${center.longitude.toStringAsFixed(5)}';
     final result = LocationPickResult(
@@ -560,6 +607,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       name: result.name,
       displayName: result.address ?? result.name,
     )));
+    if (!mounted) return;
     Navigator.of(context).pop(result);
   }
 
@@ -568,12 +616,25 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   @override
   Widget build(BuildContext context) {
     final pinColor = widget.isPickup
-        ? BrandTokens.successGreen
-        : BrandTokens.dangerRed;
+        ? BrandTokens.accentAmber
+        : BrandTokens.primaryBlue;
     final mediaTop = MediaQuery.of(context).padding.top;
 
-    return Scaffold(
+    // Force a transparent / light status bar so the map tiles bleed up
+    // behind it. Without this, Android draws a solid black bar on top
+    // of the page on some devices (especially when launching from a
+    // Scaffold-based parent that set its own dark style).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
       extendBodyBehindAppBar: true,
+      extendBody: true,
       backgroundColor: BrandTokens.bgSoft,
       resizeToAvoidBottomInset: false,
       body: !_initialised
@@ -584,6 +645,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                 RepaintBoundary(
                   child: MapWidget(
                     key: const ValueKey('locationPickerMap'),
+                    // ignore: deprecated_member_use
                     cameraOptions: CameraOptions(
                       center: Point(coordinates: Position(
                         _centerVN.value.longitude,
@@ -597,43 +659,31 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                   ),
                 ),
 
-                // 2. Subtle vignette to lift CTAs off bright tiles.
+                // 2. Very subtle warm-overlay (mix-blend feel).
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.05),
-                            Colors.transparent,
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.06),
-                          ],
-                          stops: const [0.0, 0.18, 0.7, 1.0],
-                        ),
-                      ),
+                      color: BrandTokens.bgSoft.withValues(alpha: 0.10),
                     ),
                   ),
                 ),
 
-                // 3. Pulsing centre pin.
-                Center(child: _PulsingPin(color: pinColor)),
+                // 3. Centre pin (round, with pulse rings).
+                Center(child: _CenterPin(color: pinColor)),
 
                 // 4. Attribution chip.
                 const Positioned(
-                  left: 8,
-                  bottom: 8,
+                  left: 10,
+                  bottom: 10,
                   child: _AttributionChip(),
                 ),
 
-                // 5. Floating glass search bar.
+                // 5. Floating top row: back button + pill search bar.
                 Positioned(
-                  top: mediaTop + 8,
-                  left: 12,
-                  right: 12,
-                  child: _GlassSearchBar(
+                  top: mediaTop + 12,
+                  left: 16,
+                  right: 16,
+                  child: _TopSearchRow(
                     controller: _searchCtrl,
                     focusNode: _searchFocus,
                     isSearchingVN: _searchingVN,
@@ -642,89 +692,71 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                     hasTextVN: _hasTextVN,
                     focusedVN: _focusedVN,
                     recentsVN: _recentsVN,
+                    myLocLoadingVN: _myLocLoadingVN,
                     onClear: _clearSearch,
                     onPick: _onPickSuggestion,
                     onBack: () {
                       HapticFeedback.selectionClick();
                       Navigator.of(context).maybePop();
                     },
-                    title: widget.title,
+                    onUseMyLocation: _onUseMyLocation,
                     isPickup: widget.isPickup,
                   ),
                 ),
 
-                // 6. Right-side controls column (compass + zoom + my-location).
+                // 6. Right-side controls (zoom pill, vertically centred).
                 Positioned(
-                  top: mediaTop + 96,
-                  right: 14,
-                  child: Column(
-                    children: [
-                      ValueListenableBuilder<double>(
-                        valueListenable: _bearingVN,
-                        builder: (_, bearing, __) => _GlassIconButton(
-                          icon: Icons.explore_rounded,
-                          rotationRad: bearing * (3.1415926535 / 180.0) * -1,
-                          onTap: _onResetBearing,
-                          color: BrandTokens.primaryBlue,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _GlassIconButton(
-                        icon: Icons.add_rounded,
-                        onTap: () => _onZoom(1),
-                        color: BrandTokens.textPrimary,
-                      ),
-                      const SizedBox(height: 6),
-                      _GlassIconButton(
-                        icon: Icons.remove_rounded,
-                        onTap: () => _onZoom(-1),
-                        color: BrandTokens.textPrimary,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 7. My-location FAB (bottom right).
-                Positioned(
-                  right: 14,
-                  bottom: 230,
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: _myLocLoadingVN,
-                    builder: (_, loading, __) => _MyLocationFab(
-                      isLoading: loading,
-                      onTap: _onUseMyLocation,
+                  right: 16,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: _ZoomControls(
+                      onZoomIn: () => _onZoom(1),
+                      onZoomOut: () => _onZoom(-1),
+                      bearingVN: _bearingVN,
+                      onResetBearing: _onResetBearing,
                     ),
                   ),
                 ),
 
-                // 8. Frosted bottom sheet with confirm.
+                // 7. Bottom sheet with confirm.
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: 0,
                   child: SafeArea(
                     top: false,
-                    child: _FrostedBottomSheet(
+                    child: _BottomActionSheet(
                       isPickup: widget.isPickup,
                       labelVN: _labelVN,
                       addressVN: _addressVN,
                       resolvingVN: _resolvingVN,
                       centerVN: _centerVN,
                       onConfirm: _confirm,
+                      destinationForMeet: widget.isPickup
+                          ? widget.destinationForMeet
+                          : null,
+                      onMeetAtDestination: widget.isPickup &&
+                              widget.destinationForMeet != null
+                          ? () => Navigator.of(context)
+                              .pop(widget.destinationForMeet)
+                          : null,
                     ),
                   ),
                 ),
               ],
             ),
+      ),
     );
   }
 }
 
 // =============================================================================
-// Glass Search Bar + Suggestions / Recents Panel
+// Top row: floating circular back button + pill search bar
+// (Inspired by RAFIQ HTML mockup — Material 3 expressive, light & airy.)
 // =============================================================================
 
-class _GlassSearchBar extends StatelessWidget {
+class _TopSearchRow extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueListenable<bool> isSearchingVN;
@@ -733,13 +765,14 @@ class _GlassSearchBar extends StatelessWidget {
   final ValueListenable<bool> hasTextVN;
   final ValueListenable<bool> focusedVN;
   final ValueListenable<List<NominatimResult>> recentsVN;
+  final ValueListenable<bool> myLocLoadingVN;
   final VoidCallback onClear;
   final ValueChanged<NominatimResult> onPick;
   final VoidCallback onBack;
-  final String title;
+  final VoidCallback onUseMyLocation;
   final bool isPickup;
 
-  const _GlassSearchBar({
+  const _TopSearchRow({
     required this.controller,
     required this.focusNode,
     required this.isSearchingVN,
@@ -748,147 +781,43 @@ class _GlassSearchBar extends StatelessWidget {
     required this.hasTextVN,
     required this.focusedVN,
     required this.recentsVN,
+    required this.myLocLoadingVN,
     required this.onClear,
     required this.onPick,
     required this.onBack,
-    required this.title,
+    required this.onUseMyLocation,
     required this.isPickup,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent =
-        isPickup ? BrandTokens.successGreen : BrandTokens.dangerRed;
     return Material(
       color: Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Tiny top label ("PICKUP POINT" / "DESTINATION").
-          Padding(
-            padding: const EdgeInsets.only(left: 6, bottom: 6),
-            child: Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.5),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isPickup ? 'PICKUP POINT' : 'DESTINATION',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    letterSpacing: 1.6,
-                    fontWeight: FontWeight.w800,
-                    shadows: [
-                      Shadow(
-                        color: Color(0x66000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Frosted glass bar.
-          ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: BrandTokens.shadowSoft,
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(22),
-                      onTap: onBack,
-                      child: const SizedBox(
-                        width: 46,
-                        height: 52,
-                        child: Icon(Icons.arrow_back_rounded,
-                            color: BrandTokens.textPrimary, size: 22),
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 22,
-                      color: BrandTokens.borderSoft,
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      isPickup
-                          ? Icons.trip_origin_rounded
-                          : Icons.flag_rounded,
-                      size: 18,
-                      color: accent,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => focusNode.unfocus(),
-                        onTapOutside: (_) => focusNode.unfocus(),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: BrandTokens.textPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: isPickup
-                              ? 'Search pickup, e.g. Tahrir Square'
-                              : 'Search destination, e.g. Pyramids',
-                          hintStyle: const TextStyle(
-                            color: BrandTokens.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                      ),
-                    ),
-                    _SearchTrailing(
-                      isSearchingVN: isSearchingVN,
-                      hasTextVN: hasTextVN,
-                      onClear: onClear,
-                    ),
-                  ],
+          Row(
+            children: [
+              _FrostedCircleButton(
+                icon: Icons.arrow_back_rounded,
+                onTap: onBack,
+                tooltip: 'Back',
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _PillSearchBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  isSearchingVN: isSearchingVN,
+                  hasTextVN: hasTextVN,
+                  myLocLoadingVN: myLocLoadingVN,
+                  onClear: onClear,
+                  onUseMyLocation: onUseMyLocation,
+                  isPickup: isPickup,
                 ),
               ),
-            ),
+            ],
           ),
-
           _ResultsPanel(
             suggestionsVN: suggestionsVN,
             errorVN: errorVN,
@@ -903,56 +832,253 @@ class _GlassSearchBar extends StatelessWidget {
   }
 }
 
+/// The frosted-glass pill that contains the search input. Mirrors the
+/// HTML mockup (`rounded-full bg-white/80 backdrop-blur-md`) but keeps
+/// our existing search functionality (debounce, suggestions, clear).
+class _PillSearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueListenable<bool> isSearchingVN;
+  final ValueListenable<bool> hasTextVN;
+  final ValueListenable<bool> myLocLoadingVN;
+  final VoidCallback onClear;
+  final VoidCallback onUseMyLocation;
+  final bool isPickup;
+
+  const _PillSearchBar({
+    required this.controller,
+    required this.focusNode,
+    required this.isSearchingVN,
+    required this.hasTextVN,
+    required this.myLocLoadingVN,
+    required this.onClear,
+    required this.onUseMyLocation,
+    required this.isPickup,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(40),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(
+              color: BrandTokens.borderSoft.withValues(alpha: 0.5),
+              width: 1,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: BrandTokens.shadowSoft,
+                blurRadius: 24,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.search_rounded,
+                color: BrandTokens.textSecondary,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => focusNode.unfocus(),
+                  // NOTE: we deliberately do NOT use `onTapOutside` here.
+                  // It fires for ANY tap inside the page (including taps
+                  // on the suggestions / recents list rendered behind
+                  // this field), which would unfocus and rebuild the
+                  // panel before the row's `onTap` could run — making
+                  // the recents tiles feel "uncatchable". Unfocusing is
+                  // already handled when the user taps the map (handled
+                  // by the camera-changed listener) or submits.
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: BrandTokens.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: isPickup ? 'Where from?' : 'Where to?',
+                    hintStyle: const TextStyle(
+                      color: BrandTokens.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              _SearchTrailing(
+                isSearchingVN: isSearchingVN,
+                hasTextVN: hasTextVN,
+                myLocLoadingVN: myLocLoadingVN,
+                onClear: onClear,
+                onUseMyLocation: onUseMyLocation,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Trailing area inside the pill. Shows either:
+///  - a clear (×) button when text is present,
+///  - a tiny spinner while a network search is in flight,
+///  - or the brand-blue "my location" icon by default.
 class _SearchTrailing extends StatelessWidget {
   final ValueListenable<bool> isSearchingVN;
   final ValueListenable<bool> hasTextVN;
+  final ValueListenable<bool> myLocLoadingVN;
   final VoidCallback onClear;
+  final VoidCallback onUseMyLocation;
   const _SearchTrailing({
     required this.isSearchingVN,
     required this.hasTextVN,
+    required this.myLocLoadingVN,
     required this.onClear,
+    required this.onUseMyLocation,
   });
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([isSearchingVN, hasTextVN]),
+      animation:
+          Listenable.merge([isSearchingVN, hasTextVN, myLocLoadingVN]),
       builder: (_, __) {
         final searching = isSearchingVN.value;
         final hasText = hasTextVN.value;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (searching)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                        BrandTokens.primaryBlue),
-                  ),
-                ),
+        final myLocLoading = myLocLoadingVN.value;
+
+        if (hasText) {
+          return _TrailingIconButton(
+            icon: Icons.close_rounded,
+            color: BrandTokens.textSecondary,
+            tooltip: 'Clear',
+            onTap: onClear,
+          );
+        }
+        if (searching) {
+          return const Padding(
+            padding: EdgeInsets.only(left: 6, right: 4),
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    BrandTokens.primaryBlue),
               ),
-            if (hasText)
-              IconButton(
-                icon: const Icon(Icons.close_rounded,
-                    color: BrandTokens.textSecondary),
-                tooltip: 'Clear',
-                onPressed: onClear,
-                splashRadius: 22,
-              )
-            else if (!searching)
-              const Padding(
-                padding: EdgeInsets.only(right: 12),
-                child: Icon(Icons.search_rounded,
-                    color: BrandTokens.textSecondary),
+            ),
+          );
+        }
+        if (myLocLoading) {
+          return const Padding(
+            padding: EdgeInsets.only(left: 6, right: 4),
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    BrandTokens.primaryBlue),
               ),
-          ],
+            ),
+          );
+        }
+        return _TrailingIconButton(
+          icon: Icons.my_location_rounded,
+          color: BrandTokens.primaryBlue,
+          tooltip: 'Use my location',
+          onTap: onUseMyLocation,
         );
       },
+    );
+  }
+}
+
+class _TrailingIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _TrailingIconButton({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 22, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small frosted circular button used for the back action.
+class _FrostedCircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+  const _FrostedCircleButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.88),
+          shape: CircleBorder(
+            side: BorderSide(
+              color: BrandTokens.borderSoft.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Tooltip(
+            message: tooltip,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(
+                  icon,
+                  color: BrandTokens.textPrimary,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -984,19 +1110,13 @@ class _ResultsPanel extends StatelessWidget {
         final focused = focusedVN.value;
         final recents = recentsVN.value;
 
-        // 1. Live results
+        // 1. Live search results — scrollable list inside the panel.
         if (suggestions.isNotEmpty) {
           return _PanelCard(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              shrinkWrap: true,
+            child: _PanelList(
+              header: null,
               itemCount: suggestions.length,
-              separatorBuilder: (_, __) => const Divider(
-                height: 1,
-                color: BrandTokens.borderSoft,
-                indent: 60,
-              ),
-              itemBuilder: (context, i) => _ResultTile(
+              itemBuilder: (i) => _ResultTile(
                 result: suggestions[i],
                 icon: _iconForCategory(suggestions[i].category),
                 onTap: () => onPick(suggestions[i]),
@@ -1010,7 +1130,7 @@ class _ResultsPanel extends StatelessWidget {
           return _PanelCard(
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
+                  horizontal: 16, vertical: 16),
               child: Row(
                 children: [
                   const Icon(Icons.info_outline_rounded,
@@ -1031,42 +1151,18 @@ class _ResultsPanel extends StatelessWidget {
           );
         }
 
-        // 3. Recents (only when focused & no text)
+        // 3. Recents (only when focused & no text) — scrollable list
+        // with a sticky 'RECENT' label on top.
         if (focused && controller.text.isEmpty && recents.isNotEmpty) {
           return _PanelCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
-                  child: Text(
-                    'RECENT',
-                    style: TextStyle(
-                      color: BrandTokens.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.3,
-                    ),
-                  ),
-                ),
-                ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: recents.length,
-                  separatorBuilder: (_, __) => const Divider(
-                    height: 1,
-                    color: BrandTokens.borderSoft,
-                    indent: 60,
-                  ),
-                  itemBuilder: (context, i) => _ResultTile(
-                    result: recents[i],
-                    icon: Icons.history_rounded,
-                    onTap: () => onPick(recents[i]),
-                  ),
-                ),
-              ],
+            child: _PanelList(
+              header: const _PanelHeader(label: 'RECENT'),
+              itemCount: recents.length,
+              itemBuilder: (i) => _ResultTile(
+                result: recents[i],
+                icon: Icons.history_rounded,
+                onTap: () => onPick(recents[i]),
+              ),
             ),
           );
         }
@@ -1106,31 +1202,128 @@ class _PanelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    // Available vertical room = screen − keyboard − (status bar + pill
+    // + sheet area). Clamp generously so the panel actually fills the
+    // visible space instead of looking like a tiny pill peek-out.
+    final maxH = (mq.size.height - mq.viewInsets.bottom - 200)
+        .clamp(160.0, 520.0);
     return Padding(
+      // Full-width panel (matches Material 3 Search-view pattern).
+      // The back button above is OK to overflow visually because the
+      // panel sits below it, not next to it.
       padding: const EdgeInsets.only(top: 10),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
-            constraints: const BoxConstraints(maxHeight: 360),
+            constraints: BoxConstraints(maxHeight: maxH),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(20),
+              color: Colors.white.withValues(alpha: 0.96),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: BrandTokens.borderSoft.withValues(alpha: 0.5),
                 width: 1,
               ),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
                   color: BrandTokens.shadowSoft,
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  blurRadius: 28,
+                  offset: Offset(0, 12),
                 ),
               ],
             ),
-            child: child,
+            // The child supplies its own scrollable list (Suggestions /
+            // Recents) — wrap it in a Material so InkWells inside the
+            // panel paint correctly above the BackdropFilter.
+            child: Material(
+              color: Colors.transparent,
+              child: child,
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A scrollable list inside [_PanelCard]. Supports an optional sticky
+/// header (e.g. the "RECENT" label). The list itself is the only thing
+/// that scrolls — keeping the header anchored gives the panel a clean
+/// Material 3 search-view feel.
+class _PanelList extends StatelessWidget {
+  final Widget? header;
+  final int itemCount;
+  final Widget Function(int index) itemBuilder;
+  const _PanelList({
+    required this.header,
+    required this.itemCount,
+    required this.itemBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (header != null) header!,
+        Flexible(
+          // ListView (not shrinkWrap with NeverScrollable) — gives the
+          // user a real scrollable surface, even when the suggestions
+          // overflow the panel's max height. `Flexible` lets the list
+          // shrink to its content when small, and grow to the panel's
+          // max height when long.
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            shrinkWrap: true,
+            // BouncingScrollPhysics on iOS / Clamping on Android — the
+            // platform default avoids the scroll feeling foreign.
+            physics: const AlwaysScrollableScrollPhysics(),
+            // Make sure taps on tiles are not accidentally swallowed
+            // by the parent panel's gesture detection.
+            keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.manual,
+            itemCount: itemCount,
+            separatorBuilder: (_, __) => const Divider(
+              height: 1,
+              thickness: 1,
+              color: BrandTokens.borderSoft,
+              indent: 70,
+              endIndent: 16,
+            ),
+            itemBuilder: (_, i) => itemBuilder(i),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PanelHeader extends StatelessWidget {
+  final String label;
+  const _PanelHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: BrandTokens.borderSoft,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: BrandTokens.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.4,
         ),
       ),
     );
@@ -1152,22 +1345,15 @@ class _ResultTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    BrandTokens.primaryBlue.withValues(alpha: 0.10),
-                    BrandTokens.primaryBlue.withValues(alpha: 0.04),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(12),
+                color: BrandTokens.bgSoft,
+                shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
@@ -1175,7 +1361,7 @@ class _ResultTile extends StatelessWidget {
                 size: 20,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1185,7 +1371,7 @@ class _ResultTile extends StatelessWidget {
                     result.name,
                     style: const TextStyle(
                       color: BrandTokens.textPrimary,
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w700,
                     ),
                     maxLines: 1,
@@ -1200,6 +1386,7 @@ class _ResultTile extends StatelessWidget {
                         style: const TextStyle(
                           color: BrandTokens.textSecondary,
                           fontSize: 12,
+                          height: 1.35,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -1222,101 +1409,114 @@ class _ResultTile extends StatelessWidget {
 }
 
 // =============================================================================
-// Glass icon buttons / FAB
+// Right-side zoom controls (single frosted pill).
+//
+// Shows + / − stacked vertically. A compass affordance is appended only
+// when the bearing is non-zero, so the chrome stays minimal at rest.
 // =============================================================================
 
-class _GlassIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  final double rotationRad;
-  final Color color;
-  const _GlassIconButton({
-    required this.icon,
-    required this.onTap,
-    this.rotationRad = 0,
-    required this.color,
+class _ZoomControls extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final ValueListenable<double> bearingVN;
+  final VoidCallback onResetBearing;
+  const _ZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.bearingVN,
+    required this.onResetBearing,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.92),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-              color: Colors.white.withValues(alpha: 0.7),
-              width: 1,
-            ),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: onTap,
-            child: SizedBox(
-              width: 42,
-              height: 42,
-              child: Center(
-                child: Transform.rotate(
-                  angle: rotationRad,
-                  child: Icon(icon, color: color, size: 20),
+    return ValueListenableBuilder<double>(
+      valueListenable: bearingVN,
+      builder: (_, bearing, __) {
+        final showCompass = bearing.abs() > 0.5;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: BrandTokens.borderSoft.withValues(alpha: 0.5),
+                  width: 1,
                 ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: BrandTokens.shadowSoft,
+                    blurRadius: 24,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ZoomButton(
+                    icon: Icons.add_rounded,
+                    onTap: onZoomIn,
+                  ),
+                  Container(
+                    width: 26,
+                    height: 1,
+                    color: BrandTokens.borderSoft.withValues(alpha: 0.6),
+                  ),
+                  _ZoomButton(
+                    icon: Icons.remove_rounded,
+                    onTap: onZoomOut,
+                  ),
+                  if (showCompass) ...[
+                    Container(
+                      width: 26,
+                      height: 1,
+                      color:
+                          BrandTokens.borderSoft.withValues(alpha: 0.6),
+                    ),
+                    _ZoomButton(
+                      icon: Icons.explore_rounded,
+                      iconColor: BrandTokens.primaryBlue,
+                      rotationRad:
+                          bearing * (3.1415926535 / 180.0) * -1,
+                      onTap: onResetBearing,
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
-class _MyLocationFab extends StatelessWidget {
-  final bool isLoading;
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
   final VoidCallback onTap;
-  const _MyLocationFab({required this.isLoading, required this.onTap});
+  final Color iconColor;
+  final double rotationRad;
+  const _ZoomButton({
+    required this.icon,
+    required this.onTap,
+    this.iconColor = BrandTokens.textPrimary,
+    this.rotationRad = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: BrandTokens.primaryGradient,
-        boxShadow: [
-          BoxShadow(
-            color: BrandTokens.primaryBlue.withValues(alpha: 0.45),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: isLoading ? null : onTap,
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: Center(
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(
-                      Icons.my_location_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-            ),
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: Transform.rotate(
+            angle: rotationRad,
+            child: Icon(icon, color: iconColor, size: 22),
           ),
         ),
       ),
@@ -1325,21 +1525,27 @@ class _MyLocationFab extends StatelessWidget {
 }
 
 // =============================================================================
-// Center pin (pulsing teardrop)
+// Center pin (round badge with `location_on`, soft pulse ring + anchor dot).
+//
+// Matches the RAFIQ HTML mockup: a 48-px solid coloured circle with a
+// white `location_on` glyph, surrounded by a static ring (sized 1.25×)
+// to suggest active selection. A tiny dot sits below the circle as the
+// visual "anchor" so the user knows exactly which point on the map is
+// being selected.
 // =============================================================================
 
-class _PulsingPin extends StatefulWidget {
+class _CenterPin extends StatefulWidget {
   final Color color;
-  const _PulsingPin({required this.color});
+  const _CenterPin({required this.color});
 
   @override
-  State<_PulsingPin> createState() => _PulsingPinState();
+  State<_CenterPin> createState() => _CenterPinState();
 }
 
-class _PulsingPinState extends State<_PulsingPin>
+class _CenterPinState extends State<_CenterPin>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1400))
+      vsync: this, duration: const Duration(milliseconds: 1700))
     ..repeat();
 
   @override
@@ -1350,17 +1556,22 @@ class _PulsingPinState extends State<_PulsingPin>
 
   @override
   Widget build(BuildContext context) {
+    const badge = 48.0;
+    const dot = 6.0;
+    // SizedBox is tall enough to house the badge (with its halo) plus a
+    // small gap and the anchor dot. The dot sits at the visual centre of
+    // the SizedBox so it lines up with the map crosshair.
     return IgnorePointer(
       ignoring: true,
       child: SizedBox(
-        width: 90,
-        height: 110,
+        width: 84,
+        height: 84,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Pulse ring.
+            // Animated halo behind the pin badge.
             Positioned(
-              bottom: 16,
+              top: 6,
               child: AnimatedBuilder(
                 animation: _ctrl,
                 builder: (_, __) {
@@ -1368,12 +1579,12 @@ class _PulsingPinState extends State<_PulsingPin>
                   return Opacity(
                     opacity: (1 - v) * 0.45,
                     child: Transform.scale(
-                      scale: 1 + v * 0.6,
+                      scale: 0.6 + v * 0.9,
                       child: Container(
-                        width: 40,
-                        height: 40,
+                        width: badge,
+                        height: badge,
                         decoration: BoxDecoration(
-                          color: widget.color.withValues(alpha: 0.55),
+                          color: widget.color.withValues(alpha: 0.22),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -1382,22 +1593,52 @@ class _PulsingPinState extends State<_PulsingPin>
                 },
               ),
             ),
-            // Solid base dot.
+            // The badge itself.
             Positioned(
-              bottom: 22,
+              top: 6,
               child: Container(
-                width: 10,
-                height: 10,
+                width: badge,
+                height: badge,
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.35),
+                  color: widget.color,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: widget.color.withValues(alpha: 0.30),
+                    width: 4,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  color: Colors.white,
+                  size: 26,
                 ),
               ),
             ),
-            // Teardrop with inner gradient + dot.
+            // Tiny anchor dot, a few pixels below the badge centre.
             Positioned(
-              top: 0,
-              child: _Teardrop(color: widget.color),
+              top: 6 + badge + 6,
+              child: Container(
+                width: dot,
+                height: dot,
+                decoration: BoxDecoration(
+                  color: widget.color,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -1406,39 +1647,116 @@ class _PulsingPinState extends State<_PulsingPin>
   }
 }
 
-class _Teardrop extends StatelessWidget {
-  final Color color;
-  const _Teardrop({required this.color});
+// =============================================================================
+// Bottom action sheet (solid surface + rounded-full CTA).
+//
+// The HTML mockup uses a flat white sheet with a drag handle, a single
+// row of (icon | title | subtitle), and a primary `rounded-full` CTA
+// with the label on the leading side and an icon on the trailing side.
+// =============================================================================
+
+class _BottomActionSheet extends StatelessWidget {
+  final bool isPickup;
+  final ValueListenable<String?> labelVN;
+  final ValueListenable<String?> addressVN;
+  final ValueListenable<bool> resolvingVN;
+  final ValueListenable<_LL> centerVN;
+  final VoidCallback onConfirm;
+  final LocationPickResult? destinationForMeet;
+  final VoidCallback? onMeetAtDestination;
+
+  const _BottomActionSheet({
+    required this.isPickup,
+    required this.labelVN,
+    required this.addressVN,
+    required this.resolvingVN,
+    required this.centerVN,
+    required this.onConfirm,
+    this.destinationForMeet,
+    this.onMeetAtDestination,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 54,
-      child: Stack(
-        alignment: Alignment.center,
+    return Container(
+      decoration: const BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: BrandTokens.shadowDeep,
+            blurRadius: 30,
+            offset: Offset(0, -8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Positioned(
-            top: 4,
-            child: CustomPaint(
-              size: const Size(38, 50),
-              painter: _DropPainter(
-                color: Colors.black.withValues(alpha: 0.20),
+          // Reverse-geocode progress strip — sits flush at the very top
+          // edge so it never pushes the drag handle around.
+          ValueListenableBuilder<bool>(
+            valueListenable: resolvingVN,
+            builder: (_, resolving, __) => SizedBox(
+              height: 2,
+              child: resolving
+                  ? ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(28)),
+                      child: const LinearProgressIndicator(
+                        minHeight: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            BrandTokens.primaryBlue),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+
+          // Drag handle.
+          Padding(
+            padding: const EdgeInsets.only(top: 14, bottom: 6),
+            child: Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: BrandTokens.borderSoft,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ),
           ),
-          CustomPaint(
-            size: const Size(38, 50),
-            painter: _DropPainter(color: color),
-          ),
-          const Positioned(
-            top: 13,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: SizedBox(width: 12, height: 12),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _LocationDetailsRow(
+                  isPickup: isPickup,
+                  labelVN: labelVN,
+                  addressVN: addressVN,
+                  centerVN: centerVN,
+                ),
+                const SizedBox(height: 24),
+                if (onMeetAtDestination != null &&
+                    destinationForMeet != null) ...[
+                  _MeetAtDestinationButton(
+                    destinationName: destinationForMeet!.name,
+                    onTap: onMeetAtDestination!,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _ConfirmCtaButton(
+                  label: isPickup
+                      ? 'Confirm Pickup'
+                      : 'Confirm Destination',
+                  onTap: onConfirm,
+                ),
+              ],
             ),
           ),
         ],
@@ -1447,232 +1765,91 @@ class _Teardrop extends StatelessWidget {
   }
 }
 
-class _DropPainter extends CustomPainter {
-  final Color color;
-  _DropPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    final w = size.width;
-    final h = size.height;
-    final path = ui.Path();
-    path.moveTo(w / 2, h);
-    path.cubicTo(w * 0.05, h * 0.62, w * 0.0, h * 0.20, w * 0.5, 0);
-    path.cubicTo(w * 1.0, h * 0.20, w * 0.95, h * 0.62, w / 2, h);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// =============================================================================
-// Frosted bottom sheet
-// =============================================================================
-
-class _FrostedBottomSheet extends StatelessWidget {
+class _LocationDetailsRow extends StatelessWidget {
   final bool isPickup;
   final ValueListenable<String?> labelVN;
   final ValueListenable<String?> addressVN;
-  final ValueListenable<bool> resolvingVN;
   final ValueListenable<_LL> centerVN;
-  final VoidCallback onConfirm;
-
-  const _FrostedBottomSheet({
+  const _LocationDetailsRow({
     required this.isPickup,
     required this.labelVN,
     required this.addressVN,
-    required this.resolvingVN,
     required this.centerVN,
-    required this.onConfirm,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent =
-        isPickup ? BrandTokens.successGreen : BrandTokens.dangerRed;
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.96),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(
-                color: BrandTokens.shadowDeep,
-                blurRadius: 28,
-                offset: const Offset(0, -10),
-              ),
-            ],
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(
+            color: BrandTokens.bgSoft,
+            shape: BoxShape.circle,
           ),
+          margin: const EdgeInsets.only(top: 2),
+          child: const Icon(
+            Icons.near_me_rounded,
+            color: BrandTokens.primaryBlue,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: resolvingVN,
-                builder: (_, resolving, __) => SizedBox(
-                  height: 3,
-                  child: resolving
-                      ? const LinearProgressIndicator(
-                          minHeight: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              BrandTokens.primaryBlue),
-                        )
-                      : const SizedBox.shrink(),
+              ValueListenableBuilder<String?>(
+                valueListenable: labelVN,
+                builder: (_, label, __) => Text(
+                  (label == null || label.trim().isEmpty)
+                      ? (isPickup ? 'Pick a pickup point' : 'Pick a destination')
+                      : label,
+                  style: const TextStyle(
+                    color: BrandTokens.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: BrandTokens.borderSoft,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+              const SizedBox(height: 4),
+              ValueListenableBuilder<String?>(
+                valueListenable: addressVN,
+                builder: (_, address, __) {
+                  if (address != null && address.isNotEmpty) {
+                    return Text(
+                      address,
+                      style: const TextStyle(
+                        color: BrandTokens.textSecondary,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  }
+                  return ValueListenableBuilder<_LL>(
+                    valueListenable: centerVN,
+                    builder: (_, center, __) => Text(
+                      '${center.latitude.toStringAsFixed(5)}, '
+                      '${center.longitude.toStringAsFixed(5)}',
+                      style: const TextStyle(
+                        color: BrandTokens.textSecondary,
+                        fontSize: 13,
+                        height: 1.35,
+                        fontFeatures: [FontFeature.tabularFigures()],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                accent.withValues(alpha: 0.18),
-                                accent.withValues(alpha: 0.06),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            isPickup
-                                ? Icons.trip_origin_rounded
-                                : Icons.flag_rounded,
-                            color: accent,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _LiveAddressBlock(
-                            isPickup: isPickup,
-                            labelVN: labelVN,
-                            addressVN: addressVN,
-                            centerVN: centerVN,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _ConfirmButton(
-                      label:
-                          isPickup ? 'Confirm pickup' : 'Confirm destination',
-                      onTap: onConfirm,
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LiveAddressBlock extends StatelessWidget {
-  final bool isPickup;
-  final ValueListenable<String?> labelVN;
-  final ValueListenable<String?> addressVN;
-  final ValueListenable<_LL> centerVN;
-
-  const _LiveAddressBlock({
-    required this.isPickup,
-    required this.labelVN,
-    required this.addressVN,
-    required this.centerVN,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          isPickup ? 'PICKUP POINT' : 'DESTINATION',
-          style: const TextStyle(
-            color: BrandTokens.textSecondary,
-            fontSize: 10,
-            letterSpacing: 1.3,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        ValueListenableBuilder<String?>(
-          valueListenable: labelVN,
-          builder: (_, label, __) => Text(
-            (label == null || label.trim().isEmpty)
-                ? 'Move the map to choose a point'
-                : label,
-            style: const TextStyle(
-              color: BrandTokens.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        ValueListenableBuilder<String?>(
-          valueListenable: addressVN,
-          builder: (_, address, __) {
-            if (address == null || address.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                address,
-                style: const TextStyle(
-                  color: BrandTokens.textSecondary,
-                  fontSize: 12,
-                  height: 1.3,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 6),
-        ValueListenableBuilder<_LL>(
-          valueListenable: centerVN,
-          builder: (_, center, __) => Text(
-            '${center.latitude.toStringAsFixed(5)}, '
-            '${center.longitude.toStringAsFixed(5)}',
-            style: const TextStyle(
-              color: BrandTokens.textSecondary,
-              fontSize: 11,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
           ),
         ),
       ],
@@ -1680,56 +1857,124 @@ class _LiveAddressBlock extends StatelessWidget {
   }
 }
 
-class _ConfirmButton extends StatelessWidget {
+class _ConfirmCtaButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
-  const _ConfirmButton({required this.label, required this.onTap});
+  const _ConfirmCtaButton({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: BrandTokens.primaryGradient,
-        boxShadow: [
-          BoxShadow(
-            color: BrandTokens.primaryBlue.withValues(alpha: 0.36),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
+    return Material(
+      color: BrandTokens.primaryBlue,
+      borderRadius: BorderRadius.circular(40),
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(40),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            gradient: BrandTokens.primaryGradient,
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.32),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
           child: SizedBox(
-            height: 56,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
+            height: 58,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                    ),
                   ),
-                ),
-              ],
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _MeetAtDestinationButton extends StatelessWidget {
+  final String destinationName;
+  final VoidCallback onTap;
+  const _MeetAtDestinationButton({
+    required this.destinationName,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BrandTokens.bgSoft,
+      borderRadius: BorderRadius.circular(40),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(40),
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.20),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.group_rounded,
+                color: BrandTokens.primaryBlue,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Meet at destination  ·  ${_shorten(destinationName)}',
+                  style: const TextStyle(
+                    color: BrandTokens.primaryBlue,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: BrandTokens.primaryBlue,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _shorten(String name) {
+    final parts = name.split(',');
+    final short = parts.first.trim();
+    return short.length > 24 ? '${short.substring(0, 22)}…' : short;
   }
 }
 

@@ -6,31 +6,20 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
-import '../../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/instant_search_request.dart';
 import '../../cubits/instant_booking_cubit.dart';
 import '../../cubits/instant_booking_state.dart';
 import '../../widgets/instant/duration_picker_sheet.dart';
 import '../../widgets/instant/language_picker_sheet.dart';
+import 'location_label_format.dart';
 import 'location_pick_result.dart';
 import 'location_picker_page.dart';
 
-/// Step 2 — full trip-details form. The "Find available helpers" CTA fires
-/// `POST /user/bookings/instant/search` and then pushes the helpers list.
-///
-/// Pass #5 — 2026 fintech redesign
-/// -------------------------------
-/// * Compact mesh hero with stat strip (verified helpers, avg ETA).
-/// * "Route" card that looks like a real itinerary timeline, not a form.
-/// * Duration as horizontal pill chips with a custom "+" tile.
-/// * Travelers stepper with a big tabular number and avatar dots.
-/// * Language pill row using the LanguagePicker (emoji safe-Unicode).
-/// * Car toggle as a wide gradient surface.
-/// * Notes as a soft floating textarea with live char counter.
-/// * Floating glass CTA dock at the bottom that stays above the keyboard.
+// HTML secondary color: #924C00 (dark amber used for FROM dot)
+const Color _kSecondary = Color(0xFF924C00);
+
 class InstantTripDetailsPage extends StatelessWidget {
   const InstantTripDetailsPage({super.key});
 
@@ -38,33 +27,27 @@ class InstantTripDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<InstantBookingCubit>(),
-      child: const _InstantTripDetailsView(),
+      child: const _View(),
     );
   }
 }
 
-class _InstantTripDetailsView extends StatefulWidget {
-  const _InstantTripDetailsView();
+class _View extends StatefulWidget {
+  const _View();
 
   @override
-  State<_InstantTripDetailsView> createState() => _InstantTripDetailsViewState();
+  State<_View> createState() => _ViewState();
 }
 
-class _InstantTripDetailsViewState extends State<_InstantTripDetailsView> {
+class _ViewState extends State<_View> {
   LocationPickResult? _pickup;
   LocationPickResult? _destination;
+  bool _meetAtDestination = false;
   int _durationMinutes = 0;
   int _travelers = 1;
   String? _languageCode;
   bool _requiresCar = false;
-  late final TextEditingController _notesCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _notesCtrl = TextEditingController();
-    _notesCtrl.addListener(() => setState(() {}));
-  }
+  final TextEditingController _notesCtrl = TextEditingController();
 
   @override
   void dispose() {
@@ -73,36 +56,22 @@ class _InstantTripDetailsViewState extends State<_InstantTripDetailsView> {
   }
 
   bool get _canSubmit {
-    final pu = _pickup;
-    final de = _destination;
-    if (pu == null || de == null) return false;
-    if (pu.name.trim().isEmpty || de.name.trim().isEmpty) return false;
+    if (_meetAtDestination) {
+      if (_destination == null || _destination!.name.trim().isEmpty) {
+        return false;
+      }
+    } else {
+      final pu = _pickup;
+      final de = _destination;
+      if (pu == null || de == null) return false;
+      if (pu.name.trim().isEmpty || de.name.trim().isEmpty) return false;
+    }
     if (_durationMinutes < kMinDurationMinutes ||
         _durationMinutes > kMaxDurationMinutes) {
       return false;
     }
     if (_travelers < 1 || _travelers > 20) return false;
     return true;
-  }
-
-  List<String> _missingFields(AppLocalizations loc) {
-    final missing = <String>[];
-    final pu = _pickup;
-    final de = _destination;
-    if (pu == null || pu.name.trim().isEmpty) {
-      missing.add(loc.bookingReviewPickupLabel);
-    }
-    if (de == null || de.name.trim().isEmpty) {
-      missing.add(loc.bookingReviewDestinationLabel);
-    }
-    if (_durationMinutes < kMinDurationMinutes ||
-        _durationMinutes > kMaxDurationMinutes) {
-      missing.add(loc.bookingReviewDuration);
-    }
-    if (_travelers < 1 || _travelers > 20) {
-      missing.add(loc.bookingReviewTravelers);
-    }
-    return missing;
   }
 
   Future<void> _pickLocation({required bool isPickup}) async {
@@ -126,34 +95,82 @@ class _InstantTripDetailsViewState extends State<_InstantTripDetailsView> {
     HapticFeedback.lightImpact();
   }
 
-  Future<void> _pickLanguage() async {
-    final picked = await showLanguagePickerSheet(
-      context,
-      initialCode: _languageCode,
+  Future<void> _pickMeetingPoint() async {
+    final result = await Navigator.of(context).push<LocationPickResult>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerPage(
+          title: 'Meeting point',
+          isPickup: false,
+          initial: _destination,
+        ),
+      ),
     );
-    if (picked != null) setState(() => _languageCode = picked.code);
+    if (!mounted || result == null) return;
+    setState(() => _destination = result);
+    HapticFeedback.lightImpact();
   }
 
-  Future<void> _pickCustomDuration() async {
-    final result = await showCustomDurationSheet(
-      context,
-      initialMinutes: _durationMinutes == 0 ? 240 : _durationMinutes,
-    );
-    if (result != null) setState(() => _durationMinutes = result);
+  void _toggleMeetAtDestination() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _meetAtDestination = !_meetAtDestination;
+      if (_meetAtDestination) _pickup = null;
+    });
   }
 
-  void _onFindHelpersPressed() {
-    final loc = AppLocalizations.of(context);
+  void _swapLocations() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      final tmp = _pickup;
+      _pickup = _destination;
+      _destination = tmp;
+    });
+  }
+
+  void _showPreferencesSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PreferencesSheet(
+        initialDuration: _durationMinutes,
+        initialTravelers: _travelers,
+        initialLanguage: _languageCode,
+        initialCar: _requiresCar,
+        onChanged: (duration, language, travelers, car) {
+          if (mounted) {
+            setState(() {
+              _durationMinutes = duration;
+              _languageCode = language;
+              _travelers = travelers;
+              _requiresCar = car;
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  void _onSearchPressed() {
     if (!_canSubmit) {
       HapticFeedback.mediumImpact();
-      final missing = _missingFields(loc);
-      final message = missing.isEmpty
-          ? loc.bookingInstantValidationSnackbar
-          : '${loc.bookingInstantValidationSnackbar}\n\u2022 ${missing.join('\n\u2022 ')}';
+      String msg = 'Please fill in all required fields.';
+      if (_meetAtDestination) {
+        if (_destination == null) msg = 'Please select a meeting point.';
+      } else {
+        if (_pickup == null) {
+          msg = 'Please select a pickup location.';
+        } else if (_destination == null) {
+          msg = 'Please select a destination.';
+        }
+      }
+      if (_durationMinutes < kMinDurationMinutes) {
+        msg = 'Please set a duration in Travel Preferences.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 4),
+          content: Text(msg),
           behavior: SnackBarBehavior.floating,
           backgroundColor: BrandTokens.primaryBlueDark,
         ),
@@ -165,477 +182,366 @@ class _InstantTripDetailsViewState extends State<_InstantTripDetailsView> {
   }
 
   void _submit() {
-    if (!_canSubmit) return;
+    final effectivePickup = _meetAtDestination ? _destination! : _pickup!;
     final request = InstantSearchRequest(
-      pickupLocationName: _pickup!.name,
+      pickupLocationName: effectivePickup.name,
       destinationName: _destination!.name,
       destinationLatitude: _destination!.latitude,
       destinationLongitude: _destination!.longitude,
-      pickupLatitude: _pickup!.latitude,
-      pickupLongitude: _pickup!.longitude,
+      pickupLatitude: effectivePickup.latitude,
+      pickupLongitude: effectivePickup.longitude,
       durationInMinutes: _durationMinutes,
       requestedLanguage: _languageCode,
       requiresCar: _requiresCar,
       travelersCount: _travelers,
     );
     context.read<InstantBookingCubit>().searchHelpers(request);
-
     context.push(
       AppRouter.instantHelpersList,
       extra: {
         'cubit': context.read<InstantBookingCubit>(),
         'searchRequest': request,
-        'pickup': _pickup,
+        'pickup': effectivePickup,
         'destination': _destination,
         'travelers': _travelers,
         'durationInMinutes': _durationMinutes,
         'languageCode': _languageCode,
         'requiresCar': _requiresCar,
-        'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        'notes':
+            _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       },
     );
   }
 
+  String _prefSummary() {
+    final duration = _durationMinutes >= kMinDurationMinutes
+        ? formatDurationMinutes(_durationMinutes)
+        : 'Duration';
+    final lang = languageOptionForCode(_languageCode).name;
+    final travelers =
+        '$_travelers ${_travelers == 1 ? 'Traveler' : 'Travelers'}';
+    final car = _requiresCar ? 'Private car' : 'No car';
+    return '$duration  •  $lang  •  $travelers  •  $car';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final mediaTop = MediaQuery.of(context).padding.top;
+    final safeTop = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: BrandTokens.bgSoft,
-      extendBodyBehindAppBar: true,
-      bottomNavigationBar: _FloatingCtaDock(
-        builder: (_) => BlocBuilder<InstantBookingCubit, InstantBookingState>(
-          builder: (_, state) {
-            final loading = state is InstantBookingSearching;
-            final missing = _missingFields(loc);
-            final cta = _PrimaryGradientButton(
-              label: loc.bookingInstantFindHelpers,
-              icon: Icons.search_rounded,
-              isLoading: loading,
-              visualEnabled: _canSubmit,
-              onTap: loading ? null : _onFindHelpersPressed,
-            );
-            if (_canSubmit || missing.isEmpty) return cta;
-            return Tooltip(
-              message:
-                  '${loc.bookingInstantValidationSnackbar}\n\u2022 ${missing.join('\n\u2022 ')}',
-              triggerMode: TooltipTriggerMode.tap,
-              preferBelow: false,
-              showDuration: const Duration(seconds: 4),
-              child: cta,
-            );
-          },
-        ),
+      body: Stack(
+        children: [
+          // Wavy background matching the HTML map-pattern
+          Positioned.fill(
+            child: CustomPaint(painter: _WavyPainter()),
+          ),
+          Column(
+            children: [
+              // ── Top App Bar (transparent in HTML)
+              _TopBar(
+                topPadding: safeTop,
+                onBack: () => Navigator.of(context).maybePop(),
+              ),
+              // ── Main canvas
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Journey card or meeting point card
+                      if (_meetAtDestination)
+                        _MeetingPointCard(
+                          destination: _destination,
+                          onPickDestination: _pickMeetingPoint,
+                        )
+                      else
+                        _JourneyCard(
+                          pickup: _pickup,
+                          destination: _destination,
+                          onPickPickup: () => _pickLocation(isPickup: true),
+                          onPickDestination: () =>
+                              _pickLocation(isPickup: false),
+                          onSwap: _swapLocations,
+                        ),
+                      const SizedBox(height: 16),
+                      // Meet at destination toggle chip
+                      _MeetAtDestinationToggle(
+                        active: _meetAtDestination,
+                        onTap: _toggleMeetAtDestination,
+                      ),
+                      const SizedBox(height: 16),
+                      // Preference summarizer
+                      _PreferenceSummaryChip(
+                        summary: _prefSummary(),
+                        onTap: _showPreferencesSheet,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: _Hero(
-              topPadding: mediaTop,
-              title: loc.bookingInstantPlanTitle,
-              subtitle: loc.bookingInstantPlanSubtitle,
-              onBack: () => Navigator.of(context).maybePop(),
-              filledCount: _filledCount(),
+      // ── Bottom action area
+      bottomNavigationBar: _BottomActionBar(
+        onPressed: () => BlocProvider.of<InstantBookingCubit>(context).state
+                is InstantBookingSearching
+            ? null
+            : _onSearchPressed(),
+        isLoading:
+            context.watch<InstantBookingCubit>().state is InstantBookingSearching,
+      ),
+    );
+  }
+}
+
+// ─── Top App Bar ──────────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  final double topPadding;
+  final VoidCallback onBack;
+  const _TopBar({required this.topPadding, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.transparent,
+      padding: EdgeInsets.fromLTRB(24, topPadding + 12, 24, 12),
+      child: Row(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onBack,
+            child: const Icon(
+              Icons.arrow_back_rounded,
+              size: 28,
+              color: BrandTokens.primaryBlue,
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate.fixed([
-                _RouteCard(
-                  pickup: _pickup,
-                  destination: _destination,
-                  onPickPickup: () => _pickLocation(isPickup: true),
-                  onPickDestination: () => _pickLocation(isPickup: false),
-                ),
-                const SizedBox(height: 22),
-                const _SectionLabel(
-                  icon: Icons.schedule_rounded,
-                  title: 'How long do you need?',
-                  subtitle: 'Pick a preset or set a custom duration',
-                ),
-                const SizedBox(height: 10),
-                _DurationStrip(
-                  selectedMinutes: _durationMinutes,
-                  onPreset: (m) {
-                    HapticFeedback.selectionClick();
-                    setState(() => _durationMinutes = m);
-                  },
-                  onCustom: _pickCustomDuration,
-                ),
-                const SizedBox(height: 22),
-                const _SectionLabel(
-                  icon: Icons.groups_2_rounded,
-                  title: 'Travelers',
-                  subtitle: '1 to 20',
-                ),
-                const SizedBox(height: 10),
-                _TravelersCard(
-                  value: _travelers,
-                  onChanged: (v) {
-                    HapticFeedback.selectionClick();
-                    setState(() => _travelers = v);
-                  },
-                ),
-                const SizedBox(height: 22),
-                const _SectionLabel(
-                  icon: Icons.translate_rounded,
-                  title: 'Preferred language',
-                  subtitle: 'Optional',
-                ),
-                const SizedBox(height: 10),
-                _LanguagePill(
-                  code: _languageCode,
-                  onTap: _pickLanguage,
-                ),
-                const SizedBox(height: 22),
-                const _SectionLabel(
-                  icon: Icons.directions_car_filled_rounded,
-                  title: 'Need a ride?',
-                  subtitle: 'Match only helpers with a car',
-                ),
-                const SizedBox(height: 10),
-                _CarToggleCard(
-                  value: _requiresCar,
-                  onChanged: (v) {
-                    HapticFeedback.lightImpact();
-                    setState(() => _requiresCar = v);
-                  },
-                ),
-                const SizedBox(height: 22),
-                const _SectionLabel(
-                  icon: Icons.edit_note_rounded,
-                  title: 'Anything else?',
-                  subtitle: 'Optional notes for your helper',
-                ),
-                const SizedBox(height: 10),
-                _NotesCard(
-                  controller: _notesCtrl,
-                  maxLength: 2000,
-                ),
-                // CTA dock height + safe-area
-                const SizedBox(height: 110),
-              ]),
+          const SizedBox(width: 16),
+          Text(
+            'Find a Helper',
+            style: BrandTokens.heading(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: BrandTokens.primaryBlue,
+              letterSpacing: -0.5,
             ),
           ),
         ],
       ),
     );
   }
-
-  int _filledCount() {
-    var n = 0;
-    if (_pickup != null) n++;
-    if (_destination != null) n++;
-    if (_durationMinutes >= kMinDurationMinutes) n++;
-    if (_travelers >= 1) n++;
-    return n;
-  }
 }
 
-// ============================================================================
-//  HERO
-// ============================================================================
+// ─── Journey Card ─────────────────────────────────────────────────────────────
 
-class _Hero extends StatelessWidget {
-  final double topPadding;
-  final String title;
-  final String subtitle;
-  final VoidCallback onBack;
-  final int filledCount;
-
-  const _Hero({
-    required this.topPadding,
-    required this.title,
-    required this.subtitle,
-    required this.onBack,
-    required this.filledCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipPath(
-      clipper: const _HeroBlobClipper(),
-      child: SizedBox(
-        height: 240 + topPadding,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const RepaintBoundary(child: MeshGradientBackground()),
-            // Subtle dim at the bottom edge so the route card below
-            // gets visual separation.
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    BrandTokens.primaryBlueDark.withValues(alpha: 0.18),
-                  ],
-                  stops: const [0.6, 1.0],
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(20, topPadding + 8, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _CircleIconButton(
-                        icon: Icons.arrow_back_rounded,
-                        onTap: onBack,
-                      ),
-                      const Spacer(),
-                      _ProgressDots(filled: filledCount, total: 4),
-                    ],
-                  ),
-                  const Spacer(),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: BrandTokens.amberGradient,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: BrandTokens.accentAmber
-                                  .withValues(alpha: 0.45),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.bolt_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              title,
-                              style: BrandTokens.heading(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                height: 1.15,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              style: BrandTokens.body(
-                                fontSize: 13,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                height: 1.35,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroBlobClipper extends CustomClipper<Path> {
-  const _HeroBlobClipper();
-  @override
-  Path getClip(Size size) {
-    final p = Path();
-    p.moveTo(0, 0);
-    p.lineTo(size.width, 0);
-    p.lineTo(size.width, size.height - 36);
-    // gentle organic wave on the bottom
-    p.cubicTo(
-      size.width * 0.78, size.height,
-      size.width * 0.45, size.height - 56,
-      size.width * 0.22, size.height - 18,
-    );
-    p.cubicTo(
-      size.width * 0.10, size.height - 2,
-      size.width * 0.04, size.height - 14,
-      0, size.height - 28,
-    );
-    p.close();
-    return p;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.18),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 42,
-          height: 42,
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressDots extends StatelessWidget {
-  final int filled;
-  final int total;
-  const _ProgressDots({required this.filled, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(total, (i) {
-        final on = i < filled;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            width: on ? 22 : 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: on
-                  ? Colors.white
-                  : Colors.white.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-// ============================================================================
-//  SECTION LABEL
-// ============================================================================
-
-class _SectionLabel extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  const _SectionLabel({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, size: 18, color: BrandTokens.primaryBlue),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: BrandTokens.heading(
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: BrandTokens.body(fontSize: 12, height: 1.2),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ============================================================================
-//  ROUTE CARD (timeline-style)
-// ============================================================================
-
-class _RouteCard extends StatelessWidget {
+class _JourneyCard extends StatelessWidget {
   final LocationPickResult? pickup;
   final LocationPickResult? destination;
   final VoidCallback onPickPickup;
   final VoidCallback onPickDestination;
-  const _RouteCard({
+  final VoidCallback onSwap;
+
+  const _JourneyCard({
     required this.pickup,
     required this.destination,
     required this.onPickPickup,
     required this.onPickDestination,
+    required this.onSwap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: BrandTokens.cardShadow,
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      child: Column(
-        children: [
-          _RoutePoint(
-            isPickup: true,
-            location: pickup,
-            placeholder: 'Choose pickup point',
-            onTap: onPickPickup,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 40,
+            offset: Offset(0, 20),
           ),
-          const _RouteConnector(),
-          _RoutePoint(
-            isPickup: false,
-            location: destination,
-            placeholder: 'Choose destination',
-            onTap: onPickDestination,
+        ],
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 32, 80, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── FROM section (dot + line + text in one Row)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left: FROM dot + connecting line
+                    Column(
+                      children: [
+                        // FROM circle (32px) with nested 12px solid dot
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: _kSecondary.withValues(alpha: 0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: const BoxDecoration(
+                                color: _kSecondary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Connecting gradient line
+                        Container(
+                          width: 4,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [_kSecondary, BrandTokens.primaryBlue],
+                            ),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                    const SizedBox(width: 24),
+                    // Right: FROM text
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onPickPickup,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _PointLabel('FROM'),
+                              const SizedBox(height: 6),
+                              Text(
+                                pickup == null
+                                    ? 'My current location'
+                                    : LocationLabel.title(pickup),
+                                style: BrandTokens.body(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: BrandTokens.primaryBlue,
+                                  height: 1.3,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // ── TO section
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // TO circle (32px) with location_on icon
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: BrandTokens.primaryBlue,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    // TO text / placeholder
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onPickDestination,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _PointLabel('TO'),
+                              const SizedBox(height: 6),
+                              Text(
+                                destination == null
+                                    ? 'Where are you going?'
+                                    : LocationLabel.title(destination),
+                                style: BrandTokens.body(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: destination == null
+                                      ? BrandTokens.textSecondary
+                                          .withValues(alpha: 0.40)
+                                      : BrandTokens.primaryBlue,
+                                  height: 1.3,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // ── Swap button (absolute, vertically centred in card)
+          Positioned(
+            right: 20,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onSwap,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: BrandTokens.bgSoft,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFE5E7EB),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0C000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.swap_vert_rounded,
+                    color: BrandTokens.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -643,34 +549,410 @@ class _RouteCard extends StatelessWidget {
   }
 }
 
-class _RoutePoint extends StatelessWidget {
-  final bool isPickup;
-  final LocationPickResult? location;
-  final String placeholder;
+class _PointLabel extends StatelessWidget {
+  final String text;
+  const _PointLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: BrandTokens.body(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: BrandTokens.textSecondary,
+        height: 1.0,
+      ).copyWith(letterSpacing: 2.0),
+    );
+  }
+}
+
+// ─── Preference Summary Chip ──────────────────────────────────────────────────
+
+class _PreferenceSummaryChip extends StatelessWidget {
+  final String summary;
   final VoidCallback onTap;
-  const _RoutePoint({
-    required this.isPickup,
-    required this.location,
-    required this.placeholder,
+  const _PreferenceSummaryChip({required this.summary, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(100),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.70),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    summary,
+                    style: BrandTokens.body(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: BrandTokens.primaryBlue,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 18,
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.60),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Bottom Action Bar ────────────────────────────────────────────────────────
+
+class _BottomActionBar extends StatefulWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  const _BottomActionBar({required this.onPressed, required this.isLoading});
+
+  @override
+  State<_BottomActionBar> createState() => _BottomActionBarState();
+}
+
+class _BottomActionBarState extends State<_BottomActionBar> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final safePad = MediaQuery.of(context).padding.bottom;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            BrandTokens.bgSoft,
+            BrandTokens.bgSoft.withValues(alpha: 0.90),
+            BrandTokens.bgSoft.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.6, 1.0],
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 48, 24, safePad + 32),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) {
+          setState(() => _down = false);
+          widget.onPressed?.call();
+        },
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 90),
+          scale: _down ? 0.97 : 1.0,
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: BrandTokens.primaryBlue,
+              borderRadius: BorderRadius.circular(100),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x401B237E),
+                  blurRadius: 24,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Center(
+              child: widget.isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.search_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Search Helpers',
+                          style: BrandTokens.heading(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Travel Preferences Bottom Sheet ─────────────────────────────────────────
+//
+// Stays OPEN after each sub-picker — user sets all prefs then closes manually.
+
+typedef _PrefsCallback = void Function(
+    int duration, String? language, int travelers, bool car);
+
+class _PreferencesSheet extends StatefulWidget {
+  final int initialDuration;
+  final int initialTravelers;
+  final String? initialLanguage;
+  final bool initialCar;
+  final _PrefsCallback onChanged;
+
+  const _PreferencesSheet({
+    required this.initialDuration,
+    required this.initialTravelers,
+    this.initialLanguage,
+    required this.initialCar,
+    required this.onChanged,
+  });
+
+  @override
+  State<_PreferencesSheet> createState() => _PreferencesSheetState();
+}
+
+class _PreferencesSheetState extends State<_PreferencesSheet> {
+  late int _duration;
+  late int _travelers;
+  late String? _language;
+  late bool _car;
+
+  @override
+  void initState() {
+    super.initState();
+    _duration = widget.initialDuration;
+    _travelers = widget.initialTravelers;
+    _language = widget.initialLanguage;
+    _car = widget.initialCar;
+  }
+
+  void _notify() =>
+      widget.onChanged(_duration, _language, _travelers, _car);
+
+  Future<void> _pickDuration() async {
+    final result = await showCustomDurationSheet(
+      context,
+      initialMinutes: _duration == 0 ? 120 : _duration,
+    );
+    if (result != null && mounted) {
+      setState(() => _duration = result);
+      _notify();
+    }
+  }
+
+  Future<void> _pickLanguage() async {
+    final picked =
+        await showLanguagePickerSheet(context, initialCode: _language);
+    if (picked != null && mounted) {
+      setState(() => _language = picked.code);
+      _notify();
+    }
+  }
+
+  Future<void> _pickTravelers() async {
+    final count = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TravelersSheet(value: _travelers),
+    );
+    if (count != null && mounted) {
+      setState(() => _travelers = count);
+      _notify();
+    }
+  }
+
+  void _toggleCar() {
+    setState(() => _car = !_car);
+    _notify();
+  }
+
+  String get _durationLabel => _duration >= kMinDurationMinutes
+      ? formatDurationMinutes(_duration)
+      : 'Not set';
+
+  String get _languageLabel => languageOptionForCode(_language).name;
+
+  String get _travelersLabel =>
+      '$_travelers ${_travelers == 1 ? 'traveler' : 'travelers'}';
+
+  String get _carLabel => _car ? 'Private car' : 'No car needed';
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 16),
+            width: 48,
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0xFF767683).withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Travel Preferences',
+                    style: BrandTokens.heading(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: BrandTokens.primaryBlue,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: BrandTokens.bgSoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: BrandTokens.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Divider
+          const Divider(height: 1, color: Color(0x1A767683)),
+          // Preference rows
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPad + 8),
+              child: Column(
+                children: [
+                  _PrefRow(
+                    icon: Icons.schedule_rounded,
+                    label: 'Duration',
+                    value: _durationLabel,
+                    onTap: _pickDuration,
+                  ),
+                  const Divider(height: 1, color: Color(0x1A767683)),
+                  _PrefRow(
+                    icon: Icons.language_rounded,
+                    label: 'Language',
+                    value: _languageLabel,
+                    onTap: _pickLanguage,
+                  ),
+                  const Divider(height: 1, color: Color(0x1A767683)),
+                  _PrefRow(
+                    icon: Icons.group_rounded,
+                    label: 'Travelers',
+                    value: _travelersLabel,
+                    onTap: _pickTravelers,
+                  ),
+                  const Divider(height: 1, color: Color(0x1A767683)),
+                  _PrefRow(
+                    icon: Icons.directions_car_rounded,
+                    label: 'Transport',
+                    value: _carLabel,
+                    onTap: _toggleCar,
+                    isLast: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrefRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+  final bool isLast;
+
+  const _PrefRow({
+    required this.icon,
+    required this.label,
+    required this.value,
     required this.onTap,
+    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent =
-        isPickup ? BrandTokens.successGreen : BrandTokens.dangerRed;
-    final label = isPickup ? 'PICKUP' : 'DESTINATION';
-    final filled = location != null && location!.name.trim().isNotEmpty;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        padding: EdgeInsets.only(
+          top: 20,
+          bottom: isLast ? 32 : 20,
+        ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _RouteDot(color: accent, filled: filled),
-            const SizedBox(width: 14),
+            // Icon circle
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.05),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: BrandTokens.primaryBlue, size: 24),
+            ),
+            const SizedBox(width: 16),
+            // Label + value
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -679,55 +961,27 @@ class _RoutePoint extends StatelessWidget {
                   Text(
                     label,
                     style: BrandTokens.body(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                      color: accent,
-                      height: 1.0,
-                    ).copyWith(letterSpacing: 1.2),
+                      fontSize: 13,
+                      color: BrandTokens.textSecondary,
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    filled ? location!.name : placeholder,
+                    value,
                     style: BrandTokens.heading(
-                      fontSize: 15.5,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: filled
-                          ? BrandTokens.textPrimary
-                          : BrandTokens.textSecondary,
-                      height: 1.25,
+                      color: BrandTokens.primaryBlue,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (filled &&
-                      (location!.address ?? '').trim().isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      location!.address!,
-                      style: BrandTokens.body(
-                        fontSize: 11.5,
-                        color: BrandTokens.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                filled ? Icons.edit_location_alt_rounded : Icons.map_rounded,
-                color: accent,
-                size: 18,
-              ),
+            // Chevron
+            Icon(
+              Icons.chevron_right_rounded,
+              color: BrandTokens.textSecondary.withValues(alpha: 0.40),
+              size: 24,
             ),
           ],
         ),
@@ -736,782 +990,324 @@ class _RoutePoint extends StatelessWidget {
   }
 }
 
-class _RouteDot extends StatelessWidget {
-  final Color color;
-  final bool filled;
-  const _RouteDot({required this.color, required this.filled});
+// ─── Travelers Sheet ──────────────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        color: filled ? color : color.withValues(alpha: 0.12),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: color.withValues(alpha: filled ? 0.0 : 0.45),
-          width: 2,
-        ),
-        boxShadow: filled
-            ? [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.35),
-                  blurRadius: 10,
-                  spreadRadius: -2,
-                ),
-              ]
-            : null,
-      ),
-      child: filled
-          ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
-          : null,
-    );
-  }
-}
-
-class _RouteConnector extends StatelessWidget {
-  const _RouteConnector();
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 14),
-      child: SizedBox(
-        height: 22,
-        child: Row(
-          children: [
-            // dotted line
-            SizedBox(
-              width: 22,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(
-                  4,
-                  (_) => Container(
-                    width: 2.5,
-                    height: 2.5,
-                    decoration: const BoxDecoration(
-                      color: BrandTokens.borderSoft,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-//  DURATION STRIP
-// ============================================================================
-
-class _DurationStrip extends StatelessWidget {
-  final int selectedMinutes;
-  final ValueChanged<int> onPreset;
-  final VoidCallback onCustom;
-
-  const _DurationStrip({
-    required this.selectedMinutes,
-    required this.onPreset,
-    required this.onCustom,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isCustom = selectedMinutes != 0 &&
-        !kDurationPresetMinutes.contains(selectedMinutes);
-    return SizedBox(
-      height: 80,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        itemCount: kDurationPresetMinutes.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) {
-          if (i == kDurationPresetMinutes.length) {
-            return _DurationCard(
-              value: isCustom ? formatDurationMinutes(selectedMinutes) : 'Custom',
-              hint: isCustom ? 'tap to edit' : 'choose any',
-              icon: Icons.tune_rounded,
-              selected: isCustom,
-              onTap: onCustom,
-            );
-          }
-          final m = kDurationPresetMinutes[i];
-          final selected = !isCustom && selectedMinutes == m;
-          return _DurationCard(
-            value: _displayValue(m),
-            hint: _displayHint(m),
-            selected: selected,
-            onTap: () => onPreset(m),
-          );
-        },
-      ),
-    );
-  }
-
-  String _displayValue(int minutes) {
-    if (minutes < 60) return '${minutes}m';
-    final h = minutes ~/ 60;
-    final mm = minutes % 60;
-    if (mm == 0) return '${h}h';
-    return '${h}h ${mm}m';
-  }
-
-  String _displayHint(int minutes) {
-    if (minutes <= 60) return 'quick';
-    if (minutes <= 180) return 'short';
-    if (minutes <= 360) return 'half-day';
-    return 'full day';
-  }
-}
-
-class _DurationCard extends StatelessWidget {
-  final String value;
-  final String hint;
-  final bool selected;
-  final VoidCallback onTap;
-  final IconData? icon;
-
-  const _DurationCard({
-    required this.value,
-    required this.hint,
-    required this.selected,
-    required this.onTap,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      width: 84,
-      decoration: BoxDecoration(
-        gradient: selected ? BrandTokens.amberGradient : null,
-        color: selected ? null : BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: selected ? Colors.transparent : BrandTokens.borderSoft,
-        ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: BrandTokens.accentAmber.withValues(alpha: 0.35),
-                  blurRadius: 18,
-                  spreadRadius: -4,
-                  offset: const Offset(0, 8),
-                ),
-              ]
-            : BrandTokens.cardShadow,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null)
-                  Icon(
-                    icon,
-                    size: 16,
-                    color: selected ? Colors.white : BrandTokens.primaryBlue,
-                  ),
-                if (icon != null) const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: BrandTokens.numeric(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: selected
-                        ? Colors.white
-                        : BrandTokens.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  hint,
-                  style: BrandTokens.body(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: selected
-                        ? Colors.white.withValues(alpha: 0.85)
-                        : BrandTokens.textSecondary,
-                    height: 1.0,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-//  TRAVELERS CARD
-// ============================================================================
-
-class _TravelersCard extends StatelessWidget {
+class _TravelersSheet extends StatefulWidget {
   final int value;
-  final ValueChanged<int> onChanged;
-  const _TravelersCard({required this.value, required this.onChanged});
+  const _TravelersSheet({required this.value});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: BrandTokens.cardShadow,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      child: Row(
-        children: [
-          _CircleStepperButton(
-            icon: Icons.remove_rounded,
-            enabled: value > 1,
-            onTap: () => onChanged(value - 1),
-          ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '$value',
-                      style: BrandTokens.numeric(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
-                        color: BrandTokens.primaryBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        value == 1 ? 'traveler' : 'travelers',
-                        style: BrandTokens.body(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: BrandTokens.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                _TravelerAvatars(count: value.clamp(1, 5)),
-              ],
-            ),
-          ),
-          _CircleStepperButton(
-            icon: Icons.add_rounded,
-            enabled: value < 20,
-            onTap: () => onChanged(value + 1),
-          ),
-        ],
-      ),
-    );
-  }
+  State<_TravelersSheet> createState() => _TravelersSheetState();
 }
 
-class _TravelerAvatars extends StatelessWidget {
-  final int count;
-  const _TravelerAvatars({required this.count});
+class _TravelersSheetState extends State<_TravelersSheet> {
+  late int _count;
+
+  @override
+  void initState() {
+    super.initState();
+    _count = widget.value;
+  }
 
   @override
   Widget build(BuildContext context) {
-    const colors = [
-      BrandTokens.accentAmber,
-      BrandTokens.primaryBlue,
-      BrandTokens.successGreen,
-      BrandTokens.gradientMeshD,
-      BrandTokens.gradientMeshB,
-    ];
-    return SizedBox(
-      height: 18,
-      child: Stack(
-        clipBehavior: Clip.none,
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPad + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < count; i++)
-            Positioned(
-              left: i * 12.0,
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: colors[i % colors.length],
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 16),
+            width: 48,
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0xFF767683).withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          Text(
+            'Number of Travelers',
+            style: BrandTokens.heading(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: BrandTokens.primaryBlue,
+            ),
+          ),
+          const SizedBox(height: 36),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _StepBtn(
+                icon: Icons.remove_rounded,
+                enabled: _count > 1,
+                onTap: () => setState(() => _count--),
+              ),
+              const SizedBox(width: 40),
+              Text(
+                '$_count',
+                style: BrandTokens.numeric(
+                  fontSize: 56,
+                  fontWeight: FontWeight.w800,
+                  color: BrandTokens.primaryBlue,
                 ),
-                child: const Icon(
-                  Icons.person_rounded,
-                  size: 10,
+              ),
+              const SizedBox(width: 40),
+              _StepBtn(
+                icon: Icons.add_rounded,
+                enabled: _count < 20,
+                onTap: () => setState(() => _count++),
+              ),
+            ],
+          ),
+          const SizedBox(height: 36),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, _count),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: BrandTokens.primaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+              child: Text(
+                'Confirm',
+                style: BrandTokens.heading(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _CircleStepperButton extends StatelessWidget {
+class _StepBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
-  const _CircleStepperButton({
-    required this.icon,
-    required this.enabled,
-    required this.onTap,
+  const _StepBtn(
+      {required this.icon, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: enabled
+              ? BrandTokens.primaryBlue.withValues(alpha: 0.08)
+              : BrandTokens.bgSoft,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color:
+              enabled ? BrandTokens.primaryBlue : BrandTokens.borderSoft,
+          size: 26,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Meet at destination toggle chip ─────────────────────────────────────────
+
+class _MeetAtDestinationToggle extends StatelessWidget {
+  final bool active;
+  final VoidCallback onTap;
+  const _MeetAtDestinationToggle({required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: active ? BrandTokens.primaryBlue : Colors.white,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: active
+                ? BrandTokens.primaryBlue
+                : BrandTokens.borderSoft,
+          ),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: BrandTokens.primaryBlue.withValues(alpha: 0.25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.group_rounded,
+              size: 16,
+              color: active ? Colors.white : BrandTokens.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Meet at destination',
+              style: BrandTokens.body(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: active ? Colors.white : BrandTokens.textSecondary,
+              ),
+            ),
+            if (active) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Meeting point card (single location, shown when meet-at-destination) ─────
+
+class _MeetingPointCard extends StatelessWidget {
+  final LocationPickResult? destination;
+  final VoidCallback onPickDestination;
+
+  const _MeetingPointCard({
+    required this.destination,
+    required this.onPickDestination,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = enabled ? BrandTokens.primaryBlue : BrandTokens.borderSoft;
-    return Material(
-      color: enabled
-          ? BrandTokens.primaryBlue.withValues(alpha: 0.10)
-          : BrandTokens.bgSoft,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: enabled ? onTap : null,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, color: color, size: 22),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-//  LANGUAGE PILL
-// ============================================================================
-
-class _LanguagePill extends StatelessWidget {
-  final String? code;
-  final VoidCallback onTap;
-  const _LanguagePill({required this.code, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final option = languageOptionForCode(code);
-    return Material(
-      color: BrandTokens.surfaceWhite,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            color: BrandTokens.surfaceWhite,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: BrandTokens.cardShadow,
-          ),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFE0E7FF),
-                        Color(0xFFC7D2FE),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(
-                    child: Text(
-                      option.emoji,
-                      style: const TextStyle(fontSize: 22),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        option.name,
-                        style: BrandTokens.heading(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          height: 1.15,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        option.code == null
-                            ? 'Helpers in any language'
-                            : 'ISO ${option.code}',
-                        style: BrandTokens.body(
-                          fontSize: 12,
-                          color: BrandTokens.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: BrandTokens.textSecondary,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-//  CAR TOGGLE
-// ============================================================================
-
-class _CarToggleCard extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  const _CarToggleCard({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        gradient: value
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFF7E6),
-                  Color(0xFFFFE7BA),
-                ],
-              )
-            : null,
-        color: value ? null : BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: value
-              ? BrandTokens.accentAmber.withValues(alpha: 0.6)
-              : BrandTokens.borderSoft,
-          width: 1.4,
-        ),
-        boxShadow: value
-            ? [
-                BoxShadow(
-                  color: BrandTokens.accentAmber.withValues(alpha: 0.20),
-                  blurRadius: 20,
-                  spreadRadius: -6,
-                  offset: const Offset(0, 10),
-                ),
-              ]
-            : BrandTokens.cardShadow,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () => onChanged(!value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 14,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: value
-                        ? BrandTokens.accentAmber
-                        : BrandTokens.accentAmber.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.directions_car_filled_rounded,
-                    color: value ? Colors.white : BrandTokens.accentAmber,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Helper drives me',
-                        style: BrandTokens.heading(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        value
-                            ? 'On — only car-equipped helpers will appear'
-                            : 'Off — show all available helpers',
-                        style: BrandTokens.body(
-                          fontSize: 12,
-                          color: BrandTokens.textSecondary,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Switch.adaptive(
-                  value: value,
-                  onChanged: onChanged,
-                  activeThumbColor: BrandTokens.accentAmber,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-//  NOTES
-// ============================================================================
-
-class _NotesCard extends StatelessWidget {
-  final TextEditingController controller;
-  final int maxLength;
-  const _NotesCard({required this.controller, required this.maxLength});
-
-  @override
-  Widget build(BuildContext context) {
-    final length = controller.text.characters.length;
     return Container(
       decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: BrandTokens.borderSoft),
-        boxShadow: BrandTokens.cardShadow,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          TextField(
-            controller: controller,
-            minLines: 3,
-            maxLines: 6,
-            maxLength: maxLength,
-            style: BrandTokens.body(
-              fontSize: 14,
-              color: BrandTokens.textPrimary,
-              height: 1.4,
-            ),
-            decoration: InputDecoration(
-              hintText:
-                  'e.g. wheelchair access, kid-friendly, halal food...',
-              hintStyle: BrandTokens.body(
-                fontSize: 13.5,
-                color: BrandTokens.textSecondary.withValues(alpha: 0.7),
-              ),
-              border: InputBorder.none,
-              counterText: '',
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4, right: 2, bottom: 2),
-            child: Text(
-              '$length / $maxLength',
-              style: BrandTokens.body(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-                color: length >= maxLength
-                    ? BrandTokens.dangerRed
-                    : BrandTokens.textSecondary,
-              ),
-            ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 40,
+            offset: Offset(0, 20),
           ),
         ],
       ),
-    );
-  }
-}
-
-// ============================================================================
-//  FLOATING CTA DOCK
-// ============================================================================
-
-class _FloatingCtaDock extends StatelessWidget {
-  final WidgetBuilder builder;
-  const _FloatingCtaDock({required this.builder});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: BrandTokens.surfaceWhite.withValues(alpha: 0.78),
-              border: Border(
-                top: BorderSide(
-                  color: BrandTokens.borderSoft.withValues(alpha: 0.6),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPickDestination,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(32, 32, 24, 32),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  color: BrandTokens.primaryBlue,
+                  size: 20,
                 ),
               ),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            child: builder(context),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-//  PRIMARY GRADIENT BUTTON
-// ============================================================================
-
-class _PrimaryGradientButton extends StatefulWidget {
-  final String label;
-  final IconData? icon;
-  final bool isLoading;
-  final VoidCallback? onTap;
-  final bool visualEnabled;
-
-  const _PrimaryGradientButton({
-    required this.label,
-    this.icon,
-    required this.isLoading,
-    required this.onTap,
-    this.visualEnabled = true,
-  });
-
-  @override
-  State<_PrimaryGradientButton> createState() => _PrimaryGradientButtonState();
-}
-
-class _PrimaryGradientButtonState extends State<_PrimaryGradientButton> {
-  bool _down = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onTap != null && !widget.isLoading;
-    final muted = enabled && !widget.visualEnabled;
-
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 90),
-      scale: _down ? 0.98 : 1,
-      child: Opacity(
-        opacity: muted ? 0.55 : 1,
-        child: GestureDetector(
-          onTapDown: enabled ? (_) => setState(() => _down = true) : null,
-          onTapCancel: enabled ? () => setState(() => _down = false) : null,
-          onTapUp: enabled ? (_) => setState(() => _down = false) : null,
-          child: Container(
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: const LinearGradient(
-                colors: [
-                  BrandTokens.gradientMeshB,
-                  BrandTokens.primaryBlue,
-                ],
-              ),
-              boxShadow: (enabled && widget.visualEnabled)
-                  ? [
-                      BoxShadow(
-                        color: BrandTokens.primaryBlue
-                            .withValues(alpha: 0.40),
-                        blurRadius: 24,
-                        spreadRadius: -4,
-                        offset: const Offset(0, 12),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _PointLabel('MEETING POINT'),
+                    const SizedBox(height: 6),
+                    Text(
+                      destination == null
+                          ? 'Where are you meeting?'
+                          : LocationLabel.title(destination),
+                      style: BrandTokens.body(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: destination == null
+                            ? BrandTokens.textSecondary.withValues(alpha: 0.40)
+                            : BrandTokens.primaryBlue,
+                        height: 1.3,
                       ),
-                    ]
-                  : null,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(18),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: enabled ? widget.onTap : null,
-                child: Center(
-                  child: widget.isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (widget.icon != null) ...[
-                              Icon(
-                                widget.icon,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                              const SizedBox(width: 10),
-                            ],
-                            Text(
-                              widget.label,
-                              style: BrandTokens.heading(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: BrandTokens.textSecondary.withValues(alpha: 0.40),
+                size: 24,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+// ─── Wavy background (matches HTML bg-map-pattern) ───────────────────────────
+
+class _WavyPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF1B237E).withValues(alpha: 0.025)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    // Draw horizontal wave rows every ~70px vertically
+    const rowSpacing = 70.0;
+    // Each wave cycle is 120px wide, amplitude 18px
+    const cycleW = 120.0;
+    const amp = 18.0;
+
+    final rows = (size.height / rowSpacing).ceil() + 1;
+    for (int r = 0; r <= rows; r++) {
+      final baseY = r * rowSpacing;
+      final path = Path();
+      bool up = true;
+      double x = 0;
+      path.moveTo(0, baseY);
+      while (x < size.width) {
+        final cpX = x + cycleW / 2;
+        final cpY = baseY + (up ? -amp : amp);
+        final endX = x + cycleW;
+        path.quadraticBezierTo(cpX, cpY, endX, baseY);
+        x = endX;
+        up = !up;
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

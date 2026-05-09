@@ -61,11 +61,26 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard> with 
         position: _slideAnimation,
         child: GestureDetector(
           onTap: () {
-            // Unified booking detail (Instant + Scheduled).
+            // Pending instant bookings deep-link straight to the live
+            // "Looking for your helper" screen instead of the generic
+            // booking-details page (which is built for the Scheduled
+            // lifecycle and would feel wrong here). Everything else
+            // keeps the unified booking detail.
+            final b = widget.booking;
+            final isInstantPending = b.type == BookingType.instant &&
+                (b.status == BookingStatus.pendingHelperResponse ||
+                    b.status == BookingStatus.reassignmentInProgress ||
+                    b.status == BookingStatus.waitingForUserAction);
+            if (isInstantPending) {
+              context.push(
+                AppRouter.instantWaiting.replaceFirst(':id', b.id),
+              );
+              return;
+            }
             context.pushNamed(
               'booking-details',
-              pathParameters: {'id': widget.booking.id},
-              extra: {'booking': widget.booking},
+              pathParameters: {'id': b.id},
+              extra: {'booking': b},
             );
           },
           child: Container(

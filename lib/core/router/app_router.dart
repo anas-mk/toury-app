@@ -907,9 +907,17 @@ class AppRouter {
         name: 'instant-waiting',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : const <String, dynamic>{};
+          // The waiting page is normally pushed mid-flow with a live
+          // [InstantBookingCubit]. But it is now also reachable via
+          // deep-link from the home banner — in that case `extra` is
+          // empty, so we hydrate a fresh cubit from the DI container.
+          final cubit = (extra['cubit'] as InstantBookingCubit?) ??
+              sl<InstantBookingCubit>();
           return WaitingForHelperPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
+            cubit: cubit,
             bookingId: id,
             helper: extra['helper'] as instant_helper.HelperSearchResult?,
           );
@@ -933,9 +941,16 @@ class AppRouter {
         name: 'instant-confirmed',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>;
+          // Accept deep-links from the home banner where `extra` is
+          // empty — hydrate a fresh cubit so the page can fetch the
+          // booking on its own.
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : const <String, dynamic>{};
+          final cubit = (extra['cubit'] as InstantBookingCubit?) ??
+              sl<InstantBookingCubit>();
           return BookingConfirmedPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
+            cubit: cubit,
             bookingId: id,
             helper: extra['helper'] as instant_helper.HelperSearchResult?,
           );
@@ -946,9 +961,16 @@ class AppRouter {
         name: 'instant-trip-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>;
+          // Same deep-link fallback as `instantConfirmed`. The page
+          // will run `hydrateForTripDeepLink` if the cubit is fresh
+          // and the user opened this route directly from home.
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : const <String, dynamic>{};
+          final cubit = (extra['cubit'] as InstantBookingCubit?) ??
+              sl<InstantBookingCubit>();
           return TripTrackingPage(
-            cubit: extra['cubit'] as InstantBookingCubit,
+            cubit: cubit,
             bookingId: id,
             helper: extra['helper'] as instant_helper.HelperSearchResult?,
           );
