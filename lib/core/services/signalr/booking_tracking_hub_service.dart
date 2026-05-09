@@ -551,15 +551,26 @@ class BookingTrackingHubService {
     hub.on('HelperLocationUpdate', (args) {
       try {
         final raw = _firstMap(args);
-        if (raw == null) return;
+        if (raw == null) {
+          RealtimeLogger.instance.log(
+            'SignalR',
+            'HelperLocationUpdate.empty',
+            'args=$args',
+            isError: true,
+          );
+          return;
+        }
         final ev = HelperLocationUpdateEvent.fromMap(raw);
         EventDedupCache.instance.mark(ev.eventId);
         RealtimeLogger.instance.log(
           'SignalR',
           'HelperLocationUpdate',
-          'lat=${ev.latitude.toStringAsFixed(5)} '
+          'booking=${ev.bookingId} '
+              'lat=${ev.latitude.toStringAsFixed(5)} '
               'lng=${ev.longitude.toStringAsFixed(5)} '
-              'phase=${ev.phase}',
+              'phase=${ev.phase} '
+              'etaPickup=${ev.etaToPickupMinutes} '
+              'etaDest=${ev.etaToDestinationMinutes}',
           eventId: ev.eventId,
         );
         _helperLocationUpdate.add(ev);

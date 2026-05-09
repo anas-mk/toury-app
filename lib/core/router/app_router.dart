@@ -990,11 +990,30 @@ class AppRouter {
         name: 'instant-waiting',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as InstantWaitingRouteArgs;
+          // Accept BOTH `InstantWaitingRouteArgs` (the in-flow push
+          // path) and a loose `Map<String, dynamic>` (the deep-link
+          // path from the home banner where no cubit was constructed
+          // yet). When neither is present we hydrate a fresh cubit
+          // from the DI container — the page itself runs
+          // `hydrateForTripDeepLink` to load the booking.
+          final raw = state.extra;
+          InstantBookingCubit cubit;
+          instant_helper.HelperSearchResult? helper;
+          if (raw is InstantWaitingRouteArgs) {
+            cubit = raw.cubit;
+            helper = raw.helper;
+          } else if (raw is Map<String, dynamic>) {
+            cubit = (raw['cubit'] as InstantBookingCubit?) ??
+                sl<InstantBookingCubit>();
+            helper = raw['helper'] as instant_helper.HelperSearchResult?;
+          } else {
+            cubit = sl<InstantBookingCubit>();
+            helper = null;
+          }
           return WaitingForHelperPage(
-            cubit: extra.cubit,
+            cubit: cubit,
             bookingId: id,
-            helper: extra.helper,
+            helper: helper,
           );
         },
       ),
@@ -1015,11 +1034,27 @@ class AppRouter {
         name: 'instant-confirmed',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as InstantConfirmedRouteArgs;
+          // Same dual-shape strategy as `instantWaiting` — typed args
+          // for the normal in-flow push, loose Map for deep-links
+          // from the home banner.
+          final raw = state.extra;
+          InstantBookingCubit cubit;
+          instant_helper.HelperSearchResult? helper;
+          if (raw is InstantConfirmedRouteArgs) {
+            cubit = raw.cubit;
+            helper = raw.helper;
+          } else if (raw is Map<String, dynamic>) {
+            cubit = (raw['cubit'] as InstantBookingCubit?) ??
+                sl<InstantBookingCubit>();
+            helper = raw['helper'] as instant_helper.HelperSearchResult?;
+          } else {
+            cubit = sl<InstantBookingCubit>();
+            helper = null;
+          }
           return BookingConfirmedPage(
-            cubit: extra.cubit,
+            cubit: cubit,
             bookingId: id,
-            helper: extra.helper,
+            helper: helper,
           );
         },
       ),
@@ -1028,11 +1063,27 @@ class AppRouter {
         name: 'instant-trip-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as InstantTripTrackingRouteArgs;
+          // Same dual-shape strategy as `instantConfirmed`. The page
+          // runs `hydrateForTripDeepLink` if the cubit is a fresh DI
+          // instance (i.e. user landed here from a deep-link).
+          final raw = state.extra;
+          InstantBookingCubit cubit;
+          instant_helper.HelperSearchResult? helper;
+          if (raw is InstantTripTrackingRouteArgs) {
+            cubit = raw.cubit;
+            helper = raw.helper;
+          } else if (raw is Map<String, dynamic>) {
+            cubit = (raw['cubit'] as InstantBookingCubit?) ??
+                sl<InstantBookingCubit>();
+            helper = raw['helper'] as instant_helper.HelperSearchResult?;
+          } else {
+            cubit = sl<InstantBookingCubit>();
+            helper = null;
+          }
           return TripTrackingPage(
-            cubit: extra.cubit,
+            cubit: cubit,
             bookingId: id,
-            helper: extra.helper,
+            helper: helper,
           );
         },
       ),

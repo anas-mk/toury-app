@@ -1,26 +1,39 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
+import '../../../../../../../core/services/location/last_helper_location_store.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
-import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/theme/app_theme.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../../core/utils/number_format.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../../core/widgets/brand/mesh_gradient.dart';
+import '../../../../user_chat/presentation/widgets/unread_chat_badge.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/instant_booking_cubit.dart';
 import '../../cubits/instant_booking_state.dart';
 
-/// Step 9 â€” green confirmation screen. Subscribes to `BookingTripStarted`
-/// so we can push the live tracking screen when the helper begins the trip.
+/// Step 9 — "Helper accepted" confirmation screen (Pass #6 — 2026
+/// editorial redesign).
+///
+/// Cream surface, large success badge, helper mini card with online
+/// status + call shortcut, a vertical Trip Summary timeline, and
+/// two stacked rounded CTAs (Track Live / Open Chat).
+///
+/// Behaviour:
+///   • Subscribes to `BookingTripStarted` so the moment the helper
+///     starts the trip we push the live tracking screen.
+///   • Hydrates the cubit on deep-link entry (home banner) so the
+///     helper avatar / pickup / destination populate without the
+///     screen flickering through an empty state.
+///   • System / on-screen back goes to the tourist home cleanly.
 class BookingConfirmedPage extends StatefulWidget {
   final InstantBookingCubit cubit;
   final String bookingId;
@@ -40,7 +53,12 @@ class BookingConfirmedPage extends StatefulWidget {
 class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
   late final BookingTrackingHubService _hub;
   StreamSubscription<BookingTripStartedEvent>? _tripStartedSub;
-  bool _tripNavigationDone = false;
+  StreamSubscription<HelperLocationUpdateEvent>? _helperLocationSub;
+
+  /// Latest realtime helper location for this booking. Drives the
+  /// "ETA · N min away" subtitle on the helper card so the page
+  /// stops being a static "On the way · ETA soon" billboard.
+  HelperLocationUpdateEvent? _latestLocation;
 
   @override
   void initState() {
@@ -49,37 +67,101 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     _tripStartedSub = _hub.bookingTripStartedStream
         .where((e) => e.bookingId == widget.bookingId)
         .listen(_onTripStarted);
+    // Listen for live GPS so the "ETA · N min" subtitle on the
+    // helper card actually reflects what the server pushes. Per the
+    // backend confirmation (2026-05-09), broadcasts already start
+    // the moment the helper accepts — we don't need to wait for
+    // `BookingTripStarted` here.
+    _helperLocationSub = _hub.helperLocationUpdateStream
+        .where((e) => e.bookingId == widget.bookingId)
+        .listen((event) {
+      if (!mounted) return;
+      setState(() => _latestLocation = event);
+      // Mirror the live tick to the persistent cache so when the
+      // user pops to live track the marker shows up on first paint
+      // even if the realtime stream hasn't ticked since.
+      LastHelperLocationStore.instance.save(LastHelperLocation(
+        bookingId: widget.bookingId,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        heading: event.heading,
+        speedKmh: event.speedKmh,
+        etaToPickupMinutes: event.etaToPickupMinutes,
+        etaToDestinationMinutes: event.etaToDestinationMinutes,
+        phase: event.phase,
+        capturedAt: event.capturedAt ?? DateTime.now().toUtc(),
+      ));
+    });
+    // Hydrate the cubit when the user lands here via deep-link from
+    // the home banner — no cubit history yet, so we kick a fetch.
+    final state = widget.cubit.state;
+    if (state is! InstantBookingAccepted &&
+        state is! InstantBookingWaiting &&
+        state is! InstantBookingDeclined) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.cubit.hydrateForTripDeepLink(widget.bookingId);
+      });
+    }
+    // Replay the last cached location so the ETA chip has something
+    // sensible to show on first paint, even before SignalR ticks.
+    _hydrateFromCache();
+  }
+
+  /// Soft fallback: paint the freshest cached location while we
+  /// wait for SignalR to push something newer. Best-effort — the
+  /// live stream always wins once it kicks in.
+  Future<void> _hydrateFromCache() async {
+    final cached =
+        await LastHelperLocationStore.instance.load(widget.bookingId);
+    if (!mounted || cached == null || _latestLocation != null) return;
+    // Synthesise a HelperLocationUpdateEvent shape from the stored
+    // snapshot — only the fields the UI reads from `_statusText()`
+    // matter (phase + etaTo*), so the rest can stay null.
+    setState(() {
+      _latestLocation = HelperLocationUpdateEvent(
+        eventId: 'cache::${cached.bookingId}',
+        bookingId: cached.bookingId,
+        latitude: cached.latitude,
+        longitude: cached.longitude,
+        etaToPickupMinutes: cached.etaToPickupMinutes,
+        etaToDestinationMinutes: cached.etaToDestinationMinutes,
+        phase: cached.phase,
+        capturedAt: cached.capturedAt,
+      );
+    });
   }
 
   @override
   void dispose() {
     _tripStartedSub?.cancel();
+    _helperLocationSub?.cancel();
     super.dispose();
   }
 
   void _onTripStarted(BookingTripStartedEvent event) {
-    if (!mounted || _tripNavigationDone) return;
-    _tripNavigationDone = true;
+    if (!mounted) return;
     context.pushReplacement(
       AppRouter.instantTripTracking.replaceFirst(':id', widget.bookingId),
-      extra: InstantTripTrackingRouteArgs(
-        cubit: widget.cubit,
-        helper: widget.helper,
-      ),
+      extra: {'cubit': widget.cubit, 'helper': widget.helper},
     );
   }
 
-  Future<void> _openChat() async {
+  void _openChat() {
+    HapticFeedback.selectionClick();
     context.push(AppRouter.userChat.replaceFirst(':id', widget.bookingId));
   }
 
-  Future<void> _openPayment() async {
+  void _openTrackLive() {
+    HapticFeedback.mediumImpact();
     context.push(
-      AppRouter.paymentMethod.replaceFirst(':bookingId', widget.bookingId),
+      AppRouter.instantTripTracking.replaceFirst(':id', widget.bookingId),
+      extra: {'cubit': widget.cubit, 'helper': widget.helper},
     );
   }
 
   Future<void> _callHelper(String phone) async {
+    HapticFeedback.selectionClick();
     final uri = Uri(scheme: 'tel', path: phone);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -90,6 +172,52 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     }
   }
 
+  void _goHome() {
+    if (!mounted) return;
+    context.go(AppRouter.home);
+  }
+
+  /// Friendly status copy for the helper card — reflects the
+  /// freshest realtime helper position when we have one.
+  ///
+  /// Kept deliberately short ("ETA 13 min" is < 12 characters) so the
+  /// label always fits on a single line next to a 64 px avatar and a
+  /// 44 px call button on average phone widths. Anything longer made
+  /// the line truncate to "ETA 13 ..." which read like a bug.
+  ///
+  /// Backend semantics:
+  ///   - `phase == "InProgress"` → trip is live, helper heading to
+  ///     destination (we'll be on the live-track screen by then,
+  ///     since `BookingTripStarted` pushes us there).
+  ///   - any other phase + present `etaToPickupMinutes` → helper is
+  ///     en route to the pickup point.
+  ///   - no realtime sample yet → "Heading your way" placeholder.
+  String _statusText() {
+    final loc = _latestLocation;
+    if (loc == null) return 'Heading your way';
+    // Stale-data label — if the captured timestamp is older than
+    // ~90 s we treat the line as a "last seen" indicator instead
+    // of a fresh ETA (covers the GPS-disconnect case the user
+    // explicitly asked for).
+    final captured = loc.capturedAt;
+    final ageSeconds = captured == null
+        ? 0
+        : DateTime.now().toUtc().difference(captured.toUtc()).inSeconds;
+    final isStale = ageSeconds >= 90;
+    final phase = loc.phase;
+    final eta = phase == 'InProgress'
+        ? loc.etaToDestinationMinutes
+        : loc.etaToPickupMinutes;
+    if (isStale) {
+      final minutesAgo = (ageSeconds / 60).round();
+      if (minutesAgo <= 0) return 'Last seen just now';
+      return 'Last seen ${context.localizeNumber(minutesAgo)} min ago';
+    }
+    if (eta == null || eta < 0) return 'On the way';
+    if (eta == 0) return 'Arriving now';
+    return 'ETA ${context.localizeNumber(eta)} min';
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
@@ -97,77 +225,89 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
       child: BlocBuilder<InstantBookingCubit, InstantBookingState>(
         builder: (context, state) {
           final booking = _bookingFrom(state);
+          final summary = booking?.helper;
+          final firstName = (summary?.fullName ?? widget.helper?.fullName ?? '')
+              .split(' ')
+              .first;
+          final displayName = firstName.isEmpty ? 'Your helper' : firstName;
+          final phone = summary?.phoneNumber;
           return PopScope(
             canPop: false,
             onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) context.go(AppRouter.home);
+              if (!didPop) _goHome();
             },
-            child: Scaffold(
-              backgroundColor: BrandTokens.bgSoft,
-              body: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: _ConfirmedHero(
-                      onBack: () => context.go(AppRouter.home),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Transform.translate(
-                      offset: const Offset(0, -48),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spaceLG,
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              value: const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: Brightness.dark,
+                statusBarBrightness: Brightness.light,
+              ),
+              child: Scaffold(
+                backgroundColor: const Color(0xFFFBF8FF),
+                body: SafeArea(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _HelperCard(
-                              booking: booking,
-                              helper: widget.helper,
-                              onCall: _callHelper,
-                              onChat: _openChat,
-                              onPay: _openPayment,
-                            ),
-                            const SizedBox(height: AppTheme.spaceMD),
-                            _NextMoveCard(
-                              paymentRequired:
-                                  booking?.paymentRequired ?? false,
-                              onChat: _openChat,
-                              onPay: _openPayment,
-                            ),
-                            if (booking != null) ...[
-                              const SizedBox(height: AppTheme.spaceMD),
-                              _TripSummary(booking: booking),
-                            ],
-                            const SizedBox(height: AppTheme.spaceLG),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  context.go(AppRouter.bookingHome),
-                              icon: const Icon(Icons.home_rounded),
-                              label: const Text('Back to home'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(54),
-                                foregroundColor: BrandTokens.primaryBlue,
-                                side: BorderSide(
-                                  color: BrandTokens.primaryBlue.withValues(
-                                    alpha: 0.16,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: IntrinsicHeight(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                  24, 12, 24, 24),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 24),
+                                  _SuccessHeader(name: displayName),
+                                  const SizedBox(height: 28),
+                                  _HelperCard(
+                                    name: displayName,
+                                    avatarUrl: summary?.profileImageUrl ??
+                                        widget.helper?.profileImageUrl,
+                                    statusText: _statusText(),
+                                    canCall: (phone ?? '').isNotEmpty,
+                                    onCall: () =>
+                                        _callHelper(phone ?? ''),
                                   ),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusLG,
+                                  const SizedBox(height: 28),
+                                  _TripSummary(booking: booking),
+                                  const Spacer(),
+                                  const SizedBox(height: 24),
+                                  _PrimaryCta(
+                                    icon: Icons.location_on_rounded,
+                                    label: 'Track Live',
+                                    onTap: _openTrackLive,
                                   ),
-                                ),
+                                  const SizedBox(height: 12),
+                                  // Wrap with the unread badge so a red
+                                  // dot / counter sits on the chat icon
+                                  // whenever the helper sends a message
+                                  // we haven't read yet (replaces a real
+                                  // notification until FCM badging ships).
+                                  UnreadChatBadge(
+                                    bookingId: widget.bookingId,
+                                    offset: const Offset(-12, 6),
+                                    child: _SecondaryCta(
+                                      icon: Icons.chat_bubble_outline_rounded,
+                                      label: 'Open Chat',
+                                      onTap: _openChat,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: AppTheme.space2XL),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -183,102 +323,197 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
   }
 }
 
-class _ConfirmedHero extends StatelessWidget {
-  final VoidCallback onBack;
+// ─────────────────────────────────────────────────────────────────────────────
+// Success header (animated check badge + headline + subtitle).
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _ConfirmedHero({required this.onBack});
+class _SuccessHeader extends StatefulWidget {
+  final String name;
+  const _SuccessHeader({required this.name});
+
+  @override
+  State<_SuccessHeader> createState() => _SuccessHeaderState();
+}
+
+class _SuccessHeaderState extends State<_SuccessHeader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 720),
+  )..forward();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.of(context).padding.top;
-    return SizedBox(
-      height: 300,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipPath(
-            clipper: _ConfirmedHeroClipper(),
-            child: const MeshGradientBackground(),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  BrandTokens.primaryBlueDark.withValues(alpha: 0.08),
-                  BrandTokens.primaryBlueDark.withValues(alpha: 0.44),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: top + 8,
-            left: AppTheme.spaceMD,
-            child: _GlassCircleButton(
-              icon: Icons.arrow_back_rounded,
-              onTap: onBack,
-            ),
-          ),
-          Positioned(
-            left: AppTheme.spaceLG,
-            right: AppTheme.spaceLG,
-            top: top + 72,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) {
+            final t = Curves.elasticOut.transform(_ctrl.value);
+            return Transform.scale(
+              scale: 0.5 + 0.5 * t,
+              child: Opacity(
+                opacity: _ctrl.value,
+                child: Container(
+                  width: 80,
+                  height: 80,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.28),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        color: BrandTokens.accentAmber,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'HELPER ACCEPTED',
-                        style: BrandTokens.body(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
+                    color: const Color(0xFFE0E0FF),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                        blurRadius: 30,
+                        spreadRadius: -8,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: BrandTokens.primaryBlue,
+                    size: 40,
+                  ),
                 ),
-                const SizedBox(height: AppTheme.spaceMD),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '${widget.name} confirmed!',
+          textAlign: TextAlign.center,
+          style: BrandTokens.heading(
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            color: BrandTokens.primaryBlue,
+            height: 1.15,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            'Your local expert is preparing for your journey. '
+            'Get ready for an unforgettable experience.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF464652),
+              fontSize: 16,
+              height: 1.55,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper card (avatar + name + status pill + call button).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HelperCard extends StatelessWidget {
+  final String name;
+  final String? avatarUrl;
+  final String statusText;
+  final bool canCall;
+  final VoidCallback onCall;
+
+  const _HelperCard({
+    required this.name,
+    required this.avatarUrl,
+    required this.statusText,
+    required this.canCall,
+    required this.onCall,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFE4E1EA).withValues(alpha: 0.7),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 30,
+            spreadRadius: -8,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipOval(
+            child: AppNetworkImage(
+              imageUrl: avatarUrl,
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  'Your trip is locked in',
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: BrandTokens.heading(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    height: 1.02,
-                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: BrandTokens.textPrimary,
+                    height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Chat with your helper, finish payment, and follow realtime trip updates from here.',
-                  style: BrandTokens.body(
-                    fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.84),
-                  ),
+                const SizedBox(height: 4),
+                // Wrap so the dot + label can flow to a second line
+                // gracefully if the localized ETA copy ever grows
+                // beyond the available width — instead of being
+                // truncated mid-word as "ETA 13 ...".
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const _StatusDot(),
+                    Text(
+                      statusText,
+                      style: const TextStyle(
+                        color: Color(0xFF924C00),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+          ),
+          const SizedBox(width: 8),
+          _IconCircleButton(
+            icon: Icons.call_rounded,
+            background: const Color(0xFFEFECF5),
+            iconColor: canCall ? BrandTokens.primaryBlue : const Color(0xFFC6C5D4),
+            onTap: canCall ? onCall : null,
+            tooltip: 'Call helper',
           ),
         ],
       ),
@@ -286,16 +521,70 @@ class _ConfirmedHero extends StatelessWidget {
   }
 }
 
-class _GlassCircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
+class _StatusDot extends StatefulWidget {
+  const _StatusDot();
 
-  const _GlassCircleButton({required this.icon, required this.onTap});
+  @override
+  State<_StatusDot> createState() => _StatusDotState();
+}
+
+class _StatusDotState extends State<_StatusDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1300),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.18),
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = _ctrl.value;
+        return Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFE9331),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFE9331).withValues(alpha: 0.45 * (1 - t)),
+                blurRadius: 4 + 4 * t,
+                spreadRadius: 1 + t,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _IconCircleButton extends StatelessWidget {
+  final IconData icon;
+  final Color background;
+  final Color iconColor;
+  final VoidCallback? onTap;
+  final String? tooltip;
+  const _IconCircleButton({
+    required this.icon,
+    required this.background,
+    required this.iconColor,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = Material(
+      color: background,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -303,188 +592,187 @@ class _GlassCircleButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Icon(icon, color: Colors.white),
+          child: Icon(icon, color: iconColor, size: 22),
         ),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vertical timeline trip summary (Pickup • Destination • Duration).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TripSummary extends StatelessWidget {
+  final BookingDetail? booking;
+  const _TripSummary({required this.booking});
+
+  String _formatDuration(BuildContext context, int m) {
+    if (m % 60 == 0) {
+      final h = m ~/ 60;
+      return h == 1
+          ? '${context.localizeNumber(h)} hour'
+          : '${context.localizeNumber(h)} hours';
+    }
+    return '${context.localizeNumber(m ~/ 60)}h ${context.localizeNumber(m % 60)}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pickup = booking?.pickupLocationName ?? '—';
+    final destination = booking?.destinationName ?? '—';
+    final duration = booking == null
+        ? '—'
+        : _formatDuration(context, booking!.durationInMinutes);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'TRIP SUMMARY',
+            style: TextStyle(
+              color: const Color(0xFF767683),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.6,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _TimelineRow(
+            color: BrandTokens.primaryBlue,
+            label: 'Pickup',
+            value: pickup,
+            isFirst: true,
+          ),
+          _TimelineRow(
+            color: const Color(0xFF924C00),
+            label: 'Destination',
+            value: destination,
+          ),
+          _TimelineRow(
+            color: const Color(0xFF767683),
+            label: 'Estimated Duration',
+            value: duration,
+            isLast: true,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ConfirmedHeroClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final p = Path();
-    p.lineTo(0, size.height - 58);
-    p.cubicTo(
-      size.width * 0.22,
-      size.height - 12,
-      size.width * 0.58,
-      size.height - 96,
-      size.width,
-      size.height - 46,
-    );
-    p.lineTo(size.width, 0);
-    p.close();
-    return p;
-  }
+class _TimelineRow extends StatelessWidget {
+  final Color color;
+  final String label;
+  final String value;
+  final bool isFirst;
+  final bool isLast;
 
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _HelperCard extends StatelessWidget {
-  final BookingDetail? booking;
-  final HelperSearchResult? helper;
-  final void Function(String phone) onCall;
-  final VoidCallback onChat;
-  final VoidCallback onPay;
-  const _HelperCard({
-    required this.booking,
-    required this.helper,
-    required this.onCall,
-    required this.onChat,
-    required this.onPay,
+  const _TimelineRow({
+    required this.color,
+    required this.label,
+    required this.value,
+    this.isFirst = false,
+    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final summary = booking?.helper;
-    final name = summary?.fullName ?? helper?.fullName ?? 'Your helper';
-    final avatar = summary?.profileImageUrl ?? helper?.profileImageUrl;
-    final phone = summary?.phoneNumber;
-    final paymentRequired = booking?.paymentRequired ?? false;
-
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceLG),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            BrandTokens.surfaceWhite,
-            BrandTokens.primaryBlue.withValues(alpha: 0.035),
-            BrandTokens.accentAmber.withValues(alpha: 0.06),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: BrandTokens.shadowDeep,
-            blurRadius: 38,
-            spreadRadius: -14,
-            offset: Offset(0, 20),
-          ),
-        ],
-      ),
-      child: Column(
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Hero(
-                    tag:
-                        'helper-avatar-${summary?.helperId ?? helper?.helperId ?? 'confirmed'}',
+          // Timeline rail (dot + connecting line above/below).
+          SizedBox(
+            width: 24,
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                // Vertical line — full height except the gap around
+                // the dot. We render it in two halves so we can
+                // suppress the top half on first row and the bottom
+                // half on the last row, giving a clean timeline.
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Container(
-                      padding: const EdgeInsets.all(3),
+                      width: 2,
                       decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: BrandTokens.amberGradient,
-                      ),
-                      child: AppNetworkImage(
-                        imageUrl: avatar,
-                        width: 72,
-                        height: 72,
-                        borderRadius: 36,
+                        color: Color(0xFFE4E1EA),
                       ),
                     ),
                   ),
-                  const Positioned(
-                    right: -3,
-                    bottom: -3,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: BrandTokens.successGreen,
-                        shape: BoxShape.circle,
+                ),
+                if (isFirst)
+                  Positioned(
+                    top: 0,
+                    child: Container(
+                      width: 2,
+                      height: 12,
+                      color: const Color(0xFFFBF8FF),
+                    ),
+                  ),
+                if (isLast)
+                  Positioned(
+                    bottom: 0,
+                    child: Container(
+                      width: 2,
+                      height: 12,
+                      color: const Color(0xFFFBF8FF),
+                    ),
+                  ),
+                // Coloured dot.
+                Positioned(
+                  top: 6,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFFBF8FF),
+                        width: 4,
                       ),
-                      child: Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.verified_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF767683),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: Color(0xFF1B1B21),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: AppTheme.spaceMD),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: BrandTokens.heading(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Verified guide is ready for your trip',
-                      style: BrandTokens.body(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if ((phone ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(phone!, style: BrandTokens.body(fontSize: 12)),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppTheme.spaceMD),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.phone_rounded,
-                  label: 'Call',
-                  color: AppColor.secondaryColor,
-                  onTap: (phone ?? '').isEmpty ? null : () => onCall(phone!),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceSM),
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Chat',
-                  color: AppColor.accentColor,
-                  onTap: onChat,
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceSM),
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.payment_rounded,
-                  label: 'Pay',
-                  color: AppColor.warningColor,
-                  highlighted: paymentRequired,
-                  onTap: onPay,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -492,133 +780,67 @@ class _HelperCard extends StatelessWidget {
   }
 }
 
-class _NextMoveCard extends StatelessWidget {
-  final bool paymentRequired;
-  final VoidCallback onChat;
-  final VoidCallback onPay;
+// ─────────────────────────────────────────────────────────────────────────────
+// CTAs (filled primary "Track Live" + outlined "Open Chat").
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _NextMoveCard({
-    required this.paymentRequired,
-    required this.onChat,
-    required this.onPay,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: BrandTokens.primaryBlue,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: BrandTokens.ctaBlueGlow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: BrandTokens.accentAmber,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              paymentRequired ? Icons.payments_rounded : Icons.chat_rounded,
-              color: BrandTokens.primaryBlue,
-            ),
-          ),
-          const SizedBox(width: AppTheme.spaceMD),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  paymentRequired ? 'Payment is next' : 'You are ready to go',
-                  style: BrandTokens.heading(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  paymentRequired
-                      ? 'Finish payment now or chat with your helper first.'
-                      : 'Open chat for pickup notes and live coordination.',
-                  style: BrandTokens.body(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.78),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton.filled(
-            onPressed: paymentRequired ? onPay : onChat,
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.18),
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.arrow_forward_rounded),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
+class _PrimaryCta extends StatefulWidget {
   final IconData icon;
   final String label;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool highlighted;
-  const _ActionButton({
+  final VoidCallback onTap;
+  const _PrimaryCta({
     required this.icon,
     required this.label,
-    required this.color,
     required this.onTap,
-    this.highlighted = false,
   });
 
   @override
+  State<_PrimaryCta> createState() => _PrimaryCtaState();
+}
+
+class _PrimaryCtaState extends State<_PrimaryCta> {
+  bool _down = false;
+  @override
   Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        onTap: onTap,
+    return AnimatedScale(
+      scale: _down ? 0.97 : 1,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          height: 56,
           decoration: BoxDecoration(
-            gradient: highlighted
-                ? const LinearGradient(
-                    colors: [BrandTokens.accentAmber, Color(0xFFFFC04A)],
-                  )
-                : null,
-            color: highlighted ? null : color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-            border: Border.all(color: color.withValues(alpha: 0.12)),
+            color: BrandTokens.primaryBlue,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.30),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-          child: Opacity(
-            opacity: disabled ? 0.4 : 1,
-            child: Column(
-              children: [
-                Icon(
-                  icon,
-                  color: highlighted ? BrandTokens.primaryBlue : color,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(widget.icon, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: highlighted ? BrandTokens.primaryBlue : color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -626,111 +848,52 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _TripSummary extends StatelessWidget {
-  final BookingDetail booking;
-  const _TripSummary({required this.booking});
+class _SecondaryCta extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _SecondaryCta({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMD),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _line(
-            theme,
-            Icons.trip_origin_rounded,
-            AppColor.accentColor,
-            'Pickup',
-            booking.pickupLocationName,
-          ),
-          if ((booking.destinationName ?? '').isNotEmpty)
-            _line(
-              theme,
-              Icons.flag_rounded,
-              AppColor.errorColor,
-              'Destination',
-              booking.destinationName!,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(40),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(40),
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(
+              color: const Color(0xFFC6C5D4),
+              width: 1.4,
             ),
-          _line(
-            theme,
-            Icons.schedule_rounded,
-            AppColor.secondaryColor,
-            'Duration',
-            '${booking.durationInMinutes} minutes',
           ),
-          _line(
-            theme,
-            Icons.group_rounded,
-            AppColor.accentColor,
-            'Travelers',
-            '${booking.travelersCount}',
-          ),
-          if (booking.estimatedPrice != null)
-            _line(
-              theme,
-              Icons.payments_rounded,
-              AppColor.warningColor,
-              'Estimated',
-              'EGP ${booking.estimatedPrice!.toStringAsFixed(0)}',
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _line(
-    ThemeData theme,
-    IconData icon,
-    Color color,
-    String label,
-    String value,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 16),
-          ),
-          const SizedBox(width: AppTheme.spaceMD),
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColor.lightTextSecondary,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: BrandTokens.primaryBlue, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: BrandTokens.primaryBlue,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+            ],
           ),
-          Flexible(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

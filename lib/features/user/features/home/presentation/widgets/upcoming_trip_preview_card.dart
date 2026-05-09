@@ -12,12 +12,10 @@ class UpcomingTripPreviewCard extends StatefulWidget {
   const UpcomingTripPreviewCard({super.key, required this.booking});
 
   @override
-  State<UpcomingTripPreviewCard> createState() =>
-      _UpcomingTripPreviewCardState();
+  State<UpcomingTripPreviewCard> createState() => _UpcomingTripPreviewCardState();
 }
 
-class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
-    with SingleTickerProviderStateMixin {
+class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -34,10 +32,9 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
 
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-        );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
 
     _animationController.forward();
   }
@@ -51,13 +48,11 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final formattedDate = DateFormat(
-      'EEE, MMM d, yyyy',
-    ).format(widget.booking.requestedDate);
+    final formattedDate = DateFormat('EEE, MMM d, yyyy').format(widget.booking.requestedDate);
     final timeString = widget.booking.startTime ?? '00:00';
-
-    final durationHours = widget.booking.durationInMinutes >= 60
-        ? '${(widget.booking.durationInMinutes / 60).toStringAsFixed(widget.booking.durationInMinutes % 60 == 0 ? 0 : 1)}h'
+    
+    final durationHours = widget.booking.durationInMinutes >= 60 
+        ? '${(widget.booking.durationInMinutes / 60).toStringAsFixed(widget.booking.durationInMinutes % 60 == 0 ? 0 : 1)}h' 
         : '${widget.booking.durationInMinutes}m';
 
     return FadeTransition(
@@ -66,10 +61,26 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
         position: _slideAnimation,
         child: GestureDetector(
           onTap: () {
-            // Unified booking detail (Instant + Scheduled).
+            // Pending instant bookings deep-link straight to the live
+            // "Looking for your helper" screen instead of the generic
+            // booking-details page (which is built for the Scheduled
+            // lifecycle and would feel wrong here). Everything else
+            // keeps the unified booking detail.
+            final b = widget.booking;
+            final isInstantPending = b.type == BookingType.instant &&
+                (b.status == BookingStatus.pendingHelperResponse ||
+                    b.status == BookingStatus.reassignmentInProgress ||
+                    b.status == BookingStatus.waitingForUserAction);
+            if (isInstantPending) {
+              context.push(
+                AppRouter.instantWaiting.replaceFirst(':id', b.id),
+              );
+              return;
+            }
             context.pushNamed(
               'booking-details',
-              pathParameters: {'id': widget.booking.id},
+              pathParameters: {'id': b.id},
+              extra: {'booking': b},
             );
           },
           child: Container(
@@ -100,10 +111,7 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColor.primaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -124,30 +132,16 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
                 // Date & Time Row
                 Row(
                   children: [
-                    const Icon(
-                      Icons.calendar_today_rounded,
-                      size: 16,
-                      color: AppColor.lightTextSecondary,
-                    ),
+                    const Icon(Icons.calendar_today_rounded, size: 16, color: AppColor.lightTextSecondary),
                     const SizedBox(width: 6),
-                    Text(
-                      formattedDate,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
+                    Text(formattedDate, style: const TextStyle(fontWeight: FontWeight.w500)),
                     const SizedBox(width: AppTheme.spaceLG),
-                    const Icon(
-                      Icons.access_time_rounded,
-                      size: 16,
-                      color: AppColor.lightTextSecondary,
-                    ),
+                    const Icon(Icons.access_time_rounded, size: 16, color: AppColor.lightTextSecondary),
                     const SizedBox(width: 6),
-                    Text(
-                      timeString,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
+                    Text(timeString, style: const TextStyle(fontWeight: FontWeight.w500)),
                   ],
                 ),
-
+                
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppTheme.spaceSM),
                   child: Divider(height: 1),
@@ -156,11 +150,7 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
                 // Location
                 Row(
                   children: [
-                    const Icon(
-                      Icons.location_on_rounded,
-                      size: 18,
-                      color: AppColor.accentColor,
-                    ),
+                    const Icon(Icons.location_on_rounded, size: 18, color: AppColor.accentColor),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -179,13 +169,10 @@ class _UpcomingTripPreviewCardState extends State<UpcomingTripPreviewCard>
                   children: [
                     _buildInfoChip(Icons.timer_outlined, durationHours),
                     const SizedBox(width: AppTheme.spaceMD),
-                    _buildInfoChip(
-                      Icons.group_rounded,
-                      '1',
-                    ), // Assume 1 for now or pull from entity
+                    _buildInfoChip(Icons.group_rounded, '1'), // Assume 1 for now or pull from entity
                     // Assuming required car condition
                     const SizedBox(width: AppTheme.spaceMD),
-                    _buildInfoChip(Icons.directions_car_rounded, 'Car'),
+                    _buildInfoChip(Icons.directions_car_rounded, 'Car'), 
                   ],
                 ),
               ],
@@ -233,26 +220,15 @@ class UpcomingTripEmptyState extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColor.lightSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColor.lightBorder,
-          style: BorderStyle.solid,
-        ),
+        border: Border.all(color: AppColor.lightBorder, style: BorderStyle.solid),
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.event_available_rounded,
-            size: 40,
-            color: AppColor.lightBorder,
-          ),
+          const Icon(Icons.event_available_rounded, size: 40, color: AppColor.lightBorder),
           const SizedBox(height: AppTheme.spaceMD),
           const Text(
             'No upcoming trips',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColor.lightTextSecondary,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.lightTextSecondary),
           ),
           const SizedBox(height: AppTheme.spaceMD),
           OutlinedButton(
@@ -260,9 +236,7 @@ class UpcomingTripEmptyState extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColor.primaryColor,
               side: const BorderSide(color: AppColor.primaryColor),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('Explore Tours'),
           ),
@@ -329,11 +303,7 @@ class UpcomingTripSkeleton extends StatelessWidget {
     );
   }
 
-  Widget _buildShimmerBox({
-    required double width,
-    required double height,
-    double radius = 4,
-  }) {
+  Widget _buildShimmerBox({required double width, required double height, double radius = 4}) {
     return Container(
       width: width,
       height: height,

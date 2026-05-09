@@ -33,7 +33,7 @@ class RouteResult {
       final m = mins % 60;
       return m == 0 ? '${h}h' : '${h}h ${m}m';
     }
-    return '${mins} min';
+    return '$mins min';
   }
 }
 
@@ -49,10 +49,20 @@ class MapboxDirectionsService {
               receiveTimeout: const Duration(seconds: 10),
             ));
 
-  /// Fetches a road route between two coordinates.
+  /// Fetches a road-following route between two coordinates.
   ///
   /// [profile] can be `'driving'`, `'walking'`, or `'cycling'`.
-  /// Returns `null` if the request fails or no route is found.
+  /// Returns `null` if the request fails or no route is found — the
+  /// caller is expected to draw a straight-line fallback in that case
+  /// (we explicitly do NOT throw because the live-track page must
+  /// keep rendering even when this network call fails).
+  ///
+  /// Logging is loud-on-debug and silent-on-release. The most common
+  /// failure (and the one that has burned us in the past) is a
+  /// missing or invalid `MAPBOX_TOKEN` build-time env var, which
+  /// surfaces as `401 Unauthorized` from Mapbox. We log that case
+  /// distinctly so the symptom ("straight line on the map") is
+  /// immediately diagnosable from `flutter run` logs.
   Future<RouteResult?> getRoute({
     required double fromLat,
     required double fromLng,
@@ -60,6 +70,17 @@ class MapboxDirectionsService {
     required double toLng,
     String profile = 'driving',
   }) async {
+    if (_token.isEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          '[MapboxDirections] MAPBOX_TOKEN is empty — pass it via '
+          '`flutter run --dart-define=MAPBOX_TOKEN=pk.xxx` or your '
+          'build script. Falling back to a straight line on the map.',
+        );
+      }
+      return null;
+    }
+
     final url =
         '${ApiConfig.mapboxDirectionsEndpoint}/$fromLng,$fromLat;$toLng,$toLat';
 
@@ -68,23 +89,42 @@ class MapboxDirectionsService {
         url,
         queryParameters: {
           'access_token': _token,
-          'geometries': 'geojson', // pre-decoded coordinates, no manual decoding needed
-          'overview': 'full',     // full geometry, not simplified
-          'steps': 'false',       // we only need the shape, not turn-by-turn
+          // Pre-decoded geometry, no manual polyline-decoding needed.
+          'geometries': 'geojson',
+          // Full geometry, not the over-simplified low-zoom version.
+          'overview': 'full',
+          // We only need the shape, not turn-by-turn instructions.
+          'steps': 'false',
         },
       );
 
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        if (kDebugMode) {
+          debugPrint(
+            '[MapboxDirections] HTTP ${response.statusCode} — '
+            '${response.data}',
+          );
+        }
+        return null;
+      }
 
       final data = response.data as Map<String, dynamic>;
       final routes = data['routes'] as List?;
-      if (routes == null || routes.isEmpty) return null;
+      if (routes == null || routes.isEmpty) {
+        if (kDebugMode) {
+          debugPrint(
+            '[MapboxDirections] No routes returned for '
+            '($fromLat,$fromLng) → ($toLat,$toLng)',
+          );
+        }
+        return null;
+      }
 
       final route = routes[0] as Map<String, dynamic>;
       final geometry = route['geometry'] as Map<String, dynamic>;
       final rawCoords = geometry['coordinates'] as List;
 
-      // Mapbox returns [[lng, lat], [lng, lat], ...]
+      // Mapbox returns `[[lng, lat], [lng, lat], …]`.
       final coordinates = rawCoords.map<List<double>>((c) {
         final pair = c as List;
         return [(pair[0] as num).toDouble(), (pair[1] as num).toDouble()];
@@ -95,6 +135,21 @@ class MapboxDirectionsService {
         distanceMeters: (route['distance'] as num).toDouble(),
         durationSeconds: (route['duration'] as num).toDouble(),
       );
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        final code = e.response?.statusCode;
+        final body = e.response?.data;
+        if (code == 401) {
+          debugPrint(
+            '[MapboxDirections] 401 Unauthorized — your MAPBOX_TOKEN '
+            'is invalid or expired. Map will fall back to a straight '
+            'line. body=$body',
+          );
+        } else {
+          debugPrint('[MapboxDirections] Dio error $code: $e\nbody=$body');
+        }
+      }
+      return null;
     } catch (e) {
       if (kDebugMode) debugPrint('[MapboxDirections] Error: $e');
       return null;

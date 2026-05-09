@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,9 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/utils/responsive.dart';
+import '../../../../../../../core/utils/number_format.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
-import '../../../../../../../core/widgets/brand/mesh_gradient.dart';
 import '../../../domain/entities/helper_booking_profile.dart';
 import '../../../domain/entities/helper_search_result.dart';
 import '../../cubits/helper_booking_profile_cubit.dart';
@@ -19,13 +16,19 @@ import '../../widgets/instant/empty_error_state.dart';
 import '../../widgets/instant/skeleton.dart';
 import 'location_pick_result.dart';
 
-/// Step 5 — full helper profile page (Pass #5 redesign).
+/// Step 5 — full helper profile page (Pass #6 — 2026 editorial redesign).
 ///
-/// Layout pillars:
-///   • Mesh-gradient hero with frosted glass avatar plate
-///   • 3-up "trust strip" (trips, response, acceptance)
-///   • Section cards on a soft surface, never plain dividers
-///   • Sticky frosted CTA dock with `EGP …` + "Request now"
+/// Matches the RAFIQ HTML mockup:
+///   • Cream `#FAF8F4` page with a flat sticky top bar.
+///   • Hero card with an avatar that overflows the top edge, name,
+///     ★ rating + review count, and a warm-amber hourly-rate pill.
+///   • Three-up "trust strip" (Trips · Response · Accept).
+///   • About paragraph.
+///   • Languages + Certificates two-column bento.
+///   • Service Areas list.
+///   • Vehicle card.
+///   • Sticky "Book with {first name}" CTA at the bottom that pushes
+///     directly to the Confirm Booking screen.
 class HelperBookingProfilePage extends StatelessWidget {
   final InstantBookingCubit cubit;
   final HelperSearchResult helper;
@@ -56,7 +59,8 @@ class HelperBookingProfilePage extends StatelessWidget {
       providers: [
         BlocProvider.value(value: cubit),
         BlocProvider(
-          create: (_) => sl<HelperBookingProfileCubit>()..load(helper.helperId),
+          create: (_) =>
+              sl<HelperBookingProfileCubit>()..load(helper.helperId),
         ),
       ],
       child: _ProfileView(
@@ -94,75 +98,227 @@ class _ProfileView extends StatelessWidget {
     required this.notes,
   });
 
-  void _onRequest(BuildContext context) {
+  void _onBook(BuildContext context) {
     HapticFeedback.mediumImpact();
     context.push(
       AppRouter.instantBookingReview,
-      extra: InstantBookingReviewRouteArgs(
-        cubit: context.read<InstantBookingCubit>(),
-        helper: helper,
-        pickup: pickup,
-        destination: destination,
-        travelers: travelers,
-        durationInMinutes: durationInMinutes,
-        languageCode: languageCode,
-        requiresCar: requiresCar,
-        notes: notes,
-      ),
+      extra: {
+        'cubit': context.read<InstantBookingCubit>(),
+        'helper': helper,
+        'pickup': pickup,
+        'destination': destination,
+        'travelers': travelers,
+        'durationInMinutes': durationInMinutes,
+        'languageCode': languageCode,
+        'requiresCar': requiresCar,
+        'notes': notes,
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Scaffold(
-      backgroundColor: BrandTokens.bgSoft,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child:
-                BlocBuilder<
-                  HelperBookingProfileCubit,
-                  HelperBookingProfileState
-                >(
-                  builder: (context, state) {
-                    if (state is HelperBookingProfileLoaded) {
-                      return _ProfileBody(
-                        profile: state.profile,
-                        helper: helper,
-                        pickup: pickup,
-                        destination: destination,
-                        travelers: travelers,
-                        durationInMinutes: durationInMinutes,
-                        languageCode: languageCode,
-                        requiresCar: requiresCar,
-                      );
-                    }
-                    if (state is HelperBookingProfileError) {
-                      return ErrorRetryState(
-                        message: state.message,
-                        onRetry: () => context
-                            .read<HelperBookingProfileCubit>()
-                            .load(helper.helperId),
-                      );
-                    }
-                    return const _ProfileSkeleton();
-                  },
-                ),
-          ),
-          Positioned(
-            top: r.viewPadding.top + 6,
-            left: r.pagePadding - 8,
-            child: const _GlassBackButton(),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _CtaDock(
-              priceLabel: 'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
-              onRequest: () => _onRequest(context),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAF8F4),
+        body: BlocBuilder<HelperBookingProfileCubit,
+            HelperBookingProfileState>(
+          builder: (context, state) {
+            if (state is HelperBookingProfileError) {
+              return _ErrorView(
+                message: state.message,
+                onRetry: () => context
+                    .read<HelperBookingProfileCubit>()
+                    .load(helper.helperId),
+              );
+            }
+            if (state is HelperBookingProfileLoaded) {
+              return _LoadedScaffold(
+                profile: state.profile,
+                helper: helper,
+                onBook: () => _onBook(context),
+              );
+            }
+            return const _ProfileSkeleton();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error / loading
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ErrorRetryState(message: message, onRetry: onRetry),
+        ),
+        const _SimpleTopBar(),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Loaded scaffold (top bar + scrollable body + sticky CTA)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LoadedScaffold extends StatelessWidget {
+  final HelperBookingProfile profile;
+  final HelperSearchResult helper;
+  final VoidCallback onBook;
+  const _LoadedScaffold({
+    required this.profile,
+    required this.helper,
+    required this.onBook,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
+            slivers: [
+              // The top bar lives in the sliver list (sticky) so the
+              // body content scrolls cleanly behind it without weird
+              // padding tricks.
+              const SliverAppBar(
+                pinned: true,
+                floating: false,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                automaticallyImplyLeading: false,
+                centerTitle: false,
+                backgroundColor: Color(0xFFFAF8F4),
+                surfaceTintColor: Color(0xFFFAF8F4),
+                toolbarHeight: 64,
+                titleSpacing: 0,
+                title: _TopBarRow(),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
+                  child: Column(
+                    children: [
+                      _HeroCard(profile: profile),
+                      const SizedBox(height: 32),
+                      _StatsRow(profile: profile),
+                      if ((profile.bio ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 32),
+                        _SectionTitle('ABOUT'),
+                        const SizedBox(height: 12),
+                        _AboutText(text: profile.bio!),
+                      ],
+                      const SizedBox(height: 32),
+                      _BentoLanguagesCertificates(profile: profile),
+                      if (profile.serviceAreas.isNotEmpty) ...[
+                        const SizedBox(height: 32),
+                        _SectionTitle('SERVICE AREAS'),
+                        const SizedBox(height: 12),
+                        _ServiceAreasList(areas: profile.serviceAreas),
+                      ],
+                      if (profile.hasCar && profile.car != null) ...[
+                        const SizedBox(height: 32),
+                        _VehicleCard(car: profile.car!),
+                      ],
+                      if (helper.suitabilityReasons.isNotEmpty) ...[
+                        const SizedBox(height: 32),
+                        _SectionTitle(
+                          'WHY ${profile.fullName.split(' ').first.toUpperCase()}?',
+                        ),
+                        const SizedBox(height: 12),
+                        _ReasonsList(reasons: helper.suitabilityReasons),
+                      ],
+                      // Bottom inset so the sticky CTA never covers
+                      // the last card.
+                      const SizedBox(height: 140),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _BookingDock(
+            firstName: profile.fullName.split(' ').first,
+            onTap: onBook,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top bar (back pill + RAFIQ + explore)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TopBarRow extends StatelessWidget {
+  const _TopBarRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _CircleIconButton(
+            icon: Icons.arrow_back_rounded,
+            background: const Color(0xFFE4E1EA),
+            foreground: const Color(0xFF464652),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.pop();
+            },
+          ),
+          Text(
+            BrandTokens.wordmark,
+            style: BrandTokens.heading(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.primaryBlue,
+              letterSpacing: -1.0,
+            ),
+          ),
+          _CircleIconButton(
+            icon: Icons.explore_outlined,
+            background: Colors.transparent,
+            foreground: const Color(0xFF767683),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              final ctrl = PrimaryScrollController.maybeOf(context);
+              if (ctrl != null && ctrl.hasClients) {
+                ctrl.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 380),
+                  curve: Curves.easeOutCubic,
+                );
+              }
+            },
           ),
         ],
       ),
@@ -170,611 +326,68 @@ class _ProfileView extends StatelessWidget {
   }
 }
 
-class _GlassBackButton extends StatelessWidget {
-  const _GlassBackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.22),
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () {
-              HapticFeedback.selectionClick();
-              Navigator.of(context).maybePop();
-            },
-            child: const SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                         STICKY CTA DOCK
-// ─────────────────────────────────────────────────────────────────────────────
-class _CtaDock extends StatelessWidget {
-  final String priceLabel;
-  final VoidCallback onRequest;
-  const _CtaDock({required this.priceLabel, required this.onRequest});
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: BrandTokens.surfaceWhite.withValues(alpha: 0.92),
-              border: Border(
-                top: BorderSide(
-                  color: BrandTokens.borderSoft.withValues(alpha: 0.8),
-                ),
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: BrandTokens.shadowSoft,
-                  blurRadius: 32,
-                  offset: Offset(0, -8),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  r.pagePadding,
-                  r.gap,
-                  r.pagePadding,
-                  r.gap,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Estimated total',
-                            style: BrandTokens.body(
-                              fontSize: r.fontSmall,
-                              color: BrandTokens.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            priceLabel,
-                            style: BrandTokens.numeric(
-                              fontSize: r.pick(
-                                compact: 22.0,
-                                phone: 24.0,
-                                tablet: 28.0,
-                              ),
-                              fontWeight: FontWeight.w800,
-                              color: BrandTokens.primaryBlue,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: r.gapSM),
-                    Expanded(
-                      flex: 5,
-                      child: _PrimaryCta(
-                        label: 'Request now',
-                        icon: Icons.send_rounded,
-                        onTap: onRequest,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryCta extends StatelessWidget {
-  final String label;
+class _CircleIconButton extends StatelessWidget {
   final IconData icon;
+  final Color background;
+  final Color foreground;
   final VoidCallback onTap;
-  const _PrimaryCta({
-    required this.label,
+  const _CircleIconButton({
     required this.icon,
+    required this.background,
+    required this.foreground,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
+      color: background,
+      shape: const CircleBorder(),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        customBorder: const CircleBorder(),
         onTap: onTap,
-        child: Ink(
-          height: r.ctaHeight,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [BrandTokens.successGreen, BrandTokens.primaryBlue],
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: BrandTokens.glowBlue,
-                blurRadius: 22,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: Colors.white, size: r.fontTitle),
-                SizedBox(width: r.gapSM),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: BrandTokens.heading(
-                      fontSize: r.fontBody + 1,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, color: foreground, size: 22),
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//                         BODY
-// ─────────────────────────────────────────────────────────────────────────────
-class _ProfileBody extends StatelessWidget {
-  final HelperBookingProfile profile;
-  final HelperSearchResult helper;
-  final LocationPickResult pickup;
-  final LocationPickResult destination;
-  final int travelers;
-  final int durationInMinutes;
-  final String? languageCode;
-  final bool requiresCar;
-
-  const _ProfileBody({
-    required this.profile,
-    required this.helper,
-    required this.pickup,
-    required this.destination,
-    required this.travelers,
-    required this.durationInMinutes,
-    required this.languageCode,
-    required this.requiresCar,
-  });
+/// Floating top bar used on the error state where there's no scaffold
+/// scroll context (rendered in the [Stack] above the empty-state).
+class _SimpleTopBar extends StatelessWidget {
+  const _SimpleTopBar();
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: _Hero(profile: profile, helper: helper),
-        ),
-        SliverToBoxAdapter(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: r.contentMaxWidth),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: r.gap),
-                    _TrustStrip(profile: profile),
-                    SizedBox(height: r.gap),
-                    _SectionHeader(label: 'Trip fit'),
-                    SizedBox(height: r.gapSM),
-                    _TripFitCard(
-                      helper: helper,
-                      pickup: pickup,
-                      destination: destination,
-                      travelers: travelers,
-                      durationInMinutes: durationInMinutes,
-                      languageCode: languageCode,
-                      requiresCar: requiresCar,
-                    ),
-                    SizedBox(height: r.gap),
-                    if ((profile.bio ?? '').isNotEmpty) ...[
-                      _SectionHeader(label: 'About'),
-                      SizedBox(height: r.gapSM),
-                      _GlassCard(
-                        child: Text(
-                          profile.bio!,
-                          style: BrandTokens.body(
-                            fontSize: r.fontBody,
-                            height: 1.55,
-                            color: BrandTokens.textPrimary,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: r.gap),
-                    ],
-                    if (profile.languages.isNotEmpty) ...[
-                      _SectionHeader(label: 'Languages'),
-                      SizedBox(height: r.gapSM),
-                      _GlassCard(
-                        child: Wrap(
-                          spacing: r.gapSM,
-                          runSpacing: r.gapSM,
-                          children: [
-                            for (final l in profile.languages)
-                              _LangPill(language: l),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: r.gap),
-                    ],
-                    if (profile.hasCar && profile.car != null) ...[
-                      _SectionHeader(label: 'Vehicle'),
-                      SizedBox(height: r.gapSM),
-                      _CarCard(car: profile.car!),
-                      SizedBox(height: r.gap),
-                    ],
-                    if (profile.serviceAreas.isNotEmpty) ...[
-                      _SectionHeader(label: 'Service areas'),
-                      SizedBox(height: r.gapSM),
-                      _GlassCard(
-                        child: Wrap(
-                          spacing: r.gapSM,
-                          runSpacing: r.gapSM,
-                          children: [
-                            for (final a in profile.serviceAreas)
-                              _AreaPill(area: a),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: r.gap),
-                    ],
-                    if (profile.certificates.isNotEmpty) ...[
-                      _SectionHeader(label: 'Certificates'),
-                      SizedBox(height: r.gapSM),
-                      _GlassCard(
-                        child: Wrap(
-                          spacing: r.gapSM,
-                          runSpacing: r.gapSM,
-                          children: [
-                            for (final c in profile.certificates)
-                              _CertPill(label: c),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: r.gap),
-                    ],
-                    if (helper.suitabilityReasons.isNotEmpty) ...[
-                      _SectionHeader(
-                        label: 'Why ${profile.fullName.split(' ').first}?',
-                      ),
-                      SizedBox(height: r.gapSM),
-                      _GlassCard(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: r.gap,
-                          vertical: r.gapSM + 2,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final reason in helper.suitabilityReasons)
-                              Padding(
-                                padding: EdgeInsets.symmetric(vertical: 6),
-                                child: _ReasonRow(text: reason),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    SizedBox(
-                      height: r.pick(
-                        compact: 120.0,
-                        phone: 140.0,
-                        tablet: 160.0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                         HERO
-// ─────────────────────────────────────────────────────────────────────────────
-class _Hero extends StatelessWidget {
-  final HelperBookingProfile profile;
-  final HelperSearchResult helper;
-  const _Hero({required this.profile, required this.helper});
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    final topPad =
-        r.viewPadding.top + r.pick(compact: 50.0, phone: 56.0, tablet: 64.0);
-    final heroHeight = r.pick(compact: 320.0, phone: 360.0, tablet: 400.0);
-
-    return SizedBox(
-      height: heroHeight,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipPath(
-              clipper: _HeroBlobClipper(),
-              child: const MeshGradientBackground(),
-            ),
-          ),
-          // Soft top vignette so the back button stays legible.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: topPad + 16,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.18),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: topPad,
-            left: 0,
-            right: 0,
-            child: SingleChildScrollView(
-              physics: const NeverScrollableScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Hero(
-                    tag: 'helper-avatar-${profile.helperId}',
-                    child: _AvatarPlate(profile: profile, size: r.heroAvatar),
-                  ),
-                  SizedBox(height: r.gapSM + 2),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            profile.fullName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: BrandTokens.heading(
-                              fontSize: r.pick(
-                                compact: 20.0,
-                                phone: 22.0,
-                                tablet: 26.0,
-                              ),
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(
-                          Icons.verified_rounded,
-                          color: Colors.white,
-                          size: r.fontTitle,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _RatingPill(
-                    rating: profile.rating,
-                    count: profile.ratingCount,
-                  ),
-                  SizedBox(height: r.gapSM),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: r.pagePadding),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        if ((profile.gender ?? '').isNotEmpty)
-                          _HeroChip(label: profile.gender!),
-                        if (profile.age != null)
-                          _HeroChip(label: '${profile.age} y/o'),
-                        _HeroChip(
-                          label: '${profile.experienceYears}y exp',
-                          icon: Icons.workspace_premium_rounded,
-                        ),
-                        _HeroChip(
-                          label: profile.availabilityState,
-                          icon: Icons.bolt_rounded,
-                        ),
-                        if (profile.canAcceptInstant)
-                          const _HeroChip(
-                            label: 'Instant',
-                            icon: Icons.flash_on_rounded,
-                          ),
-                        if (profile.canAcceptScheduled)
-                          const _HeroChip(
-                            label: 'Scheduled',
-                            icon: Icons.event_available_rounded,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroBlobClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final p = Path();
-    p.lineTo(0, size.height - 36);
-    p.quadraticBezierTo(
-      size.width * 0.25,
-      size.height - 8,
-      size.width * 0.55,
-      size.height - 22,
-    );
-    p.quadraticBezierTo(
-      size.width * 0.85,
-      size.height - 38,
-      size.width,
-      size.height - 12,
-    );
-    p.lineTo(size.width, 0);
-    p.close();
-    return p;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _AvatarPlate extends StatelessWidget {
-  final HelperBookingProfile profile;
-  final double size;
-  const _AvatarPlate({required this.profile, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFFFF), Color(0xFFFFE7A6)],
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 24,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-        ),
-        padding: const EdgeInsets.all(3),
-        child: AppNetworkImage(
-          imageUrl: profile.profileImageUrl,
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-        ),
-      ),
-    );
-  }
-}
-
-class _RatingPill extends StatelessWidget {
-  final double rating;
-  final int count;
-  const _RatingPill({required this.rating, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(40),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.20),
-            borderRadius: BorderRadius.circular(40),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-          ),
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: SizedBox(
+          height: 64,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(
-                Icons.star_rounded,
-                color: Color(0xFFFFD56B),
-                size: 18,
+              _CircleIconButton(
+                icon: Icons.arrow_back_rounded,
+                background: const Color(0xFFE4E1EA),
+                foreground: const Color(0xFF464652),
+                onTap: () => context.pop(),
               ),
-              const SizedBox(width: 4),
               Text(
-                rating.toStringAsFixed(1),
-                style: BrandTokens.numeric(
-                  fontSize: 14,
+                BrandTokens.wordmark,
+                style: BrandTokens.heading(
+                  fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: BrandTokens.primaryBlue,
+                  letterSpacing: -1.0,
                 ),
               ),
-              const SizedBox(width: 6),
-              Text(
-                '($count)',
-                style: BrandTokens.body(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.85),
-                ),
-              ),
+              const SizedBox(width: 40),
             ],
           ),
         ),
@@ -783,462 +396,67 @@ class _RatingPill extends StatelessWidget {
   }
 }
 
-class _HeroChip extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  const _HeroChip({required this.label, this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.30)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: Colors.white),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            label,
-            style: BrandTokens.body(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-//                         TRUST STRIP
+// Hero card (avatar overflows top, name, rating, hourly-rate pill)
 // ─────────────────────────────────────────────────────────────────────────────
-class _TrustStrip extends StatelessWidget {
+
+class _HeroCard extends StatelessWidget {
   final HelperBookingProfile profile;
-  const _TrustStrip({required this.profile});
+  const _HeroCard({required this.profile});
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    final acc = profile.acceptanceRate ?? 0;
-    final accColor = acc >= 0.8
-        ? BrandTokens.successGreen
-        : acc >= 0.5
-        ? BrandTokens.warningAmber
-        : BrandTokens.dangerRed;
-
-    return _GlassCard(
-      padding: EdgeInsets.all(r.gap),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  gradient: BrandTokens.primaryGradient,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: BrandTokens.ctaBlueGlow,
-                ),
-                child: const Icon(
-                  Icons.verified_user_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-              SizedBox(width: r.gapSM),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Verified RAFIQ helper',
-                      style: BrandTokens.heading(
-                        fontSize: r.fontBody + 1,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      'Profile, service quality and response history reviewed.',
-                      style: BrandTokens.body(fontSize: r.fontSmall),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: r.gap),
-          Row(
-            children: [
-              Expanded(
-                child: _TrustItem(
-                  icon: Icons.task_alt_rounded,
-                  label: 'Trips',
-                  value: profile.completedTrips.toString(),
-                  color: BrandTokens.primaryBlue,
-                ),
-              ),
-              _Divider(),
-              Expanded(
-                child: _TrustItem(
-                  icon: Icons.bolt_rounded,
-                  label: 'Response',
-                  value: _responseLabel(profile.averageResponseTimeSeconds),
-                  color: BrandTokens.accentAmber,
-                ),
-              ),
-              _Divider(),
-              Expanded(
-                child: _TrustItem(
-                  icon: Icons.verified_user_rounded,
-                  label: 'Acceptance',
-                  value: '${(acc * 100).round()}%',
-                  color: accColor,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _responseLabel(int? seconds) {
-    if (seconds == null) return '\u2014';
-    if (seconds < 60) return '${seconds}s';
-    return '${seconds ~/ 60}m';
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 32,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      color: BrandTokens.borderSoft,
-    );
-  }
-}
-
-class _TrustItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _TrustItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
       children: [
         Container(
-          padding: const EdgeInsets.all(6),
+          margin: const EdgeInsets.only(top: 50),
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(24, 64, 24, 24),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: r.pick(compact: 14.0, phone: 16.0, tablet: 18.0),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: BrandTokens.numeric(
-            fontSize: r.pick(compact: 15.0, phone: 17.0, tablet: 19.0),
-            fontWeight: FontWeight.w800,
-            color: BrandTokens.textPrimary,
-          ),
-        ),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: BrandTokens.body(
-            fontSize: r.fontSmall,
-            color: BrandTokens.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TripFitCard extends StatelessWidget {
-  final HelperSearchResult helper;
-  final LocationPickResult pickup;
-  final LocationPickResult destination;
-  final int travelers;
-  final int durationInMinutes;
-  final String? languageCode;
-  final bool requiresCar;
-
-  const _TripFitCard({
-    required this.helper,
-    required this.pickup,
-    required this.destination,
-    required this.travelers,
-    required this.durationInMinutes,
-    required this.languageCode,
-    required this.requiresCar,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    final languageLabel = languageCode == null || languageCode!.isEmpty
-        ? 'Any language'
-        : languageCode!.toUpperCase();
-    return _GlassCard(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _FitMetric(
-                  icon: Icons.auto_awesome_rounded,
-                  label: 'Match',
-                  value: '${helper.matchScore}%',
-                  color: BrandTokens.successGreen,
-                ),
-              ),
-              SizedBox(width: r.gapSM),
-              Expanded(
-                child: _FitMetric(
-                  icon: Icons.payments_rounded,
-                  label: 'Total',
-                  value: 'EGP ${helper.estimatedPrice.toStringAsFixed(0)}',
-                  color: BrandTokens.primaryBlue,
-                ),
+            color: BrandTokens.surfaceWhite,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: BrandTokens.shadowSoft,
+                blurRadius: 30,
+                spreadRadius: -8,
+                offset: Offset(0, 8),
               ),
             ],
           ),
-          SizedBox(height: r.gapSM),
-          Row(
+          child: Column(
             children: [
-              Expanded(
-                child: _FitMetric(
-                  icon: Icons.schedule_rounded,
-                  label: 'Duration',
-                  value: _formatDuration(durationInMinutes),
-                  color: BrandTokens.accentAmberText,
-                ),
-              ),
-              SizedBox(width: r.gapSM),
-              Expanded(
-                child: _FitMetric(
-                  icon: Icons.group_rounded,
-                  label: 'Travelers',
-                  value: '$travelers',
+              Text(
+                profile.fullName,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: BrandTokens.heading(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
                   color: BrandTokens.textPrimary,
+                  letterSpacing: -0.5,
+                  height: 1.15,
                 ),
               ),
-            ],
-          ),
-          SizedBox(height: r.gapSM),
-          _RoutePreview(pickup: pickup.name, destination: destination.name),
-          SizedBox(height: r.gapSM),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MiniChip(
-                icon: Icons.translate_rounded,
-                label: languageLabel,
-                color: BrandTokens.primaryBlue,
+              const SizedBox(height: 8),
+              _RatingRow(
+                rating: profile.rating,
+                ratingCount: profile.ratingCount,
               ),
-              if (helper.distanceKm != null)
-                _MiniChip(
-                  icon: Icons.near_me_rounded,
-                  label: _formatDistance(helper.distanceKm!),
-                  color: BrandTokens.successGreen,
-                ),
-              if (requiresCar)
-                _MiniChip(
-                  icon: Icons.directions_car_rounded,
-                  label: helper.hasCar ? 'Car available' : 'Car requested',
-                  color: BrandTokens.accentAmberText,
-                ),
-              if (helper.hourlyRate != null)
-                _MiniChip(
-                  icon: Icons.payments_outlined,
-                  label: 'EGP ${helper.hourlyRate!.toStringAsFixed(0)}/hr',
-                  color: BrandTokens.textSecondary,
-                ),
+              const SizedBox(height: 14),
+              _HourlyRatePill(rate: profile.hourlyRate),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _formatDuration(int m) {
-    if (m % 60 == 0) return '${m ~/ 60}h';
-    return '${m ~/ 60}h ${m % 60}m';
-  }
-
-  static String _formatDistance(double km) {
-    if (km < 1) return '${(km * 1000).round()} m away';
-    return '${km.toStringAsFixed(1)} km away';
-  }
-}
-
-class _FitMetric extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _FitMetric({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Container(
-      padding: EdgeInsets.all(r.gapSM),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: r.fontTitle),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: BrandTokens.body(
-                    fontSize: r.fontSmall,
-                    color: BrandTokens.textSecondary,
-                  ),
-                ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BrandTokens.numeric(
-                    fontSize: r.fontBody + 1,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RoutePreview extends StatelessWidget {
-  final String pickup;
-  final String destination;
-
-  const _RoutePreview({required this.pickup, required this.destination});
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Container(
-      padding: EdgeInsets.all(r.gapSM),
-      decoration: BoxDecoration(
-        color: BrandTokens.bgSoft,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Column(
-        children: [
-          _RouteLine(
-            icon: Icons.trip_origin_rounded,
-            label: 'Pickup',
-            value: pickup,
-            color: BrandTokens.successGreen,
-          ),
-          const SizedBox(height: 8),
-          _RouteLine(
-            icon: Icons.flag_rounded,
-            label: 'Destination',
-            value: destination,
-            color: BrandTokens.primaryBlue,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RouteLine extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _RouteLine({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: BrandTokens.body(
-            fontSize: r.fontSmall,
-            fontWeight: FontWeight.w700,
-            color: BrandTokens.textSecondary,
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.end,
-            style: BrandTokens.body(
-              fontSize: r.fontSmall + 1,
-              fontWeight: FontWeight.w800,
-              color: BrandTokens.textPrimary,
-            ),
+        // Floating avatar.
+        Positioned(
+          top: 0,
+          child: Hero(
+            tag: 'helper-avatar-${profile.helperId}',
+            child: _Avatar(imageUrl: profile.profileImageUrl),
           ),
         ),
       ],
@@ -1246,81 +464,112 @@ class _RouteLine extends StatelessWidget {
   }
 }
 
-class _MiniChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _MiniChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+class _Avatar extends StatelessWidget {
+  final String? imageUrl;
+  const _Avatar({required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      width: 100,
+      height: 100,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        shape: BoxShape.circle,
+        color: const Color(0xFFFAF8F4),
+        border: Border.all(color: const Color(0xFFFAF8F4), width: 5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: AppNetworkImage(
+          imageUrl: imageUrl,
+          width: 90,
+          height: 90,
+          borderRadius: 45,
+        ),
+      ),
+    );
+  }
+}
+
+class _RatingRow extends StatelessWidget {
+  final double rating;
+  final int ratingCount;
+  const _RatingRow({required this.rating, required this.ratingCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.star_rounded,
+          size: 20,
+          color: Color(0xFFFE9331),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          context.localizeNumber(rating, decimals: 1),
+          style: const TextStyle(
+            color: BrandTokens.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '(${context.localizeNumber(ratingCount)} reviews)',
+          style: const TextStyle(
+            color: Color(0xFF767683),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HourlyRatePill extends StatelessWidget {
+  final double rate;
+  const _HourlyRatePill({required this.rate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF924C00),
         borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF924C00).withValues(alpha: 0.20),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: BrandTokens.body(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                         SECTION HEADER + GLASS CARD
-// ─────────────────────────────────────────────────────────────────────────────
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  const _SectionHeader({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 18,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [BrandTokens.successGreen, BrandTokens.primaryBlue],
-              ),
-              borderRadius: BorderRadius.circular(3),
-            ),
+          const Icon(
+            Icons.payments_rounded,
+            size: 18,
+            color: Colors.white,
           ),
           const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: BrandTokens.heading(
-                fontSize: r.fontTitle,
-                fontWeight: FontWeight.w800,
-                color: BrandTokens.textPrimary,
-              ),
+          Text(
+            '${context.localizeNumber(rate, decimals: 0)} EGP/hr',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
         ],
@@ -1329,83 +578,304 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _GlassCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets? padding;
-  const _GlassCard({required this.child, this.padding});
+// ─────────────────────────────────────────────────────────────────────────────
+// Stats row (3 cards: trips · response · accept)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StatsRow extends StatelessWidget {
+  final HelperBookingProfile profile;
+  const _StatsRow({required this.profile});
+
+  static String _responseLabel(int? seconds, BuildContext context) {
+    if (seconds == null) return '—';
+    if (seconds < 60) {
+      return '${context.localizeNumber(seconds)}s';
+    }
+    return '${context.localizeNumber(seconds ~/ 60)}m';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
+    final acc = (profile.acceptanceRate ?? 0) * 100;
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            value: context.localizeNumber(profile.completedTrips),
+            label: 'TRIPS',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            value: _responseLabel(
+                profile.averageResponseTimeSeconds, context),
+            label: 'RESPONSE',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            value: '${context.localizeNumber(acc.round())}%',
+            label: 'ACCEPT',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String value;
+  final String label;
+  const _StatCard({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: padding ?? EdgeInsets.all(r.gap),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
       decoration: BoxDecoration(
         color: BrandTokens.surfaceWhite,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: BrandTokens.borderSoft.withValues(alpha: 0.7),
-        ),
-        boxShadow: BrandTokens.cardShadow,
+        boxShadow: const [
+          BoxShadow(
+            color: BrandTokens.shadowSoft,
+            blurRadius: 30,
+            spreadRadius: -8,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
-      child: child,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: BrandTokens.heading(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.primaryBlue,
+              height: 1.0,
+              letterSpacing: -1.0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF767683),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//                         PILLS
+// Section title with bottom rule
 // ─────────────────────────────────────────────────────────────────────────────
-class _LangPill extends StatelessWidget {
-  final HelperLanguage language;
-  const _LangPill({required this.language});
+
+class _SectionTitle extends StatelessWidget {
+  final String label;
+  const _SectionTitle(this.label);
 
   @override
   Widget build(BuildContext context) {
-    final hasLevel = (language.level ?? '').isNotEmpty;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(
-          color: BrandTokens.primaryBlue.withValues(alpha: 0.18),
+      width: double.infinity,
+      padding: const EdgeInsets.only(bottom: 8),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE4E1EA), width: 1),
         ),
+      ),
+      child: Text(
+        label,
+        style: BrandTokens.heading(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: BrandTokens.primaryBlue,
+          letterSpacing: 1.6,
+        ),
+      ),
+    );
+  }
+}
+
+class _AboutText extends StatelessWidget {
+  final String text;
+  const _AboutText({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF464652),
+        fontSize: 16,
+        height: 1.6,
+        fontWeight: FontWeight.w400,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bento (Languages | Certificates)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BentoLanguagesCertificates extends StatelessWidget {
+  final HelperBookingProfile profile;
+  const _BentoLanguagesCertificates({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLangs = profile.languages.isNotEmpty;
+    final hasCerts = profile.certificates.isNotEmpty;
+    if (!hasLangs && !hasCerts) return const SizedBox.shrink();
+
+    final isWide = MediaQuery.of(context).size.width >= 600;
+    final cards = <Widget>[
+      if (hasLangs)
+        _BentoCard(
+          label: 'LANGUAGES',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < profile.languages.length; i++)
+                _LangChip(
+                  language: profile.languages[i],
+                  primary: i == 0,
+                ),
+            ],
+          ),
+        ),
+      if (hasCerts)
+        _BentoCard(
+          label: 'CERTIFICATES',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in profile.certificates) _CertChip(label: c),
+            ],
+          ),
+        ),
+    ];
+
+    if (isWide && cards.length == 2) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: cards[0]),
+          const SizedBox(width: 16),
+          Expanded(child: cards[1]),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(height: 16),
+          cards[i],
+        ],
+      ],
+    );
+  }
+}
+
+class _BentoCard extends StatelessWidget {
+  final String label;
+  final Widget child;
+  const _BentoCard({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: BrandTokens.shadowSoft,
+            blurRadius: 30,
+            spreadRadius: -8,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF767683),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.6,
+            ),
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _LangChip extends StatelessWidget {
+  final HelperLanguage language;
+
+  /// First language is rendered in primary-container blue (matches the
+  /// mockup's "native" highlight); the rest use a neutral surface.
+  final bool primary;
+  const _LangChip({required this.language, required this.primary});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = primary
+        ? const Color(0xFF1B237E)
+        : const Color(0xFFE4E1EA);
+    final fg = primary ? const Color(0xFF8790EE) : const Color(0xFF464652);
+    final mainColor =
+        primary ? Colors.white : const Color(0xFF1B1B21);
+    final hasLevel = (language.level ?? '').isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            language.isVerified
-                ? Icons.verified_rounded
-                : Icons.translate_rounded,
-            size: 14,
-            color: language.isVerified
-                ? BrandTokens.successGreen
-                : BrandTokens.primaryBlue,
-          ),
-          const SizedBox(width: 6),
           Text(
             language.languageName,
-            style: BrandTokens.body(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: BrandTokens.primaryBlue,
+            style: TextStyle(
+              color: mainColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
           if (hasLevel) ...[
+            const SizedBox(width: 6),
             Text(
-              ' \u00b7 ',
-              style: BrandTokens.body(
-                fontSize: 12,
-                color: BrandTokens.primaryBlue.withValues(alpha: 0.55),
-              ),
-            ),
-            Text(
-              language.level!,
-              style: BrandTokens.body(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: BrandTokens.primaryBlue.withValues(alpha: 0.85),
+              language.level!.toUpperCase(),
+              style: TextStyle(
+                color: fg,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
               ),
             ),
           ],
@@ -1415,67 +885,28 @@ class _LangPill extends StatelessWidget {
   }
 }
 
-class _AreaPill extends StatelessWidget {
-  final HelperServiceArea area;
-  const _AreaPill({required this.area});
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = <String>[
-      area.city,
-      if ((area.areaName ?? '').isNotEmpty) area.areaName!,
-    ];
-    final label = parts.join(', ');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: BrandTokens.bgSoft,
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.place_rounded,
-            size: 14,
-            color: BrandTokens.textSecondary,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: BrandTokens.body(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: BrandTokens.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CertPill extends StatelessWidget {
+class _CertChip extends StatelessWidget {
   final String label;
-  const _CertPill({required this.label});
+  const _CertChip({required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: BrandTokens.accentAmberSoft,
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: BrandTokens.accentAmberBorder),
+        color: const Color(0xFF924C00).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF924C00).withValues(alpha: 0.20),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(
-            Icons.workspace_premium_rounded,
-            size: 14,
-            color: BrandTokens.accentAmberText,
+            Icons.verified_rounded,
+            size: 16,
+            color: Color(0xFF924C00),
           ),
           const SizedBox(width: 6),
           Flexible(
@@ -1483,10 +914,10 @@ class _CertPill extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: BrandTokens.body(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: BrandTokens.accentAmberText,
+              style: const TextStyle(
+                color: Color(0xFF924C00),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -1497,68 +928,173 @@ class _CertPill extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//                         CAR + REASON
+// Service areas list
 // ─────────────────────────────────────────────────────────────────────────────
-class _CarCard extends StatelessWidget {
-  final HelperCarInfo car;
-  const _CarCard({required this.car});
+
+class _ServiceAreasList extends StatelessWidget {
+  final List<HelperServiceArea> areas;
+  const _ServiceAreasList({required this.areas});
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    final desc = [
-      car.brand,
-      car.model,
-      car.color,
-      car.type,
-    ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' \u00b7 ');
-    return _GlassCard(
-      padding: EdgeInsets.all(r.gap),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < areas.length; i++) ...[
+          if (i > 0) const SizedBox(height: 12),
+          _ServiceAreaTile(area: areas[i]),
+        ],
+      ],
+    );
+  }
+}
+
+class _ServiceAreaTile extends StatelessWidget {
+  final HelperServiceArea area;
+  const _ServiceAreaTile({required this.area});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = area.areaName?.isNotEmpty == true
+        ? area.areaName!
+        : area.city;
+    final subtitle = area.areaName?.isNotEmpty == true
+        ? area.city
+        : (area.country.isNotEmpty ? area.country : null);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(
+            Icons.location_on_rounded,
+            color: Color(0xFF767683),
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: BrandTokens.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFF464652),
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vehicle card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VehicleCard extends StatelessWidget {
+  final HelperCarInfo car;
+  const _VehicleCard({required this.car});
+
+  String get _title {
+    final parts = [car.brand, car.model]
+        .whereType<String>()
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    return parts.isEmpty ? 'Personal vehicle' : parts.join(' ');
+  }
+
+  String? get _subtitle {
+    final parts = [car.color, car.type]
+        .whereType<String>()
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: BrandTokens.shadowSoft,
+            blurRadius: 30,
+            spreadRadius: -8,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              gradient: BrandTokens.amberGradient,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(
-                  color: BrandTokens.glowAmber,
-                  blurRadius: 14,
-                  offset: Offset(0, 6),
-                ),
-              ],
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.directions_car_rounded,
-              color: Colors.white,
+              color: BrandTokens.primaryBlue,
+              size: 26,
             ),
           ),
-          SizedBox(width: r.gap),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                const Text(
+                  'VEHICLE',
+                  style: TextStyle(
+                    color: Color(0xFF767683),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  desc.isEmpty ? 'Helper has a vehicle' : desc,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: BrandTokens.heading(
-                    fontSize: r.fontBody + 1,
-                    fontWeight: FontWeight.w700,
+                  _title,
+                  style: const TextStyle(
                     color: BrandTokens.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Personal vehicle included',
-                  style: BrandTokens.body(
-                    fontSize: r.fontSmall,
-                    color: BrandTokens.textSecondary,
+                if (_subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _subtitle!,
+                    style: const TextStyle(
+                      color: Color(0xFF464652),
+                      fontSize: 14,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1568,87 +1104,261 @@ class _CarCard extends StatelessWidget {
   }
 }
 
-class _ReasonRow extends StatelessWidget {
-  final String text;
-  const _ReasonRow({required this.text});
+// ─────────────────────────────────────────────────────────────────────────────
+// Reasons (kept from old design — gives extra justification ABOVE the dock)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReasonsList extends StatelessWidget {
+  final List<String> reasons;
+  const _ReasonsList({required this.reasons});
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 2),
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: BrandTokens.successGreen.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: BrandTokens.shadowSoft,
+            blurRadius: 30,
+            spreadRadius: -8,
+            offset: Offset(0, 8),
           ),
-          child: const Icon(
-            Icons.check_rounded,
-            color: BrandTokens.successGreen,
-            size: 13,
-          ),
-        ),
-        SizedBox(width: r.gapSM),
-        Expanded(
-          child: Text(
-            text,
-            style: BrandTokens.body(
-              fontSize: r.fontBody,
-              color: BrandTokens.textPrimary,
-              height: 1.4,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < reasons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 3),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: BrandTokens.successGreen.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: BrandTokens.successGreen,
+                    size: 13,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    reasons[i],
+                    style: const TextStyle(
+                      color: BrandTokens.textPrimary,
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//                         SKELETON
+// Sticky CTA dock (gradient fade above + filled pill button)
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _BookingDock extends StatelessWidget {
+  final String firstName;
+  final VoidCallback onTap;
+  const _BookingDock({required this.firstName, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Color(0xFFFAF8F4),
+            Color(0xE6FAF8F4),
+            Color(0x00FAF8F4),
+          ],
+          stops: [0.0, 0.55, 1.0],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: _BookCtaButton(
+            label: 'Book with $firstName',
+            onTap: onTap,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BookCtaButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _BookCtaButton({required this.label, required this.onTap});
+
+  @override
+  State<_BookCtaButton> createState() => _BookCtaButtonState();
+}
+
+class _BookCtaButtonState extends State<_BookCtaButton> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _down ? 0.97 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: BrandTokens.primaryBlue,
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.30),
+                blurRadius: 26,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Skeleton (light, editorial — matches the new layout)
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _ProfileSkeleton extends StatelessWidget {
   const _ProfileSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    final r = Responsive.of(context);
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        r.pagePadding,
-        r.viewPadding.top + 80,
-        r.pagePadding,
-        r.gap,
-      ),
+    return Stack(
       children: [
-        Center(
-          child: SkeletonBox(
-            width: r.heroAvatar,
-            height: r.heroAvatar,
-            borderRadius: r.heroAvatar / 2,
-          ),
-        ),
-        SizedBox(height: r.gap),
-        const Center(child: SkeletonBox(height: 22, width: 180)),
-        const SizedBox(height: 8),
-        const Center(child: SkeletonBox(height: 14, width: 120)),
-        SizedBox(height: r.gapLG),
-        const Row(
+        ListView(
+          padding: const EdgeInsets.fromLTRB(24, 80, 24, 100),
           children: [
-            Expanded(child: SkeletonBox(height: 80, width: double.infinity)),
-            SizedBox(width: 8),
-            Expanded(child: SkeletonBox(height: 80, width: double.infinity)),
-            SizedBox(width: 8),
-            Expanded(child: SkeletonBox(height: 80, width: double.infinity)),
+            // Avatar circle.
+            Center(
+              child: SkeletonBox(
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Hero card placeholder.
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: BrandTokens.surfaceWhite,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Column(
+                children: [
+                  SkeletonBox(height: 22, width: 180),
+                  SizedBox(height: 12),
+                  SkeletonBox(height: 14, width: 140),
+                  SizedBox(height: 16),
+                  SkeletonBox(height: 36, width: 160, borderRadius: 40),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Stats row.
+            const Row(
+              children: [
+                Expanded(
+                  child: SkeletonBox(
+                    height: 90,
+                    width: double.infinity,
+                    borderRadius: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: SkeletonBox(
+                    height: 90,
+                    width: double.infinity,
+                    borderRadius: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: SkeletonBox(
+                    height: 90,
+                    width: double.infinity,
+                    borderRadius: 20,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            const SkeletonBox(
+              height: 80,
+              width: double.infinity,
+              borderRadius: 16,
+            ),
+            const SizedBox(height: 24),
+            const SkeletonBox(
+              height: 120,
+              width: double.infinity,
+              borderRadius: 20,
+            ),
           ],
         ),
-        SizedBox(height: r.gapLG),
-        const SkeletonBox(height: 60, width: double.infinity),
-        SizedBox(height: r.gap),
-        const SkeletonBox(height: 60, width: double.infinity),
+        const _SimpleTopBar(),
       ],
     );
   }
