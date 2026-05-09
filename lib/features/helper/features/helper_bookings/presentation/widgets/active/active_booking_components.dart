@@ -6,6 +6,7 @@
 //   • Sticky action footer (Start Trip / End Trip / SOS cancel).
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../../../../core/config/api_config.dart';
 import '../../../../../../../core/theme/app_color.dart';
@@ -16,6 +17,151 @@ import '../../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
 import '../../../domain/entities/helper_booking_entities.dart';
 import '../shared/booking_action_button.dart';
 import '../shared/route_stop_row.dart';
+
+class ActiveMapTopCard extends StatelessWidget {
+  final bool isStarted;
+  final double payout;
+  final String? distance;
+  final String? duration;
+  final bool requiresCar;
+
+  const ActiveMapTopCard({
+    super.key,
+    required this.isStarted,
+    required this.payout,
+    required this.requiresCar,
+    this.distance,
+    this.duration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    final stageColor = isStarted ? palette.success : palette.warning;
+    final hasRouteInfo = (distance?.isNotEmpty ?? false) && (duration?.isNotEmpty ?? false);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: palette.surfaceElevated.withValues(alpha: palette.isDark ? 0.84 : 0.93),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.20),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: stageColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: AppSpacing.xs + 2),
+              Expanded(
+                child: Text(
+                  isStarted ? 'Trip in progress' : 'Heading to pickup',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: palette.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                Money.egp(payout, decimals: false),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: palette.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(
+                      requiresCar
+                          ? Icons.directions_car_filled_rounded
+                          : Icons.directions_walk_rounded,
+                      size: AppSize.iconSm,
+                      color: palette.textMuted,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        requiresCar ? 'Driving route' : 'Walking route',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (hasRouteInfo) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.straighten_rounded,
+                          size: AppSize.iconSm,
+                          color: palette.primary,
+                        ),
+                        const SizedBox(width: AppSpacing.xxs),
+                        Text(
+                          distance!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: AppSize.iconSm,
+                          color: palette.primary,
+                        ),
+                        const SizedBox(width: AppSpacing.xxs),
+                        Text(
+                          duration!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class ActiveTrackingSheet extends StatelessWidget {
   final ScrollController scrollController;
@@ -72,7 +218,7 @@ class ActiveTrackingSheet extends StatelessWidget {
                   onChat: onChat,
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                _QuickStatsRow(
+                _TripOverviewSection(
                   booking: booking,
                   isStarted: isStarted,
                   distanceToPickupMeters: distanceToPickupMeters,
@@ -90,6 +236,68 @@ class ActiveTrackingSheet extends StatelessWidget {
                   child: RouteStopList(
                     pickup: booking.pickupLocation,
                     destination: booking.destinationLocation,
+                  ),
+                ),
+                if ((booking.notes ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  _InfoCard(
+                    title: 'Trip Notes',
+                    icon: Icons.sticky_note_2_outlined,
+                    child: Text(
+                      booking.notes!.trim(),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: palette.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                _InfoCard(
+                  title: 'Booking Details',
+                  icon: Icons.info_outline_rounded,
+                  child: Column(
+                    children: [
+                      _InfoRow(
+                        label: 'Booking ID',
+                        value: booking.id,
+                      ),
+                      _InfoRow(
+                        label: 'Status',
+                        value: _formatStatusLabel(booking.status),
+                      ),
+                      _InfoRow(
+                        label: 'Booking Category',
+                        value: booking.bookingType,
+                      ),
+                      _InfoRow(
+                        label: 'City',
+                        value: booking.destinationCity,
+                      ),
+                      _InfoRow(
+                        label: 'Start Time',
+                        value: DateFormat('EEE, MMM d • h:mm a').format(
+                          booking.startTime.toLocal(),
+                        ),
+                      ),
+                      _InfoRow(
+                        label: 'Expected Duration',
+                        value: '${booking.durationInMinutes} min',
+                      ),
+                      _InfoRow(
+                        label: 'Created At',
+                        value: DateFormat('EEE, MMM d • h:mm a').format(
+                          booking.createdAt.toLocal(),
+                        ),
+                      ),
+                      _InfoRow(
+                        label: 'Response Deadline',
+                        value: DateFormat('EEE, MMM d • h:mm a').format(
+                          booking.responseDeadline.toLocal(),
+                        ),
+                        isLast: true,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 120),
@@ -159,7 +367,6 @@ class ActiveTrackingSheet extends StatelessWidget {
           BookingActionButton.tripAction(
             label: canStartNow ? 'Start Trip' : 'Reach Pickup to Start',
             color: palette.success,
-            icon: Icons.play_arrow_rounded,
             onTap: canStartNow ? onStartTrip : null,
             actionType: 'start',
           ),
@@ -167,26 +374,12 @@ class ActiveTrackingSheet extends StatelessWidget {
       );
     }
     if (booking.canEndTrip || tripActive) {
-      final isSosActive = sosState.status == SosStatus.active;
-      final isSosPending = sosState.status == SosStatus.deactivating ||
-          sosState.status == SosStatus.activating;
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (isSosActive || isSosPending) ...[
-            BookingActionButton.tripAction(
-              label: isSosPending ? 'Cancelling SOS...' : 'Cancel SOS Alert',
-              color: palette.danger,
-              icon: Icons.cancel_outlined,
-              onTap: isSosPending ? null : onCancelSos,
-              actionType: 'cancel_sos',
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
           BookingActionButton.tripAction(
             label: 'End Trip',
             color: palette.danger,
-            icon: Icons.stop_circle_rounded,
             onTap: onEndTrip,
             actionType: 'end',
           ),
@@ -197,7 +390,6 @@ class ActiveTrackingSheet extends StatelessWidget {
       return BookingActionButton.tripAction(
         label: 'End Trip',
         color: palette.danger,
-        icon: Icons.stop_circle_rounded,
         onTap: onEndTrip,
         actionType: 'end',
       );
@@ -347,12 +539,12 @@ class _PulseDotState extends State<_PulseDot>
   }
 }
 
-class _QuickStatsRow extends StatelessWidget {
+class _TripOverviewSection extends StatelessWidget {
   final HelperBooking booking;
   final bool isStarted;
   final double? distanceToPickupMeters;
 
-  const _QuickStatsRow({
+  const _TripOverviewSection({
     required this.booking,
     required this.isStarted,
     required this.distanceToPickupMeters,
@@ -369,43 +561,181 @@ class _QuickStatsRow extends StatelessWidget {
           : '${distanceToPickupMeters!.round()} m';
     }
 
-    return Row(
-      children: [
-        Expanded(
-          child: _StatTile(
-            label: 'Payout',
-            value: Money.egp(booking.payout, decimals: false),
-            icon: Icons.account_balance_wallet_rounded,
-            color: palette.primary,
+    return _InfoCard(
+      title: 'Trip Overview',
+      icon: Icons.dashboard_customize_outlined,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  label: 'Payout',
+                  value: Money.egp(booking.payout, decimals: false),
+                  icon: Icons.account_balance_wallet_rounded,
+                  color: palette.primary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _StatTile(
+                  label: distanceLabel != null ? 'To Pickup' : 'Trip Type',
+                  value: distanceLabel ??
+                      (booking.isInstant ? 'Instant' : 'Scheduled'),
+                  icon: distanceLabel != null
+                      ? Icons.directions_car_rounded
+                      : (booking.isInstant
+                          ? Icons.flash_on_rounded
+                          : Icons.event_outlined),
+                  color:
+                      distanceLabel != null ? palette.success : palette.warning,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _StatTile(
+                  label: 'Language',
+                  value: booking.language ?? 'Any',
+                  icon: Icons.translate_rounded,
+                  color: palette.accent,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _StatTile(
-            label: distanceLabel != null ? 'To Pickup' : 'Type',
-            value: distanceLabel ??
-                (booking.isInstant ? 'Instant' : 'Scheduled'),
-            icon: distanceLabel != null
-                ? Icons.directions_car_rounded
-                : (booking.isInstant
-                    ? Icons.flash_on_rounded
-                    : Icons.event_outlined),
-            color:
-                distanceLabel != null ? palette.success : palette.warning,
+          const SizedBox(height: AppSpacing.md),
+          _InfoRow(
+            label: 'Travelers',
+            value: '${booking.travelersCount}',
           ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _StatTile(
-            label: 'Language',
-            value: booking.language ?? 'Any',
-            icon: Icons.translate_rounded,
-            color: palette.accent,
+          _InfoRow(
+            label: 'Vehicle Required',
+            value: booking.requiresCar ? 'Yes' : 'No',
           ),
-        ),
-      ],
+          _InfoRow(
+            label: 'Meeting Point',
+            value: (booking.meetingPointType ?? 'Not specified').trim(),
+            isLast: true,
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _InfoCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  const _InfoCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: palette.surfaceInset,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: palette.border.withValues(alpha: 0.40)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: AppSize.iconMd, color: palette.primary),
+              const SizedBox(width: AppSpacing.xs + 2),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isLast;
+
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      decoration: isLast
+          ? null
+          : BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: palette.border.withValues(alpha: 0.35)),
+              ),
+            ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '-' : value,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatStatusLabel(String status) {
+  final clean = status.trim();
+  if (clean.isEmpty) return 'Unknown';
+  final words = clean
+      .replaceAll('-', ' ')
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((w) => w.trim().isNotEmpty)
+      .map((w) {
+        final lower = w.toLowerCase();
+        return '${lower[0].toUpperCase()}${lower.substring(1)}';
+      })
+      .join(' ');
+  return words;
 }
 
 class _StatTile extends StatelessWidget {

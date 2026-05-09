@@ -21,10 +21,14 @@ class AppBottomNavItem {
   final IconData? activeIcon;
   final String label;
 
+  /// When > 0, a small count badge is drawn on the tab icon (e.g. incoming requests).
+  final int badgeCount;
+
   const AppBottomNavItem({
     required this.icon,
     required this.label,
     this.activeIcon,
+    this.badgeCount = 0,
   });
 }
 
@@ -130,10 +134,14 @@ class _NavTile extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        selected ? (item.activeIcon ?? item.icon) : item.icon,
+                      _BadgedNavIcon(
+                        icon: selected
+                            ? (item.activeIcon ?? item.icon)
+                            : item.icon,
                         color: color,
                         size: AppSize.iconLg,
+                        badgeCount: item.badgeCount,
+                        palette: palette,
                       ),
                       AnimatedSize(
                         duration: const Duration(milliseconds: 220),
@@ -162,6 +170,58 @@ class _NavTile extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Matches the helper dashboard notification badge (incoming request count).
+class _BadgedNavIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+  final int badgeCount;
+  final AppColors palette;
+
+  const _BadgedNavIcon({
+    required this.icon,
+    required this.color,
+    required this.size,
+    required this.badgeCount,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon, color: color, size: size),
+        if (badgeCount > 0)
+          Positioned(
+            top: -4,
+            right: -8,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF3B5C),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: palette.surface, width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

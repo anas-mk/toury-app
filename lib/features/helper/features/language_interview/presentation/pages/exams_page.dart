@@ -20,7 +20,8 @@ import '../cubit/exams_state.dart';
 /// Shows the helper's languages and the verification status of each, plus a
 /// "Start interview" CTA when the backend allows it (`canStartInterview`).
 ///
-/// This screen lives behind the **Language** tab of the helper bottom-nav.
+/// Opened from the helper dashboard (**Language interviews**) or via
+/// [AppRouter.helperLanguageInterview] as a full-screen route.
 class ExamsPage extends StatelessWidget {
   const ExamsPage({super.key});
 
@@ -158,100 +159,116 @@ class _HeroHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = AppColors.of(context);
+    final canPop = Navigator.of(context).canPop();
 
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: palette.isDark
-                  ? const [Color(0xFF1B2046), Color(0xFF3A2360)]
-                  : [palette.primary, const Color(0xFF7B61FF)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: palette.primary.withValues(
-                  alpha: palette.isDark ? 0.18 : 0.30,
+        padding: const EdgeInsets.fromLTRB(8, 4, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (canPop)
+              IconButton(
+                onPressed: () => context.pop(),
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: palette.textPrimary,
+                  size: 20,
                 ),
-                blurRadius: 28,
-                offset: const Offset(0, 12),
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: -28,
-                right: -28,
-                child: _Orb(
-                  size: 110,
-                  color: Colors.white.withValues(alpha: 0.10),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: palette.isDark
+                      ? const [Color(0xFF1B2046), Color(0xFF3A2360)]
+                      : [palette.primary, const Color(0xFF7B61FF)],
                 ),
-              ),
-              Positioned(
-                bottom: -36,
-                right: 60,
-                child: _Orb(
-                  size: 70,
-                  color: Colors.white.withValues(alpha: 0.06),
-                ),
-              ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        width: 0.6,
-                      ),
+                boxShadow: [
+                  BoxShadow(
+                    color: palette.primary.withValues(
+                      alpha: palette.isDark ? 0.18 : 0.30,
                     ),
-                    child: const Icon(
-                      Icons.translate_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Language Interviews',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 19,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Verify the languages you speak to unlock more bookings',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.82),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
-            ],
-          ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: -28,
+                    right: -28,
+                    child: _Orb(
+                      size: 110,
+                      color: Colors.white.withValues(alpha: 0.10),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: -36,
+                    right: 60,
+                    child: _Orb(
+                      size: 70,
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 0.6,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.translate_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Language Interviews',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 19,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Verify the languages you speak to unlock more bookings',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -7,9 +7,9 @@
 //   3. Trip Progress stepper.
 //   4. Trip Logistics (route + meta).
 //   5. Traveler card (with chat button + notes).
-//   6. Payout card.
-//   7. Sticky bottom action bar with frosted background.
+//   6. Sticky bottom action bar with frosted background.
 
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -29,13 +29,12 @@ import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../../domain/entities/helper_booking_status_x.dart';
 import '../../../helper_chat/presentation/pages/helper_chat_page.dart';
-import '../../../helper_ratings/presentation/widgets/booking_rating_sheet.dart';
+import '../../../helper_ratings/presentation/widgets/rate_traveler_dialog.dart';
 import '../cubit/helper_bookings_cubits.dart';
 import '../cubit/trip_action_cubit.dart';
 import '../widgets/details/booking_progress_stepper.dart';
 import '../widgets/details/booking_route_card.dart';
 import '../widgets/details/booking_status_banner.dart';
-import '../widgets/details/payment_info_card.dart';
 import '../widgets/details/traveler_info_section.dart';
 import '../widgets/shared/booking_action_button.dart';
 import '../widgets/shared/trip_completed_dialog.dart';
@@ -100,10 +99,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
           BlocListener<AcceptRejectRequestCubit, AcceptRejectRequestState>(
             listener: (context, state) {
               if (state is AcceptSuccess) {
-                AppSnackbar.success(
-                  context,
-                  'Request accepted — start the trip when ready',
-                );
                 // Stay on the details page and swap in the server-confirmed
                 // booking so the action bar transitions from "Decline / Accept"
                 // to the confirmed actions ("Chat" + "Start Trip / Open Live
@@ -217,13 +212,16 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                     BookingProgressStepper(booking: booking),
                     const SizedBox(height: AppSpacing.lg),
                     BookingRouteCard(booking: booking),
-                    const SizedBox(height: AppSpacing.lg),
-                    TravelerInfoSection(
-                      booking: booking,
-                      onChat: () => _openChat(context, booking),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    PaymentInfoCard(booking: booking),
+                    // Trip request: traveler + chat already implied in hero; skip duplicate card.
+                    if (!widget.isRequest) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      TravelerInfoSection(
+                        booking: booking,
+                        onChat: (booking.isConfirmed || booking.isActive)
+                            ? null
+                            : () => _openChat(context, booking),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -289,7 +287,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
               flex: 2,
               child: BookingActionButton(
                 label: 'Accept',
-                icon: Icons.check_rounded,
                 color: palette.success,
                 isLoading: isAcceptLoading,
                 isDisabled: isDisabled,
@@ -315,7 +312,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         return Row(
           children: [
             BookingActionButton(
-              label: 'Chat',
+              label: '',
               icon: Icons.chat_bubble_rounded,
               color: palette.primary,
               outline: true,
@@ -331,8 +328,6 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
             // gate and start the trip the moment the helper accepts.
             BookingActionButton(
               label: 'Navigate to Pickup',
-              icon: Icons.navigation_rounded,
-              trailingIcon: Icons.arrow_forward_rounded,
               color: palette.success,
               isDisabled: isLoading,
               onTap: () => context.pushReplacement(
@@ -354,7 +349,7 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         return Row(
           children: [
             BookingActionButton(
-              label: 'Chat',
+              label: '',
               icon: Icons.chat_bubble_rounded,
               color: palette.primary,
               outline: true,
@@ -393,9 +388,8 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
         const SizedBox(width: AppSpacing.md),
         BookingActionButton(
           label: 'Rate Traveler',
-          icon: Icons.star_rounded,
           color: const Color(0xFFFFB300),
-          onTap: () => _showRatingSheet(context, booking),
+          onTap: () => unawaited(_showRatingSheet(context, booking)),
         ).inFlex(2, 0),
       ],
     );
@@ -413,28 +407,20 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
   }
 
   void _openChat(BuildContext context, HelperBooking booking) {
-    Navigator.push(
+    HelperChatPage.open(
       context,
-      MaterialPageRoute(
-        builder: (_) => HelperChatPage(
-          bookingId: booking.id,
-          userName: booking.travelerName,
-          userAvatar: booking.travelerImage,
-        ),
-      ),
+      bookingId: booking.id,
+      userName: booking.travelerName,
+      userAvatar: booking.travelerImage,
     );
   }
 
-  void _showRatingSheet(BuildContext context, HelperBooking booking) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => BookingRatingSheet(
-        bookingId: booking.id,
-        travelerName: booking.travelerName,
-        travelerAvatar: '',
-      ),
+  Future<void> _showRatingSheet(BuildContext context, HelperBooking booking) {
+    return openRateTravelerForBooking(
+      context,
+      bookingId: booking.id,
+      travelerName: booking.travelerName,
+      travelerAvatar: booking.travelerImage ?? '',
     );
   }
 
@@ -452,6 +438,17 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
       ),
     );
   }
+}
+
+String _heroTripTypeLabel(HelperBooking booking) {
+  final raw = booking.bookingType.trim();
+  if (raw.isNotEmpty) {
+    final lower = raw.toLowerCase();
+    if (lower == 'instant') return 'Instant trip';
+    if (lower == 'scheduled') return 'Scheduled trip';
+    return raw[0].toUpperCase() + raw.substring(1);
+  }
+  return booking.isInstant ? 'Instant trip' : 'Scheduled trip';
 }
 
 extension _Flex on Widget {
@@ -519,7 +516,8 @@ class _SliverHeroHeader extends StatelessWidget {
   }
 
   Color _accent(AppColors p) {
-    if (booking.isPending) return p.warning;
+    // Pending / trip-request hero uses brand primary (not warning orange).
+    if (booking.isPending) return p.primary;
     if (booking.isActive) return p.success;
     if (booking.isCancelled) return p.danger;
     if (booking.isCompleted) return p.textMuted;
@@ -619,6 +617,17 @@ class _HeroBackground extends StatelessWidget {
                           letterSpacing: -0.2,
                         ),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _heroTripTypeLabel(booking),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
                       const SizedBox(height: AppSpacing.xs),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -635,8 +644,10 @@ class _HeroBackground extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                              Icons.event_outlined,
+                            Icon(
+                              booking.isInstant
+                                  ? Icons.flash_on_rounded
+                                  : Icons.event_outlined,
                               color: Colors.white,
                               size: 13,
                             ),

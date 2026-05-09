@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/app_dimens.dart';
 import '../../../domain/entities/helper_booking_entities.dart';
+import '../../pages/route_preview_page.dart';
 import '../shared/route_stop_row.dart';
 
 class BookingRouteCard extends StatelessWidget {
@@ -36,30 +37,13 @@ class BookingRouteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: palette.primary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
-                  child: Icon(
-                    Icons.route_rounded,
-                    size: AppSize.iconSm,
-                    color: palette.primary,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Trip Logistics',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: palette.textPrimary,
-                    letterSpacing: -0.1,
-                  ),
-                ),
-              ],
+            Text(
+              'Trip Logistics',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: palette.textPrimary,
+                letterSpacing: -0.1,
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             // Timeline
@@ -96,6 +80,11 @@ class BookingRouteCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+            // ── Show on Map button ──────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              child: _ShowOnMapButton(booking: booking),
+            ),
             // Meta stats grid
             Row(
               children: [
@@ -150,6 +139,53 @@ class BookingRouteCard extends StatelessWidget {
     final m = minutes % 60;
     if (m == 0) return '${h}h';
     return '${h}h ${m}m';
+  }
+}
+
+class _ShowOnMapButton extends StatelessWidget {
+  final HelperBooking booking;
+  const _ShowOnMapButton({required this.booking});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: () => RoutePreviewPage.show(context, booking),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.md + 2,
+            horizontal: AppSpacing.lg,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                palette.primary.withValues(alpha: 0.12),
+                palette.primary.withValues(alpha: 0.06),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: palette.primary.withValues(alpha: 0.28),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              'Show Route on Map',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

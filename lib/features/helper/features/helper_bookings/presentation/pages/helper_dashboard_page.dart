@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,6 +23,8 @@ import '../cubit/helper_bookings_cubits.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../helper_location/presentation/cubit/location_status_cubits.dart';
+import '../../../language_interview/presentation/cubit/exams_cubit.dart';
+import '../../../language_interview/presentation/cubit/exams_state.dart';
 import '../../../profile/presentation/cubit/profile_cubit.dart';
 import '../../../profile/presentation/cubit/profile_state.dart';
 
@@ -29,6 +33,26 @@ import '../widgets/dashboard/availability_toggle_card.dart';
 import '../widgets/dashboard/active_trip_card.dart';
 import '../widgets/dashboard/stats_grid.dart';
 
+/// `true` = always show the single-language banner (UI preview). **`false`** = real API rule (one verified language only).
+const bool _kPreviewSingleLanguageBanner = false;
+
+/// Maps [IncomingRequestsCubit] state to the Overview "Requests" tile. When
+/// null, [StatsGrid] uses the snapshot from [HelperDashboardEntity] instead.
+///
+/// Only trusts counts when the cubit filter is [RequestFilterType.all], so a
+/// filter chosen on the bookings screen does not skew the dashboard total.
+int? _livePendingRequestsForOverview(IncomingRequestsState state) {
+  if (state is IncomingRequestsLoaded &&
+      state.filter == RequestFilterType.all) {
+    return state.totalCount;
+  }
+  if (state is IncomingRequestsEmpty &&
+      state.filter == RequestFilterType.all) {
+    return 0;
+  }
+  return null;
+}
+
 class HelperDashboardPage extends StatefulWidget {
   const HelperDashboardPage({super.key});
 
@@ -36,8 +60,7 @@ class HelperDashboardPage extends StatefulWidget {
   State<HelperDashboardPage> createState() => _HelperDashboardPageState();
 }
 
-class _HelperDashboardPageState extends State<HelperDashboardPage>
-    with SingleTickerProviderStateMixin {
+class _HelperDashboardPageState extends State<HelperDashboardPage> {
   late final HelperDashboardCubit _dashCubit;
   late final HelperAvailabilityCubit _availCubit;
   late final ActiveBookingCubit _activeCubit;
@@ -46,8 +69,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   late final HelperLocationCubit _locCubit;
   late final LocationStatusCubit _statusCubit;
   late final ProfileCubit _profileCubit;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+
+  /// User closed the single-language warning for this session.
+  bool _singleInterviewBannerDismissed = false;
 
   @override
   void initState() {
@@ -60,14 +84,12 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
     _locCubit = sl<HelperLocationCubit>();
     _statusCubit = sl<LocationStatusCubit>();
     _profileCubit = sl<ProfileCubit>()..fetchProfileBundle();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
     _loadAll();
+    // Ensure languages load for the interview banner even if dashboard awaits.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(sl<ExamsCubit>().getLanguages());
+    });
   }
 
   Future<void> _loadAll({bool force = false}) async {
@@ -105,6 +127,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           _statusCubit.loadStatus(force: force),
           _historyCubit.load(),
         ]);
+        unawaited(sl<ExamsCubit>().getLanguages());
       }
     } catch (e) {
       debugPrint('❌ [Dashboard] Error during initialization: $e');
@@ -115,7 +138,6 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
   void dispose() {
     _profileCubit.close();
     _historyCubit.close();
-    _pulseController.dispose();
     super.dispose();
   }
 
@@ -133,6 +155,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
         BlocProvider.value(value: _locCubit),
         BlocProvider.value(value: _statusCubit),
         BlocProvider.value(value: _profileCubit),
+        BlocProvider.value(value: sl<ExamsCubit>()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -231,7 +254,6 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             duration: const Duration(milliseconds: 400),
             child: AvailabilityToggleCard(
               currentStatus: dashboard.availabilityState,
-              pulseAnimation: _pulseAnimation,
               onStatusChanged: (s) async {
                 HapticService.medium();
                 if (_availCubit.state is AvailabilityUpdating) return;
@@ -275,8 +297,15 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
           ),
           const SizedBox(height: 20),
 
+          _buildSingleVerifiedLanguageWarning(context),
+
+          // Show active trip card when availability is busy (system-set during
+          // an active trip) OR when the booking cubit has a live booking.
           BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
+              final isBusy = dashboard.availabilityState ==
+                  HelperAvailabilityState.busy;
+
               if (state is ActiveBookingLoaded && state.booking != null) {
                 final s = state.booking!.status.toLowerCase();
                 if (s.contains('complet') ||
@@ -284,7 +313,6 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                     s == 'ended') {
                   return const SizedBox.shrink();
                 }
-
                 return FadeInSlide(
                   delay: const Duration(milliseconds: 100),
                   child: Column(
@@ -295,6 +323,16 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
                   ),
                 );
               }
+
+              // Availability is busy but booking data is still loading —
+              // trigger a silent reload so the card appears as soon as data
+              // arrives. Nothing is shown yet.
+              if (isBusy && state is! ActiveBookingLoading) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  context.read<ActiveBookingCubit>().load(silent: true);
+                });
+              }
+
               return const SizedBox.shrink();
             },
           ),
@@ -303,13 +341,21 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             delay: const Duration(milliseconds: 150),
             child: const _SectionTitle(
               title: 'Today\'s Overview',
-              subtitle: 'Your performance at a glance',
             ),
           ),
           const SizedBox(height: 12),
           FadeInSlide(
             delay: const Duration(milliseconds: 200),
-            child: StatsGrid(dashboard: dashboard),
+            child: BlocBuilder<IncomingRequestsCubit, IncomingRequestsState>(
+              buildWhen: (prev, next) => prev != next,
+              builder: (context, reqState) {
+                return StatsGrid(
+                  dashboard: dashboard,
+                  pendingRequestsCountOverride:
+                      _livePendingRequestsForOverview(reqState),
+                );
+              },
+            ),
           ),
           const SizedBox(height: 28),
 
@@ -317,8 +363,6 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
             delay: const Duration(milliseconds: 250),
             child: _SectionTitle(
               title: 'Recent Bookings',
-              subtitle: 'Your latest completed trips',
-              actionLabel: 'See all',
               onAction: () {
                 HapticService.light();
                 context.push(AppRouter.helperHistory);
@@ -334,6 +378,128 @@ class _HelperDashboardPageState extends State<HelperDashboardPage>
         ],
       ),
     );
+  }
+
+  bool _shouldShowSingleVerifiedLanguageBanner(ExamsState examState) {
+    if (_kPreviewSingleLanguageBanner) {
+      return examState.status != ExamsStatus.interviewLoading &&
+          examState.status != ExamsStatus.interviewInitial;
+    }
+    if (examState.status == ExamsStatus.interviewLoading ||
+        examState.status == ExamsStatus.interviewInitial) {
+      return false;
+    }
+    if (examState.languages.isEmpty) return false;
+
+    final verified =
+        examState.languages.where((l) => l.isVerified).length;
+    final total = examState.languages.length;
+
+    // One verified language, or only a single language row from API (typical
+    // "one interview" helper) — still room to add more languages.
+    return verified == 1 || total == 1;
+  }
+
+  Widget _buildSingleVerifiedLanguageWarning(BuildContext context) {
+    if (_singleInterviewBannerDismissed) {
+      return const SizedBox.shrink();
+    }
+    return BlocBuilder<ExamsCubit, ExamsState>(
+      buildWhen: (prev, next) => prev != next,
+      builder: (context, examState) {
+        if (!_shouldShowSingleVerifiedLanguageBanner(examState)) {
+          return const SizedBox.shrink();
+        }
+        final palette = AppColors.of(context);
+        final theme = Theme.of(context);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Material(
+            color: palette.surface,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: palette.warning.withValues(alpha: 0.55),
+                width: 1,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _openInterviewsFromWarning(context),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: palette.warning.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.warning_amber_rounded,
+                        color: palette.warning,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Grow with more languages',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'You only have one verified language interview. '
+                            'Add another to reach more travelers.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: palette.textSecondary,
+                              height: 1.35,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap to open language interviews',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: palette.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        HapticService.light();
+                        setState(() => _singleInterviewBannerDismissed = true);
+                      },
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                      tooltip: 'Dismiss',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openInterviewsFromWarning(BuildContext context) async {
+    HapticService.medium();
+    await context.push(AppRouter.helperLanguageInterview);
+    if (!context.mounted) return;
+    context.go(AppRouter.helperAccount);
   }
 
   void _showSnack(BuildContext context, String msg, {bool isError = false}) {
@@ -479,14 +645,10 @@ class _DashboardHeader extends StatelessWidget {
                         return const SizedBox.shrink();
                       },
                     ),
-                    BlocBuilder<IncomingRequestsCubit, IncomingRequestsState>(
-                      builder: (context, state) {
-                        int? count;
-                        if (state is IncomingRequestsLoaded) {
-                          count = state.totalCount;
-                        }
-                        if (state is IncomingRequestsEmpty) count = 0;
-                        return _NotificationButton(unreadCount: count ?? 0);
+                    _HeaderNotificationsButton(
+                      onTap: () {
+                        HapticService.light();
+                        context.push(AppRouter.helperNotifications);
                       },
                     ),
                   ],
@@ -630,9 +792,10 @@ class _GradientAvatar extends StatelessWidget {
   }
 }
 
-class _NotificationButton extends StatelessWidget {
-  final int unreadCount;
-  const _NotificationButton({required this.unreadCount});
+class _HeaderNotificationsButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _HeaderNotificationsButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -640,55 +803,21 @@ class _NotificationButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push(AppRouter.helperRequests),
+        onTap: onTap,
         customBorder: const CircleBorder(),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: palette.surface,
-                shape: BoxShape.circle,
-                border: Border.all(color: palette.border),
-              ),
-              child: Icon(
-                Icons.notifications_outlined,
-                color: palette.textPrimary,
-                size: 20,
-              ),
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                top: -2,
-                right: -2,
-                child: Container(
-                  constraints: const BoxConstraints(
-                    minWidth: 18,
-                    minHeight: 18,
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF3B5C),
-                    shape: BoxShape.rectangle,
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(color: palette.scaffold, width: 2),
-                  ),
-                  child: Center(
-                    child: Text(
-                      unreadCount > 99 ? '99+' : '$unreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: palette.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: palette.border),
+          ),
+          child: Icon(
+            Icons.notifications_outlined,
+            color: palette.textPrimary,
+            size: 20,
+          ),
         ),
       ),
     );
@@ -701,14 +830,10 @@ class _NotificationButton extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
-  final String subtitle;
-  final String? actionLabel;
   final VoidCallback? onAction;
 
   const _SectionTitle({
     required this.title,
-    required this.subtitle,
-    this.actionLabel,
     this.onAction,
   });
 
@@ -717,26 +842,12 @@ class _SectionTitle extends StatelessWidget {
     final palette = AppColors.of(context);
     final theme = Theme.of(context);
 
-    final titleColumn = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: palette.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12.5,
-            color: palette.textMuted,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+    final titleColumn = Text(
+      title,
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: palette.textPrimary,
+      ),
     );
 
     if (onAction == null) {
@@ -770,28 +881,10 @@ class _SectionTitle extends StatelessWidget {
                     color: palette.primary.withValues(alpha: 0.20),
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (actionLabel != null)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Text(
-                          actionLabel!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: palette.primary,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 16,
-                      color: palette.primary,
-                    ),
-                  ],
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: palette.primary,
                 ),
               ),
             ),

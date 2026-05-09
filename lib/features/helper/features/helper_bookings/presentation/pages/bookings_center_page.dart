@@ -53,32 +53,25 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
       }
     });
     _tabController.addListener(_onTabChanged);
-    _loadCurrentTab();
+    _ensureSummariesLoaded();
   }
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    setState(() {}); // Refresh hero counters when tab changes
-    _loadCurrentTab();
+    setState(() {}); // Refresh hero card selection + counts
+    _ensureSummariesLoaded();
   }
 
-  void _loadCurrentTab() {
-    switch (_tabController.index) {
-      case 0:
-        if (_requestsCubit.state is IncomingRequestsInitial) {
-          _requestsCubit.load();
-        }
-        break;
-      case 1:
-        if (_upcomingCubit.state is UpcomingBookingsInitial) {
-          _upcomingCubit.load();
-        }
-        break;
-      case 2:
-        if (_historyCubit.state is HelperHistoryInitial) {
-          _historyCubit.load();
-        }
-        break;
+  /// Loads all three sections so hero stat cards show counts without visiting each tab.
+  void _ensureSummariesLoaded() {
+    if (_requestsCubit.state is IncomingRequestsInitial) {
+      _requestsCubit.load();
+    }
+    if (_upcomingCubit.state is UpcomingBookingsInitial) {
+      _upcomingCubit.load();
+    }
+    if (_historyCubit.state is HelperHistoryInitial) {
+      _historyCubit.load();
     }
   }
 
@@ -112,11 +105,6 @@ class _BookingsCenterPageState extends State<BookingsCenterPage>
               FadeInSlide(
                 duration: const Duration(milliseconds: 500),
                 child: _HeroHeader(controller: _tabController),
-              ),
-              const SizedBox(height: 8),
-              FadeInSlide(
-                delay: const Duration(milliseconds: 80),
-                child: _SegmentedTabs(controller: _tabController),
               ),
               Expanded(
                 child: TabBarView(
@@ -156,7 +144,7 @@ class _HeroHeader extends StatelessWidget {
     final palette = AppColors.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -490,114 +478,6 @@ class _CircleIconButton extends StatelessWidget {
             border: Border.all(color: palette.border),
           ),
           child: Icon(icon, color: palette.textSecondary, size: 19),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  SEGMENTED TABS (PILL STYLE)
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _SegmentedTabs extends StatefulWidget {
-  final TabController controller;
-  const _SegmentedTabs({required this.controller});
-
-  @override
-  State<_SegmentedTabs> createState() => _SegmentedTabsState();
-}
-
-class _SegmentedTabsState extends State<_SegmentedTabs> {
-  static const _labels = ['Requests', 'Upcoming', 'History'];
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.animation?.addListener(_onAnimate);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.animation?.removeListener(_onAnimate);
-    super.dispose();
-  }
-
-  void _onAnimate() => setState(() {});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final t = widget.controller.animation?.value ?? widget.controller.index.toDouble();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
-      child: Container(
-        height: 46,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: palette.border, width: 0.5),
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final segWidth = constraints.maxWidth / 3;
-            return Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOutCubic,
-                  left: t * segWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: segWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          palette.primary,
-                          palette.primaryStrong,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(13),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.primary.withValues(alpha: 0.30),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Row(
-                  children: List.generate(_labels.length, (i) {
-                    final isActive = (t.round() == i);
-                    return Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => widget.controller.animateTo(i),
-                        child: Center(
-                          child: Text(
-                            _labels[i],
-                            style: TextStyle(
-                              color: isActive ? Colors.white : palette.textSecondary,
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            );
-          },
         ),
       ),
     );

@@ -1,307 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../../core/theme/app_color.dart';
-import '../../../../../../../core/widgets/app_loading.dart';
 import '../../../domain/entities/helper_availability_state.dart';
 import '../../cubit/helper_bookings_cubits.dart';
 
-/// Modern availability card with animated status ring, large action button,
-/// and pill-segmented secondary status options.
+/// Availability card — three mode pills only (no duplicate header).
+/// "Busy" is never shown here; it is set automatically by the backend
+/// when the helper has an active trip.
 class AvailabilityToggleCard extends StatelessWidget {
   final HelperAvailabilityState currentStatus;
-  final Animation<double> pulseAnimation;
   final ValueChanged<HelperAvailabilityState> onStatusChanged;
 
   const AvailabilityToggleCard({
     super.key,
     required this.currentStatus,
-    required this.pulseAnimation,
     required this.onStatusChanged,
   });
 
+  // The three states the helper can manually pick — Busy is excluded because
+  // it is controlled automatically by the system when a trip is active.
+  static const _selectable = [
+    HelperAvailabilityState.availableNow,
+    HelperAvailabilityState.scheduledOnly,
+    HelperAvailabilityState.offline,
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-    final isOnline = currentStatus == HelperAvailabilityState.availableNow;
-
     return BlocBuilder<HelperAvailabilityCubit, HelperAvailabilityStatus>(
       builder: (context, availState) {
         final isUpdating = availState is AvailabilityUpdating;
-        final accent = _accentForStatus(currentStatus, palette);
-        final statusLabel = _label(currentStatus);
-        final statusDesc = _description(currentStatus);
+        final isOnline = currentStatus == HelperAvailabilityState.availableNow;
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            gradient: isOnline
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: palette.isDark
-                        ? [
-                            palette.primary.withValues(alpha: 0.30),
-                            const Color(0xFF22C55E).withValues(alpha: 0.20),
-                          ]
-                        : [
-                            palette.primary,
-                            palette.primaryStrong,
-                          ],
-                  )
-                : null,
-            color: isOnline ? null : palette.surface,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: isOnline
-                  ? Colors.white.withValues(alpha: 0.15)
-                  : palette.border,
-              width: 0.6,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isOnline
-                    ? palette.primary.withValues(alpha: palette.isDark ? 0.18 : 0.30)
-                    : Colors.black.withValues(alpha: palette.isDark ? 0.18 : 0.04),
-                blurRadius: isOnline ? 26 : 14,
-                offset: Offset(0, isOnline ? 12 : 4),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Decorative orbs (only when online)
-              if (isOnline) ...[
-                Positioned(
-                  top: -50,
-                  right: -30,
-                  child: Container(
-                    width: 130,
-                    height: 130,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
+        return _CardShell(
+          isOnline: isOnline,
+          child: Row(
+            children: _selectable.map((s) {
+              final isLast = s == _selectable.last;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: isLast ? 0 : 6),
+                  child: _ModePill(
+                    status: s,
+                    isSelected: s == currentStatus,
+                    isOnlineMode: isOnline,
+                    onTap: isUpdating ? null : () => onStatusChanged(s),
                   ),
                 ),
-                Positioned(
-                  bottom: -50,
-                  left: -20,
-                  child: Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                  ),
-                ),
-              ],
-
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _StatusOrb(
-                          color: isOnline ? Colors.white : accent,
-                          isLive: isOnline,
-                          pulse: pulseAnimation,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                statusLabel,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: isOnline
-                                      ? Colors.white
-                                      : palette.textPrimary,
-                                  fontSize: 19,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                statusDesc,
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: isOnline
-                                      ? Colors.white.withValues(alpha: 0.85)
-                                      : palette.textMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _GoOnlineToggle(
-                          isOnline: isOnline,
-                          isUpdating: isUpdating,
-                          onTap: () {
-                            if (isUpdating) return;
-                            onStatusChanged(
-                              isOnline
-                                  ? HelperAvailabilityState.offline
-                                  : HelperAvailabilityState.availableNow,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      height: 1,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            (isOnline ? Colors.white : palette.border)
-                                .withValues(alpha: 0),
-                            isOnline
-                                ? Colors.white.withValues(alpha: 0.20)
-                                : palette.border,
-                            (isOnline ? Colors.white : palette.border)
-                                .withValues(alpha: 0),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: HelperAvailabilityState.values.map((s) {
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              right: s == HelperAvailabilityState.values.last ? 0 : 6,
-                            ),
-                            child: _StatusSegment(
-                              status: s,
-                              isSelected: s == currentStatus,
-                              isOnlineMode: isOnline,
-                              onTap: isUpdating ? null : () => onStatusChanged(s),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Color _accentForStatus(HelperAvailabilityState s, AppColors palette) {
-    switch (s) {
-      case HelperAvailabilityState.availableNow:
-        return const Color(0xFF22C55E);
-      case HelperAvailabilityState.scheduledOnly:
-        return const Color(0xFFFFB020);
-      case HelperAvailabilityState.busy:
-        return palette.danger;
-      case HelperAvailabilityState.offline:
-        return palette.textMuted;
-    }
-  }
-
-  String _label(HelperAvailabilityState s) {
-    switch (s) {
-      case HelperAvailabilityState.availableNow:
-        return 'Active & Online';
-      case HelperAvailabilityState.scheduledOnly:
-        return 'Scheduled Only';
-      case HelperAvailabilityState.busy:
-        return 'Busy';
-      case HelperAvailabilityState.offline:
-        return 'Currently Offline';
-    }
-  }
-
-  String _description(HelperAvailabilityState s) {
-    switch (s) {
-      case HelperAvailabilityState.availableNow:
-        return 'You\'re visible to nearby travelers';
-      case HelperAvailabilityState.scheduledOnly:
-        return 'Only scheduled bookings reach you';
-      case HelperAvailabilityState.busy:
-        return 'New requests are paused';
-      case HelperAvailabilityState.offline:
-        return 'Tap "Go Online" to start receiving jobs';
-    }
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  STATUS ORB (animated outer ring)
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _StatusOrb extends StatelessWidget {
-  final Color color;
-  final bool isLive;
-  final Animation<double> pulse;
-
-  const _StatusOrb({
-    required this.color,
-    required this.isLive,
-    required this.pulse,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: pulse,
-      builder: (_, __) {
-        final t = isLive ? pulse.value : 1.0;
-        return SizedBox(
-          width: 44,
-          height: 44,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              if (isLive)
-                Container(
-                  width: 44 * t,
-                  height: 44 * t,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: 0.25 * (1 - t + 0.4)),
-                  ),
-                ),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: 0.20),
-                ),
-              ),
-              Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color,
-                  boxShadow: isLive
-                      ? [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.5),
-                            blurRadius: 10,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
-            ],
+              );
+            }).toList(),
           ),
         );
       },
@@ -309,94 +56,65 @@ class _StatusOrb extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  GO ONLINE / GO OFFLINE TOGGLE BUTTON
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Card shell ──────────────────────────────────────────────────────────────
 
-class _GoOnlineToggle extends StatelessWidget {
+class _CardShell extends StatelessWidget {
   final bool isOnline;
-  final bool isUpdating;
-  final VoidCallback onTap;
-
-  const _GoOnlineToggle({
-    required this.isOnline,
-    required this.isUpdating,
-    required this.onTap,
-  });
+  final Widget child;
+  const _CardShell({required this.isOnline, required this.child});
 
   @override
   Widget build(BuildContext context) {
     final palette = AppColors.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(99),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: isOnline ? Colors.white : palette.primary,
-            borderRadius: BorderRadius.circular(99),
-            boxShadow: [
-              BoxShadow(
-                color: (isOnline ? Colors.white : palette.primary)
-                    .withValues(alpha: 0.30),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: isUpdating
-              ? SizedBox(
-                  width: 56,
-                  height: 18,
-                  child: Center(
-                    child: AppSpinner(
-                      size: 16,
-                      strokeWidth: 2,
-                      color: isOnline ? palette.primary : Colors.white,
-                    ),
-                  ),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isOnline ? Icons.power_settings_new_rounded : Icons.flash_on_rounded,
-                      size: 14,
-                      color: isOnline ? palette.primary : Colors.white,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      isOnline ? 'Go Offline' : 'Go Online',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: isOnline ? palette.primary : Colors.white,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: isOnline
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: palette.isDark
+                    ? [
+                        palette.primary.withValues(alpha: 0.30),
+                        palette.primaryStrong.withValues(alpha: 0.18),
+                      ]
+                    : [palette.primary, palette.primaryStrong],
+              )
+            : null,
+        color: isOnline ? null : palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isOnline
+              ? Colors.white.withValues(alpha: 0.14)
+              : palette.border,
+          width: 0.8,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isOnline
+                ? palette.primary.withValues(alpha: palette.isDark ? 0.18 : 0.24)
+                : Colors.black.withValues(alpha: palette.isDark ? 0.14 : 0.04),
+            blurRadius: isOnline ? 24 : 10,
+            offset: Offset(0, isOnline ? 10 : 3),
+          ),
+        ],
       ),
+      child: child,
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  STATUS SEGMENT
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Mode pill ───────────────────────────────────────────────────────────────
 
-class _StatusSegment extends StatelessWidget {
+class _ModePill extends StatelessWidget {
   final HelperAvailabilityState status;
   final bool isSelected;
   final bool isOnlineMode;
   final VoidCallback? onTap;
 
-  const _StatusSegment({
+  const _ModePill({
     required this.status,
     required this.isSelected,
     required this.isOnlineMode,
@@ -412,47 +130,47 @@ class _StatusSegment extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
-          height: 50,
+          height: 38,
           decoration: BoxDecoration(
             color: isSelected
                 ? (isOnlineMode
                     ? Colors.white.withValues(alpha: 0.18)
-                    : accent.withValues(alpha: palette.isDark ? 0.18 : 0.10))
+                    : accent.withValues(alpha: palette.isDark ? 0.16 : 0.10))
                 : (isOnlineMode
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : palette.surface),
-            borderRadius: BorderRadius.circular(14),
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : palette.surfaceInset),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected
                   ? (isOnlineMode
-                      ? Colors.white.withValues(alpha: 0.40)
-                      : accent.withValues(alpha: 0.50))
+                      ? Colors.white.withValues(alpha: 0.38)
+                      : accent.withValues(alpha: 0.45))
                   : (isOnlineMode
                       ? Colors.white.withValues(alpha: 0.10)
-                      : palette.border),
+                      : palette.border.withValues(alpha: 0.70)),
               width: isSelected ? 1.0 : 0.6,
             ),
           ),
-          child: Column(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 6,
-                height: 6,
+                width: 5,
+                height: 5,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: isSelected
                       ? (isOnlineMode ? Colors.white : accent)
                       : (isOnlineMode
-                          ? Colors.white.withValues(alpha: 0.45)
+                          ? Colors.white.withValues(alpha: 0.38)
                           : palette.textMuted),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(width: 4),
               Text(
                 _label(status),
                 style: TextStyle(
@@ -461,7 +179,7 @@ class _StatusSegment extends StatelessWidget {
                   color: isSelected
                       ? (isOnlineMode ? Colors.white : palette.textPrimary)
                       : (isOnlineMode
-                          ? Colors.white.withValues(alpha: 0.7)
+                          ? Colors.white.withValues(alpha: 0.65)
                           : palette.textSecondary),
                   letterSpacing: 0.1,
                 ),
@@ -479,23 +197,23 @@ class _StatusSegment extends StatelessWidget {
         return 'Online';
       case HelperAvailabilityState.scheduledOnly:
         return 'Scheduled';
-      case HelperAvailabilityState.busy:
-        return 'Busy';
       case HelperAvailabilityState.offline:
         return 'Offline';
+      case HelperAvailabilityState.busy:
+        return 'Busy';
     }
   }
 
-  Color _accent(HelperAvailabilityState s, AppColors palette) {
+  Color _accent(HelperAvailabilityState s, AppColors p) {
     switch (s) {
       case HelperAvailabilityState.availableNow:
         return const Color(0xFF22C55E);
       case HelperAvailabilityState.scheduledOnly:
         return const Color(0xFFFFB020);
       case HelperAvailabilityState.busy:
-        return palette.danger;
+        return p.danger;
       case HelperAvailabilityState.offline:
-        return palette.textMuted;
+        return p.textMuted;
     }
   }
 }

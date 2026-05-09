@@ -3,15 +3,33 @@ import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/utils/currency_format.dart';
 import '../../../domain/entities/helper_dashboard_entity.dart';
 
+/// Backend may send [0, 1] ratio **or** [0, 100] percent — avoid 100 → 10000%.
+String _acceptancePercentLabel(double rate) {
+  if (rate.isNaN || rate < 0) return '—';
+  if (rate <= 1.0) {
+    return '${(rate * 100).round().clamp(0, 100)}%';
+  }
+  return '${rate.round().clamp(0, 100)}%';
+}
+
 /// Modern dashboard stats: a hero "Today" card showing earnings prominently,
 /// followed by a 3-column compact stat row.
 class StatsGrid extends StatelessWidget {
   final HelperDashboardEntity dashboard;
 
-  const StatsGrid({super.key, required this.dashboard});
+  /// Live pending count from [IncomingRequestsCubit] when loaded; falls back
+  /// to [HelperDashboardEntity.pendingRequestsCount] when null.
+  final int? pendingRequestsCountOverride;
+
+  const StatsGrid({
+    super.key,
+    required this.dashboard,
+    this.pendingRequestsCountOverride,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final pending = pendingRequestsCountOverride ?? dashboard.pendingRequestsCount;
     return Column(
       children: [
         _EarningsHeroCard(amount: dashboard.todayEarnings),
@@ -22,9 +40,9 @@ class StatsGrid extends StatelessWidget {
               child: _StatTile(
                 icon: Icons.flash_on_rounded,
                 label: 'Requests',
-                value: '${dashboard.pendingRequestsCount}',
+                value: '$pending',
                 color: const Color(0xFFFF8C42),
-                showBadge: dashboard.pendingRequestsCount > 0,
+                showBadge: pending > 0,
               ),
             ),
             const SizedBox(width: 10),
@@ -41,7 +59,7 @@ class StatsGrid extends StatelessWidget {
               child: _StatTile(
                 icon: Icons.verified_rounded,
                 label: 'Success',
-                value: '${(dashboard.acceptanceRate * 100).toStringAsFixed(0)}%',
+                value: _acceptancePercentLabel(dashboard.acceptanceRate),
                 color: const Color(0xFF00B8A9),
               ),
             ),

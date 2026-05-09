@@ -86,32 +86,39 @@ class BookingActionButton extends StatelessWidget {
 
     final Widget content = isLoading
         ? AppSpinner(size: 22, strokeWidth: 2.5, color: contentColor)
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: contentColor, size: AppSize.iconMd),
-                const SizedBox(width: AppSpacing.sm),
-              ],
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: contentColor,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
-              if (trailingIcon != null) ...[
-                const SizedBox(width: AppSpacing.sm),
-                Icon(trailingIcon, color: contentColor, size: AppSize.iconMd),
-              ],
-            ],
-          );
+        : label.isEmpty && icon != null && trailingIcon == null
+            ? Icon(icon, color: contentColor, size: AppSize.iconMd)
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, color: contentColor, size: AppSize.iconMd),
+                    if (label.isNotEmpty) const SizedBox(width: AppSpacing.sm),
+                  ],
+                  if (label.isNotEmpty)
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: contentColor,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  if (trailingIcon != null) ...[
+                    if (label.isNotEmpty) const SizedBox(width: AppSpacing.sm),
+                    Icon(
+                      trailingIcon,
+                      color: contentColor,
+                      size: AppSize.iconMd,
+                    ),
+                  ],
+                ],
+              );
 
     if (outline) {
       return SizedBox(

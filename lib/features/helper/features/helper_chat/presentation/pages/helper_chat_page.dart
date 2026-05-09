@@ -27,6 +27,24 @@ class HelperChatPage extends StatefulWidget {
     this.userAvatar,
   });
 
+  /// Opens booking-scoped chat (REST history + SignalR). Prefer this over ad-hoc [Navigator.push].
+  static Future<void> open(
+    BuildContext context, {
+    required String bookingId,
+    String? userName,
+    String? userAvatar,
+  }) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => HelperChatPage(
+          bookingId: bookingId,
+          userName: userName,
+          userAvatar: userAvatar,
+        ),
+      ),
+    );
+  }
+
   @override
   State<HelperChatPage> createState() => _HelperChatPageState();
 }
@@ -66,6 +84,7 @@ class _HelperChatPageState extends State<HelperChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     return BlocProvider.value(
       value: _cubit,
       child: AppScaffold(
@@ -74,45 +93,57 @@ class _HelperChatPageState extends State<HelperChatPage> {
           fallbackName: widget.userName,
           fallbackAvatar: widget.userAvatar,
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: BlocBuilder<HelperChatCubit, HelperChatState>(
-                builder: (context, state) {
-                  if (state is HelperChatLoading) {
-                    return const Center(child: AppLoading(fullScreen: false));
-                  }
-                  if (state is HelperChatLoaded) {
-                    return RefreshIndicator.adaptive(
-                      onRefresh: () => _cubit.refresh(),
-                      color: Theme.of(context).colorScheme.primary,
-                      child: _buildMessageList(state),
-                    );
-                  }
-                  if (state is HelperChatError) {
-                    return AppErrorState(
-                      message: state.message,
-                      onRetry: _init,
-                    );
-                  }
-                  return const SizedBox.shrink();
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                palette.surfaceInset.withValues(alpha: palette.isDark ? 0.35 : 0.65),
+                palette.scaffold,
+              ],
+            ),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: BlocBuilder<HelperChatCubit, HelperChatState>(
+                  builder: (context, state) {
+                    if (state is HelperChatLoading) {
+                      return const Center(child: AppLoading(fullScreen: false));
+                    }
+                    if (state is HelperChatLoaded) {
+                      return RefreshIndicator.adaptive(
+                        onRefresh: () => _cubit.refresh(),
+                        color: Theme.of(context).colorScheme.primary,
+                        child: _buildMessageList(state),
+                      );
+                    }
+                    if (state is HelperChatError) {
+                      return AppErrorState(
+                        message: state.message,
+                        onRetry: _init,
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
+              ChatInputBar(
+                onSend: (text) => _cubit.sendMessage(text),
+                onQuickReply: () {
+                  showModalBottomSheet<void>(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    isScrollControlled: true,
+                    builder: (_) => QuickRepliesSheet(
+                      onReply: (text) => _cubit.sendMessage(text),
+                    ),
+                  );
                 },
               ),
-            ),
-            ChatInputBar(
-              onSend: (text) => _cubit.sendMessage(text),
-              onQuickReply: () {
-                showModalBottomSheet<void>(
-                  context: context,
-                  backgroundColor: Colors.transparent,
-                  isScrollControlled: true,
-                  builder: (_) => QuickRepliesSheet(
-                    onReply: (text) => _cubit.sendMessage(text),
-                  ),
-                );
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -150,20 +181,20 @@ class _HelperChatPageState extends State<HelperChatPage> {
   }
 
   Widget _buildEmptyState(BuildContext context, HelperChatLoaded state) {
-    final h = MediaQuery.sizeOf(context).height;
     return ListView(
       reverse: true,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.pageGutter,
-        vertical: AppSpacing.xl,
+        vertical: AppSpacing.xxl,
       ),
       children: [
-        SizedBox(height: h * 0.22),
+        const SizedBox(height: AppSpacing.giga),
         AppEmptyState(
-          icon: Icons.chat_bubble_outline_rounded,
+          icon: Icons.forum_outlined,
           title: 'No messages yet',
-          message: 'Start a conversation with ${state.conversation.user.name}',
+          message:
+              'Say hello to ${state.conversation.user.name} — replies sync instantly when you\'re online.',
           padding: EdgeInsets.zero,
         ),
       ],
@@ -183,7 +214,7 @@ class _HelperChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 1);
 
   @override
   Widget build(BuildContext context) {
@@ -193,10 +224,19 @@ class _HelperChatAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: Colors.transparent,
+      backgroundColor: palette.surfaceElevated,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Divider(
+          height: 1,
+          thickness: 1,
+          color: palette.border.withValues(alpha: 0.45),
+        ),
+      ),
       leading: canPop
           ? IconButton(
               splashRadius: 20,
@@ -223,10 +263,10 @@ class _HelperChatAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               CircleAvatar(
                 radius: AppSize.avatarMd / 2,
+                backgroundColor: palette.primarySoft,
                 backgroundImage: imageUrl.isNotEmpty
                     ? NetworkImage(ApiConfig.resolveImageUrl(imageUrl))
                     : null,
-                backgroundColor: palette.primarySoft,
                 child: imageUrl.isEmpty && name != 'Chat'
                     ? Text(
                         name[0].toUpperCase(),
@@ -251,13 +291,17 @@ class _HelperChatAppBar extends StatelessWidget implements PreferredSizeWidget {
                     Text(
                       name,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
                         color: palette.textPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (state is HelperChatLoaded)
-                      _ConnectionStatusChip(state.connectionState),
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                        child: _ConnectionStatusChip(state.connectionState),
+                      ),
                   ],
                 ),
               ),
@@ -298,22 +342,34 @@ class _ConnectionStatusChip extends StatelessWidget {
         break;
     }
 
-    return Row(
-      children: [
-        Container(
-          width: AppSpacing.xs + AppSpacing.xxs,
-          height: AppSpacing.xs + AppSpacing.xxs,
-          decoration: BoxDecoration(color: indicator, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: indicator,
-            fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xxs,
+      ),
+      decoration: BoxDecoration(
+        color: indicator.withValues(alpha: palette.isDark ? 0.2 : 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: indicator, shape: BoxShape.circle),
           ),
-        ),
-      ],
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: indicator,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

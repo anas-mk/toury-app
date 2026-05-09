@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/services/haptic_service.dart';
@@ -56,6 +57,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
             }
 
             final profile = state.profile!;
+            final theme = Theme.of(context);
 
             return RefreshIndicator(
               onRefresh: () async => _profileCubit.fetchProfileBundle(),
@@ -63,26 +65,71 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
               child: CustomScrollView(
                 physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                 slivers: [
-                  _ModernAppBar(
-                    profile: profile,
-                    onHeroTap: () {
-                      HapticService.light();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: _profileCubit,
-                            child: const HelperProfileViewPage(),
-                          ),
+                  SliverAppBar(
+                    pinned: true,
+                    automaticallyImplyLeading: false,
+                    backgroundColor: palette.scaffold,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 0,
+                    title: Text(
+                      'Settings',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: FadeInSlide(
+                      duration: const Duration(milliseconds: 420),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: _HeroHeader(
+                          profile: profile,
+                          isDark: palette.isDark,
+                          onTap: () {
+                            HapticService.light();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlocProvider.value(
+                                  value: _profileCubit,
+                                  child: const HelperProfileViewPage(),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
 
                   const SliverToBoxAdapter(
                     child: FadeInSlide(
                       duration: Duration(milliseconds: 500),
                       child: _StatStrip(),
+                    ),
+                  ),
+
+                  SliverToBoxAdapter(
+                    child: FadeInSlide(
+                      delay: const Duration(milliseconds: 120),
+                      child: ProfileSettingGroup(
+                        title: 'Language & interviews',
+                        items: [
+                          ProfileSettingItem(
+                            icon: Icons.translate_rounded,
+                            iconColor: palette.primary,
+                            title: 'Language interviews',
+                            subtitle:
+                                'Verify languages and certification status',
+                            onTap: () {
+                              HapticService.light();
+                              context.push(AppRouter.helperLanguageInterview);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -103,8 +150,11 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                             icon: Icons.notifications_none_rounded,
                             iconColor: const Color(0xFFFF6B9D),
                             title: 'Notifications',
-                            subtitle: 'Push, email, SMS',
-                            onTap: () => HapticService.light(),
+                            subtitle: 'Trip requests and account alerts',
+                            onTap: () {
+                              HapticService.light();
+                              context.push(AppRouter.helperNotifications);
+                            },
                           ),
                           ProfileSettingItem(
                             icon: Icons.dark_mode_outlined,
@@ -207,14 +257,39 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Center(
-                        child: Text(
-                          'Toury · v2.4.0 (Build 124)',
-                          style: TextStyle(
-                            color: palette.textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.4,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'RAFIQ',
+                              style: TextStyle(
+                                inherit: false,
+                                fontFamily: 'PermanentMarker',
+                                fontSize: 22,
+                                letterSpacing: 1.2,
+                                color: palette.primary,
+                                height: 1,
+                                shadows: [
+                                  Shadow(
+                                    color: palette.primary.withValues(alpha: 0.18),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              ' · v2.4.0 (Build 124)',
+                              style: TextStyle(
+                                color: palette.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -263,7 +338,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Sign out of Toury?',
+                'Sign out of RAFIQ?',
                 style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
@@ -319,51 +394,6 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                 ],
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  HERO APP BAR
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ModernAppBar extends StatelessWidget {
-  final HelperProfileEntity profile;
-  final VoidCallback? onHeroTap;
-  const _ModernAppBar({required this.profile, this.onHeroTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppColors.of(context);
-    final isDark = palette.isDark;
-
-    return SliverAppBar(
-      expandedHeight: 150,
-      pinned: true,
-      stretch: true,
-      automaticallyImplyLeading: false,
-      backgroundColor: palette.scaffold,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      title: Text(
-        'Control Center',
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: palette.textPrimary,
-        ),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.parallax,
-        background: Padding(
-          padding: const EdgeInsets.only(top: 56),
-          child: _HeroHeader(
-            profile: profile,
-            isDark: isDark,
-            onTap: onHeroTap,
           ),
         ),
       ),
@@ -674,26 +704,16 @@ class _StatTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: color.withValues(
-                        alpha: palette.isDark ? 0.18 : 0.12,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(icon, color: color, size: 16),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(
+                    alpha: palette.isDark ? 0.18 : 0.12,
                   ),
-                  const Spacer(),
-                  Icon(
-                    Icons.arrow_outward_rounded,
-                    color: palette.textMuted,
-                    size: 14,
-                  ),
-                ],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 16),
               ),
               const SizedBox(height: 10),
               Text(

@@ -21,10 +21,10 @@ class BookingProgressStepper extends StatelessWidget {
     final isCancelled = booking.isCancelled;
 
     final steps = <_Step>[
-      _Step(label: 'Requested', icon: Icons.flag_outlined),
-      _Step(label: 'Confirmed', icon: Icons.check_circle_outline_rounded),
-      _Step(label: 'In Progress', icon: Icons.navigation_rounded),
-      _Step(label: 'Completed', icon: Icons.flag_circle_rounded),
+      _Step(label: 'Requested'),
+      _Step(label: 'Confirmed'),
+      _Step(label: 'In Progress'),
+      _Step(label: 'Completed'),
     ];
 
     return Container(
@@ -90,11 +90,9 @@ class BookingProgressStepper extends StatelessWidget {
                     );
                   }
                   final stepIdx = index ~/ 2;
-                  final step = steps[stepIdx];
                   final isCurrent = stepIdx == stage && !isCancelled;
                   final isDone = stepIdx < stage && !isCancelled;
                   return _StepDot(
-                    icon: step.icon,
                     isCurrent: isCurrent,
                     isDone: isDone,
                     isCancelled: isCancelled,
@@ -140,24 +138,12 @@ class BookingProgressStepper extends StatelessWidget {
                   color: palette.danger.withValues(alpha: 0.22),
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.cancel_outlined,
-                    color: palette.danger,
-                    size: AppSize.iconSm,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'This booking was cancelled.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.danger,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Text(
+                'This booking was cancelled.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.danger,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -176,18 +162,15 @@ class BookingProgressStepper extends StatelessWidget {
 
 class _Step {
   final String label;
-  final IconData icon;
-  _Step({required this.label, required this.icon});
+  _Step({required this.label});
 }
 
 class _StepDot extends StatelessWidget {
-  final IconData icon;
   final bool isCurrent;
   final bool isDone;
   final bool isCancelled;
 
   const _StepDot({
-    required this.icon,
     required this.isCurrent,
     required this.isDone,
     required this.isCancelled,
@@ -206,7 +189,6 @@ class _StepDot extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: palette.danger.withValues(alpha: 0.32)),
         ),
-        child: Icon(Icons.close_rounded, size: 16, color: palette.danger),
       );
     }
 
@@ -229,7 +211,6 @@ class _StepDot extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(icon, color: Colors.white, size: 18),
       );
     }
     if (isDone) {
@@ -239,8 +220,11 @@ class _StepDot extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.primary.withValues(alpha: 0.18),
           shape: BoxShape.circle,
+          border: Border.all(
+            color: palette.primary.withValues(alpha: 0.45),
+            width: 2,
+          ),
         ),
-        child: Icon(Icons.check_rounded, color: palette.primary, size: 16),
       );
     }
     return Container(
@@ -251,7 +235,6 @@ class _StepDot extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: palette.border),
       ),
-      child: Icon(icon, color: palette.textMuted, size: 14),
     );
   }
 }

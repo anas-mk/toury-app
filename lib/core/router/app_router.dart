@@ -97,11 +97,13 @@ import '../../features/helper/features/auth/presentation/pages/helper_verify_ema
 import '../../features/helper/features/auth/presentation/pages/helper_forgot_password_page.dart';
 import '../../features/helper/features/auth/presentation/pages/helper_reset_password_page.dart';
 // Helper Bookings imports
+import '../../features/helper/features/helper_bookings/presentation/cubit/incoming_requests_cubit.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_dashboard_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/bookings_center_page.dart';
 import '../../features/helper/features/helper_invoices/presentation/pages/wallet_hub_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
+import '../../features/helper/features/helper_notifications/presentation/pages/helper_notifications_page.dart';
 
 import 'dart:async';
 
@@ -383,11 +385,13 @@ class AppRouter {
   static const String helperBookings = '/helper/bookings';
   static const String helperWallet = '/helper/wallet';
   static const String helperAccount = '/helper/account';
+  static const String helperLanguageInterview = '/helper/language-interview';
 
   // Helper Sub-Routes
   static const String helperDashboard =
       helperHome; // For backward compatibility if needed
   static const String helperRequests = '/helper/requests';
+  static const String helperNotifications = '/helper/notifications';
   static const String helperRequestDetails = '/helper/request-details/:id';
   static const String helperUpcoming = '/helper/upcoming';
   static const String helperActiveBooking = '/helper/active-booking';
@@ -629,16 +633,6 @@ class AppRouter {
               ),
             ],
           ),
-          // Branch: Language
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/helper/language-interview',
-                name: 'language-interview-tab',
-                builder: (context, state) => const ExamsPage(),
-              ),
-            ],
-          ),
           // Branch: Account
           StatefulShellBranch(
             routes: [
@@ -658,6 +652,15 @@ class AppRouter {
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
+      ),
+      GoRoute(
+        path: helperNotifications,
+        name: 'helper-notifications',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => BlocProvider.value(
+          value: sl<IncomingRequestsCubit>(),
+          child: const HelperNotificationsPage(),
+        ),
       ),
       GoRoute(
         path: helperUpcoming,
@@ -698,6 +701,12 @@ class AppRouter {
         name: 'helper-history',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const BookingsCenterPage(initialTabIndex: 2),
+      ),
+      GoRoute(
+        path: helperLanguageInterview,
+        name: 'helper-language-interview',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ExamsPage(),
       ),
       // 5. Tourist Home & Flow (Shell Route)
       StatefulShellRoute.indexedStack(

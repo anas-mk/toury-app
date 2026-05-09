@@ -195,7 +195,7 @@ class ActiveTripCard extends StatelessWidget {
                           flex: 2,
                           child: _SecondaryAction(
                             icon: Icons.chat_bubble_outline_rounded,
-                            label: 'Chat',
+                            label: '',
                             onTap: () => context.push(
                               AppRouter.helperActiveBooking,
                               extra: booking.id,
@@ -503,15 +503,17 @@ class _SecondaryAction extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: Colors.white, size: 17),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
+              if (label.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

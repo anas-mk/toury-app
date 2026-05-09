@@ -17,6 +17,8 @@ Future<void> showTripCompletedDialog(
   String title = 'Trip Completed!',
   String primaryLabel = 'Done',
   IconData primaryIcon = Icons.check_rounded,
+  /// When false, primary is text-only (e.g. "Rate Traveler").
+  bool showPrimaryLeadingIcon = true,
   String? secondaryLabel,
   String? subtitle,
   VoidCallback? onPrimary,
@@ -43,6 +45,7 @@ Future<void> showTripCompletedDialog(
             title: title,
             primaryLabel: primaryLabel,
             primaryIcon: primaryIcon,
+            showPrimaryLeadingIcon: showPrimaryLeadingIcon,
             subtitle: subtitle,
             secondaryLabel: secondaryLabel,
             onPrimary: onPrimary,
@@ -59,6 +62,7 @@ class _TripCompletedContent extends StatelessWidget {
   final String title;
   final String primaryLabel;
   final IconData primaryIcon;
+  final bool showPrimaryLeadingIcon;
   final String? subtitle;
   final String? secondaryLabel;
   final VoidCallback? onPrimary;
@@ -69,6 +73,7 @@ class _TripCompletedContent extends StatelessWidget {
     required this.title,
     required this.primaryLabel,
     required this.primaryIcon,
+    required this.showPrimaryLeadingIcon,
     this.subtitle,
     this.secondaryLabel,
     this.onPrimary,
@@ -173,29 +178,55 @@ class _TripCompletedContent extends StatelessWidget {
                           SizedBox(
                             width: double.infinity,
                             height: AppSize.buttonLg,
-                            child: ElevatedButton.icon(
-                              icon: Icon(primaryIcon, color: Colors.white),
-                              label: Text(
-                                primaryLabel,
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: palette.primary,
-                                elevation: 0,
-                                shadowColor: palette.primary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
-                                ),
-                              ),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                onPrimary?.call();
-                              },
-                            ),
+                            child: showPrimaryLeadingIcon
+                                ? ElevatedButton.icon(
+                                    icon: Icon(primaryIcon,
+                                        color: Colors.white),
+                                    label: Text(
+                                      primaryLabel,
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: palette.primary,
+                                      elevation: 0,
+                                      shadowColor: palette.primary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                            AppRadius.lg),
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      onPrimary?.call();
+                                    },
+                                  )
+                                : ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: palette.primary,
+                                      elevation: 0,
+                                      shadowColor: palette.primary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                            AppRadius.lg),
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      onPrimary?.call();
+                                    },
+                                    child: Text(
+                                      primaryLabel,
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
                           ),
                           if (secondaryLabel != null) ...[
                             const SizedBox(height: AppSpacing.sm),
