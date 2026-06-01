@@ -5,7 +5,8 @@
 enum MeetingPointType {
   custom('Custom', 'Custom location'),
   hotel('Hotel', 'Pickup from hotel'),
-  airport('Airport', 'Airport meet & greet');
+  airport('Airport', 'Airport meet & greet'),
+  destination('Destination', 'Meet at destination');
 
   /// Wire value sent to / received from the backend.
   final String wire;
@@ -21,6 +22,8 @@ enum MeetingPointType {
         return MeetingPointType.hotel;
       case 'airport':
         return MeetingPointType.airport;
+      case 'destination':
+        return MeetingPointType.destination;
       case 'custom':
       default:
         return MeetingPointType.custom;

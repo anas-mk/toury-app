@@ -5,19 +5,37 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
-import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
-import '../../../../../../../core/widgets/brand/brand_kit.dart';
+import '../../../../../../../core/widgets/app_network_image.dart';
 import '../../../domain/entities/helper_booking_entity.dart';
 import '../../../domain/entities/helper_booking_profile.dart';
+import '../../../domain/entities/meeting_point_type.dart';
 import '../../../domain/entities/search_params.dart';
+import '../../cubits/booking_cubit.dart';
+import '../../cubits/booking_state.dart';
 import '../../cubits/helper_booking_profile_cubit.dart';
+import '../instant/location_pick_result.dart';
+import '../instant/location_picker_page.dart';
 
-/// Phase 3 — full helper profile (languages, certs, service areas, car)
-/// before booking.
-///
-/// Reuses [HelperBookingProfileCubit] (REST endpoint `/user/bookings/helpers/{id}/profile`
-/// is shared across instant and scheduled flows).
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const _kNavy = Color(0xFF000668);
+const _kBlue = Color(0xFF4851C4);
+const _kSurface = Color(0xFFFBF8FF);
+const _kCard = Color(0xFFFFFFFF);
+const _kMuted = Color(0xFF767683);
+const _kContainerLow = Color(0xFFF4F2FF);
+const _kContainerHigh = Color(0xFFE8E7F6);
+const _kOutlineVariant = Color(0xFFC6C5D3);
+const _kOnSurface = Color(0xFF1A1B25);
+const _kOnSurfaceVariant = Color(0xFF464651);
+
+const _kGradient = LinearGradient(
+  colors: [_kNavy, _kBlue],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
 class ScheduledHelperProfileScreen extends StatelessWidget {
   final String helperId;
   final HelperBookingEntity? initialHelper;
@@ -32,338 +50,1112 @@ class ScheduledHelperProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<HelperBookingProfileCubit>(
-      create: (_) => sl<HelperBookingProfileCubit>()..load(helperId),
-      child: _ProfileView(
-        helperId: helperId,
-        initialHelper: initialHelper,
-        searchParams: searchParams,
-      ),
-    );
-  }
-}
-
-class _ProfileView extends StatelessWidget {
-  final String helperId;
-  final HelperBookingEntity? initialHelper;
-  final ScheduledSearchParams? searchParams;
-
-  const _ProfileView({
-    required this.helperId,
-    this.initialHelper,
-    this.searchParams,
-  });
-
-  void _onContinue(BuildContext context) {
-    if (searchParams == null || initialHelper == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Profile opened in read-only mode. Start a search to book.',
-          ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<HelperBookingProfileCubit>(
+          create: (_) => sl<HelperBookingProfileCubit>()..load(helperId),
         ),
-      );
-      return;
-    }
-
-    context.push(
-      AppRouter.scheduledReview,
-      extra: {
-        'helper': initialHelper,
-        'params': searchParams,
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PageScaffold(
-      bottomCta: BlocBuilder<HelperBookingProfileCubit,
-          HelperBookingProfileState>(
-        builder: (context, state) {
-          final ready = state is HelperBookingProfileLoaded &&
-              searchParams != null &&
-              initialHelper != null;
-          return PrimaryGradientButton(
-            label: 'Continue to review',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: ready ? () => _onContinue(context) : null,
-            visualEnabled: ready,
-          );
-        },
-      ),
-      body: BlocBuilder<HelperBookingProfileCubit, HelperBookingProfileState>(
-        builder: (context, state) {
-          if (state is HelperBookingProfileLoading ||
-              state is HelperBookingProfileInitial) {
-            return const _LoadingState();
-          }
-          if (state is HelperBookingProfileError) {
-            return _ErrorState(
-              message: state.message,
-              onRetry: () => context
-                  .read<HelperBookingProfileCubit>()
-                  .load(helperId),
-            );
-          }
-          if (state is HelperBookingProfileLoaded) {
-            return _LoadedView(profile: state.profile);
-          }
-          return const SizedBox.shrink();
-        },
-      ),
-    );
-  }
-}
-
-class _LoadedView extends StatelessWidget {
-  final HelperBookingProfile profile;
-  const _LoadedView({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          pinned: true,
-          backgroundColor: BrandTokens.bgSoft,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: BrandTokens.textPrimary),
-          title: Text(
-            'Helper profile',
-            style: BrandTypography.title(weight: FontWeight.w700),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-          sliver: SliverList.list(
-            children: [
-              _HeroCard(profile: profile),
-              const SizedBox(height: 16),
-              _StatsRow(profile: profile),
-              if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _SectionTitle('About'),
-                const SizedBox(height: 8),
-                Text(
-                  profile.bio!,
-                  style: BrandTypography.body(
-                    color: BrandTokens.textSecondary,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              _SectionTitle('Languages'),
-              const SizedBox(height: 8),
-              _LanguagesSection(languages: profile.languages),
-              const SizedBox(height: 24),
-              _SectionTitle('Service areas'),
-              const SizedBox(height: 8),
-              _ServiceAreasSection(areas: profile.serviceAreas),
-              if (profile.hasCar && profile.car != null) ...[
-                const SizedBox(height: 24),
-                _SectionTitle('Vehicle'),
-                const SizedBox(height: 8),
-                _CarCard(car: profile.car!),
-              ],
-              if (profile.certificates.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _SectionTitle('Certificates'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: profile.certificates
-                      .map((c) => _CertChip(label: c))
-                      .toList(),
-                ),
-              ],
-            ],
-          ),
+        BlocProvider<BookingCubit>(
+          create: (_) => sl<BookingCubit>(),
         ),
       ],
-    );
-  }
-}
-
-class _HeroCard extends StatelessWidget {
-  final HelperBookingProfile profile;
-  const _HeroCard({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final initials = profile.fullName.isEmpty
-        ? '?'
-        : profile.fullName.substring(0, 1).toUpperCase();
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        children: [
-          ClipOval(
-            child: profile.profileImageUrl == null ||
-                    profile.profileImageUrl!.isEmpty
-                ? Container(
-                    width: 84,
-                    height: 84,
-                    color: BrandTokens.borderTinted,
-                    alignment: Alignment.center,
-                    child: Text(
-                      initials,
-                      style: BrandTypography.headline(
-                        color: BrandTokens.primaryBlue,
-                      ),
-                    ),
-                  )
-                : Image.network(
-                    profile.profileImageUrl!,
-                    width: 84,
-                    height: 84,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 84,
-                      height: 84,
-                      color: BrandTokens.borderTinted,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.person_rounded,
-                        color: BrandTokens.primaryBlue,
-                      ),
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  profile.fullName,
-                  style: BrandTypography.headline(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
+      child: BlocListener<BookingCubit, BookingState>(
+        listener: (context, state) {
+          if (state is BookingCreated) {
+            context.go(
+              AppRouter.bookingDetails.replaceFirst(':id', state.booking.id),
+            );
+          } else if (state is BookingError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
                   children: [
                     const Icon(
-                      Icons.star_rounded,
-                      color: Color(0xFFB45309),
-                      size: 16,
+                      Icons.error_outline_rounded,
+                      color: Colors.white,
+                      size: 18,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      profile.rating.toStringAsFixed(1),
-                      style: BrandTypography.body(
-                        weight: FontWeight.w600,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        state.message,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    Text(
-                      ' (${profile.ratingCount})',
-                      style: BrandTypography.caption(),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        color: BrandTokens.textMuted,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${profile.experienceYears}y exp',
-                      style: BrandTypography.caption(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
+                backgroundColor: const Color(0xFFE53935),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            );
+          }
+        },
+        child: _ProfilePageBody(
+          helperId: helperId,
+          searchParams: searchParams,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Stateful page body ────────────────────────────────────────────────────────
+
+class _ProfilePageBody extends StatefulWidget {
+  final String helperId;
+  final ScheduledSearchParams? searchParams;
+
+  const _ProfilePageBody({
+    required this.helperId,
+    required this.searchParams,
+  });
+
+  @override
+  State<_ProfilePageBody> createState() => _ProfilePageBodyState();
+}
+
+class _ProfilePageBodyState extends State<_ProfilePageBody> {
+  MeetingPointType _meetingPoint = MeetingPointType.hotel;
+  LocationPickResult? _meetingLocation;
+  final _notesCtrl = TextEditingController();
+
+  bool get _step2Done => _meetingLocation != null;
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  double _estimatedTotal(HelperBookingProfile profile) {
+    if (widget.searchParams == null) return 0;
+    return profile.hourlyRate * (widget.searchParams!.durationInMinutes / 60);
+  }
+
+  String _fmtDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}';
+  }
+
+  static LocationPickResult _airportForCity(String? city) {
+    final lower = (city ?? '').toLowerCase();
+    if (lower.contains('luxor')) {
+      return const LocationPickResult(name: 'Luxor Intl Airport (LXR)', latitude: 25.6710, longitude: 32.7066);
+    }
+    if (lower.contains('aswan')) {
+      return const LocationPickResult(name: 'Aswan Intl Airport (ASW)', latitude: 23.9644, longitude: 32.8200);
+    }
+    if (lower.contains('alex')) {
+      return const LocationPickResult(name: 'Borg El Arab Airport (HBE)', latitude: 30.9177, longitude: 29.6964);
+    }
+    if (lower.contains('sharm')) {
+      return const LocationPickResult(name: 'Sharm El Sheikh Airport (SSH)', latitude: 27.9773, longitude: 34.3950);
+    }
+    if (lower.contains('hurghada')) {
+      return const LocationPickResult(name: 'Hurghada Intl Airport (HRG)', latitude: 27.1783, longitude: 33.7994);
+    }
+    if (lower.contains('marsa')) {
+      return const LocationPickResult(name: 'Marsa Alam Intl Airport (RMF)', latitude: 25.5571, longitude: 34.5836);
+    }
+    return const LocationPickResult(name: 'Cairo Intl Airport (CAI)', latitude: 30.1219, longitude: 31.4056);
+  }
+
+  Future<void> _pickMeetingLocation(MeetingPointType type) async {
+    if (type == MeetingPointType.airport) {
+      final airport = _airportForCity(widget.searchParams?.destinationCity);
+      setState(() {
+        _meetingPoint = type;
+        _meetingLocation = airport;
+      });
+      return;
+    }
+
+    if (type == MeetingPointType.destination) {
+      final params = widget.searchParams;
+      if (params != null) {
+        setState(() {
+          _meetingPoint = type;
+          _meetingLocation = LocationPickResult(
+            name: params.destinationName,
+            latitude: params.destinationLatitude,
+            longitude: params.destinationLongitude,
+          );
+        });
+      }
+      return;
+    }
+
+    final result = await Navigator.push<LocationPickResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationPickerPage(
+          title: type == MeetingPointType.hotel
+              ? 'Pick Hotel Location'
+              : 'Pick Meeting Point',
+          isPickup: true,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _meetingPoint = type;
+      if (result != null) _meetingLocation = result;
+    });
+  }
+
+  void _submit(BuildContext ctx, HelperBookingProfile profile) {
+    if (widget.searchParams == null || _meetingLocation == null) return;
+    HapticFeedback.mediumImpact();
+    ctx.read<BookingCubit>().createScheduled(
+          helperId: profile.helperId,
+          params: widget.searchParams!,
+          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          meetingPointType: _meetingPoint.wire,
+          pickupLocationName: _meetingLocation!.name,
+          pickupLatitude: _meetingLocation!.latitude,
+          pickupLongitude: _meetingLocation!.longitude,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: _kSurface,
+      body: BlocBuilder<HelperBookingProfileCubit, HelperBookingProfileState>(
+        builder: (context, profileState) {
+          if (profileState is HelperBookingProfileLoading ||
+              profileState is HelperBookingProfileInitial) {
+            return _ProfileSkeleton(topPad: topPad);
+          }
+          if (profileState is HelperBookingProfileError) {
+            return _ErrorView(
+              topPad: topPad,
+              message: profileState.message,
+              onRetry: () => context
+                  .read<HelperBookingProfileCubit>()
+                  .load(widget.helperId),
+            );
+          }
+          if (profileState is! HelperBookingProfileLoaded) {
+            return const SizedBox.shrink();
+          }
+
+          final profile = profileState.profile;
+          final estTotal = _estimatedTotal(profile);
+
+          return Stack(
+            children: [
+              // ── Scrollable content ─────────────────────────────────────
+              SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.only(
+                  top: topPad + 76,
+                  bottom: 120 + bottomPad,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Sheet A: Guide Profile ─────────────────────────
+                    _ProfileSection(profile: profile),
+
+                    // ── Divider ────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 32,
+                      ),
+                      child: Container(
+                        height: 1,
+                        color: _kOutlineVariant.withValues(alpha: 0.35),
+                      ),
+                    ),
+
+                    // ── Sheet B: Booking flow ──────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Complete Request',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: _kOnSurface,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Step indicator
+                          _StepIndicator(step2Done: _step2Done),
+
+                          const SizedBox(height: 24),
+
+                          // Step 1 — Trip Details
+                          _Step1Card(
+                            params: widget.searchParams,
+                            fmtDate: _fmtDate,
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Step 2 — Meeting Point
+                          _Step2Card(
+                            selected: _meetingPoint,
+                            selectedLocation: _meetingLocation,
+                            onTap: _pickMeetingLocation,
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Step 3 — Price Summary (greyed until step2 done)
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 300),
+                            opacity: _step2Done ? 1.0 : 0.5,
+                            child: IgnorePointer(
+                              ignoring: !_step2Done,
+                              child: _Step3Card(
+                                profile: profile,
+                                params: widget.searchParams,
+                                estTotal: estTotal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Fixed header ───────────────────────────────────────────
+              _Header(topPad: topPad),
+
+              // ── Sticky bottom ──────────────────────────────────────────
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: BlocBuilder<BookingCubit, BookingState>(
+                  builder: (context, bookingState) {
+                    final loading = bookingState is BookingLoading;
+                    return _StickyBottom(
+                      estTotal: estTotal,
+                      helperFirstName: profile.fullName.split(' ').first,
+                      loading: loading,
+                      canRequest: widget.searchParams != null &&
+                          profile.canAcceptScheduled &&
+                          _step2Done,
+                      bottomPad: bottomPad,
+                      onRequest: loading
+                          ? null
+                          : () => _submit(context, profile),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Fixed header (matches Stitch HTML exactly) ────────────────────────────────
+
+class _Header extends StatelessWidget {
+  final double topPad;
+  const _Header({required this.topPad});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(24, topPad + 12, 24, 16),
+        decoration: BoxDecoration(
+          color: _kSurface.withValues(alpha: 0.88),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x141B237E),
+              blurRadius: 32,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Back button — white circle
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                context.pop();
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: _kCard,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x0E1B237E),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: _kOnSurface,
+                  size: 20,
+                ),
+              ),
+            ),
+            // RAFIQ centered title
+            Expanded(
+              child: Text(
+                'RAFIQ',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: _kOnSurface,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            // Account icon
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.account_circle_outlined,
+                color: _kOnSurfaceVariant,
+                size: 24,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sheet A: Profile section ──────────────────────────────────────────────────
+
+class _ProfileSection extends StatelessWidget {
+  final HelperBookingProfile profile;
+  const _ProfileSection({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Hero gradient banner
+        Container(
+          height: 192,
+          decoration: const BoxDecoration(
+            gradient: _kGradient,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(32),
+              bottomRight: Radius.circular(32),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x141B237E),
+                blurRadius: 32,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: BrandTokens.successGreenSoft,
-                    borderRadius: BorderRadius.circular(99),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
+                    ),
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.0,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.10),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Avatar + name (overlapping the banner by -48px)
+        Transform.translate(
+          offset: const Offset(0, -48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                // Avatar (96px, border 4px white, shadow)
+                Center(
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _kSurface, width: 4),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x261B237E),
+                          blurRadius: 32,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: profile.profileImageUrl != null
+                          ? AppNetworkImage(
+                              imageUrl: profile.profileImageUrl,
+                              width: 96,
+                              height: 96,
+                              borderRadius: 48,
+                            )
+                          : Container(
+                              color: _kContainerHigh,
+                              alignment: Alignment.center,
+                              child: Text(
+                                profile.fullName.isNotEmpty
+                                    ? profile.fullName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w800,
+                                  color: _kNavy,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Name
+                Center(
                   child: Text(
-                    '${profile.hourlyRate.toStringAsFixed(0)} EGP / hr',
-                    style: BrandTypography.caption(
-                      color: BrandTokens.successGreen,
-                      weight: FontWeight.w700,
+                    profile.fullName,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _kOnSurface,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Tagline
+                Center(
+                  child: Text(
+                    'Senior Historical Concierge',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      color: _kOnSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Stats bento
+                Container(
+                  decoration: BoxDecoration(
+                    color: _kCard,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x141B237E),
+                        blurRadius: 32,
+                        offset: Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 20,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  profile.rating.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: _kOnSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'RATING',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: _kMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: _kOutlineVariant.withValues(alpha: 0.3),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              '${profile.completedTrips}',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: _kOnSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'TRIPS',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: _kMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: _kOutlineVariant.withValues(alpha: 0.3),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              '${profile.experienceYears} Yrs',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: _kOnSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'EXP.',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: _kMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Content section (bio, chips, areas, certs) — negative top margin
+        Transform.translate(
+          offset: const Offset(0, -24),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // About
+                if (profile.bio != null && profile.bio!.isNotEmpty) ...[
+                  Text(
+                    'About ${profile.fullName.split(' ').first}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: _kOnSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    profile.bio!,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      color: _kOnSurfaceVariant,
+                      height: 1.6,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // Verification chips
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    // ID Verified
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _kContainerLow,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(
+                          color: _kNavy.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.verified_rounded,
+                            size: 16,
+                            color: _kNavy,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'ID VERIFIED',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.0,
+                              color: _kNavy,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Languages
+                    if (profile.languages.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _kContainerLow,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                            color: _kOutlineVariant,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.translate_rounded,
+                              size: 16,
+                              color: _kOnSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              profile.languages
+                                  .take(3)
+                                  .map((l) => l.languageCode.toUpperCase())
+                                  .join(', '),
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                                color: _kOnSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Service Areas
+                if (profile.serviceAreas.isNotEmpty) ...[
+                  const Text(
+                    'SERVICE AREAS',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      color: _kMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: profile.serviceAreas.map((area) {
+                      final label =
+                          area.areaName ?? '${area.city}, ${area.country}';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _kCard,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                            color: _kOutlineVariant.withValues(alpha: 0.5),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x081B237E),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.location_on_rounded,
+                              size: 14,
+                              color: _kBlue,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              label,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 14,
+                                color: _kOnSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Certificates (bento card per cert)
+                ...profile.certificates.map(
+                  (cert) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _kCard,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: _kContainerHigh,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x121B237E),
+                            blurRadius: 32,
+                            offset: Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: _kBlue.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.workspace_premium_rounded,
+                              color: _kBlue,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  cert,
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: _kOnSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                const Text(
+                                  'Verified certification · Active',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    color: _kMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsRow extends StatelessWidget {
-  final HelperBookingProfile profile;
-  const _StatsRow({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final responseSeconds = profile.averageResponseTimeSeconds;
-    final acceptanceRate = profile.acceptanceRate;
-
-    final responseLabel = responseSeconds == null
-        ? '\u2014'
-        : responseSeconds < 60
-            ? '${responseSeconds}s'
-            : '${(responseSeconds / 60).round()}m';
-
-    final acceptanceLabel = acceptanceRate == null
-        ? '\u2014'
-        : '${(acceptanceRate * 100).toStringAsFixed(0)}%';
-
-    return Row(
-      children: [
-        Expanded(
-          child: _StatTile(
-            icon: Icons.flight_takeoff_rounded,
-            label: 'Trips',
-            value: profile.completedTrips.toString(),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.bolt_rounded,
-            label: 'Avg reply',
-            value: responseLabel,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.check_circle_rounded,
-            label: 'Acceptance',
-            value: acceptanceLabel,
-          ),
         ),
       ],
     );
   }
 }
 
-class _StatTile extends StatelessWidget {
+// ── Step indicator ────────────────────────────────────────────────────────────
+
+class _StepIndicator extends StatelessWidget {
+  final bool step2Done;
+  const _StepIndicator({required this.step2Done});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 300,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Background line
+            Container(
+              height: 2,
+              color: _kContainerHigh,
+            ),
+            // Progress line (steps 1→2 always done)
+            Positioned(
+              left: 0,
+              right: 150,
+              child: Container(
+                height: 2,
+                decoration: const BoxDecoration(
+                  gradient: _kGradient,
+                ),
+              ),
+            ),
+            // Step circles
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _StepDot(number: 1, done: true, active: true),
+                _StepDot(number: 2, done: true, active: true),
+                _StepDot(number: 3, done: false, active: false),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  final int number;
+  final bool done;
+  final bool active;
+  const _StepDot({
+    required this.number,
+    required this.done,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        gradient: active ? _kGradient : null,
+        color: active ? null : _kSurface,
+        shape: BoxShape.circle,
+        border: active
+            ? null
+            : Border.all(color: _kOutlineVariant),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: _kNavy.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Center(
+        child: Text(
+          '$number',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: active ? Colors.white : _kOnSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Step 1: Trip Details card ─────────────────────────────────────────────────
+
+class _Step1Card extends StatelessWidget {
+  final ScheduledSearchParams? params;
+  final String Function(DateTime) fmtDate;
+
+  const _Step1Card({required this.params, required this.fmtDate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x121B237E),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'STEP 1: TRIP DETAILS',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              color: _kMuted,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (params != null)
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.5,
+              children: [
+                _DetailTile(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Date',
+                  value: fmtDate(params!.requestedDate),
+                ),
+                _DetailTile(
+                  icon: Icons.people_alt_outlined,
+                  label: 'Guests',
+                  value: '${params!.travelersCount} Adults',
+                ),
+                _DetailTile(
+                  icon: Icons.access_time_rounded,
+                  label: 'Start Time',
+                  value: params!.startTime,
+                ),
+                _DetailTile(
+                  icon: Icons.hourglass_bottom_rounded,
+                  label: 'Duration',
+                  value: _durationLabel(params!.durationInMinutes),
+                ),
+              ],
+            )
+          else
+            const Text(
+              'No trip details provided.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                color: _kMuted,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _durationLabel(int mins) {
+    if (mins == 480) return 'Full Day';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+}
+
+class _DetailTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _StatTile({
+
+  const _DetailTile({
     required this.icon,
     required this.label,
     required this.value,
@@ -374,192 +1166,39 @@ class _StatTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BrandTokens.borderSoft),
+        color: _kContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _kOutlineVariant.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, size: 16, color: BrandTokens.primaryBlue),
-          const SizedBox(height: 6),
-          Text(value, style: BrandTypography.title(weight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(label, style: BrandTypography.caption()),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: BrandTypography.body(weight: FontWeight.w700),
-    );
-  }
-}
-
-class _LanguagesSection extends StatelessWidget {
-  final List<HelperLanguage> languages;
-  const _LanguagesSection({required this.languages});
-
-  @override
-  Widget build(BuildContext context) {
-    if (languages.isEmpty) {
-      return Text(
-        'No language data shared.',
-        style: BrandTypography.caption(),
-      );
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: languages.map((l) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: BrandTokens.surfaceWhite,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: BrandTokens.borderSoft),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          Icon(icon, size: 18, color: _kOnSurfaceVariant),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                l.languageName,
-                style: BrandTypography.body(weight: FontWeight.w600),
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  color: _kMuted,
+                ),
               ),
-              if (l.level != null) ...[
-                const SizedBox(width: 6),
-                Text(
-                  '\u2022 ${l.level!}',
-                  style: BrandTypography.caption(),
+              Text(
+                value,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kOnSurface,
                 ),
-              ],
-              if (l.isVerified) ...[
-                const SizedBox(width: 6),
-                const Icon(
-                  Icons.verified_rounded,
-                  size: 14,
-                  color: BrandTokens.primaryBlue,
-                ),
-              ],
+              ),
             ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _ServiceAreasSection extends StatelessWidget {
-  final List<HelperServiceArea> areas;
-  const _ServiceAreasSection({required this.areas});
-
-  @override
-  Widget build(BuildContext context) {
-    if (areas.isEmpty) {
-      return Text(
-        'No service areas listed.',
-        style: BrandTypography.caption(),
-      );
-    }
-    return Column(
-      children: areas.map((a) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: BrandTokens.surfaceWhite,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: BrandTokens.borderSoft),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.place_rounded,
-                color: BrandTokens.primaryBlue,
-                size: 18,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      a.areaName == null
-                          ? a.city
-                          : '${a.areaName}, ${a.city}',
-                      style: BrandTypography.body(weight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      a.country,
-                      style: BrandTypography.caption(),
-                    ),
-                  ],
-                ),
-              ),
-              if (a.isPrimary)
-                const StatusPill(
-                  status: BrandStatus.info,
-                  label: 'Primary',
-                  dense: true,
-                ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _CarCard extends StatelessWidget {
-  final HelperCarInfo car;
-  const _CarCard({required this.car});
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = [car.brand, car.model].whereType<String>().toList();
-    final title = parts.isEmpty ? 'Vehicle' : parts.join(' ');
-    final color = car.color;
-    final type = car.type;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.directions_car_filled_rounded,
-            color: BrandTokens.primaryBlue,
-            size: 22,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: BrandTypography.body(weight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  [color, type].whereType<String>().join(' \u2022 '),
-                  style: BrandTypography.caption(),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -567,111 +1206,594 @@ class _CarCard extends StatelessWidget {
   }
 }
 
-class _CertChip extends StatelessWidget {
+// ── Step 2: Meeting Point card ────────────────────────────────────────────────
+
+class _Step2Card extends StatelessWidget {
+  final MeetingPointType selected;
+  final LocationPickResult? selectedLocation;
+  final Future<void> Function(MeetingPointType) onTap;
+
+  const _Step2Card({
+    required this.selected,
+    required this.selectedLocation,
+    required this.onTap,
+  });
+
+  static const _options = [
+    (
+      MeetingPointType.hotel,
+      Icons.hotel_rounded,
+      'Hotel Pickup',
+      'Tap to search your hotel',
+    ),
+    (
+      MeetingPointType.airport,
+      Icons.flight_land_rounded,
+      'Airport Arrivals',
+      'Auto-detects nearest airport',
+    ),
+    (
+      MeetingPointType.destination,
+      Icons.place_rounded,
+      'Meet at Destination',
+      'Guide meets you at the site',
+    ),
+    (
+      MeetingPointType.custom,
+      Icons.pin_drop_rounded,
+      'Custom Location',
+      'Drop a pin on the map',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: _kBlue.withValues(alpha: 0.2),
+          width: 2,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x121B237E),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'STEP 2: MEETING POINT',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              color: _kMuted,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Column(
+            children: _options.map((opt) {
+              final isSelected = selected == opt.$1;
+              final showLocation = isSelected && selectedLocation != null;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onTap(opt.$1);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? _kBlue.withValues(alpha: 0.04)
+                          : _kCard,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected
+                            ? _kBlue
+                            : _kOutlineVariant.withValues(alpha: 0.5),
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? _kBlue.withValues(alpha: 0.12)
+                                : _kContainerHigh.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            opt.$2,
+                            size: 20,
+                            color: isSelected ? _kBlue : _kOnSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opt.$3,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: _kOnSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                showLocation
+                                    ? selectedLocation!.name
+                                    : opt.$4,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  color: showLocation ? _kBlue : _kMuted,
+                                  fontWeight: showLocation
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Radio
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? _kBlue : _kOutlineVariant,
+                              width: 2,
+                            ),
+                          ),
+                          child: isSelected
+                              ? Center(
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: const BoxDecoration(
+                                      color: _kBlue,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 3: Price summary card ────────────────────────────────────────────────
+
+class _Step3Card extends StatelessWidget {
+  final HelperBookingProfile profile;
+  final ScheduledSearchParams? params;
+  final double estTotal;
+
+  const _Step3Card({
+    required this.profile,
+    required this.params,
+    required this.estTotal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final h = (params?.durationInMinutes ?? 240) / 60;
+    final fee = estTotal * 0.1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x121B237E),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'STEP 3: SUMMARY',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              color: _kMuted,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _PriceRow(
+            label:
+                'Guide Fee (${h % 1 == 0 ? h.toInt() : h}h × EGP ${profile.hourlyRate.toStringAsFixed(0)})',
+            value: 'EGP ${estTotal.toStringAsFixed(0)}',
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Container(
+              height: 1,
+              color: _kOutlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+          _PriceRow(
+            label: 'Logistics & Taxes',
+            value: 'EGP ${fee.toStringAsFixed(0)}',
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Container(
+              height: 1,
+              color: _kOutlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Est.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: _kOnSurface,
+                ),
+              ),
+              Text(
+                'EGP ${(estTotal + fee).toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: _kNavy,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceRow extends StatelessWidget {
   final String label;
-  const _CertChip({required this.label});
+  final String value;
+  const _PriceRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: BrandTokens.accentAmberSoft,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: BrandTokens.accentAmberBorder),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.workspace_premium_rounded,
-            color: Color(0xFFB45309),
-            size: 14,
-          ),
-          const SizedBox(width: 6),
-          Text(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
             label,
-            style: BrandTypography.caption(
-              color: BrandTokens.accentAmberText,
-              weight: FontWeight.w700,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 15,
+              color: _kOnSurfaceVariant,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: const [
-        SkeletonShimmer(
-          child: SkeletonBlock(height: 120, radius: 24),
         ),
-        SizedBox(height: 16),
-        SkeletonShimmer(
-          child: Row(
-            children: [
-              Expanded(child: SkeletonBlock(height: 64, radius: 16)),
-              SizedBox(width: 10),
-              Expanded(child: SkeletonBlock(height: 64, radius: 16)),
-              SizedBox(width: 10),
-              Expanded(child: SkeletonBlock(height: 64, radius: 16)),
-            ],
+        const SizedBox(width: 12),
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: _kOnSurface,
           ),
         ),
-        SizedBox(height: 24),
-        SkeletonShimmer(child: SkeletonBlock(height: 72, radius: 14)),
-        SizedBox(height: 12),
-        SkeletonShimmer(child: SkeletonBlock(height: 72, radius: 14)),
       ],
     );
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _ErrorState({required this.message, required this.onRetry});
+// ── Sticky bottom bar ─────────────────────────────────────────────────────────
+
+class _StickyBottom extends StatelessWidget {
+  final double estTotal;
+  final String helperFirstName;
+  final bool loading;
+  final bool canRequest;
+  final double bottomPad;
+  final VoidCallback? onRequest;
+
+  const _StickyBottom({
+    required this.estTotal,
+    required this.helperFirstName,
+    required this.loading,
+    required this.canRequest,
+    required this.bottomPad,
+    required this.onRequest,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            size: 56,
-            color: BrandTokens.dangerRed,
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 16, 24, 32 + bottomPad),
+      decoration: BoxDecoration(
+        color: _kSurface.withValues(alpha: 0.97),
+        border: Border(
+          top: BorderSide(
+            color: _kOutlineVariant.withValues(alpha: 0.2),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Couldn\u2019t load profile',
-            style: BrandTypography.title(weight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: BrandTypography.caption(),
-          ),
-          const SizedBox(height: 16),
-          GhostButton(
-            label: 'Try again',
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              onRetry();
-            },
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141B237E),
+            blurRadius: 32,
+            offset: Offset(0, -12),
           ),
         ],
+      ),
+      child: Row(
+        children: [
+          // Est. total
+          if (estTotal > 0) ...[
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'EST. TOTAL',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.0,
+                    color: _kMuted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'EGP ${estTotal.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: _kOnSurface,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+          ],
+          // CTA button
+          Expanded(
+            child: GestureDetector(
+              onTap: onRequest,
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient:
+                      (canRequest && !loading) ? _kGradient : null,
+                  color: (canRequest && !loading)
+                      ? null
+                      : _kOutlineVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: (canRequest && !loading)
+                      ? [
+                          BoxShadow(
+                            color: _kNavy.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.4,
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              canRequest
+                                  ? 'Request $helperFirstName'
+                                  : 'Not Available',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: canRequest
+                                    ? Colors.white
+                                    : _kMuted.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            if (canRequest) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+class _ProfileSkeleton extends StatefulWidget {
+  final double topPad;
+  const _ProfileSkeleton({required this.topPad});
+
+  @override
+  State<_ProfileSkeleton> createState() => _ProfileSkeletonState();
+}
+
+class _ProfileSkeletonState extends State<_ProfileSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final shimmer = Color.lerp(
+          const Color(0xFFE8E6F0),
+          const Color(0xFFF5F3FF),
+          _ctrl.value,
+        )!;
+        return Column(
+          children: [
+            Container(height: 192, color: shimmer),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  Container(
+                    height: 28,
+                    width: 200,
+                    decoration: BoxDecoration(
+                      color: shimmer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: shimmer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Error view ────────────────────────────────────────────────────────────────
+
+class _ErrorView extends StatelessWidget {
+  final double topPad;
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorView({
+    required this.topPad,
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 56,
+              color: Color(0xFFE53935),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 15,
+                color: _kMuted,
+              ),
+            ),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  gradient: _kGradient,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

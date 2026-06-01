@@ -5,17 +5,49 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
-import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
-import '../../../../../../../core/widgets/brand/brand_kit.dart';
+import '../../../../../../../core/widgets/app_network_image.dart';
 import '../../../domain/entities/helper_booking_entity.dart';
 import '../../../domain/entities/search_params.dart';
 import '../../cubits/search_helpers_cubit.dart';
 import '../../cubits/search_helpers_state.dart';
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const _kNavy = Color(0xFF000668);
+const _kBlue = Color(0xFF4851C4);
+const _kAmber = Color(0xFFFE9331);
+const _kSurface = Color(0xFFFBF8FF);
+const _kCard = Color(0xFFFFFFFF);
+const _kMuted = Color(0xFF767683);
+const _kContainerLow = Color(0xFFF4F2FF);
+const _kOutlineVariant = Color(0xFFC6C5D3);
+
+const _kGradient = LinearGradient(
+  colors: [_kNavy, _kBlue],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+const _kCardShadow = [
+  BoxShadow(
+    color: Color(0x121B237E),
+    blurRadius: 28,
+    offset: Offset(0, 10),
+  ),
+];
+
+// ── Sort options ──────────────────────────────────────────────────────────────
+const _kSortOptions = <(String value, String label)>[
+  ('MatchScore', 'Best Match'),
+  ('Rating', 'Top Rated'),
+  ('Price_Asc', 'Price ↑'),
+  ('Price_Desc', 'Price ↓'),
+  ('Experience', 'Most Exp.'),
+];
+
+// ── Screen ───────────────────────────────────────────────────────────────────
+
 class ScheduledSearchResultsScreen extends StatefulWidget {
   final ScheduledSearchParams params;
-
   const ScheduledSearchResultsScreen({super.key, required this.params});
 
   @override
@@ -26,6 +58,9 @@ class ScheduledSearchResultsScreen extends StatefulWidget {
 class _ScheduledSearchResultsScreenState
     extends State<ScheduledSearchResultsScreen> {
   late ScheduledSearchParams _params;
+  String _activeSortKey = 'MatchScore';
+  bool _carFilter = false;
+  bool _femaleFilter = false;
 
   @override
   void initState() {
@@ -33,7 +68,45 @@ class _ScheduledSearchResultsScreenState
     _params = widget.params;
   }
 
-  void _applyFilters(ScheduledSearchParams updated) {
+  // ── helpers ─────────────────────────────────────────────────────────────
+
+  String _compactSummary() {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final d = _params.requestedDate;
+    final h = _params.durationInMinutes ~/ 60;
+    final guests = _params.travelersCount;
+    final date = '${d.day} ${months[d.month - 1]}';
+    final dur = h == 8 ? 'Full Day' : '${h}h';
+    return '${_params.destinationCity}  ·  $date  ·  $dur  ·  $guests pax';
+  }
+
+  void _applySort(String key) {
+    HapticFeedback.selectionClick();
+    setState(() => _activeSortKey = key);
+    final (sortBy, sortOrder) = _parseSortKey(key);
+    final updated = _params.copyWith(sortBy: sortBy, sortOrder: sortOrder);
+    setState(() => _params = updated);
+    context.read<SearchHelpersCubit>().searchScheduled(updated);
+  }
+
+  (String, String) _parseSortKey(String key) {
+    if (key == 'Price_Asc') return ('Price', 'Asc');
+    if (key == 'Price_Desc') return ('Price', 'Desc');
+    return (key, 'Desc');
+  }
+
+  void _applyFilterToggle({bool? car, bool? female}) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (car != null) _carFilter = car;
+      if (female != null) _femaleFilter = female;
+    });
+    final updated = _params.copyWith(
+      helperGender: _femaleFilter ? 'Female' : null,
+    );
     setState(() => _params = updated);
     context.read<SearchHelpersCubit>().searchScheduled(updated);
   }
@@ -44,152 +117,823 @@ class _ScheduledSearchResultsScreenState
   }
 
   void _showFilterSheet() {
-    showModalBottomSheet(
+    showModalBottomSheet<ScheduledSearchParams>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _FilterSheet(params: _params, onApply: _applyFilters),
+      builder: (_) => _FilterSheet(
+        params: _params,
+        onApply: (updated) {
+          setState(() => _params = updated);
+          context.read<SearchHelpersCubit>().searchScheduled(updated);
+        },
+      ),
     );
   }
 
+  void _openHelperProfile(BuildContext ctx, HelperBookingEntity helper) {
+    HapticFeedback.lightImpact();
+    ctx.push(
+      AppRouter.scheduledHelperProfile.replaceFirst(':id', helper.id),
+      extra: {'helper': helper, 'params': _params},
+    );
+  }
+
+  // ── build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+
     return BlocProvider<SearchHelpersCubit>(
       create: (_) => sl<SearchHelpersCubit>()..searchScheduled(_params),
       child: Builder(
-        builder: (context) {
-          return PageScaffold(
-            body: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  pinned: true,
-                  backgroundColor: BrandTokens.bgSoft,
-                  surfaceTintColor: Colors.transparent,
-                  elevation: 0,
-                  iconTheme: const IconThemeData(
-                    color: BrandTokens.textPrimary,
-                  ),
-                  title: Text(
-                    'Available helpers',
-                    style: BrandTypography.title(weight: FontWeight.w700),
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.tune_rounded,
-                        color: BrandTokens.textPrimary,
-                      ),
-                      tooltip: 'Filter & sort',
-                      onPressed: _showFilterSheet,
-                    ),
-                  ],
+        builder: (ctx) {
+          return Scaffold(
+            backgroundColor: _kSurface,
+            body: Column(
+              children: [
+                // ── Sticky header ────────────────────────────────────────
+                _StickyHeader(
+                  topPad: topPad,
+                  summary: _compactSummary(),
+                  hasActiveFilter: _carFilter ||
+                      _femaleFilter ||
+                      _params.minRating != null ||
+                      _params.helperGender != null,
+                  onBack: () => ctx.pop(),
+                  onFilter: _showFilterSheet,
                 ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                    child: _SearchSummaryCard(params: _params),
-                  ),
-                ),
-                BlocBuilder<SearchHelpersCubit, SearchHelpersState>(
-                  builder: (context, state) {
-                    if (state is SearchHelpersLoading ||
-                        state is SearchHelpersInitial) {
-                      return const SliverPadding(
-                        padding: EdgeInsets.fromLTRB(20, 8, 20, 24),
-                        sliver: _LoadingSkeletons(),
-                      );
-                    }
-                    if (state is SearchHelpersError) {
-                      return SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _ErrorState(
-                          message: state.message,
-                          onRetry: () => context
-                              .read<SearchHelpersCubit>()
-                              .searchScheduled(_params),
-                        ),
-                      );
-                    }
-                    if (state is SearchHelpersLoaded) {
-                      if (state.helpers.isEmpty) {
-                        return const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        );
-                      }
 
-                      return SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        sliver: SliverList.list(
-                          children: [
-                            // Available count banner
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: BrandTokens.successGreenSoft,
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                    child: Text(
-                                      '${state.availableCount} helper${state.availableCount == 1 ? '' : 's'} available',
-                                      style: BrandTypography.caption(
-                                        color: BrandTokens.successGreen,
-                                        weight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ...state.helpers.map(
-                              (h) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _HelperCard(
-                                  helper: h,
-                                  onTap: () => _openProfile(context, h),
-                                ),
-                              ),
-                            ),
-                          ],
+                // ── Scrollable body ──────────────────────────────────────
+                Expanded(
+                  child: RefreshIndicator(
+                    color: _kNavy,
+                    onRefresh: _onRefresh,
+                    child: CustomScrollView(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      slivers: [
+                        // Sort + filter chips
+                        SliverToBoxAdapter(
+                          child: _SortFilterRow(
+                            activeSort: _activeSortKey,
+                            carFilter: _carFilter,
+                            femaleFilter: _femaleFilter,
+                            onSortChanged: _applySort,
+                            onCarToggle: () =>
+                                _applyFilterToggle(car: !_carFilter),
+                            onFemaleToggle: () =>
+                                _applyFilterToggle(female: !_femaleFilter),
+                          ),
                         ),
-                      );
-                    }
-                    return const SliverToBoxAdapter(child: SizedBox.shrink());
-                  },
+
+                        // Results
+                        BlocBuilder<SearchHelpersCubit, SearchHelpersState>(
+                          builder: (context, state) {
+                            if (state is SearchHelpersLoading ||
+                                state is SearchHelpersInitial) {
+                              return const SliverPadding(
+                                padding: EdgeInsets.fromLTRB(20, 8, 20, 24),
+                                sliver: _LoadingSkeletons(),
+                              );
+                            }
+                            if (state is SearchHelpersError) {
+                              return SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: _ErrorState(
+                                  message: state.message,
+                                  onRetry: () => context
+                                      .read<SearchHelpersCubit>()
+                                      .searchScheduled(_params),
+                                ),
+                              );
+                            }
+                            if (state is SearchHelpersLoaded) {
+                              if (state.helpers.isEmpty) {
+                                return SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: _EmptyState(
+                                    onModify: () => ctx.pop(),
+                                  ),
+                                );
+                              }
+                              return SliverPadding(
+                                padding: EdgeInsets.fromLTRB(
+                                  20,
+                                  8,
+                                  20,
+                                  24 + bottomPad,
+                                ),
+                                sliver: SliverList.separated(
+                                  itemCount: state.helpers.length + 1,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 14),
+                                  itemBuilder: (_, i) {
+                                    if (i == 0) {
+                                      return _CountBadge(
+                                        count: state.availableCount,
+                                      );
+                                    }
+                                    final helper = state.helpers[i - 1];
+                                    return _GuideCard(
+                                      helper: helper,
+                                      onTap: () =>
+                                          _openHelperProfile(ctx, helper),
+                                    );
+                                  },
+                                ),
+                              );
+                            }
+                            return const SliverToBoxAdapter(
+                              child: SizedBox.shrink(),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
-            ),
-            bottomCta: BlocBuilder<SearchHelpersCubit, SearchHelpersState>(
-              builder: (context, state) {
-                final loading = state is SearchHelpersLoading;
-                return GhostButton(
-                  label: loading ? 'Refreshing…' : 'Refresh results',
-                  icon: Icons.refresh_rounded,
-                  onPressed: loading ? null : _onRefresh,
-                );
-              },
             ),
           );
         },
       ),
     );
   }
+}
 
-  void _openProfile(BuildContext context, HelperBookingEntity helper) {
-    context.push(
-      AppRouter.scheduledHelperProfile.replaceFirst(':id', helper.id),
-      extra: {'helper': helper, 'params': _params},
+// ── Sticky header ─────────────────────────────────────────────────────────────
+
+class _StickyHeader extends StatelessWidget {
+  final double topPad;
+  final String summary;
+  final bool hasActiveFilter;
+  final VoidCallback onBack;
+  final VoidCallback onFilter;
+
+  const _StickyHeader({
+    required this.topPad,
+    required this.summary,
+    required this.hasActiveFilter,
+    required this.onBack,
+    required this.onFilter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 12),
+      decoration: const BoxDecoration(
+        color: _kCard,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0E1B237E),
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Back
+          GestureDetector(
+            onTap: onBack,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: _kSurface,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: _kNavy,
+                size: 20,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Compact summary chip
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: _kContainerLow,
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                summary,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _kBlue,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Filter icon
+          GestureDetector(
+            onTap: onFilter,
+            child: Stack(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: _kSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.tune_rounded,
+                    color: _kNavy,
+                    size: 20,
+                  ),
+                ),
+                if (hasActiveFilter)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: _kAmber,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── Filter Sheet ──────────────────────────────────────────────────────────────
+// ── Sort + filter chips row ───────────────────────────────────────────────────
+
+class _SortFilterRow extends StatelessWidget {
+  final String activeSort;
+  final bool carFilter;
+  final bool femaleFilter;
+  final ValueChanged<String> onSortChanged;
+  final VoidCallback onCarToggle;
+  final VoidCallback onFemaleToggle;
+
+  const _SortFilterRow({
+    required this.activeSort,
+    required this.carFilter,
+    required this.femaleFilter,
+    required this.onSortChanged,
+    required this.onCarToggle,
+    required this.onFemaleToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 52,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          // Sort chips
+          ..._kSortOptions.map((opt) {
+            final selected = activeSort == opt.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+              child: GestureDetector(
+                onTap: () => onSortChanged(opt.$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 0,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: selected ? _kGradient : null,
+                    color: selected ? null : _kCard,
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(
+                      color: selected
+                          ? Colors.transparent
+                          : _kOutlineVariant.withValues(alpha: 0.5),
+                    ),
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: _kNavy.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      opt.$2,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: selected ? Colors.white : _kMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+          // With Car toggle
+          Padding(
+            padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+            child: GestureDetector(
+              onTap: onCarToggle,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: carFilter
+                      ? _kAmber.withValues(alpha: 0.15)
+                      : _kCard,
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(
+                    color: carFilter
+                        ? _kAmber
+                        : _kOutlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.directions_car_rounded,
+                      size: 14,
+                      color: carFilter ? _kAmber : _kMuted,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'With Car',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: carFilter ? _kAmber : _kMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Female Only toggle
+          Padding(
+            padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+            child: GestureDetector(
+              onTap: onFemaleToggle,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: femaleFilter
+                      ? _kBlue.withValues(alpha: 0.1)
+                      : _kCard,
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(
+                    color: femaleFilter
+                        ? _kBlue
+                        : _kOutlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.female_rounded,
+                      size: 14,
+                      color: femaleFilter ? _kBlue : _kMuted,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Female',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: femaleFilter ? _kBlue : _kMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Count badge ───────────────────────────────────────────────────────────────
+
+class _CountBadge extends StatelessWidget {
+  final int count;
+  const _CountBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$count guide${count == 1 ? '' : 's'} available for your trip',
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: _kNavy,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 3,
+          width: 80,
+          decoration: BoxDecoration(
+            gradient: _kGradient,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+}
+
+// ── Guide card ────────────────────────────────────────────────────────────────
+
+class _GuideCard extends StatelessWidget {
+  final HelperBookingEntity helper;
+  final VoidCallback onTap;
+
+  const _GuideCard({required this.helper, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final matchScore = helper.matchScore ?? 0;
+    final isTopMatch = matchScore >= 80;
+    final price = helper.estimatedPrice;
+    final suitability = (helper.suitabilityReasons ?? const <String>[])
+        .where((r) => r.trim().isNotEmpty)
+        .firstOrNull;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: _kCardShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Top row: avatar + info + match badge ──────────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Avatar with optional Top Match badge
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _GuideAvatar(
+                        url: helper.profileImageUrl,
+                        name: helper.name,
+                        size: 68,
+                      ),
+                      if (isTopMatch)
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _kAmber,
+                              borderRadius: BorderRadius.circular(99),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _kAmber.withValues(alpha: 0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.bolt_rounded,
+                                  size: 10,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 2),
+                                Text(
+                                  'Top Match',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  // Name + rating + speciality
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          helper.name,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: _kNavy,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 15,
+                              color: _kAmber,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              helper.rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _kNavy,
+                              ),
+                            ),
+                            Text(
+                              '  ·  ${helper.completedTrips} trips  ·  ${helper.experienceYears} yrs exp',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                color: _kMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (suitability != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            '"$suitability"',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: _kMuted,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── Language + car chips ───────────────────────────────────
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  ...helper.languages.take(3).map(
+                        (lang) => _SmallChip(
+                          label: lang,
+                          color: _kBlue,
+                          bg: _kContainerLow,
+                        ),
+                      ),
+                  if (helper.car != null)
+                    const _SmallChip(
+                      label: '🚗 With Car',
+                      color: _kAmber,
+                      bg: Color(0xFFFFF4E6),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── Divider ────────────────────────────────────────────────
+              Container(
+                height: 1,
+                color: _kOutlineVariant.withValues(alpha: 0.4),
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── Price + CTA ────────────────────────────────────────────
+              Row(
+                children: [
+                  if (price != null) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'FROM',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                            color: _kMuted,
+                          ),
+                        ),
+                        Text(
+                          'EGP ${price.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: _kNavy,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                  ],
+                  // View Profile CTA
+                  GestureDetector(
+                    onTap: onTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: _kGradient,
+                        borderRadius: BorderRadius.circular(40),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kNavy.withValues(alpha: 0.25),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View Profile',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Guide avatar ──────────────────────────────────────────────────────────────
+
+class _GuideAvatar extends StatelessWidget {
+  final String? url;
+  final String name;
+  final double size;
+
+  const _GuideAvatar({
+    required this.url,
+    required this.name,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141B237E),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: url != null
+            ? AppNetworkImage(
+                imageUrl: url,
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+              )
+            : Container(
+                color: _kContainerLow,
+                alignment: Alignment.center,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: _kNavy,
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+// ── Small chip ────────────────────────────────────────────────────────────────
+
+class _SmallChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color bg;
+
+  const _SmallChip({
+    required this.label,
+    required this.color,
+    required this.bg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Filter sheet ──────────────────────────────────────────────────────────────
 
 class _FilterSheet extends StatefulWidget {
   final ScheduledSearchParams params;
@@ -205,11 +949,10 @@ class _FilterSheetState extends State<_FilterSheet> {
   late String _sortBy;
   late String _sortOrder;
   double? _minRating;
-  double? _maxPrice;
   String? _helperGender;
 
-  static const _sortOptions = [
-    ('MatchScore', 'Best match'),
+  static const _sortOptions = <(String, String)>[
+    ('MatchScore', 'Best Match'),
     ('Price', 'Price'),
     ('Rating', 'Rating'),
     ('Experience', 'Experience'),
@@ -221,7 +964,6 @@ class _FilterSheetState extends State<_FilterSheet> {
     _sortBy = widget.params.sortBy ?? 'MatchScore';
     _sortOrder = widget.params.sortOrder ?? 'Desc';
     _minRating = widget.params.minRating;
-    _maxPrice = widget.params.maxPrice;
     _helperGender = widget.params.helperGender;
   }
 
@@ -230,40 +972,71 @@ class _FilterSheetState extends State<_FilterSheet> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(24),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(28),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 44,
+              height: 5,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: _kOutlineVariant,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
           Row(
             children: [
-              Text('Filter & Sort', style: BrandTypography.headline()),
+              const Text(
+                'Filter & Sort',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: _kNavy,
+                ),
+              ),
               const Spacer(),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _sortBy = 'MatchScore';
-                    _sortOrder = 'Desc';
-                    _minRating = null;
-                    _maxPrice = null;
-                    _helperGender = null;
-                  });
-                },
-                child: Text(
+              GestureDetector(
+                onTap: () => setState(() {
+                  _sortBy = 'MatchScore';
+                  _sortOrder = 'Desc';
+                  _minRating = null;
+                  _helperGender = null;
+                }),
+                child: const Text(
                   'Reset',
-                  style: BrandTypography.body(color: BrandTokens.primaryBlue),
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _kBlue,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
           // Sort by
-          Text('Sort by', style: BrandTypography.body(weight: FontWeight.w600)),
-          const SizedBox(height: 8),
+          const Text(
+            'SORT BY',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: _kMuted,
+            ),
+          ),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -271,639 +1044,126 @@ class _FilterSheetState extends State<_FilterSheet> {
               final selected = _sortBy == opt.$1;
               return GestureDetector(
                 onTap: () => setState(() => _sortBy = opt.$1),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? BrandTokens.primaryBlue
-                        : BrandTokens.bgSoft,
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(
-                      color: selected
-                          ? BrandTokens.primaryBlue
-                          : BrandTokens.borderSoft,
-                    ),
-                  ),
-                  child: Text(
-                    opt.$2,
-                    style: BrandTypography.body(
-                      weight: FontWeight.w600,
-                      color: selected ? Colors.white : BrandTokens.textPrimary,
-                    ),
+                child: _FilterChip(label: opt.$2, selected: selected),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: ['Asc', 'Desc'].map((v) {
+              final sel = _sortOrder == v;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _sortOrder = v),
+                  child: _FilterChip(
+                    label: v == 'Asc' ? '↑ Low to high' : '↓ High to low',
+                    selected: sel,
                   ),
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text('Order:', style: BrandTypography.caption()),
-              const SizedBox(width: 8),
-              _OrderToggle(
-                value: _sortOrder,
-                onChanged: (v) => setState(() => _sortOrder = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 20),
 
           // Min rating
-          Text(
-            'Minimum rating',
-            style: BrandTypography.body(weight: FontWeight.w600),
+          const Text(
+            'MINIMUM RATING',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: _kMuted,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             children: [null, 3.0, 4.0, 4.5].map((r) {
               final selected = _minRating == r;
-              final label = r == null
-                  ? 'Any'
-                  : '${r % 1 == 0 ? r.toInt() : r}+';
+              final label =
+                  r == null ? 'Any' : '${r % 1 == 0 ? r.toInt() : r}+ ⭐';
               return GestureDetector(
                 onTap: () => setState(() => _minRating = r),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? BrandTokens.primaryBlue
-                        : BrandTokens.bgSoft,
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(
-                      color: selected
-                          ? BrandTokens.primaryBlue
-                          : BrandTokens.borderSoft,
-                    ),
-                  ),
-                  child: Text(
-                    label,
-                    style: BrandTypography.body(
-                      weight: FontWeight.w600,
-                      color: selected ? Colors.white : BrandTokens.textPrimary,
-                    ),
-                  ),
-                ),
+                child: _FilterChip(label: label, selected: selected),
               );
             }).toList(),
           ),
-          const SizedBox(height: 16),
 
-          // Helper gender
-          Text(
-            'Helper gender',
-            style: BrandTypography.body(weight: FontWeight.w600),
+          const SizedBox(height: 20),
+
+          // Gender
+          const Text(
+            'GUIDE GENDER',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: _kMuted,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
-            children: [(null, 'Any'), ('Male', 'Male'), ('Female', 'Female')]
+            children: [(null, 'Any'), ('Male', 'Male ♂'), ('Female', 'Female ♀')]
                 .map((opt) {
-                  final selected = _helperGender == opt.$1;
-                  return GestureDetector(
-                    onTap: () => setState(() => _helperGender = opt.$1),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? BrandTokens.primaryBlue
-                            : BrandTokens.bgSoft,
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(
-                          color: selected
-                              ? BrandTokens.primaryBlue
-                              : BrandTokens.borderSoft,
-                        ),
-                      ),
-                      child: Text(
-                        opt.$2,
-                        style: BrandTypography.body(
-                          weight: FontWeight.w600,
-                          color: selected
-                              ? Colors.white
-                              : BrandTokens.textPrimary,
-                        ),
-                      ),
-                    ),
-                  );
-                })
-                .toList(),
+              final selected = _helperGender == opt.$1;
+              return GestureDetector(
+                onTap: () => setState(() => _helperGender = opt.$1),
+                child: _FilterChip(label: opt.$2, selected: selected),
+              );
+            }).toList(),
           ),
+
           const SizedBox(height: 24),
 
-          PrimaryGradientButton(
-            label: 'Apply filters',
-            icon: Icons.check_rounded,
-            onPressed: () {
+          // Apply button
+          GestureDetector(
+            onTap: () {
               Navigator.pop(context);
               widget.onApply(
                 widget.params.copyWith(
                   sortBy: _sortBy,
                   sortOrder: _sortOrder,
                   minRating: _minRating,
-                  maxPrice: _maxPrice,
                   helperGender: _helperGender,
                 ),
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OrderToggle extends StatelessWidget {
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  const _OrderToggle({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: ['Asc', 'Desc'].map((v) {
-        final selected = value == v;
-        return GestureDetector(
-          onTap: () => onChanged(v),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            margin: const EdgeInsets.only(right: 6),
-            decoration: BoxDecoration(
-              color: selected ? BrandTokens.borderTinted : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: selected
-                    ? BrandTokens.primaryBlue
-                    : BrandTokens.borderSoft,
-              ),
-            ),
-            child: Text(
-              v == 'Asc' ? '↑ Asc' : '↓ Desc',
-              style: BrandTypography.caption(
-                weight: FontWeight.w600,
-                color: selected
-                    ? BrandTokens.primaryBlue
-                    : BrandTokens.textSecondary,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ── Search Summary Card ───────────────────────────────────────────────────────
-
-class _SearchSummaryCard extends StatelessWidget {
-  final ScheduledSearchParams params;
-  const _SearchSummaryCard({required this.params});
-
-  @override
-  Widget build(BuildContext context) {
-    final dateLabel = _formatDate(params.requestedDate);
-    final hours = params.durationInMinutes ~/ 60;
-    final minutes = params.durationInMinutes % 60;
-    final durationLabel = minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.location_city_rounded,
-                color: BrandTokens.primaryBlue,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  params.destinationCity,
-                  style: BrandTypography.title(weight: FontWeight.w700),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          if (params.pickupLocationName.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(
-                  Icons.my_location_rounded,
-                  color: BrandTokens.textSecondary,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'From: ${params.pickupLocationName}',
-                    style: BrandTypography.caption(
-                      color: BrandTokens.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _Chip(icon: Icons.event_rounded, text: dateLabel),
-              _Chip(
-                icon: Icons.schedule_rounded,
-                text: params.startTime.substring(0, 5),
-              ),
-              _Chip(icon: Icons.hourglass_top_rounded, text: durationLabel),
-              _Chip(
-                icon: Icons.translate_rounded,
-                text: params.requestedLanguage.toUpperCase(),
-              ),
-              if (params.requiresCar)
-                const _Chip(icon: Icons.directions_car_rounded, text: 'Car'),
-              _Chip(
-                icon: Icons.group_rounded,
-                text:
-                    '${params.travelersCount} traveler${params.travelersCount == 1 ? '' : 's'}',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _formatDate(DateTime d) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day}';
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _Chip({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: BrandTokens.bgSoft,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: BrandTokens.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: BrandTypography.caption(color: BrandTokens.textPrimary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Helper Card ───────────────────────────────────────────────────────────────
-
-class _HelperCard extends StatelessWidget {
-  final HelperBookingEntity helper;
-  final VoidCallback onTap;
-
-  const _HelperCard({required this.helper, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final price = helper.estimatedPrice;
-    final priceLabel = price == null ? null : '${price.toStringAsFixed(0)} EGP';
-    final distKm = helper.estimatedDistanceKm;
-    final reasons = (helper.suitabilityReasons ?? const <String>[])
-        .where((r) => r.trim().isNotEmpty)
-        .take(3)
-        .toList();
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: BrandTokens.surfaceWhite,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: BrandTokens.borderSoft),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _Avatar(url: helper.profileImageUrl, name: helper.name),
-                if (helper.matchScore != null)
-                  Positioned(
-                    right: -4,
-                    bottom: -4,
-                    child: _MatchScoreBadge(score: helper.matchScore!),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          helper.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: BrandTypography.title(weight: FontWeight.w700),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _RatingPill(
-                        rating: helper.rating,
-                        trips: helper.completedTrips,
-                      ),
-                    ],
-                  ),
-                  if (reasons.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [for (final r in reasons) _ReasonChip(text: r)],
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      if (helper.languages.isNotEmpty)
-                        _Tag(
-                          icon: Icons.translate_rounded,
-                          text: helper.languages.take(3).join(' / '),
-                        ),
-                      if (helper.car != null)
-                        const _Tag(
-                          icon: Icons.directions_car_rounded,
-                          text: 'Has car',
-                        ),
-                      if (helper.experienceYears > 0)
-                        _Tag(
-                          icon: Icons.workspace_premium_rounded,
-                          text: '${helper.experienceYears}y exp',
-                        ),
-                      if (distKm != null)
-                        _Tag(
-                          icon: Icons.route_rounded,
-                          text: '${distKm.toStringAsFixed(1)} km',
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      if (priceLabel != null) ...[
-                        Text(
-                          priceLabel,
-                          style: BrandTypography.title(
-                            weight: FontWeight.w700,
-                            color: BrandTokens.primaryBlue,
-                          ),
-                        ),
-                        Text(
-                          '  est.',
-                          style: BrandTypography.caption(
-                            color: BrandTokens.textMuted,
-                          ),
-                        ),
-                      ],
-                      const Spacer(),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: BrandTokens.textMuted,
-                      ),
-                    ],
+            child: Container(
+              width: double.infinity,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: _kGradient,
+                borderRadius: BorderRadius.circular(40),
+                boxShadow: [
+                  BoxShadow(
+                    color: _kNavy.withValues(alpha: 0.3),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  final String? url;
-  final String name;
-  const _Avatar({required this.url, required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
-    if (url == null || url!.isEmpty) {
-      return Container(
-        width: 56,
-        height: 56,
-        decoration: const BoxDecoration(
-          color: BrandTokens.borderTinted,
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          initial,
-          style: BrandTypography.title(
-            weight: FontWeight.w700,
-            color: BrandTokens.primaryBlue,
-          ),
-        ),
-      );
-    }
-    return ClipOval(
-      child: Image.network(
-        url!,
-        width: 56,
-        height: 56,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: 56,
-          height: 56,
-          color: BrandTokens.borderTinted,
-          alignment: Alignment.center,
-          child: const Icon(
-            Icons.person_rounded,
-            color: BrandTokens.primaryBlue,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RatingPill extends StatelessWidget {
-  final double rating;
-  final int trips;
-  const _RatingPill({required this.rating, required this.trips});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: BrandTokens.accentAmberSoft,
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.star_rounded, color: Color(0xFFB45309), size: 14),
-          const SizedBox(width: 4),
-          Text(
-            rating.toStringAsFixed(1),
-            style: BrandTypography.caption(
-              color: BrandTokens.accentAmberText,
-              weight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(width: 1, height: 10, color: BrandTokens.accentAmberBorder),
-          const SizedBox(width: 6),
-          Text(
-            '$trips trips',
-            style: BrandTypography.caption(color: BrandTokens.accentAmberText),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MatchScoreBadge extends StatelessWidget {
-  final int score;
-  const _MatchScoreBadge({required this.score});
-
-  @override
-  Widget build(BuildContext context) {
-    final clamped = score.clamp(0, 100);
-    final Color bg;
-    final Color fg;
-    if (clamped >= 80) {
-      bg = BrandTokens.successGreen;
-      fg = Colors.white;
-    } else if (clamped >= 60) {
-      bg = BrandTokens.accentAmberSoft;
-      fg = BrandTokens.accentAmberText;
-    } else {
-      bg = BrandTokens.bgSoft;
-      fg = BrandTokens.textSecondary;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: Colors.white, width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        '$clamped%',
-        style: BrandTypography.caption(weight: FontWeight.w800, color: fg),
-      ),
-    );
-  }
-}
-
-class _ReasonChip extends StatelessWidget {
-  final String text;
-  const _ReasonChip({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: BrandTokens.borderTinted,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(
-          color: BrandTokens.primaryBlue.withValues(alpha: 0.25),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.check_circle_rounded,
-            size: 12,
-            color: BrandTokens.primaryBlue,
-          ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: BrandTypography.caption(
-                color: BrandTokens.primaryBlue,
-                weight: FontWeight.w700,
+              child: const Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Apply Filters',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.check_rounded, color: Colors.white, size: 18),
+                  ],
+                ),
               ),
             ),
           ),
@@ -913,31 +1173,35 @@ class _ReasonChip extends StatelessWidget {
   }
 }
 
-class _Tag extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _Tag({required this.icon, required this.text});
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  const _FilterChip({required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
-        color: BrandTokens.bgSoft,
+        gradient: selected ? _kGradient : null,
+        color: selected ? null : _kContainerLow,
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: BrandTokens.borderSoft),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: BrandTokens.textSecondary),
-          const SizedBox(width: 5),
-          Text(text, style: BrandTypography.caption()),
-        ],
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: selected ? Colors.white : _kNavy,
+        ),
       ),
     );
   }
 }
+
+// ── Loading skeletons ─────────────────────────────────────────────────────────
 
 class _LoadingSkeletons extends StatelessWidget {
   const _LoadingSkeletons();
@@ -946,74 +1210,120 @@ class _LoadingSkeletons extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverList.separated(
       itemCount: 4,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, __) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: BrandTokens.surfaceWhite,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: BrandTokens.borderSoft),
-        ),
-        child: const SkeletonShimmer(
-          child: Row(
-            children: [
-              SkeletonBlock(width: 56, height: 56, radius: 28),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonBlock(width: 140, height: 16, radius: 6),
-                    SizedBox(height: 10),
-                    SkeletonBlock(height: 12, radius: 6),
-                    SizedBox(height: 8),
-                    SkeletonBlock(width: 200, height: 12, radius: 6),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      itemBuilder: (_, __) => const _SkeletonCard(),
     );
   }
 }
 
+class _SkeletonCard extends StatefulWidget {
+  const _SkeletonCard();
+
+  @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final shimmer = Color.lerp(
+          const Color(0xFFE8E6F0),
+          const Color(0xFFF5F3FF),
+          _ctrl.value,
+        )!;
+        return Container(
+          height: 180,
+          decoration: BoxDecoration(
+            color: shimmer,
+            borderRadius: BorderRadius.circular(24),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final VoidCallback onModify;
+  const _EmptyState({required this.onModify});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 96,
-            height: 96,
-            decoration: const BoxDecoration(
-              color: BrandTokens.borderTinted,
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: _kContainerLow,
               shape: BoxShape.circle,
             ),
-            alignment: Alignment.center,
             child: const Icon(
-              Icons.search_off_rounded,
-              size: 44,
-              color: BrandTokens.primaryBlue,
+              Icons.person_search_rounded,
+              size: 40,
+              color: _kBlue,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'No guides match your criteria',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _kNavy,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Try adjusting your duration, language, or travel dates.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              color: _kMuted,
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            'No helpers match your trip',
-            textAlign: TextAlign.center,
-            style: BrandTypography.title(weight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try a different city, slightly later start time, or longer duration to widen your options.',
-            textAlign: TextAlign.center,
-            style: BrandTypography.body(color: BrandTokens.textSecondary),
+          GestureDetector(
+            onTap: onModify,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: _kBlue),
+                borderRadius: BorderRadius.circular(40),
+              ),
+              child: const Text(
+                'Modify Search',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kBlue,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -1021,40 +1331,72 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+// ── Error state ───────────────────────────────────────────────────────────────
+
 class _ErrorState extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-
   const _ErrorState({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            size: 56,
-            color: BrandTokens.dangerRed,
+          Container(
+            width: 72,
+            height: 72,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFEBEE),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.wifi_off_rounded,
+              size: 36,
+              color: Color(0xFFE53935),
+            ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Couldn\'t load helpers',
-            style: BrandTypography.title(weight: FontWeight.w700),
+          const SizedBox(height: 20),
+          const Text(
+            'Could not load guides',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _kNavy,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: BrandTypography.caption(),
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              color: _kMuted,
+            ),
           ),
-          const SizedBox(height: 16),
-          GhostButton(
-            label: 'Try again',
-            icon: Icons.refresh_rounded,
-            onPressed: onRetry,
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: onRetry,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: _kGradient,
+                borderRadius: BorderRadius.circular(40),
+              ),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
           ),
         ],
       ),

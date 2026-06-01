@@ -835,8 +835,7 @@ class AppRouter {
         path: scheduledResults,
         name: 'scheduled-results',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          final params = extra?['params'] as ScheduledSearchParams?;
+          final params = state.extra as ScheduledSearchParams?;
           if (params == null) {
             return const Scaffold(
               body: Center(child: Text('Missing search parameters.')),
@@ -868,7 +867,7 @@ class AppRouter {
               body: Center(child: Text('Missing review payload.')),
             );
           }
-          return ScheduledReviewScreen(
+          return ScheduledTripReviewSheet(
             helper: extra['helper'] as HelperBookingEntity,
             params: extra['params'] as ScheduledSearchParams,
           );

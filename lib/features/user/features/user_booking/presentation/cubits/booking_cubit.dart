@@ -30,6 +30,9 @@ class BookingCubit extends Cubit<BookingState> {
     required ScheduledSearchParams params,
     String? notes,
     String? meetingPointType,
+    String? pickupLocationName,
+    double? pickupLatitude,
+    double? pickupLongitude,
   }) async {
     if (isClosed) return;
     emit(BookingLoading());
@@ -43,11 +46,11 @@ class BookingCubit extends Cubit<BookingState> {
       'requestedLanguage': params.requestedLanguage,
       'requiresCar': params.requiresCar,
       'travelersCount': params.travelersCount,
-      'pickupLocationName': params.pickupLocationName,
-      'pickupLatitude': params.pickupLatitude,
-      'pickupLongitude': params.pickupLongitude,
       'destinationLatitude': params.destinationLatitude,
       'destinationLongitude': params.destinationLongitude,
+      if (pickupLocationName != null) 'pickupLocationName': pickupLocationName,
+      if (pickupLatitude != null) 'pickupLatitude': pickupLatitude,
+      if (pickupLongitude != null) 'pickupLongitude': pickupLongitude,
       if (notes != null) 'notes': notes,
       if (meetingPointType != null) 'meetingPointType': meetingPointType,
     });

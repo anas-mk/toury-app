@@ -4,31 +4,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../../core/services/sos/sos_service.dart';
-import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
-import '../../../../../../../core/widgets/app_error_state.dart';
-import '../../../../../../../core/widgets/app_loading.dart';
-import '../../../../../../../core/widgets/app_dialog.dart';
-import '../../../../../../../core/widgets/app_snackbar.dart';
-import '../../../../../../../core/widgets/brand/brand_kit.dart';
+import '../../../../../../../core/widgets/app_network_image.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_status.dart';
 import '../../cubits/scheduled/scheduled_booking_detail_cubit.dart';
 import '../../widgets/scheduled/countdown_chip.dart';
-import '../../widgets/scheduled/status_timeline.dart';
 import 'cancel_booking_sheet.dart';
 import 'rate_helper_sheet.dart';
 
-/// Phase 5 — the spine of the Scheduled Trip flow.
-///
-/// One screen, many states. Layout adapts based on `booking.status` and
-/// the user's next available action. See [_PrimaryCta] and [_StatusBanner]
-/// for the per-status branching.
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const _kNavy = Color(0xFF000668);
+const _kBlue = Color(0xFF4851C4);
+const _kAmber = Color(0xFFFE9331);
+const _kSurface = Color(0xFFFBF8FF);
+const _kCard = Color(0xFFFFFFFF);
+const _kMuted = Color(0xFF767683);
+const _kContainerLow = Color(0xFFF4F2FF);
+const _kOutlineVariant = Color(0xFFC6C5D3);
+const _kOnSurface = Color(0xFF1A1B25);
+const _kOnSurfaceVariant = Color(0xFF464651);
+const _kSuccess = Color(0xFF1DB97A);
+const _kDanger = Color(0xFFE53935);
+
+const _kGradient = LinearGradient(
+  colors: [_kNavy, _kBlue],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+const _kCardShadow = [
+  BoxShadow(color: Color(0x121B237E), blurRadius: 28, offset: Offset(0, 10)),
+];
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
 class ScheduledBookingDetailScreen extends StatelessWidget {
   final String bookingId;
   const ScheduledBookingDetailScreen({super.key, required this.bookingId});
@@ -37,41 +52,35 @@ class ScheduledBookingDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider<ScheduledBookingDetailCubit>(
       create: (_) => sl<ScheduledBookingDetailCubit>()..load(bookingId),
-      child: _DetailView(bookingId: bookingId),
+      child: _DetailBody(bookingId: bookingId),
     );
   }
 }
 
-class _DetailView extends StatefulWidget {
+// ── Detail body (stateful — SOS subscriptions) ────────────────────────────────
+
+class _DetailBody extends StatefulWidget {
   final String bookingId;
-  const _DetailView({required this.bookingId});
+  const _DetailBody({required this.bookingId});
 
   @override
-  State<_DetailView> createState() => _DetailViewState();
+  State<_DetailBody> createState() => _DetailBodyState();
 }
 
-class _DetailViewState extends State<_DetailView> {
+class _DetailBodyState extends State<_DetailBody> {
   StreamSubscription<dynamic>? _sosTriggeredSub;
   StreamSubscription<dynamic>? _sosResolvedSub;
 
   @override
   void initState() {
     super.initState();
-    // Fix 11: SOS events aren't on the realtime BUS yet, so subscribe
-    // directly to the hub for this specific booking. We keep the
-    // subscription alive only while this screen is mounted.
     final hub = sl<BookingTrackingHubService>();
     _sosTriggeredSub = hub.sosTriggeredStream.listen((e) {
-      if (!mounted) return;
-      // The event payload exposes a `bookingId` field (camelCase from
-      // signalr_netcore). Filter strictly to avoid showing SOS for an
-      // unrelated booking on a multi-booking account.
-      if (e.bookingId != widget.bookingId) return;
+      if (!mounted || e.bookingId != widget.bookingId) return;
       context.read<ScheduledBookingDetailCubit>().onSosTriggered();
     });
     _sosResolvedSub = hub.sosResolvedStream.listen((e) {
-      if (!mounted) return;
-      if (e.bookingId != widget.bookingId) return;
+      if (!mounted || e.bookingId != widget.bookingId) return;
       context.read<ScheduledBookingDetailCubit>().onSosResolved();
     });
   }
@@ -83,130 +92,1528 @@ class _DetailViewState extends State<_DetailView> {
     super.dispose();
   }
 
-  Future<void> _refresh() async {
-    await context.read<ScheduledBookingDetailCubit>().refresh();
-  }
+  Future<void> _refresh() =>
+      context.read<ScheduledBookingDetailCubit>().refresh();
 
   @override
   Widget build(BuildContext context) {
-    return PageScaffold(
-      bottomCta:
-          BlocBuilder<ScheduledBookingDetailCubit, ScheduledBookingDetailState>(
-            builder: (context, state) {
-              if (state is ScheduledBookingDetailLoaded) {
-                return _PrimaryCta(detail: state.booking);
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-      body:
-          BlocBuilder<ScheduledBookingDetailCubit, ScheduledBookingDetailState>(
-            builder: (context, state) {
-              if (state is ScheduledBookingDetailLoading ||
-                  state is ScheduledBookingDetailInitial) {
-                return const _Loading();
-              }
-              if (state is ScheduledBookingDetailError) {
-                return _ErrorView(
-                  message: state.message,
-                  onRetry: () => context
-                      .read<ScheduledBookingDetailCubit>()
-                      .load(widget.bookingId),
-                );
-              }
-              if (state is ScheduledBookingDetailLoaded) {
-                return Stack(
-                  children: [
-                    RefreshIndicator(
-                      onRefresh: _refresh,
-                      color: BrandTokens.primaryBlue,
-                      child: _LoadedView(state: state),
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: _kSurface,
+      body: BlocBuilder<ScheduledBookingDetailCubit, ScheduledBookingDetailState>(
+        builder: (context, state) {
+          if (state is ScheduledBookingDetailLoading ||
+              state is ScheduledBookingDetailInitial) {
+            return _SkeletonView(topPad: topPad);
+          }
+          if (state is ScheduledBookingDetailError) {
+            return _ErrorView(
+              topPad: topPad,
+              message: state.message,
+              onRetry: () => context
+                  .read<ScheduledBookingDetailCubit>()
+                  .load(widget.bookingId),
+            );
+          }
+          if (state is! ScheduledBookingDetailLoaded) {
+            return const SizedBox.shrink();
+          }
+
+          final booking = state.booking;
+
+          return Stack(
+            children: [
+              // ── Scrollable content ─────────────────────────────────────
+              RefreshIndicator(
+                color: _kNavy,
+                onRefresh: _refresh,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: topPad + 72),
                     ),
-                    if (state.booking.status == BookingStatus.inProgress)
-                      Positioned(
-                        right: 16,
-                        bottom: 12,
-                        child: _SosFloatingButton(
-                          bookingId: state.booking.bookingId,
-                        ),
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        0,
+                        20,
+                        120 + bottomPad,
                       ),
+                      sliver: SliverList.list(
+                        children: [
+                          // SOS banner
+                          if (state.sosActive) ...[
+                            _SosBanner(bookingId: booking.bookingId),
+                            const SizedBox(height: 14),
+                          ],
+
+                          // Status banner
+                          _StatusBanner(booking: booking),
+                          const SizedBox(height: 16),
+
+                          // Helper card
+                          if (booking.helper != null) ...[
+                            _HelperCard(
+                              booking: booking,
+                              unreadCount: state.unreadChatCount,
+                              onChatRead: () => context
+                                  .read<ScheduledBookingDetailCubit>()
+                                  .markChatRead(),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Trip details
+                          _TripDetailsCard(booking: booking),
+                          const SizedBox(height: 16),
+
+                          // Price
+                          _PriceCard(booking: booking),
+
+                          // Timeline
+                          if (booking.statusHistory.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            _TripTimeline(booking: booking),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
+                ),
+              ),
+
+              // ── Fixed header ───────────────────────────────────────────
+              _Header(
+                topPad: topPad,
+                bookingId: booking.bookingId,
+              ),
+
+              // ── Sticky bottom CTA ──────────────────────────────────────
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _StickyBottom(
+                  booking: booking,
+                  bottomPad: bottomPad,
+                  onRefresh: _refresh,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
 
-class _LoadedView extends StatelessWidget {
-  final ScheduledBookingDetailLoaded state;
-  const _LoadedView({required this.state});
+// ── Fixed header ──────────────────────────────────────────────────────────────
 
-  BookingDetail get detail => state.booking;
+class _Header extends StatelessWidget {
+  final double topPad;
+  final String bookingId;
+  const _Header({required this.topPad, required this.bookingId});
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
-        SliverAppBar(
-          pinned: true,
-          backgroundColor: BrandTokens.bgSoft,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: BrandTokens.textPrimary),
-          title: Text(
-            'Scheduled trip',
-            style: BrandTypography.title(weight: FontWeight.w700),
+    final shortId =
+        bookingId.length > 8 ? bookingId.substring(0, 8).toUpperCase() : bookingId.toUpperCase();
+
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 12),
+        decoration: BoxDecoration(
+          color: _kSurface.withValues(alpha: 0.92),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0E1B237E),
+              blurRadius: 20,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                context.pop();
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: _kCard,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x0E1B237E),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: _kOnSurface,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Your Booking',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _kOnSurface,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  Text(
+                    '#$shortId',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _kMuted,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Refresh button
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: _kCard,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.share_outlined,
+                  color: _kOnSurfaceVariant,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Status banner (7 states) ──────────────────────────────────────────────────
+
+class _StatusBanner extends StatelessWidget {
+  final BookingDetail booking;
+  const _StatusBanner({required this.booking});
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = _config(booking);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: cfg.gradient,
+        color: cfg.gradient == null ? cfg.solidBg : null,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: (cfg.gradient?.colors.first ?? cfg.solidBg!)
+                .withValues(alpha: 0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          actions: [
-            if (detail.canCancel)
-              IconButton(
-                tooltip: 'Cancel booking',
-                onPressed: () => _confirmCancel(context, detail),
-                icon: const Icon(
-                  Icons.close_rounded,
-                  color: BrandTokens.dangerRed,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    cfg.icon,
+                    color: cfg.onColor,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cfg.title,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: cfg.onColor,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    if (cfg.subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        cfg.subtitle!,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13,
+                          color: cfg.onColor.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (cfg.deadline != null)
+                CountdownChip(
+                  deadline: cfg.deadline!,
+                  label: cfg.deadlineLabel ?? '',
+                  expiredLabel: "Time's up",
+                  dense: true,
+                ),
+            ],
+          ),
+          if (cfg.indeterminate) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  _BannerCfg _config(BookingDetail d) {
+    final helperName = d.helper?.fullName ?? d.currentAssignment?.helperName;
+    final firstName =
+        helperName != null && helperName.isNotEmpty ? helperName.split(' ').first : null;
+
+    switch (d.status) {
+      case BookingStatus.pendingHelperResponse:
+        return _BannerCfg(
+          title: firstName != null
+              ? 'Waiting for $firstName to respond'
+              : 'Waiting for a helper to respond',
+          subtitle: "We'll notify you the moment they accept.",
+          icon: Icons.access_time_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF97316), Color(0xFFFB923C)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          onColor: Colors.white,
+          deadline: d.responseDeadline,
+          deadlineLabel: 'Replies in',
+        );
+      case BookingStatus.reassignmentInProgress:
+        return _BannerCfg(
+          title: 'Finding another guide for you…',
+          subtitle: 'The previous helper declined. Searching now.',
+          icon: Icons.swap_horiz_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF97316), Color(0xFFFB923C)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          onColor: Colors.white,
+          indeterminate: true,
+        );
+      case BookingStatus.waitingForUserAction:
+        return _BannerCfg(
+          title: 'Action needed — no match found',
+          subtitle: 'Pick an alternative guide or cancel your booking.',
+          icon: Icons.priority_high_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF97316), Color(0xFFFB923C)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          onColor: Colors.white,
+        );
+      case BookingStatus.declinedByHelper:
+      case BookingStatus.expiredNoResponse:
+        return _BannerCfg(
+          title: firstName != null
+              ? '$firstName couldn\'t take this trip'
+              : 'Helper couldn\'t take this trip',
+          subtitle: 'Choose a different guide to keep your plans on track.',
+          icon: Icons.sync_alt_rounded,
+          solidBg: const Color(0xFFFFF3E0),
+          onColor: const Color(0xFFE65100),
+        );
+      case BookingStatus.acceptedByHelper:
+      case BookingStatus.confirmedAwaitingPayment:
+        return _BannerCfg(
+          title: firstName != null
+              ? '$firstName accepted! Deposit due'
+              : 'Guide accepted! Deposit due',
+          subtitle: 'Secure your booking with a small deposit.',
+          icon: Icons.payments_rounded,
+          gradient: _kGradient,
+          onColor: Colors.white,
+        );
+      case BookingStatus.confirmedPaid:
+      case BookingStatus.upcoming:
+        final tripStart = _composeTripStart(d);
+        return _BannerCfg(
+          title: firstName != null
+              ? 'All set! $firstName is your guide'
+              : 'Booking confirmed & paid',
+          subtitle: 'Your adventure begins soon. Chat anytime.',
+          icon: Icons.check_circle_rounded,
+          solidBg: const Color(0xFFE8F5E9),
+          onColor: const Color(0xFF2E7D32),
+          deadline: tripStart,
+          deadlineLabel: 'Starts in',
+        );
+      case BookingStatus.inProgress:
+        return _BannerCfg(
+          title: 'Your adventure is underway! 🚩',
+          subtitle: firstName != null
+              ? 'Currently exploring with $firstName.'
+              : 'Your trip is in progress.',
+          icon: Icons.explore_rounded,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1DB97A), Color(0xFF059669)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          onColor: Colors.white,
+        );
+      case BookingStatus.completed:
+        return _BannerCfg(
+          title: 'What a journey! 🎉',
+          subtitle: 'Trip completed. Rate your experience below.',
+          icon: Icons.emoji_events_rounded,
+          solidBg: const Color(0xFFE8F5E9),
+          onColor: const Color(0xFF2E7D32),
+        );
+      case BookingStatus.cancelledByUser:
+      case BookingStatus.cancelledByHelper:
+      case BookingStatus.cancelledBySystem:
+        return _BannerCfg(
+          title: 'Booking Cancelled',
+          subtitle: d.cancellationReason ?? 'This booking has been cancelled.',
+          icon: Icons.cancel_rounded,
+          solidBg: const Color(0xFFF5F5F5),
+          onColor: _kMuted,
+        );
+      case BookingStatus.unknown:
+        return _BannerCfg(
+          title: 'Booking',
+          subtitle: 'Status: ${d.rawStatus}',
+          icon: Icons.help_outline_rounded,
+          solidBg: _kContainerLow,
+          onColor: _kOnSurfaceVariant,
+        );
+    }
+  }
+}
+
+class _BannerCfg {
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final LinearGradient? gradient;
+  final Color? solidBg;
+  final Color onColor;
+  final DateTime? deadline;
+  final String? deadlineLabel;
+  final bool indeterminate;
+  const _BannerCfg({
+    required this.title,
+    this.subtitle,
+    required this.icon,
+    this.gradient,
+    this.solidBg,
+    required this.onColor,
+    this.deadline,
+    this.deadlineLabel,
+    this.indeterminate = false,
+  });
+}
+
+// ── SOS active banner ─────────────────────────────────────────────────────────
+
+class _SosBanner extends StatelessWidget {
+  final String bookingId;
+  const _SosBanner({required this.bookingId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _kDanger, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.report_rounded,
+              color: _kDanger,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SOS Active — Support Notified',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: _kDanger,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'Our support team is on the way. You can call your guide or contact support.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    color: _kDanger,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Helper card ───────────────────────────────────────────────────────────────
+
+class _HelperCard extends StatelessWidget {
+  final BookingDetail booking;
+  final int unreadCount;
+  final VoidCallback onChatRead;
+
+  const _HelperCard({
+    required this.booking,
+    required this.unreadCount,
+    required this.onChatRead,
+  });
+
+  Future<void> _call(BuildContext context) async {
+    final phone = booking.helper?.phoneNumber?.trim() ?? '';
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Phone number not available'),
+          backgroundColor: _kNavy,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      );
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  void _chat(BuildContext context) {
+    HapticFeedback.selectionClick();
+    onChatRead();
+    context.push(
+      AppRouter.userChat.replaceFirst(':id', booking.bookingId),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = booking.helper!;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Avatar
+              Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x141B237E),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: h.profileImageUrl != null
+                      ? AppNetworkImage(
+                          imageUrl: h.profileImageUrl,
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                        )
+                      : Container(
+                          color: _kContainerLow,
+                          alignment: Alignment.center,
+                          child: Text(
+                            h.fullName.isNotEmpty
+                                ? h.fullName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: _kNavy,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      h.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _kNavy,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 14,
+                          color: _kAmber,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          h.rating.toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: _kNavy,
+                          ),
+                        ),
+                        Text(
+                          '  ·  ${h.completedTrips} trips',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12,
+                            color: _kMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Action pills
+          Row(
+            children: [
+              if (booking.chatEnabled)
+                Expanded(
+                  child: _ActionPill(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: unreadCount > 0 ? 'Chat ($unreadCount)' : 'Chat',
+                    color: _kBlue,
+                    bg: _kContainerLow,
+                    onTap: () => _chat(context),
+                  ),
+                ),
+              if (booking.chatEnabled) const SizedBox(width: 10),
+              Expanded(
+                child: _ActionPill(
+                  icon: Icons.call_rounded,
+                  label: 'Call',
+                  color: const Color(0xFF2E7D32),
+                  bg: const Color(0xFFE8F5E9),
+                  onTap: () => _call(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color bg;
+  final VoidCallback onTap;
+
+  const _ActionPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.bg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Trip details card (collapsible) ──────────────────────────────────────────
+
+class _TripDetailsCard extends StatefulWidget {
+  final BookingDetail booking;
+  const _TripDetailsCard({required this.booking});
+
+  @override
+  State<_TripDetailsCard> createState() => _TripDetailsCardState();
+}
+
+class _TripDetailsCardState extends State<_TripDetailsCard> {
+  bool _expanded = true;
+
+  String _fmtDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  String _durationLabel(int mins) {
+    if (mins == 480) return 'Full Day';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = widget.booking;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      child: Column(
+        children: [
+          // Header
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _expanded = !_expanded);
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _kContainerLow,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.flight_takeoff_rounded,
+                      size: 18,
+                      color: _kBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Trip Details',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _kOnSurface,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: _kMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Content
+          AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOutCubic,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                    child: Column(
+                      children: [
+                        // Divider
+                        Container(
+                          height: 1,
+                          color: _kOutlineVariant.withValues(alpha: 0.4),
+                        ),
+                        const SizedBox(height: 14),
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 2.2,
+                          children: [
+                            if (b.requestedDate != null)
+                              _InfoTile(
+                                icon: Icons.calendar_today_outlined,
+                                label: 'Date',
+                                value: _fmtDate(b.requestedDate!),
+                              ),
+                            if (b.startTime != null)
+                              _InfoTile(
+                                icon: Icons.access_time_rounded,
+                                label: 'Start Time',
+                                value: b.startTime!.substring(0, 5),
+                              ),
+                            _InfoTile(
+                              icon: Icons.hourglass_bottom_rounded,
+                              label: 'Duration',
+                              value: _durationLabel(b.durationInMinutes),
+                            ),
+                            _InfoTile(
+                              icon: Icons.people_alt_outlined,
+                              label: 'Travelers',
+                              value: '${b.travelersCount} pax',
+                            ),
+                            if (b.destinationCity != null)
+                              _InfoTile(
+                                icon: Icons.location_city_rounded,
+                                label: 'City',
+                                value: b.destinationCity!,
+                              ),
+                            if (b.requestedLanguage != null)
+                              _InfoTile(
+                                icon: Icons.translate_rounded,
+                                label: 'Language',
+                                value: b.requestedLanguage!,
+                              ),
+                            if (b.meetingPointType != null)
+                              _InfoTile(
+                                icon: Icons.meeting_room_outlined,
+                                label: 'Meeting',
+                                value: b.meetingPointType!,
+                              ),
+                            if (b.pickupLocationName.isNotEmpty)
+                              _InfoTile(
+                                icon: Icons.my_location_rounded,
+                                label: 'Pickup',
+                                value: b.pickupLocationName,
+                              ),
+                          ],
+                        ),
+                        if (b.notes != null && b.notes!.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _kContainerLow,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.notes_rounded,
+                                  size: 15,
+                                  color: _kBlue,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    b.notes!,
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 13,
+                                      fontStyle: FontStyle.italic,
+                                      color: _kOnSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kOutlineVariant.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: _kMuted),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 11,
+                  color: _kMuted,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: _kOnSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Price card ────────────────────────────────────────────────────────────────
+
+class _PriceCard extends StatelessWidget {
+  final BookingDetail booking;
+  const _PriceCard({required this.booking});
+
+  @override
+  Widget build(BuildContext context) {
+    final b = booking;
+    final price = b.finalPrice ?? b.estimatedPrice;
+    final isEstimate = b.finalPrice == null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _kAmber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  size: 18,
+                  color: _kAmber,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Price',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _kOnSurface,
+                ),
+              ),
+              const Spacer(),
+              if (b.depositPaid)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: const Text(
+                    'Deposit Paid',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 1,
+            color: _kOutlineVariant.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 14),
+          if (b.depositAmount != null)
+            _PriceRow(
+              label: 'Deposit',
+              value: 'EGP ${b.depositAmount!.toStringAsFixed(0)}',
+              done: b.depositPaid,
+            ),
+          if (b.remainingAmount != null && b.remainingAmount! > 0) ...[
+            const SizedBox(height: 8),
+            _PriceRow(
+              label: 'Remaining',
+              value: 'EGP ${b.remainingAmount!.toStringAsFixed(0)}',
+              done: b.remainingPaid,
+            ),
+          ],
+          if (price != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              height: 1,
+              color: _kOutlineVariant.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  isEstimate ? 'TOTAL ESTIMATED' : 'TOTAL',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    color: _kOnSurface,
+                  ),
+                ),
+                Text(
+                  'EGP ${price.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: _kNavy,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool done;
+  const _PriceRow({
+    required this.label,
+    required this.value,
+    required this.done,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 14,
+            color: _kMuted,
+          ),
+        ),
+        Row(
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _kOnSurface,
+              ),
+            ),
+            if (done) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 14,
+                color: _kSuccess,
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Trip timeline ─────────────────────────────────────────────────────────────
+
+class _TripTimeline extends StatelessWidget {
+  final BookingDetail booking;
+  const _TripTimeline({required this.booking});
+
+  static const _steps = [
+    (BookingStatus.pendingHelperResponse, 'Requested', Icons.send_rounded),
+    (BookingStatus.acceptedByHelper, 'Accepted', Icons.handshake_outlined),
+    (BookingStatus.confirmedPaid, 'Confirmed', Icons.payments_rounded),
+    (BookingStatus.inProgress, 'In Progress', Icons.explore_rounded),
+    (BookingStatus.completed, 'Completed', Icons.emoji_events_rounded),
+  ];
+
+  int _statusLevel(BookingStatus s) {
+    switch (s) {
+      case BookingStatus.pendingHelperResponse:
+      case BookingStatus.reassignmentInProgress:
+      case BookingStatus.waitingForUserAction:
+      case BookingStatus.declinedByHelper:
+      case BookingStatus.expiredNoResponse:
+        return 0;
+      case BookingStatus.acceptedByHelper:
+      case BookingStatus.confirmedAwaitingPayment:
+        return 1;
+      case BookingStatus.confirmedPaid:
+      case BookingStatus.upcoming:
+        return 2;
+      case BookingStatus.inProgress:
+        return 3;
+      case BookingStatus.completed:
+        return 4;
+      default:
+        return -1;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final level = _statusLevel(booking.status);
+    final isCancelled = booking.status == BookingStatus.cancelledByUser ||
+        booking.status == BookingStatus.cancelledByHelper ||
+        booking.status == BookingStatus.cancelledBySystem;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _kContainerLow,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.timeline_rounded,
+                  size: 18,
+                  color: _kBlue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Trip Progress',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _kOnSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (isCancelled)
+            _CancelledTimeline(booking: booking)
+          else
+            Column(
+              children: List.generate(_steps.length, (i) {
+                final step = _steps[i];
+                final done = i <= level;
+                final active = i == level;
+                final isLast = i == _steps.length - 1;
+
+                DateTime? timestamp;
+                switch (step.$1) {
+                  case BookingStatus.pendingHelperResponse:
+                    timestamp = booking.createdAt;
+                    break;
+                  case BookingStatus.acceptedByHelper:
+                    timestamp = booking.acceptedAt;
+                    break;
+                  case BookingStatus.confirmedPaid:
+                    timestamp = booking.confirmedAt;
+                    break;
+                  case BookingStatus.inProgress:
+                    timestamp = booking.startedAt;
+                    break;
+                  case BookingStatus.completed:
+                    timestamp = booking.completedAt;
+                    break;
+                  default:
+                    break;
+                }
+
+                return _TimelineStep(
+                  icon: step.$3,
+                  label: step.$2,
+                  timestamp: timestamp,
+                  done: done,
+                  active: active,
+                  isLast: isLast,
+                );
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineStep extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final DateTime? timestamp;
+  final bool done;
+  final bool active;
+  final bool isLast;
+
+  const _TimelineStep({
+    required this.icon,
+    required this.label,
+    required this.timestamp,
+    required this.done,
+    required this.active,
+    required this.isLast,
+  });
+
+  String _fmtTs(DateTime d) {
+    final h = d.hour;
+    final m = d.minute.toString().padLeft(2, '0');
+    final period = h >= 12 ? 'PM' : 'AM';
+    final displayH = h % 12 == 0 ? 12 : h % 12;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}  $displayH:$m $period';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            // Circle
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: active || done ? _kGradient : null,
+                color: active || done ? null : _kContainerLow,
+                shape: BoxShape.circle,
+                boxShadow: active
+                    ? [
+                        BoxShadow(
+                          color: _kNavy.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: Icon(
+                  done ? Icons.check_rounded : icon,
+                  size: 14,
+                  color: (active || done) ? Colors.white : _kMuted,
+                ),
+              ),
+            ),
+            // Connecting line
+            if (!isLast)
+              Container(
+                width: 2,
+                height: 36,
+                margin: const EdgeInsets.symmetric(vertical: 2),
+                decoration: BoxDecoration(
+                  gradient: done ? _kGradient : null,
+                  color: done ? null : _kOutlineVariant.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
           ],
         ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-          sliver: SliverList.list(
-            children: [
-              if (state.sosActive) ...[
-                _SosBanner(bookingId: detail.bookingId),
-                const SizedBox(height: 12),
-              ],
-              _StatusBanner(detail: detail),
-              const SizedBox(height: 16),
-              if (detail.helper != null)
-                _HelperCard(detail: detail, unreadCount: state.unreadChatCount),
-              if (detail.helper != null) const SizedBox(height: 16),
-              _TripCard(detail: detail),
-              const SizedBox(height: 16),
-              _PriceCard(detail: detail),
-              if (detail.statusHistory.isNotEmpty) ...[
-                const SizedBox(height: 24),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 5, bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Trip progress',
-                  style: BrandTypography.body(weight: FontWeight.w700),
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    fontWeight:
+                        active ? FontWeight.w800 : FontWeight.w600,
+                    color: active ? _kNavy : (done ? _kOnSurface : _kMuted),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                StatusTimeline(
-                  status: detail.status,
-                  createdAt: detail.createdAt,
-                  acceptedAt: detail.acceptedAt,
-                  confirmedAt: detail.confirmedAt,
-                  startedAt: detail.startedAt,
-                  completedAt: detail.completedAt,
-                  cancelledAt: detail.cancelledAt,
-                  cancellationReason: detail.cancellationReason,
+                if (timestamp != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _fmtTs(timestamp!.toLocal()),
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      color: _kMuted,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CancelledTimeline extends StatelessWidget {
+  final BookingDetail booking;
+  const _CancelledTimeline({required this.booking});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFEBEE),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.cancel_rounded, size: 16, color: _kDanger),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Cancelled',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _kDanger,
+                ),
+              ),
+              if (booking.cancellationReason != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  booking.cancellationReason!,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    color: _kMuted,
+                  ),
                 ),
               ],
+              if (booking.cancelledAt != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  _fmtTs(booking.cancelledAt!),
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    color: _kMuted,
+                  ),
+                ),
+              ],
+              if (booking.depositForfeited)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEBEE),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: const Text(
+                      'Deposit forfeited',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _kDanger,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -214,31 +1621,271 @@ class _LoadedView extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmCancel(BuildContext context, BookingDetail d) async {
-    // Fix 9: pass the real penalty hint based on deposit + free-window
-    // calculations, not free-form copy.
-    final penalty = _cancellationPenalty(d);
-    final result = await SoftBottomSheet.show<CancelResult>(
-      context: context,
-      child: CancelBookingSheet(
-        bookingId: d.bookingId,
-        contextHint: penalty.contextHint,
-        refundHint: penalty.refundHint,
-        forfeitsDeposit: penalty.forfeitsDeposit,
+  String _fmtTs(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day} ${d.year}';
+  }
+}
+
+// ── Sticky bottom CTA bar ─────────────────────────────────────────────────────
+
+class _StickyBottom extends StatelessWidget {
+  final BookingDetail booking;
+  final double bottomPad;
+  final Future<void> Function() onRefresh;
+
+  const _StickyBottom({
+    required this.booking,
+    required this.bottomPad,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = _buildActions(context);
+    if (actions.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 14, 20, 14 + bottomPad),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141B237E),
+            blurRadius: 30,
+            offset: Offset(0, -8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: actions
+            .asMap()
+            .entries
+            .expand((e) => [
+                  if (e.key > 0) const SizedBox(width: 10),
+                  Expanded(child: e.value),
+                ])
+            .toList(),
       ),
     );
-    if (result != null && context.mounted) {
-      unawaited(context.read<ScheduledBookingDetailCubit>().refresh());
+  }
+
+  List<Widget> _buildActions(BuildContext context) {
+    final id = booking.bookingId;
+
+    // Dismiss SOS helper
+    Future<void> showSos() async {
+      HapticFeedback.heavyImpact();
+      final result = await sl<SosService>().trigger(
+        bookingId: id,
+        reason: 'user-trip-sos',
+      );
+      if (!context.mounted) return;
+      final msg = result.success ? 'SOS active — help is on the way.' : (result.message ?? 'SOS failed.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: result.success ? _kSuccess : _kDanger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      );
+      if (result.success && context.mounted) {
+        context.read<ScheduledBookingDetailCubit>().onSosTriggered();
+      }
+    }
+
+    Future<void> showCancel() async {
+      final penalty = _cancellationPenalty(booking);
+      final result = await showModalBottomSheet<CancelResult>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => CancelBookingSheet(
+          bookingId: id,
+          contextHint: penalty.contextHint,
+          refundHint: penalty.refundHint,
+          forfeitsDeposit: penalty.forfeitsDeposit,
+        ),
+      );
+      if (result != null && context.mounted) {
+        unawaited(onRefresh());
+      }
+    }
+
+    switch (booking.status) {
+      case BookingStatus.pendingHelperResponse:
+        return [
+          _GhostBtn(
+            label: 'Cancel Request',
+            danger: true,
+            onTap: () => showCancel(),
+          ),
+        ];
+      case BookingStatus.acceptedByHelper:
+      case BookingStatus.confirmedAwaitingPayment:
+        return [
+          _GhostBtn(label: 'Cancel', danger: true, onTap: () => showCancel()),
+          _GradientBtn(
+            label: 'Pay Deposit',
+            onTap: () => context.push(
+              AppRouter.paymentMethod.replaceFirst(':bookingId', id),
+            ),
+          ),
+        ];
+      case BookingStatus.confirmedPaid:
+      case BookingStatus.upcoming:
+        return [
+          if (booking.canCancel)
+            _GhostBtn(
+              label: 'Cancel',
+              danger: true,
+              onTap: () => showCancel(),
+            ),
+          if (booking.chatEnabled)
+            _GradientBtn(
+              label: 'Message Guide',
+              onTap: () => context.push(
+                AppRouter.userChat.replaceFirst(':id', id),
+              ),
+            ),
+        ];
+      case BookingStatus.inProgress:
+        return [
+          _GhostBtn(
+            label: '🚨 SOS',
+            danger: true,
+            onTap: showSos,
+          ),
+          _GradientBtn(
+            label: 'Track Live 📍',
+            onTap: () => context.push(
+              AppRouter.userTracking.replaceFirst(':id', id),
+            ),
+          ),
+        ];
+      case BookingStatus.completed:
+        return [
+          _GradientBtn(
+            label: 'Rate Your Guide ⭐',
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => RateHelperSheet(bookingId: id),
+            ),
+          ),
+        ];
+      case BookingStatus.reassignmentInProgress:
+      case BookingStatus.waitingForUserAction:
+      case BookingStatus.declinedByHelper:
+      case BookingStatus.expiredNoResponse:
+        return [
+          _GradientBtn(
+            label: 'See Alternatives →',
+            onTap: () => context.push(
+              AppRouter.scheduledAlternatives.replaceFirst(':id', id),
+            ),
+          ),
+        ];
+      case BookingStatus.cancelledByUser:
+      case BookingStatus.cancelledByHelper:
+      case BookingStatus.cancelledBySystem:
+        return [
+          _GradientBtn(
+            label: 'Book a New Trip',
+            onTap: () => context.go(AppRouter.scheduledSearch),
+          ),
+        ];
+      case BookingStatus.unknown:
+        return [];
     }
   }
 }
 
-/// Computes the honest cancellation-penalty copy (Fix 9) from the booking
-/// detail. The free-cancellation window is "more than 24h before the trip
-/// start", which matches the conservative wording in the prompt; the
-/// backend remains the source of truth for whether the deposit is
-/// actually forfeited (we surface `depositForfeited` in the price card
-/// after the cancel call returns).
+class _GradientBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _GradientBtn({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 54,
+        decoration: BoxDecoration(
+          gradient: _kGradient,
+          borderRadius: BorderRadius.circular(40),
+          boxShadow: [
+            BoxShadow(
+              color: _kNavy.withValues(alpha: 0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GhostBtn extends StatelessWidget {
+  final String label;
+  final bool danger;
+  final VoidCallback onTap;
+  const _GhostBtn({
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? _kDanger : _kNavy;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 54,
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withValues(alpha: 0.6)),
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 class _CancellationPenalty {
   final String? contextHint;
   final String? refundHint;
@@ -256,22 +1903,10 @@ _CancellationPenalty _cancellationPenalty(BookingDetail d) {
       contextHint: 'No charge — cancelling now is free.',
     );
   }
-  // depositPaid is true → check the free window.
   final tripStart = _composeTripStart(d);
-  final now = DateTime.now();
   final dep = d.depositAmount?.toStringAsFixed(0);
-  if (tripStart == null) {
-    // We can't tell — be conservative and flag it as forfeitable.
-    return _CancellationPenalty(
-      refundHint: dep == null
-          ? 'Cancelling may forfeit your deposit per the cancellation policy.'
-          : 'Cancelling now may forfeit your $dep EGP deposit per the '
-                'cancellation policy.',
-      forfeitsDeposit: true,
-    );
-  }
-  final hoursUntilStart = tripStart.difference(now).inMinutes / 60.0;
-  if (hoursUntilStart > 24) {
+  final now = DateTime.now();
+  if (tripStart != null && tripStart.difference(now).inHours > 24) {
     return _CancellationPenalty(
       refundHint: dep == null
           ? 'Your deposit will be refunded within 24h.'
@@ -297,1137 +1932,133 @@ DateTime? _composeTripStart(BookingDetail d) {
   return DateTime(base.year, base.month, base.day, h, m);
 }
 
-class _StatusBanner extends StatelessWidget {
-  final BookingDetail detail;
-  const _StatusBanner({required this.detail});
+// ── Skeleton & Error ──────────────────────────────────────────────────────────
+
+class _SkeletonView extends StatefulWidget {
+  final double topPad;
+  const _SkeletonView({required this.topPad});
+
+  @override
+  State<_SkeletonView> createState() => _SkeletonViewState();
+}
+
+class _SkeletonViewState extends State<_SkeletonView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final visuals = _bannerVisuals(detail);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: visuals.bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: visuals.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final shimmer = Color.lerp(
+          const Color(0xFFE8E6F0),
+          const Color(0xFFF5F3FF),
+          _ctrl.value,
+        )!;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, widget.topPad + 80, 20, 0),
+          child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                height: 100,
                 decoration: BoxDecoration(
-                  color: visuals.iconBg,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(visuals.icon, color: visuals.fg, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      visuals.title,
-                      style: BrandTypography.title(
-                        weight: FontWeight.w700,
-                        color: visuals.fg,
-                      ),
-                    ),
-                    if (visuals.indeterminate)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 6),
-                        child: SizedBox(
-                          height: 3,
-                          child: LinearProgressIndicator(
-                            minHeight: 3,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              BrandTokens.accentAmberText,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                  color: shimmer,
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
-              if (visuals.deadline != null)
-                CountdownChip(
-                  deadline: visuals.deadline!,
-                  label: visuals.deadlineLabel ?? 'In',
-                  expiredLabel: 'Time\u2019s up',
-                  dense: true,
-                ),
-            ],
-          ),
-          if (visuals.subtitle != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              visuals.subtitle!,
-              style: BrandTypography.caption(color: visuals.fg),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Granular per-status banner copy/visuals (Fix 10).
-  _BannerVisuals _bannerVisuals(BookingDetail d) {
-    final helperName = d.currentAssignment?.helperName ?? d.helper?.fullName;
-
-    switch (d.status) {
-      case BookingStatus.pendingHelperResponse:
-        return _BannerVisuals(
-          title: helperName != null && helperName.isNotEmpty
-              ? 'Waiting for $helperName to respond'
-              : 'Waiting for the helper to respond',
-          subtitle: 'We\u2019ll notify you the moment they accept or decline.',
-          icon: Icons.sensors_rounded,
-          fg: BrandTokens.accentAmberText,
-          bg: BrandTokens.accentAmberSoft,
-          iconBg: const Color(0xFFFDE68A),
-          border: BrandTokens.accentAmberBorder,
-          deadline: d.responseDeadline,
-          deadlineLabel: 'Replies in',
-        );
-      case BookingStatus.reassignmentInProgress:
-        return _BannerVisuals(
-          title: 'Finding another helper for you\u2026',
-          subtitle:
-              'The previous helper couldn\u2019t take this trip. We\u2019re '
-              'reaching out to others.',
-          icon: Icons.travel_explore_rounded,
-          fg: BrandTokens.accentAmberText,
-          bg: BrandTokens.accentAmberSoft,
-          iconBg: const Color(0xFFFDE68A),
-          border: BrandTokens.accentAmberBorder,
-          // Indeterminate spinner instead of a fake countdown — the
-          // wait time is intentionally not advertised.
-          indeterminate: true,
-        );
-      case BookingStatus.waitingForUserAction:
-        return _BannerVisuals(
-          title: 'No automatic match found',
-          subtitle: 'Pick another helper from the alternatives or cancel.',
-          icon: Icons.priority_high_rounded,
-          fg: BrandTokens.accentAmberText,
-          bg: BrandTokens.accentAmberSoft,
-          iconBg: const Color(0xFFFDE68A),
-          border: BrandTokens.accentAmberBorder,
-        );
-      case BookingStatus.declinedByHelper:
-      case BookingStatus.expiredNoResponse:
-        return _BannerVisuals(
-          title: helperName != null && helperName.isNotEmpty
-              ? '$helperName couldn\u2019t take this trip'
-              : 'Helper couldn\u2019t take this trip',
-          subtitle: 'Pick a different helper to keep your plans on track.',
-          icon: Icons.sync_alt_rounded,
-          fg: BrandTokens.accentAmberText,
-          bg: BrandTokens.accentAmberSoft,
-          iconBg: const Color(0xFFFDE68A),
-          border: BrandTokens.accentAmberBorder,
-        );
-      case BookingStatus.acceptedByHelper:
-      case BookingStatus.confirmedAwaitingPayment:
-        return _BannerVisuals(
-          title: 'Helper accepted \u2014 deposit due',
-          subtitle:
-              'Pay your deposit to lock the booking. The remainder is paid '
-              'after the trip.',
-          icon: Icons.payments_rounded,
-          fg: BrandTokens.primaryBlue,
-          bg: BrandTokens.borderTinted,
-          iconBg: Colors.white,
-          border: BrandTokens.borderTinted,
-        );
-      case BookingStatus.confirmedPaid:
-      case BookingStatus.upcoming:
-        final tripStart = _composeTripStart(d);
-        return _BannerVisuals(
-          title: 'Booked and paid',
-          subtitle: 'You\u2019re all set. Chat with your helper anytime.',
-          icon: Icons.check_circle_rounded,
-          fg: BrandTokens.successGreen,
-          bg: BrandTokens.successGreenSoft,
-          iconBg: Colors.white,
-          border: BrandTokens.successGreenSoft,
-          deadline: tripStart,
-          deadlineLabel: 'Starts in',
-        );
-      case BookingStatus.inProgress:
-        return _BannerVisuals(
-          title: 'Trip in progress',
-          subtitle: 'Open live tracking to follow your helper.',
-          icon: Icons.directions_walk_rounded,
-          fg: BrandTokens.successGreen,
-          bg: BrandTokens.successGreenSoft,
-          iconBg: Colors.white,
-          border: BrandTokens.successGreen,
-        );
-      case BookingStatus.completed:
-        return _BannerVisuals(
-          title: 'Trip completed',
-          subtitle:
-              'Thanks for using RAFIQ. Don\u2019t forget to rate '
-              'your helper.',
-          icon: Icons.flag_rounded,
-          fg: BrandTokens.primaryBlue,
-          bg: BrandTokens.borderTinted,
-          iconBg: Colors.white,
-          border: BrandTokens.borderTinted,
-        );
-      case BookingStatus.cancelledByUser:
-      case BookingStatus.cancelledByHelper:
-      case BookingStatus.cancelledBySystem:
-        return _BannerVisuals(
-          title: 'Cancelled',
-          subtitle:
-              d.cancellationReason ??
-              'This booking was cancelled and won\u2019t be charged.',
-          icon: Icons.cancel_rounded,
-          fg: BrandTokens.dangerRed,
-          bg: BrandTokens.dangerRedSoft,
-          iconBg: Colors.white,
-          border: BrandTokens.dangerRedSoft,
-        );
-      case BookingStatus.unknown:
-        return _BannerVisuals(
-          title: 'Booking',
-          subtitle: 'Status: ${d.rawStatus}',
-          icon: Icons.help_outline_rounded,
-          fg: BrandTokens.textSecondary,
-          bg: BrandTokens.bgSoft,
-          iconBg: Colors.white,
-          border: BrandTokens.borderSoft,
-        );
-    }
-  }
-}
-
-class _BannerVisuals {
-  final String title;
-  final String? subtitle;
-  final IconData icon;
-  final Color fg;
-  final Color bg;
-  final Color iconBg;
-  final Color border;
-  final DateTime? deadline;
-  final String? deadlineLabel;
-  final bool indeterminate;
-
-  const _BannerVisuals({
-    required this.title,
-    this.subtitle,
-    required this.icon,
-    required this.fg,
-    required this.bg,
-    required this.iconBg,
-    required this.border,
-    this.deadline,
-    this.deadlineLabel,
-    this.indeterminate = false,
-  });
-}
-
-class _SosBanner extends StatelessWidget {
-  final String bookingId;
-  const _SosBanner({required this.bookingId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: BrandTokens.dangerRedSoft,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: BrandTokens.dangerRed, width: 1.4),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.report_rounded,
-              color: BrandTokens.dangerRed,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Helper triggered SOS — admin notified',
-                  style: BrandTypography.body(
-                    weight: FontWeight.w800,
-                    color: BrandTokens.dangerRed,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Our support team is on the way. You can call your '
-                  'helper or contact support directly.',
-                  style: BrandTypography.caption(color: BrandTokens.dangerRed),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SosFloatingButton extends StatelessWidget {
-  final String bookingId;
-  const _SosFloatingButton({required this.bookingId});
-
-  Future<void> _onPressed(BuildContext context) async {
-    HapticFeedback.heavyImpact();
-    final confirm = await AppDialog.confirm(
-      context: context,
-      title: 'Trigger SOS?',
-      message:
-          'This will alert support and your emergency contacts. Use this only in a real emergency.',
-      confirmLabel: 'Trigger SOS',
-      tone: AppDialogTone.danger,
-    );
-    if (!confirm || !context.mounted) return;
-    final result = await sl<SosService>().trigger(
-      bookingId: bookingId,
-      reason: 'user-trip-sos',
-    );
-    if (!context.mounted) return;
-    if (result.success) {
-      AppSnackbar.success(context, 'SOS active - help is on the way.');
-    } else {
-      AppSnackbar.error(context, result.message ?? 'SOS request failed.');
-    }
-    if (result.success) {
-      // Reflect SOS state immediately — the SignalR `SosTriggered` will
-      // also flow in shortly and is idempotent.
-      context.read<ScheduledBookingDetailCubit>().onSosTriggered();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: SizedBox(
-        height: 56,
-        child: Material(
-          color: BrandTokens.dangerRed,
-          shape: const StadiumBorder(),
-          elevation: 8,
-          shadowColor: BrandTokens.dangerRed.withValues(alpha: 0.45),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: () => _onPressed(context),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.report_rounded, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    'SOS',
-                    style: BrandTypography.body(
-                      weight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HelperCard extends StatelessWidget {
-  final BookingDetail detail;
-  final int unreadCount;
-  const _HelperCard({required this.detail, required this.unreadCount});
-
-  @override
-  Widget build(BuildContext context) {
-    final h = detail.helper!;
-    final initial = h.fullName.isEmpty
-        ? '?'
-        : h.fullName.substring(0, 1).toUpperCase();
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        children: [
-          ClipOval(
-            child: h.profileImageUrl == null || h.profileImageUrl!.isEmpty
-                ? Container(
-                    width: 56,
-                    height: 56,
-                    color: BrandTokens.borderTinted,
-                    alignment: Alignment.center,
-                    child: Text(
-                      initial,
-                      style: BrandTypography.title(
-                        weight: FontWeight.w700,
-                        color: BrandTokens.primaryBlue,
-                      ),
-                    ),
-                  )
-                : Image.network(
-                    h.profileImageUrl!,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 56,
-                      height: 56,
-                      color: BrandTokens.borderTinted,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.person_rounded,
-                        color: BrandTokens.primaryBlue,
-                      ),
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  h.fullName,
-                  style: BrandTypography.title(weight: FontWeight.w700),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      size: 14,
-                      color: Color(0xFFB45309),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      h.rating.toStringAsFixed(1),
-                      style: BrandTypography.caption(weight: FontWeight.w700),
-                    ),
-                    const SizedBox(width: 6),
-                    Text('\u2022', style: BrandTypography.caption()),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${h.completedTrips} trips',
-                      style: BrandTypography.caption(),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (detail.chatEnabled)
-            // Chat IconButton with unread badge (Fix 11). The badge is
-            // local state from the cubit — it never refetches the
-            // detail; the chat detail screen pulls messages from REST
-            // when opened.
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                IconButton(
-                  tooltip: 'Chat with helper',
-                  onPressed: () => _openChat(context, detail.bookingId),
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: BrandTokens.borderTinted,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.chat_bubble_rounded,
-                      color: BrandTokens.primaryBlue,
-                      size: 18,
-                    ),
-                  ),
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: BrandTokens.dangerRed,
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(color: Colors.white, width: 1.4),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 18,
-                        minHeight: 18,
-                      ),
-                      child: Text(
-                        unreadCount > 9 ? '9+' : '$unreadCount',
-                        textAlign: TextAlign.center,
-                        style: BrandTypography.caption(
-                          weight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _openChat(BuildContext context, String bookingId) {
-    HapticFeedback.lightImpact();
-    // Reset local unread badge — the chat screen will read from REST.
-    context.read<ScheduledBookingDetailCubit>().markChatRead();
-    context.pushNamed('user-chat', pathParameters: {'id': bookingId});
-  }
-}
-
-class _TripCard extends StatelessWidget {
-  final BookingDetail detail;
-  const _TripCard({required this.detail});
-
-  @override
-  Widget build(BuildContext context) {
-    final whenLabel = _composeWhen(detail);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Trip', style: BrandTypography.body(weight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          if (whenLabel != null)
-            _Row(icon: Icons.event_rounded, label: 'When', value: whenLabel),
-          if (detail.destinationName != null &&
-              detail.destinationName!.isNotEmpty)
-            _Row(
-              icon: Icons.flag_rounded,
-              label: 'Destination',
-              value: detail.destinationName!,
-            ),
-          if (detail.destinationCity != null &&
-              detail.destinationCity!.isNotEmpty)
-            _Row(
-              icon: Icons.location_city_rounded,
-              label: 'City',
-              value: detail.destinationCity!,
-            ),
-          if (detail.pickupLocationName.isNotEmpty)
-            _Row(
-              icon: Icons.my_location_rounded,
-              label: 'Pickup',
-              value: detail.pickupLocationName,
-            ),
-          if (detail.meetingPointType != null)
-            _Row(
-              icon: Icons.place_rounded,
-              label: 'Meeting point',
-              value: detail.meetingPointType!,
-            ),
-          _Row(
-            icon: Icons.hourglass_top_rounded,
-            label: 'Duration',
-            value: _fmtDuration(detail.durationInMinutes),
-          ),
-          if (detail.requestedLanguage != null)
-            _Row(
-              icon: Icons.translate_rounded,
-              label: 'Language',
-              value: detail.requestedLanguage!.toUpperCase(),
-            ),
-          _Row(
-            icon: Icons.group_rounded,
-            label: 'Travelers',
-            value: detail.travelersCount.toString(),
-          ),
-          if (detail.requiresCar)
-            const _Row(
-              icon: Icons.directions_car_rounded,
-              label: 'Car',
-              value: 'Required',
-            ),
-          if (detail.notes != null && detail.notes!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: BrandTokens.bgSoft,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Notes',
-                    style: BrandTypography.caption(weight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    detail.notes!,
-                    style: BrandTypography.caption(
-                      color: BrandTokens.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  static String? _composeWhen(BookingDetail d) {
-    if (d.requestedDate == null) return null;
-    final base = d.requestedDate!.toLocal();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final dateStr = '${months[base.month - 1]} ${base.day}, ${base.year}';
-    final t = (d.startTime ?? '').padRight(5);
-    final timeStr = t.length >= 5 ? t.substring(0, 5) : '';
-    return timeStr.isEmpty ? dateStr : '$dateStr at $timeStr';
-  }
-
-  static String _fmtDuration(int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (m == 0) return '$h hour${h == 1 ? '' : 's'}';
-    return '${h}h ${m}m';
-  }
-}
-
-/// Payment phase card (Fix 15). Different layouts depending on the
-/// booking status surface the deposit / remaining amounts honestly.
-class _PriceCard extends StatelessWidget {
-  final BookingDetail detail;
-  const _PriceCard({required this.detail});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Payment', style: BrandTypography.body(weight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          ..._buildRows(detail),
-          if (detail.depositForfeited)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: _SmallNotice(
-                text:
-                    'Your deposit was forfeited per the cancellation policy. '
-                    'No further charges.',
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildRows(BookingDetail d) {
-    final est = d.estimatedPrice;
-    final fin = d.finalPrice;
-    final dep = d.depositAmount;
-    final rem = d.remainingAmount;
-
-    String fmt(double v) => '${v.toStringAsFixed(0)} EGP';
-
-    switch (d.status) {
-      case BookingStatus.acceptedByHelper:
-      case BookingStatus.confirmedAwaitingPayment:
-        return [
-          if (est != null)
-            _PriceRow(
-              label: 'Estimated total',
-              value: fmt(est),
-              emphasize: true,
-            ),
-          if (dep != null)
-            _PriceRow(
-              label: 'Deposit due now',
-              value: fmt(dep),
-              tone: _PriceTone.warning,
-            ),
-          if (rem != null)
-            _PriceRow(
-              label: 'Remaining (after trip)',
-              value: fmt(rem),
-              tone: _PriceTone.muted,
-            ),
-        ];
-
-      case BookingStatus.confirmedPaid:
-      case BookingStatus.upcoming:
-        return [
-          if (dep != null)
-            _PriceRow(
-              label: 'Deposit paid \u2713',
-              value: fmt(dep),
-              tone: _PriceTone.success,
-            ),
-          if (rem != null)
-            _PriceRow(
-              label: 'Remaining (after trip)',
-              value: fmt(rem),
-              tone: _PriceTone.muted,
-            ),
-          if (est != null && dep == null && rem == null)
-            _PriceRow(
-              label: 'Estimated total',
-              value: fmt(est),
-              emphasize: true,
-            ),
-        ];
-
-      case BookingStatus.inProgress:
-        return [
-          if (est != null)
-            _PriceRow(
-              label: 'Estimated total',
-              value: fmt(est),
-              emphasize: true,
-            ),
-          if (dep != null && d.depositPaid)
-            _PriceRow(
-              label: 'Deposit paid \u2713',
-              value: fmt(dep),
-              tone: _PriceTone.success,
-            ),
-          if (rem != null)
-            _PriceRow(
-              label: 'Remaining (after trip)',
-              value: fmt(rem),
-              tone: _PriceTone.muted,
-            ),
-        ];
-
-      case BookingStatus.completed:
-        return [
-          _PriceRow(
-            label: 'Final total',
-            value: fmt(fin ?? est ?? 0),
-            emphasize: true,
-          ),
-          if (dep != null)
-            _PriceRow(
-              label: 'Deposit paid',
-              value: fmt(dep),
-              tone: _PriceTone.success,
-            ),
-          if (rem != null)
-            _PriceRow(
-              label: d.remainingPaid
-                  ? 'Remaining paid \u2713'
-                  : 'Remaining due (cash on completion)',
-              value: fmt(rem),
-              tone: d.remainingPaid ? _PriceTone.success : _PriceTone.warning,
-            ),
-        ];
-
-      case BookingStatus.cancelledByUser:
-      case BookingStatus.cancelledByHelper:
-      case BookingStatus.cancelledBySystem:
-        return [
-          if (est != null) _PriceRow(label: 'Estimated total', value: fmt(est)),
-          if (dep != null && d.depositPaid && !d.depositForfeited)
-            _PriceRow(
-              label: 'Deposit refunded',
-              value: fmt(dep),
-              tone: _PriceTone.success,
-            ),
-          if (dep != null && d.depositForfeited)
-            _PriceRow(
-              label: 'Deposit forfeited',
-              value: fmt(dep),
-              tone: _PriceTone.danger,
-            ),
-        ];
-
-      case BookingStatus.pendingHelperResponse:
-      case BookingStatus.reassignmentInProgress:
-      case BookingStatus.declinedByHelper:
-      case BookingStatus.expiredNoResponse:
-      case BookingStatus.waitingForUserAction:
-      case BookingStatus.unknown:
-        return [
-          if (est != null)
-            _PriceRow(
-              label: 'Estimated total',
-              value: fmt(est),
-              emphasize: true,
-            ),
-          if (dep != null)
-            _PriceRow(
-              label: 'Deposit (after acceptance)',
-              value: fmt(dep),
-              tone: _PriceTone.muted,
-            ),
-        ];
-    }
-  }
-}
-
-enum _PriceTone { neutral, warning, success, muted, danger }
-
-class _PriceRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool emphasize;
-  final _PriceTone tone;
-  const _PriceRow({
-    required this.label,
-    required this.value,
-    this.emphasize = false,
-    this.tone = _PriceTone.neutral,
-  });
-
-  Color _valueColor() {
-    switch (tone) {
-      case _PriceTone.success:
-        return BrandTokens.successGreen;
-      case _PriceTone.warning:
-        return BrandTokens.accentAmberText;
-      case _PriceTone.danger:
-        return BrandTokens.dangerRed;
-      case _PriceTone.muted:
-        return BrandTokens.textSecondary;
-      case _PriceTone.neutral:
-        return BrandTokens.textPrimary;
-    }
-  }
-
-  Color _labelColor() {
-    if (tone == _PriceTone.muted) return BrandTokens.textMuted;
-    return BrandTokens.textSecondary;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text(label, style: BrandTypography.caption(color: _labelColor())),
-          const Spacer(),
-          Text(
-            value,
-            style: emphasize
-                ? BrandTypography.title(
-                    weight: FontWeight.w700,
-                    color: _valueColor(),
-                  )
-                : BrandTypography.body(
-                    weight: FontWeight.w600,
-                    color: _valueColor(),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SmallNotice extends StatelessWidget {
-  final String text;
-  const _SmallNotice({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: BrandTokens.dangerRedSoft,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 14,
-            color: BrandTokens.dangerRed,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: BrandTypography.caption(color: BrandTokens.dangerRed),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Row extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _Row({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: BrandTokens.textSecondary),
-          const SizedBox(width: 10),
-          Text(label, style: BrandTypography.caption()),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: BrandTypography.body(weight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PrimaryCta extends StatelessWidget {
-  final BookingDetail detail;
-  const _PrimaryCta({required this.detail});
-
-  @override
-  Widget build(BuildContext context) {
-    switch (detail.status) {
-      case BookingStatus.pendingHelperResponse:
-      case BookingStatus.reassignmentInProgress:
-        return GhostButton(
-          label: 'Cancel booking',
-          icon: Icons.close_rounded,
-          color: BrandTokens.dangerRed,
-          onPressed: detail.canCancel
-              ? () => _runCancel(context, detail)
-              : null,
-        );
-
-      case BookingStatus.declinedByHelper:
-      case BookingStatus.expiredNoResponse:
-      case BookingStatus.waitingForUserAction:
-        return Row(
-          children: [
-            Expanded(
-              child: GhostButton(
-                label: 'Cancel',
-                icon: Icons.close_rounded,
-                color: BrandTokens.dangerRed,
-                onPressed: detail.canCancel
-                    ? () => _runCancel(context, detail)
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: PrimaryGradientButton(
-                label: 'Pick another helper',
-                icon: Icons.swap_horiz_rounded,
-                onPressed: () => context.push(
-                  AppRouter.scheduledAlternatives.replaceFirst(
-                    ':id',
-                    detail.bookingId,
-                  ),
+              const SizedBox(height: 14),
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: shimmer,
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
-            ),
-          ],
-        );
-
-      case BookingStatus.acceptedByHelper:
-      case BookingStatus.confirmedAwaitingPayment:
-        return PrimaryGradientButton(
-          label: detail.depositAmount == null
-              ? 'Pay deposit'
-              : 'Pay ${detail.depositAmount!.toStringAsFixed(0)} EGP deposit',
-          icon: Icons.payments_rounded,
-          onPressed: () => context.pushNamed(
-            'payment-method',
-            pathParameters: {'bookingId': detail.bookingId},
-          ),
-        );
-
-      case BookingStatus.confirmedPaid:
-      case BookingStatus.upcoming:
-        return Row(
-          children: [
-            if (detail.chatEnabled)
-              Expanded(
-                child: GhostButton(
-                  label: 'Chat',
-                  icon: Icons.chat_bubble_rounded,
-                  onPressed: () {
-                    context.read<ScheduledBookingDetailCubit>().markChatRead();
-                    context.pushNamed(
-                      'user-chat',
-                      pathParameters: {'id': detail.bookingId},
-                    );
-                  },
-                ),
-              ),
-            if (detail.canCancel) ...[
-              if (detail.chatEnabled) const SizedBox(width: 12),
-              Expanded(
-                child: GhostButton(
-                  label: 'Cancel',
-                  icon: Icons.close_rounded,
-                  color: BrandTokens.dangerRed,
-                  onPressed: () => _runCancel(context, detail),
+              const SizedBox(height: 14),
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  color: shimmer,
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
             ],
-          ],
-        );
-
-      case BookingStatus.inProgress:
-        return PrimaryGradientButton(
-          label: 'Open live tracking',
-          icon: Icons.gps_fixed_rounded,
-          onPressed: () => context.push(
-            AppRouter.tripLive.replaceFirst(':id', detail.bookingId),
           ),
         );
-
-      case BookingStatus.completed:
-        // Fix 8: pair the rating CTA with the invoice CTA. The rating
-        // sheet itself is responsible for tracking that the user has
-        // already submitted (it queries `GET /ratings/booking/{id}` on
-        // open and shows the disabled state when present).
-        return Row(
-          children: [
-            Expanded(
-              child: PrimaryGradientButton(
-                label: 'Rate your helper',
-                icon: Icons.star_rounded,
-                onPressed: () => _openRating(context, detail.bookingId),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GhostButton(
-                label: 'View invoice',
-                icon: Icons.receipt_long_rounded,
-                onPressed: () => context.pushNamed(
-                  'user-invoice-detail',
-                  pathParameters: {'id': detail.bookingId},
-                ),
-              ),
-            ),
-          ],
-        );
-
-      case BookingStatus.cancelledByUser:
-      case BookingStatus.cancelledByHelper:
-      case BookingStatus.cancelledBySystem:
-      case BookingStatus.unknown:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Future<void> _runCancel(BuildContext context, BookingDetail d) async {
-    final penalty = _cancellationPenalty(d);
-    final result = await SoftBottomSheet.show<CancelResult>(
-      context: context,
-      child: CancelBookingSheet(
-        bookingId: d.bookingId,
-        contextHint: penalty.contextHint,
-        refundHint: penalty.refundHint,
-        forfeitsDeposit: penalty.forfeitsDeposit,
-      ),
+      },
     );
-    if (result != null && context.mounted) {
-      unawaited(context.read<ScheduledBookingDetailCubit>().refresh());
-    }
-  }
-
-  Future<void> _openRating(BuildContext context, String bookingId) async {
-    HapticFeedback.lightImpact();
-    await SoftBottomSheet.show(
-      context: context,
-      child: RateHelperSheet(bookingId: bookingId),
-    );
-  }
-}
-
-class _Loading extends StatelessWidget {
-  const _Loading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const AppLoading(message: 'Loading booking details...');
   }
 }
 
 class _ErrorView extends StatelessWidget {
+  final double topPad;
   final String message;
   final VoidCallback onRetry;
-  const _ErrorView({required this.message, required this.onRetry});
+  const _ErrorView({
+    required this.topPad,
+    required this.message,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AppErrorState(
-      title: 'Couldn\u2019t load booking',
-      message: message,
-      onRetry: onRetry,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 56,
+              color: _kDanger,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 15,
+                color: _kMuted,
+              ),
+            ),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  gradient: _kGradient,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Text(
+                  'Try Again',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
