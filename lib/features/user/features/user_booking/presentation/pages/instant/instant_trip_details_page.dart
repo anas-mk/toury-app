@@ -198,18 +198,18 @@ class _ViewState extends State<_View> {
     context.read<InstantBookingCubit>().searchHelpers(request);
     context.push(
       AppRouter.instantHelpersList,
-      extra: {
-        'cubit': context.read<InstantBookingCubit>(),
-        'searchRequest': request,
-        'pickup': effectivePickup,
-        'destination': _destination,
-        'travelers': _travelers,
-        'durationInMinutes': _durationMinutes,
-        'languageCode': _languageCode,
-        'requiresCar': _requiresCar,
-        'notes':
+      extra: InstantHelpersListRouteArgs(
+        cubit: context.read<InstantBookingCubit>(),
+        searchRequest: request,
+        pickup: effectivePickup,
+        destination: _destination!,
+        travelers: _travelers,
+        durationInMinutes: _durationMinutes,
+        languageCode: _languageCode,
+        requiresCar: _requiresCar,
+        notes:
             _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      },
+      ),
     );
   }
 

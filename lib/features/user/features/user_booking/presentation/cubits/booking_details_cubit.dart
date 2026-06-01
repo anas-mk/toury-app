@@ -41,7 +41,18 @@ class BookingDetailsCubit extends Cubit<BookingDetailsState> {
     result.fold(
       (failure) => emit(BookingDetailsError(failure.message)),
       (booking) async {
-        final helperResult = await getHelperProfileUseCase(booking.id);
+        // If the booking already embeds helper info, use it directly.
+        if (booking.helper != null) {
+          emit(BookingDetailsLoaded(booking, booking.helper!));
+          return;
+        }
+        // Fallback: fetch by the helper's own ID from the assignment.
+        final helperId = booking.currentAssignment?.helperId;
+        if (helperId == null) {
+          emit(BookingDetailsError('Helper information not available'));
+          return;
+        }
+        final helperResult = await getHelperProfileUseCase(helperId);
         helperResult.fold(
           (failure) => emit(BookingDetailsError(failure.message)),
           (helper) => emit(BookingDetailsLoaded(booking, helper)),

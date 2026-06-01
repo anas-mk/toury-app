@@ -392,11 +392,11 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
           ':id',
           state.booking.bookingId,
         ),
-        extra: {
-          'cubit': widget.cubit,
-          'booking': state.booking,
-          'alternatives': state.alternatives,
-        },
+        extra: InstantAlternativesRouteArgs(
+          cubit: widget.cubit,
+          booking: state.booking,
+          alternatives: state.alternatives,
+        ),
       );
     } else if (state is InstantBookingCancelled) {
       ScaffoldMessenger.of(context).showSnackBar(

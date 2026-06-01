@@ -1002,7 +1002,10 @@ class AppRouter {
           if (raw is InstantWaitingRouteArgs) {
             cubit = raw.cubit;
             helper = raw.helper;
-          } else if (raw is Map<String, dynamic>) {
+          } else if (raw is Map) {
+            // Dart map literals default to `Map<String, Object?>`, not
+            // `Map<String, dynamic>` — so the loose `is Map` check is
+            // the only one that catches both shapes the call-sites use.
             cubit = (raw['cubit'] as InstantBookingCubit?) ??
                 sl<InstantBookingCubit>();
             helper = raw['helper'] as instant_helper.HelperSearchResult?;
@@ -1043,7 +1046,7 @@ class AppRouter {
           if (raw is InstantConfirmedRouteArgs) {
             cubit = raw.cubit;
             helper = raw.helper;
-          } else if (raw is Map<String, dynamic>) {
+          } else if (raw is Map) {
             cubit = (raw['cubit'] as InstantBookingCubit?) ??
                 sl<InstantBookingCubit>();
             helper = raw['helper'] as instant_helper.HelperSearchResult?;
@@ -1072,7 +1075,7 @@ class AppRouter {
           if (raw is InstantTripTrackingRouteArgs) {
             cubit = raw.cubit;
             helper = raw.helper;
-          } else if (raw is Map<String, dynamic>) {
+          } else if (raw is Map) {
             cubit = (raw['cubit'] as InstantBookingCubit?) ??
                 sl<InstantBookingCubit>();
             helper = raw['helper'] as instant_helper.HelperSearchResult?;

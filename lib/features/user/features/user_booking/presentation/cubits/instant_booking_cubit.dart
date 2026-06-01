@@ -246,11 +246,11 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
     );
     return result.fold(
       (failure) {
-        emit(InstantBookingError(failure.message));
+        if (!isClosed) emit(InstantBookingError(failure.message));
         return false;
       },
       (_) {
-        _emitCancelled(reason);
+        if (!isClosed) _emitCancelled(reason);
         return true;
       },
     );

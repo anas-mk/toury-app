@@ -7,9 +7,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/services/ratings/pending_rating_tracker.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/widgets/app_network_image.dart';
+import '../../../user_booking/presentation/cubits/booking_details_cubit.dart';
 import '../cubit/user_ratings_cubit.dart';
 import '../cubit/user_ratings_state.dart';
+import 'rating_form.dart';
 
 /// Phase 4 — globally-mounted, non-dismissible mandatory rating popup.
 ///
@@ -86,15 +88,20 @@ class _RatingDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<UserRatingsCubit>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => sl<UserRatingsCubit>()),
+        BlocProvider(
+          create: (_) => sl<BookingDetailsCubit>()..loadDetails(bookingId),
+        ),
+      ],
       child: PopScope(
         canPop: false,
         child: Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-          backgroundColor: BrandTokens.surfaceWhite,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          backgroundColor: const Color(0xFFFAF8F4),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(32),
           ),
           child: _RatingDialogBody(bookingId: bookingId),
         ),
@@ -112,24 +119,9 @@ class _RatingDialogBody extends StatefulWidget {
 }
 
 class _RatingDialogBodyState extends State<_RatingDialogBody> {
+  final GlobalKey<RatingFormState> _formKey = GlobalKey<RatingFormState>();
   int _stars = 0;
-  final TextEditingController _commentCtrl = TextEditingController();
-  final List<String> _selectedTags = [];
   bool _submitted = false;
-
-  static const List<_TagSpec> _tagSpecs = [
-    _TagSpec('Friendly', Icons.sentiment_satisfied_rounded),
-    _TagSpec('Professional', Icons.workspace_premium_rounded),
-    _TagSpec('Knowledgeable', Icons.lightbulb_rounded),
-    _TagSpec('Punctual', Icons.schedule_rounded),
-    _TagSpec('Great Tips', Icons.tips_and_updates_rounded),
-  ];
-
-  @override
-  void dispose() {
-    _commentCtrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +131,6 @@ class _RatingDialogBodyState extends State<_RatingDialogBody> {
           _submitted = true;
           await sl<PendingRatingTracker>().markSubmitted(widget.bookingId);
           if (!context.mounted) return;
-          // Tiny pause so users see the success tick before pop.
           await Future<void>.delayed(const Duration(milliseconds: 450));
           if (!context.mounted) return;
           Navigator.of(context, rootNavigator: true).pop();
@@ -159,7 +150,8 @@ class _RatingDialogBodyState extends State<_RatingDialogBody> {
         final showSuccess = state is RatingSuccess || _submitted;
 
         final kbInset = MediaQuery.viewInsetsOf(context).bottom;
-        final maxDialogHeight = MediaQuery.sizeOf(context).height * 0.78;
+        final maxDialogHeight = MediaQuery.sizeOf(context).height * 0.86;
+
         return AnimatedPadding(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
@@ -167,107 +159,68 @@ class _RatingDialogBodyState extends State<_RatingDialogBody> {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxDialogHeight),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (showSuccess) const _SuccessBlock() else _Header(stars: _stars),
-                  if (!showSuccess) ...[
-                    const SizedBox(height: 18),
-                    _StarsRow(
-                      value: _stars,
-                      onChanged: loading
-                          ? null
-                          : (next) => setState(() => _stars = next),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_stars >= 1) ...[
-                      Text(
-                        'WHAT STOOD OUT?',
-                        style: BrandTypography.overline(),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _tagSpecs.map((t) {
-                          final selected = _selectedTags.contains(t.label);
-                          return _TagChip(
-                            label: t.label,
-                            icon: t.icon,
-                            selected: selected,
-                            onTap: loading
-                                ? null
-                                : () {
-                                    HapticFeedback.selectionClick();
-                                    setState(() {
-                                      if (selected) {
-                                        _selectedTags.remove(t.label);
-                                      } else {
-                                        _selectedTags.add(t.label);
-                                      }
-                                    });
-                                  },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _commentCtrl,
-                        enabled: !loading,
-                        maxLines: 3,
-                        maxLength: 240,
-                        decoration: InputDecoration(
-                          hintText: 'Optional: share more (240 chars max)',
-                          hintStyle: BrandTypography.caption(
-                            color: BrandTokens.textMuted,
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: showSuccess
+                  ? const _SuccessBlock()
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _DialogHero(bookingId: widget.bookingId),
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: BrandTokens.primaryBlue
+                                    .withValues(alpha: 0.06),
+                                blurRadius: 24,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
                           ),
-                          filled: true,
-                          fillColor: BrandTokens.bgSoft,
-                          contentPadding: const EdgeInsets.all(12),
-                          counterStyle: BrandTypography.overline(),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: BrandTokens.primaryBlue,
-                              width: 1.5,
-                            ),
+                          padding: const EdgeInsets.fromLTRB(18, 24, 18, 22),
+                          child: RatingForm(
+                            key: _formKey,
+                            compact: true,
+                            disabled: loading,
+                            onStarsChanged: (s) => setState(() => _stars = s),
                           ),
                         ),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    _SubmitButton(
-                      loading: loading,
-                      enabled: canSubmit,
-                      onPressed: canSubmit
-                          ? () {
-                              HapticFeedback.lightImpact();
-                              context.read<UserRatingsCubit>().submitRating(
-                                    bookingId: widget.bookingId,
-                                    stars: _stars,
-                                    comment: _commentCtrl.text.trim(),
-                                    tags: _selectedTags,
-                                  );
-                            }
-                          : null,
+                        const SizedBox(height: 18),
+                        _DialogSubmitButton(
+                          enabled: canSubmit,
+                          loading: loading,
+                          onPressed: canSubmit
+                              ? () {
+                                  HapticFeedback.mediumImpact();
+                                  final form = _formKey.currentState;
+                                  context
+                                      .read<UserRatingsCubit>()
+                                      .submitRating(
+                                        bookingId: widget.bookingId,
+                                        stars: _stars,
+                                        comment:
+                                            form?.comment.trim() ?? '',
+                                        tags: form?.selectedTags ?? const [],
+                                      );
+                                }
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Rating is required to finish your trip.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF767683),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Rating is required to finish your trip.',
-                      textAlign: TextAlign.center,
-                      style: BrandTypography.caption(
-                        color: BrandTokens.textMuted,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
             ),
           ),
         );
@@ -276,221 +229,100 @@ class _RatingDialogBodyState extends State<_RatingDialogBody> {
   }
 }
 
-// ============================================================================
-//  SUB-WIDGETS
-// ============================================================================
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialog hero — compact avatar + headline.
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _Header extends StatelessWidget {
-  final int stars;
-  const _Header({required this.stars});
-
-  @override
-  Widget build(BuildContext context) {
-    final headline = stars == 0
-        ? 'Rate your helper'
-        : stars >= 4
-            ? 'Glad you enjoyed it!'
-            : stars >= 3
-                ? 'Tell us more'
-                : 'We hear you';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: BrandTokens.amberGradient,
-            shape: BoxShape.circle,
-            boxShadow: BrandTokens.ctaAmberGlow,
-          ),
-          alignment: Alignment.center,
-          child: const Icon(
-            Icons.star_rounded,
-            color: Colors.white,
-            size: 32,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          headline,
-          textAlign: TextAlign.center,
-          style: BrandTypography.title(weight: FontWeight.w700),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Your trip is complete. Help future travelers by sharing your experience.',
-          textAlign: TextAlign.center,
-          style: BrandTypography.caption(),
-        ),
-      ],
-    );
-  }
-}
-
-class _StarsRow extends StatelessWidget {
-  final int value;
-  final ValueChanged<int>? onChanged;
-  const _StarsRow({required this.value, required this.onChanged});
+class _DialogHero extends StatelessWidget {
+  final String bookingId;
+  const _DialogHero({required this.bookingId});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(5, (i) {
-        final filled = i < value;
-        return _StarTap(
-          filled: filled,
-          index: i,
-          onTap: onChanged == null ? null : () => onChanged!(i + 1),
+    return BlocBuilder<BookingDetailsCubit, BookingDetailsState>(
+      builder: (context, state) {
+        String? avatar;
+        String firstName = 'your helper';
+        if (state is BookingDetailsLoaded) {
+          avatar = state.helper.profileImageUrl;
+          firstName = state.helper.name.split(' ').first;
+        }
+        return Column(
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: BrandTokens.primaryBlue.withValues(alpha: 0.12),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: avatar != null
+                    ? AppNetworkImage(
+                        imageUrl: avatar,
+                        width: 78,
+                        height: 78,
+                        borderRadius: 39,
+                      )
+                    : Container(
+                        color: const Color(0xFFEEEAFB),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.person_rounded,
+                          size: 40,
+                          color: BrandTokens.primaryBlue,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              state is BookingDetailsLoaded
+                  ? 'How was your trip with $firstName?'
+                  : 'How was your trip?',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 22,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF000568),
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Your feedback helps us maintain exceptional experiences.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Color(0xCC464652),
+              ),
+            ),
+          ],
         );
-      }),
+      },
     );
   }
 }
 
-class _StarTap extends StatefulWidget {
-  final bool filled;
-  final int index;
-  final VoidCallback? onTap;
-  const _StarTap({
-    required this.filled,
-    required this.index,
-    required this.onTap,
-  });
+// ─────────────────────────────────────────────────────────────────────────────
+// Submit button — pill with gradient + arrow, matches the page CTA.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  @override
-  State<_StarTap> createState() => _StarTapState();
-}
-
-class _StarTapState extends State<_StarTap>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 250),
-    lowerBound: 0,
-    upperBound: 1,
-    value: widget.filled ? 1 : 0,
-  );
-
-  @override
-  void didUpdateWidget(_StarTap oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.filled != oldWidget.filled) {
-      if (widget.filled) {
-        _ctl.forward(from: 0);
-      } else {
-        _ctl.reverse();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: _ctl,
-        builder: (context, _) {
-          final scale = 1 + (_ctl.value * 0.18);
-          return Transform.scale(
-            scale: scale,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Icon(
-                widget.filled
-                    ? Icons.star_rounded
-                    : Icons.star_outline_rounded,
-                size: 44,
-                color: widget.filled
-                    ? BrandTokens.accentAmber
-                    : BrandTokens.textMuted,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _TagSpec {
-  final String label;
-  final IconData icon;
-  const _TagSpec(this.label, this.icon);
-}
-
-class _TagChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback? onTap;
-  const _TagChip({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(40),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(40),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? BrandTokens.primaryBlue
-                : BrandTokens.bgSoft,
-            borderRadius: BorderRadius.circular(40),
-            border: Border.all(
-              color: selected
-                  ? BrandTokens.primaryBlue
-                  : BrandTokens.borderSoft,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 14,
-                color: selected ? Colors.white : BrandTokens.primaryBlue,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: BrandTypography.caption(
-                  color: selected ? Colors.white : BrandTokens.textPrimary,
-                  weight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SubmitButton extends StatelessWidget {
+class _DialogSubmitButton extends StatelessWidget {
   final bool enabled;
   final bool loading;
   final VoidCallback? onPressed;
-  const _SubmitButton({
+  const _DialogSubmitButton({
     required this.enabled,
     required this.loading,
     required this.onPressed,
@@ -499,41 +331,75 @@ class _SubmitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Opacity(
-      opacity: enabled ? 1.0 : 0.55,
+      opacity: enabled || loading ? 1.0 : 0.55,
       child: SizedBox(
-        height: 52,
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: BrandTokens.primaryBlue,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: BrandTokens.primaryBlue,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        width: double.infinity,
+        height: 56,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFF000568), Color(0xFF2A33A8)],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.30),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(40),
+              onTap: onPressed,
+              child: Center(
+                child: loading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.4,
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Text(
+                            'Submit Review',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+              ),
             ),
           ),
-          child: loading
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.4,
-                  ),
-                )
-              : Text(
-                  'Submit rating',
-                  style: BrandTypography.title(
-                    color: Colors.white,
-                    weight: FontWeight.w700,
-                  ),
-                ),
         ),
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Success block — green check + thank-you copy.
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _SuccessBlock extends StatefulWidget {
   const _SuccessBlock();
@@ -558,7 +424,7 @@ class _SuccessBlockState extends State<_SuccessBlock>
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
+      padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
         children: [
           ScaleTransition(
@@ -567,17 +433,17 @@ class _SuccessBlockState extends State<_SuccessBlock>
               curve: Curves.easeOutBack,
             ),
             child: Container(
-              width: 76,
-              height: 76,
+              width: 88,
+              height: 88,
               decoration: BoxDecoration(
                 gradient: BrandTokens.successGradient,
                 shape: BoxShape.circle,
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: BrandTokens.successGreen,
-                    blurRadius: 18,
+                    color: BrandTokens.successGreen.withValues(alpha: 0.45),
+                    blurRadius: 22,
                     spreadRadius: -6,
-                    offset: Offset(0, 8),
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
@@ -585,20 +451,30 @@ class _SuccessBlockState extends State<_SuccessBlock>
               child: const Icon(
                 Icons.check_rounded,
                 color: Colors.white,
-                size: 40,
+                size: 44,
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          Text(
+          const SizedBox(height: 18),
+          const Text(
             'Thanks for your feedback!',
-            style: BrandTypography.title(weight: FontWeight.w700),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF000568),
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
+          const SizedBox(height: 6),
+          const Text(
             'Your rating helps the next traveler choose the right helper.',
             textAlign: TextAlign.center,
-            style: BrandTypography.caption(),
+            style: TextStyle(
+              color: Color(0xCC464652),
+              fontSize: 13.5,
+              height: 1.4,
+            ),
           ),
         ],
       ),
