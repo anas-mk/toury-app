@@ -219,7 +219,9 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
           helperId: profile.helperId,
           params: widget.searchParams!,
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-          meetingPointType: _meetingPoint.wire,
+          meetingPointType: _meetingPoint == MeetingPointType.destination
+              ? MeetingPointType.custom.wire
+              : _meetingPoint.wire,
           pickupLocationName: _meetingLocation!.name,
           pickupLatitude: _meetingLocation!.latitude,
           pickupLongitude: _meetingLocation!.longitude,

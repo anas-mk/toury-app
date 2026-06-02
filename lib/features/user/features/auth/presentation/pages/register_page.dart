@@ -104,7 +104,7 @@ class _RegisterPageState extends State<RegisterPage> {
           setState(() => _emailError = 'Please enter your email');
           return false;
         }
-        if (!RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$').hasMatch(email)) {
+        if (!RegExp(r'^[\w\-\.\+]+@([\w\-]+\.)+[\w\-]{2,4}$').hasMatch(email)) {
           setState(() => _emailError = 'Please enter a valid email address');
           return false;
         }
@@ -632,23 +632,25 @@ class _NameStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _StepHeading("What's your\nname?"),
-        const SizedBox(height: 48),
-        _UnderlineField(
-          controller: controller,
-          hint: 'First and last name',
-          error: error,
-          textInputAction: TextInputAction.done,
-        ),
-        const SizedBox(height: 48),
-        _ContinueButton(onPressed: onContinue),
-        const Spacer(),
-        _LoginLink(onTap: onLogin),
-        const SizedBox(height: 24),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _StepHeading("What's your\nname?"),
+          const SizedBox(height: 48),
+          _UnderlineField(
+            controller: controller,
+            hint: 'First and last name',
+            error: error,
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: 48),
+          _ContinueButton(onPressed: onContinue),
+          const SizedBox(height: 40),
+          _LoginLink(onTap: onLogin),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }
@@ -668,24 +670,26 @@ class _EmailStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _StepHeading("What's your\nemail?"),
-        const SizedBox(height: 48),
-        _UnderlineField(
-          controller: controller,
-          hint: 'your@email.com',
-          keyboardType: TextInputType.emailAddress,
-          error: error,
-          textInputAction: TextInputAction.done,
-        ),
-        const SizedBox(height: 48),
-        _ContinueButton(onPressed: onContinue),
-        const Spacer(),
-        _LoginLink(onTap: onLogin),
-        const SizedBox(height: 24),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _StepHeading("What's your\nemail?"),
+          const SizedBox(height: 48),
+          _UnderlineField(
+            controller: controller,
+            hint: 'your@email.com',
+            keyboardType: TextInputType.emailAddress,
+            error: error,
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: 48),
+          _ContinueButton(onPressed: onContinue),
+          const SizedBox(height: 40),
+          _LoginLink(onTap: onLogin),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }
@@ -717,34 +721,36 @@ class _PasswordStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _StepHeading("Create a\npassword"),
-        const SizedBox(height: 48),
-        _UnderlineField(
-          controller: passwordController,
-          hint: 'Password (min. 8 characters)',
-          obscure: obscurePassword,
-          showToggle: true,
-          onToggle: onTogglePassword,
-          error: passwordError,
-        ),
-        const SizedBox(height: 24),
-        _UnderlineField(
-          controller: confirmController,
-          hint: 'Confirm password',
-          obscure: obscureConfirm,
-          showToggle: true,
-          onToggle: onToggleConfirm,
-          error: confirmError,
-        ),
-        const SizedBox(height: 48),
-        _ContinueButton(onPressed: onContinue),
-        const Spacer(),
-        _LoginLink(onTap: onLogin),
-        const SizedBox(height: 24),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _StepHeading("Create a\npassword"),
+          const SizedBox(height: 48),
+          _UnderlineField(
+            controller: passwordController,
+            hint: 'Password (min. 8 characters)',
+            obscure: obscurePassword,
+            showToggle: true,
+            onToggle: onTogglePassword,
+            error: passwordError,
+          ),
+          const SizedBox(height: 24),
+          _UnderlineField(
+            controller: confirmController,
+            hint: 'Confirm password',
+            obscure: obscureConfirm,
+            showToggle: true,
+            onToggle: onToggleConfirm,
+            error: confirmError,
+          ),
+          const SizedBox(height: 48),
+          _ContinueButton(onPressed: onContinue),
+          const SizedBox(height: 40),
+          _LoginLink(onTap: onLogin),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }

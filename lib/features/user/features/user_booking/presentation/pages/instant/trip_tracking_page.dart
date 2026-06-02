@@ -557,12 +557,14 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
       return;
     }
     final uri = Uri(scheme: 'tel', path: p);
-    if (await canLaunchUrl(uri)) {
+    try {
       await launchUrl(uri);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open phone dialer')),
-      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open phone dialer')),
+        );
+      }
     }
   }
 

@@ -160,15 +160,25 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     );
   }
 
-  Future<void> _callHelper(String phone) async {
+  Future<void> _callHelper(String? phone) async {
     HapticFeedback.selectionClick();
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (mounted) {
+    final p = (phone ?? '').trim();
+    if (p.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open phone dialer')),
+        const SnackBar(content: Text('Helper phone number is not available yet')),
       );
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: p);
+    try {
+      await launchUrl(uri);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open phone dialer')),
+        );
+      }
     }
   }
 
@@ -272,8 +282,7 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
                                         widget.helper?.profileImageUrl,
                                     statusText: _statusText(),
                                     canCall: (phone ?? '').isNotEmpty,
-                                    onCall: () =>
-                                        _callHelper(phone ?? ''),
+                                    onCall: () => _callHelper(phone),
                                   ),
                                   const SizedBox(height: 28),
                                   _TripSummary(booking: booking),
@@ -512,7 +521,7 @@ class _HelperCard extends StatelessWidget {
             icon: Icons.call_rounded,
             background: const Color(0xFFEFECF5),
             iconColor: canCall ? BrandTokens.primaryBlue : const Color(0xFFC6C5D4),
-            onTap: canCall ? onCall : null,
+            onTap: onCall,
             tooltip: 'Call helper',
           ),
         ],
