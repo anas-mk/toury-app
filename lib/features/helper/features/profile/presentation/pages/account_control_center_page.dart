@@ -12,13 +12,13 @@ import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
 import '../../domain/entities/helper_profile_entity.dart';
 import '../widgets/profile_setting_widgets.dart';
-import 'helper_profile_view_page.dart';
 
 class AccountControlCenterPage extends StatefulWidget {
   const AccountControlCenterPage({super.key});
 
   @override
-  State<AccountControlCenterPage> createState() => _AccountControlCenterPageState();
+  State<AccountControlCenterPage> createState() =>
+      _AccountControlCenterPageState();
 }
 
 class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
@@ -49,8 +49,11 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
         backgroundColor: palette.scaffold,
         body: BlocBuilder<ProfileCubit, ProfileState>(
           builder: (context, state) {
-            if (state.status == ProfileStatus.loading && state.profile == null) {
-              return Center(child: CircularProgressIndicator(color: palette.primary));
+            if (state.status == ProfileStatus.loading &&
+                state.profile == null) {
+              return Center(
+                child: CircularProgressIndicator(color: palette.primary),
+              );
             }
             if (state.profile == null) {
               return _ErrorState(onRetry: _profileCubit.fetchProfileBundle);
@@ -63,7 +66,9 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
               onRefresh: () async => _profileCubit.fetchProfileBundle(),
               color: palette.primary,
               child: CustomScrollView(
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
                 slivers: [
                   SliverAppBar(
                     pinned: true,
@@ -89,15 +94,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                           isDark: palette.isDark,
                           onTap: () {
                             HapticService.light();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => BlocProvider.value(
-                                  value: _profileCubit,
-                                  child: const HelperProfileViewPage(),
-                                ),
-                              ),
-                            );
+                            context.push(AppRouter.helperProfileView);
                           },
                         ),
                       ),
@@ -160,7 +157,9 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                             icon: Icons.dark_mode_outlined,
                             iconColor: const Color(0xFF6C7BFF),
                             title: 'Theme & Appearance',
-                            subtitle: palette.isDark ? 'Dark mode' : 'Light mode',
+                            subtitle: palette.isDark
+                                ? 'Dark mode'
+                                : 'Light mode',
                             onTap: () => HapticService.light(),
                           ),
                         ],
@@ -216,7 +215,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                             subtitle: 'View your reports & resolutions',
                             onTap: () {
                               HapticService.light();
-                              context.push('/helper/reports');
+                              context.push(AppRouter.helperReports);
                             },
                           ),
                           ProfileSettingItem(
@@ -239,7 +238,7 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                         child: BlocListener<HelperAuthCubit, HelperAuthState>(
                           listener: (context, authState) {
                             if (authState is HelperAuthUnauthenticated) {
-                              context.go('/role-selection');
+                              context.go(AppRouter.roleSelection);
                             }
                           },
                           child: _LogoutButton(
@@ -273,7 +272,9 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                                 height: 1,
                                 shadows: [
                                   Shadow(
-                                    color: palette.primary.withValues(alpha: 0.18),
+                                    color: palette.primary.withValues(
+                                      alpha: 0.18,
+                                    ),
                                     blurRadius: 12,
                                     offset: const Offset(0, 2),
                                   ),
@@ -334,12 +335,18 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.logout_rounded, color: palette.danger, size: 30),
+                child: Icon(
+                  Icons.logout_rounded,
+                  color: palette.danger,
+                  size: 30,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
                 'Sign out of RAFIQ?',
-                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -413,11 +420,7 @@ class _HeroHeader extends StatelessWidget {
   final HelperProfileEntity profile;
   final bool isDark;
   final VoidCallback? onTap;
-  const _HeroHeader({
-    required this.profile,
-    required this.isDark,
-    this.onTap,
-  });
+  const _HeroHeader({required this.profile, required this.isDark, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -440,19 +443,14 @@ class _HeroHeader extends StatelessWidget {
               border: Border.all(color: palette.border, width: 0.5),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: isDark ? 0.30 : 0.06,
-                  ),
+                  color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.06),
                   blurRadius: 18,
                   offset: const Offset(0, 6),
                 ),
               ],
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
                 children: [
                   _Avatar(profile: profile),
@@ -488,6 +486,17 @@ class _HeroHeader extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 6),
+                        Text(
+                          'Profile details & records',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
                         _VerifiedStatus(isApproved: profile.isApproved),
                       ],
                     ),
@@ -515,8 +524,8 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppColors.of(context);
-    final hasImage = profile.profileImageUrl != null &&
-        profile.profileImageUrl!.isNotEmpty;
+    final hasImage =
+        profile.profileImageUrl != null && profile.profileImageUrl!.isNotEmpty;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -539,11 +548,7 @@ class _Avatar extends StatelessWidget {
                       size: 32,
                     ),
                   )
-                : Icon(
-                    Icons.person_rounded,
-                    color: palette.primary,
-                    size: 32,
-                  ),
+                : Icon(Icons.person_rounded, color: palette.primary, size: 32),
           ),
         ),
         if (profile.isApproved)
@@ -587,10 +592,7 @@ class _VerifiedStatus extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: palette.isDark ? 0.18 : 0.12),
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(
-          color: color.withValues(alpha: 0.30),
-          width: 0.6,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.30), width: 0.6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -635,7 +637,7 @@ class _StatStrip extends StatelessWidget {
               color: const Color(0xFFFFB020),
               onTap: () {
                 HapticService.light();
-                context.push('/helper/service-areas');
+                context.push(AppRouter.helperServiceAreas);
               },
             ),
           ),
@@ -708,9 +710,7 @@ class _StatTile extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: color.withValues(
-                    alpha: palette.isDark ? 0.18 : 0.12,
-                  ),
+                  color: color.withValues(alpha: palette.isDark ? 0.18 : 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: color, size: 16),
@@ -765,7 +765,9 @@ class _LogoutButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: palette.danger.withValues(alpha: palette.isDark ? 0.14 : 0.08),
+            color: palette.danger.withValues(
+              alpha: palette.isDark ? 0.14 : 0.08,
+            ),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: palette.danger.withValues(alpha: 0.22),
@@ -819,18 +821,26 @@ class _ErrorState extends StatelessWidget {
                 color: palette.danger.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.cloud_off_rounded, color: palette.danger, size: 36),
+              child: Icon(
+                Icons.cloud_off_rounded,
+                color: palette.danger,
+                size: 36,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               'Couldn\'t load your profile',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               'Check your connection and try again.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.textSecondary,
+              ),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(

@@ -46,8 +46,7 @@ int? _livePendingRequestsForOverview(IncomingRequestsState state) {
       state.filter == RequestFilterType.all) {
     return state.totalCount;
   }
-  if (state is IncomingRequestsEmpty &&
-      state.filter == RequestFilterType.all) {
+  if (state is IncomingRequestsEmpty && state.filter == RequestFilterType.all) {
     return 0;
   }
   return null;
@@ -303,8 +302,8 @@ class _HelperDashboardPageState extends State<HelperDashboardPage> {
           // an active trip) OR when the booking cubit has a live booking.
           BlocBuilder<ActiveBookingCubit, ActiveBookingState>(
             builder: (context, state) {
-              final isBusy = dashboard.availabilityState ==
-                  HelperAvailabilityState.busy;
+              final isBusy =
+                  dashboard.availabilityState == HelperAvailabilityState.busy;
 
               if (state is ActiveBookingLoaded && state.booking != null) {
                 final s = state.booking!.status.toLowerCase();
@@ -339,9 +338,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage> {
 
           FadeInSlide(
             delay: const Duration(milliseconds: 150),
-            child: const _SectionTitle(
-              title: 'Today\'s Overview',
-            ),
+            child: const _SectionTitle(title: 'Today\'s Overview'),
           ),
           const SizedBox(height: 12),
           FadeInSlide(
@@ -351,8 +348,9 @@ class _HelperDashboardPageState extends State<HelperDashboardPage> {
               builder: (context, reqState) {
                 return StatsGrid(
                   dashboard: dashboard,
-                  pendingRequestsCountOverride:
-                      _livePendingRequestsForOverview(reqState),
+                  pendingRequestsCountOverride: _livePendingRequestsForOverview(
+                    reqState,
+                  ),
                 );
               },
             ),
@@ -391,8 +389,7 @@ class _HelperDashboardPageState extends State<HelperDashboardPage> {
     }
     if (examState.languages.isEmpty) return false;
 
-    final verified =
-        examState.languages.where((l) => l.isVerified).length;
+    final verified = examState.languages.where((l) => l.isVerified).length;
     final total = examState.languages.length;
 
     // One verified language, or only a single language row from API (typical
@@ -832,10 +829,7 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final VoidCallback? onAction;
 
-  const _SectionTitle({
-    required this.title,
-    this.onAction,
-  });
+  const _SectionTitle({required this.title, this.onAction});
 
   @override
   Widget build(BuildContext context) {

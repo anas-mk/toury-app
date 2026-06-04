@@ -11,7 +11,7 @@ import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/service_area_entities.dart';
 import '../cubit/service_areas_cubit.dart';
-import 'map_picker_page.dart';
+import '../widgets/service_area_coverage_map_picker.dart';
 
 class AddEditServiceAreaPage extends StatefulWidget {
   final ServiceAreaEntity? existing;
@@ -84,18 +84,17 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
 
   Future<void> _pickOnMap() async {
     HapticService.light();
-    final result = await Navigator.of(context).push<Map<String, double>>(
-      MaterialPageRoute(
-        builder: (_) => MapPickerPage(
-          initialLat: _locationPicked ? _lat : null,
-          initialLng: _locationPicked ? _lng : null,
-        ),
-      ),
+    final result = await ServiceAreaCoverageMapPicker.show(
+      context,
+      initialLat: _locationPicked ? _lat : null,
+      initialLng: _locationPicked ? _lng : null,
+      initialRadiusKm: _radiusKm,
     );
     if (result != null) {
       setState(() {
-        _lat = result['lat']!;
-        _lng = result['lng']!;
+        _lat = result.lat;
+        _lng = result.lng;
+        _radiusKm = result.radiusKm;
         _locationPicked = true;
         _resolvedCity = null;
         _resolvedCountry = null;
@@ -179,6 +178,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                           locationPicked: _locationPicked,
                           lat: _lat,
                           lng: _lng,
+                          radiusKm: _radiusKm,
                           onTap: _pickOnMap,
                         ),
                       ),
@@ -190,18 +190,6 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                           country: _resolvedCountry,
                           isResolving: _isResolvingAddress,
                           locationPicked: _locationPicked,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      FadeInSlide(
-                        delay: const Duration(milliseconds: 120),
-                        child: _RadiusSelector(
-                          options: _radiusOptions,
-                          value: _radiusKm,
-                          onChanged: (km) {
-                            HapticService.light();
-                            setState(() => _radiusKm = km.toDouble());
-                          },
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -218,11 +206,14 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                       const SizedBox(height: 28),
                       BlocBuilder<ServiceAreasCubit, ServiceAreasState>(
                         builder: (context, state) {
-                          final isLoading = state is ServiceAreaOperationLoading;
+                          final isLoading =
+                              state is ServiceAreaOperationLoading;
                           return _SubmitButton(
                             isEditing: _isEditing,
                             isLoading: isLoading,
-                            onPressed: isLoading ? null : () => _submit(context),
+                            onPressed: isLoading
+                                ? null
+                                : () => _submit(context),
                           );
                         },
                       ),
@@ -261,7 +252,10 @@ class _SliverHero extends StatelessWidget {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary),
+        icon: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: palette.textPrimary,
+        ),
         onPressed: () {
           HapticService.light();
           context.pop();
@@ -289,9 +283,9 @@ class _SliverHero extends StatelessWidget {
                       palette.primary.withValues(
                         alpha: palette.isDark ? 0.30 : 0.18,
                       ),
-                      const Color(0xFF7B61FF).withValues(
-                        alpha: palette.isDark ? 0.18 : 0.08,
-                      ),
+                      const Color(
+                        0xFF7B61FF,
+                      ).withValues(alpha: palette.isDark ? 0.18 : 0.08),
                       palette.scaffold,
                     ],
                     stops: const [0.0, 0.5, 1.0],
@@ -359,12 +353,14 @@ class _LocationPickerCard extends StatelessWidget {
   final bool locationPicked;
   final double lat;
   final double lng;
+  final double radiusKm;
   final VoidCallback onTap;
 
   const _LocationPickerCard({
     required this.locationPicked,
     required this.lat,
     required this.lng,
+    required this.radiusKm,
     required this.onTap,
   });
 
@@ -443,9 +439,9 @@ class _LocationPickerCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       locationPicked
-                          ? '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'
-                          : 'Tap to open the map and pin the area center',
-                      maxLines: 1,
+                          ? '${radiusKm.round()} km coverage · ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'
+                          : 'Set center & coverage circle on the map',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: palette.textSecondary,
@@ -503,11 +499,7 @@ class _ResolvedLocationCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.location_city_rounded,
-            color: palette.primary,
-            size: 22,
-          ),
+          Icon(Icons.location_city_rounded, color: palette.primary, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: isResolving
@@ -532,8 +524,8 @@ class _ResolvedLocationCard extends StatelessWidget {
                         !locationPicked
                             ? 'No location yet'
                             : hasCity
-                                ? city!
-                                : 'City not found',
+                            ? city!
+                            : 'City not found',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: palette.textPrimary,
@@ -544,8 +536,8 @@ class _ResolvedLocationCard extends StatelessWidget {
                         !locationPicked
                             ? 'Pick a point on the map to auto-fill'
                             : hasCountry
-                                ? country!
-                                : 'Country not found',
+                            ? country!
+                            : 'Country not found',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: palette.textSecondary,
                         ),
@@ -555,118 +547,6 @@ class _ResolvedLocationCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  RADIUS SELECTOR
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _RadiusSelector extends StatelessWidget {
-  final List<int> options;
-  final double value;
-  final ValueChanged<int> onChanged;
-
-  const _RadiusSelector({
-    required this.options,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-            children: [
-              Icon(
-                Icons.radio_button_checked_rounded,
-                color: palette.primary,
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Coverage Radius',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: palette.textPrimary,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '· how far you operate from the pin',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: palette.textMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: palette.border, width: 0.6),
-          ),
-          child: Row(
-            children: options.map((km) {
-              final selected = value == km.toDouble();
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => onChanged(km),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      gradient: selected
-                          ? LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                palette.primary,
-                                const Color(0xFF7B61FF),
-                              ],
-                            )
-                          : null,
-                      color: selected ? null : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: selected
-                          ? [
-                              BoxShadow(
-                                color: palette.primary.withValues(alpha: 0.30),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Text(
-                      '$km km',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: selected ? Colors.white : palette.textSecondary,
-                        fontWeight: selected
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -779,10 +659,7 @@ class _SubmitButton extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              palette.primary,
-              const Color(0xFF7B61FF),
-            ],
+            colors: [palette.primary, const Color(0xFF7B61FF)],
           ),
           boxShadow: disabled
               ? null

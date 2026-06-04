@@ -283,11 +283,7 @@ class _PrimaryAreaPill extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.place_rounded,
-            color: palette.primary,
-            size: 16,
-          ),
+          Icon(Icons.place_rounded, color: palette.primary, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

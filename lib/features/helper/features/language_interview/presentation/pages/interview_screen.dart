@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/camera_service.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/theme/app_color.dart';
@@ -13,8 +15,6 @@ import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
-import 'interview_under_review_page.dart';
-
 /// Active interview screen — records & submits each answer.
 ///
 /// Hardware is owned by [CameraService]. Submission flow + question state is
@@ -164,9 +164,7 @@ class _InterviewScreenState extends State<InterviewScreen> {
 
         if (state.status == ExamsStatus.interviewUnderReview) {
           context.read<ExamsCubit>().setNavigating(true);
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const InterviewUnderReviewPage()),
-          );
+          context.go(AppRouter.interviewUnderReview);
         } else if (state.status == ExamsStatus.interviewError &&
             state.errorMessage != null) {
           AppSnackbar.error(context, state.errorMessage!);

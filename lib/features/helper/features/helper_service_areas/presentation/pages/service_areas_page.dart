@@ -124,10 +124,7 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
                   else
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                      sliver: _AreasSliver(
-                        areas: areas,
-                        onEdit: _openEdit,
-                      ),
+                      sliver: _AreasSliver(areas: areas, onEdit: _openEdit),
                     ),
                 ],
               ),
@@ -168,7 +165,10 @@ class _SliverHero extends StatelessWidget {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary),
+        icon: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: palette.textPrimary,
+        ),
         onPressed: () {
           HapticService.light();
           context.pop();
@@ -221,16 +221,8 @@ class _HeroBackground extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          top: -40,
-          right: -30,
-          child: _Orb(color: c1, size: 180),
-        ),
-        Positioned(
-          bottom: -30,
-          left: -50,
-          child: _Orb(color: c2, size: 140),
-        ),
+        Positioned(top: -40, right: -30, child: _Orb(color: c1, size: 180)),
+        Positioned(bottom: -30, left: -50, child: _Orb(color: c2, size: 140)),
         Positioned(
           left: 20,
           right: 20,
@@ -273,7 +265,9 @@ class _HeroBackground extends StatelessWidget {
                   if (count > 0)
                     _StatPill(
                       label: isPrimary ? 'Primary set' : 'No primary',
-                      color: isPrimary ? palette.success : const Color(0xFFFFB020),
+                      color: isPrimary
+                          ? palette.success
+                          : const Color(0xFFFFB020),
                     ),
                 ],
               ),
@@ -380,7 +374,11 @@ class _AreasSliver extends StatelessWidget {
       const _SectionHeading(label: 'Primary Region'),
       const SizedBox(height: 10),
       FadeInSlide(
-        child: _AreaCard(area: primary, isHero: true, onEdit: () => onEdit(primary)),
+        child: _AreaCard(
+          area: primary,
+          isHero: true,
+          onEdit: () => onEdit(primary),
+        ),
       ),
       const SizedBox(height: 24),
       if (others.isNotEmpty) ...[
@@ -510,9 +508,7 @@ class _AreaCard extends StatelessWidget {
             color: palette.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isHero
-                  ? accent.withValues(alpha: 0.35)
-                  : palette.border,
+              color: isHero ? accent.withValues(alpha: 0.35) : palette.border,
               width: isHero ? 1.0 : 0.6,
             ),
             boxShadow: [
@@ -556,7 +552,8 @@ class _AreaCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           [
-                            if ((area.areaName ?? '').isNotEmpty) area.areaName!,
+                            if ((area.areaName ?? '').isNotEmpty)
+                              area.areaName!,
                             area.country,
                           ].join(' · '),
                           maxLines: 1,
@@ -784,10 +781,7 @@ class _AddFab extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            palette.primary,
-            const Color(0xFF7B61FF),
-          ],
+          colors: [palette.primary, const Color(0xFF7B61FF)],
         ),
         boxShadow: [
           BoxShadow(

@@ -23,13 +23,22 @@ class ServiceAreasRemoteDataSourceImpl implements ServiceAreasRemoteDataSource {
 
   @override
   Future<ServiceAreaModel> createServiceArea(ServiceAreaModel area) async {
-    final response = await dio.post(ApiConfig.helperServiceAreas, data: area.toJson());
+    final response = await dio.post(
+      ApiConfig.helperServiceAreas,
+      data: area.toJson(),
+    );
     return ServiceAreaModel.fromJson(response.data['data'] ?? response.data);
   }
 
   @override
-  Future<ServiceAreaModel> updateServiceArea(String id, ServiceAreaModel area) async {
-    final response = await dio.put(ApiConfig.helperServiceAreaById(id), data: area.toJson());
+  Future<ServiceAreaModel> updateServiceArea(
+    String id,
+    ServiceAreaModel area,
+  ) async {
+    final response = await dio.put(
+      ApiConfig.helperServiceAreaById(id),
+      data: area.toJson(),
+    );
     return ServiceAreaModel.fromJson(response.data['data'] ?? response.data);
   }
 

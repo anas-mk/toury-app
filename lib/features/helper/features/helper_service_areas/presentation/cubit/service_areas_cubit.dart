@@ -10,14 +10,18 @@ abstract class ServiceAreasState extends Equatable {
 }
 
 class ServiceAreasInitial extends ServiceAreasState {}
+
 class ServiceAreasLoading extends ServiceAreasState {}
+
 class ServiceAreasLoaded extends ServiceAreasState {
   final List<ServiceAreaEntity> areas;
   const ServiceAreasLoaded(this.areas);
   @override
   List<Object?> get props => [areas];
 }
+
 class ServiceAreasEmpty extends ServiceAreasState {}
+
 class ServiceAreasError extends ServiceAreasState {
   final String message;
   const ServiceAreasError(this.message);
@@ -26,6 +30,7 @@ class ServiceAreasError extends ServiceAreasState {
 }
 
 class ServiceAreaOperationLoading extends ServiceAreasState {}
+
 class ServiceAreaOperationSuccess extends ServiceAreasState {
   final String message;
   const ServiceAreaOperationSuccess(this.message);
@@ -67,7 +72,9 @@ class ServiceAreasCubit extends Cubit<ServiceAreasState> {
     try {
       await createAreaUseCase.execute(area);
       if (isClosed) return;
-      emit(const ServiceAreaOperationSuccess('Service area added successfully'));
+      emit(
+        const ServiceAreaOperationSuccess('Service area added successfully'),
+      );
       await loadAreas();
     } catch (e) {
       if (isClosed) return;
@@ -80,7 +87,9 @@ class ServiceAreasCubit extends Cubit<ServiceAreasState> {
     try {
       await updateAreaUseCase.execute(id, area);
       if (isClosed) return;
-      emit(const ServiceAreaOperationSuccess('Service area updated successfully'));
+      emit(
+        const ServiceAreaOperationSuccess('Service area updated successfully'),
+      );
       await loadAreas();
     } catch (e) {
       if (isClosed) return;

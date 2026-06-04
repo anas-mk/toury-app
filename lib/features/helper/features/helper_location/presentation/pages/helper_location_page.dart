@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:ui';
+import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/services/auth_service.dart';
 import '../../../auth/data/datasources/helper_local_data_source.dart';
@@ -497,7 +498,8 @@ class _BottomControlPanel extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => context.push('/helper/eligibility-debug'),
+                      onPressed: () =>
+                          context.push(AppRouter.helperEligibilityDebug),
                       icon: const Icon(Icons.analytics_outlined, size: 20),
                       label: const Text('DIAGNOSTICS'),
                       style: OutlinedButton.styleFrom(
