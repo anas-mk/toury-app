@@ -141,28 +141,45 @@ class _HelpersListViewState extends State<_HelpersListView> {
   _SortMode _sort = _SortMode.bestMatch;
   _ExtraFilters _filters = const _ExtraFilters();
 
-  Map<String, dynamic> _routeExtra(
+  InstantHelperProfileRouteArgs _profileRouteArgs(
     BuildContext context,
     HelperSearchResult helper,
   ) {
-    return {
-      'cubit': context.read<InstantBookingCubit>(),
-      'helper': helper,
-      'pickup': widget.pickup,
-      'destination': widget.destination,
-      'travelers': widget.travelers,
-      'durationInMinutes': widget.durationInMinutes,
-      'languageCode': widget.languageCode,
-      'requiresCar': widget.requiresCar,
-      'notes': widget.notes,
-    };
+    return InstantHelperProfileRouteArgs(
+      cubit: context.read<InstantBookingCubit>(),
+      helper: helper,
+      pickup: widget.pickup,
+      destination: widget.destination,
+      travelers: widget.travelers,
+      durationInMinutes: widget.durationInMinutes,
+      languageCode: widget.languageCode,
+      requiresCar: widget.requiresCar,
+      notes: widget.notes,
+    );
+  }
+
+  InstantBookingReviewRouteArgs _reviewRouteArgs(
+    BuildContext context,
+    HelperSearchResult helper,
+  ) {
+    return InstantBookingReviewRouteArgs(
+      cubit: context.read<InstantBookingCubit>(),
+      helper: helper,
+      pickup: widget.pickup,
+      destination: widget.destination,
+      travelers: widget.travelers,
+      durationInMinutes: widget.durationInMinutes,
+      languageCode: widget.languageCode,
+      requiresCar: widget.requiresCar,
+      notes: widget.notes,
+    );
   }
 
   /// Open the helper's full profile page (read-only).
   void _onViewProfile(BuildContext context, HelperSearchResult helper) {
     context.push(
       AppRouter.instantHelperProfile.replaceFirst(':id', helper.helperId),
-      extra: _routeExtra(context, helper),
+      extra: _profileRouteArgs(context, helper),
     );
   }
 
@@ -173,7 +190,7 @@ class _HelpersListViewState extends State<_HelpersListView> {
     HapticFeedback.mediumImpact();
     context.push(
       AppRouter.instantBookingReview,
-      extra: _routeExtra(context, helper),
+      extra: _reviewRouteArgs(context, helper),
     );
   }
 

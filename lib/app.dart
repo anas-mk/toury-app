@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/di/injection_container.dart';
+import 'core/services/notifications/in_app_notification_banner.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/localization/cubit/localization_cubit.dart';
 import 'core/router/app_router.dart';
@@ -41,27 +42,29 @@ class MyApp extends StatelessWidget {
               ],
               routerConfig: AppRouter.router,
               builder: (context, child) {
-                return ListenableBuilder(
-                  listenable: sl<RealtimeConnectionIssueNotifier>(),
-                  builder: (context, _) {
-                    final notifier = sl<RealtimeConnectionIssueNotifier>();
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (child != null) child,
-                        if (notifier.showAuthBanner)
-                          AppConnectionBanner(
-                            message: notifier.bannerMessage,
-                            onRetry: () {
-                              notifier.clear();
-                              unawaited(
-                                sl<BookingTrackingHubService>().start(),
-                              );
-                            },
-                          ),
-                      ],
-                    );
-                  },
+                return InAppBannerHost(
+                  child: ListenableBuilder(
+                    listenable: sl<RealtimeConnectionIssueNotifier>(),
+                    builder: (context, _) {
+                      final notifier = sl<RealtimeConnectionIssueNotifier>();
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (child != null) child,
+                          if (notifier.showAuthBanner)
+                            AppConnectionBanner(
+                              message: notifier.bannerMessage,
+                              onRetry: () {
+                                notifier.clear();
+                                unawaited(
+                                  sl<BookingTrackingHubService>().start(),
+                                );
+                              },
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 );
               },
             );

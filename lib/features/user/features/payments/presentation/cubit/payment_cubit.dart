@@ -36,9 +36,20 @@ class PaymentCubit extends Cubit<PaymentState> {
       final result = await initiatePaymentUseCase(
         InitiatePaymentParams(bookingId: bookingId, method: method),
       );
-      result.fold(
-        (failure) => emit(PaymentFailed(failure.message)),
-        (payment) {
+      await result.fold(
+        (failure) async {
+          final msg = failure.message.toLowerCase();
+          // Backend rejects duplicate initiation when a payment already exists
+          // and is in a terminal "Paid" state. Recover the existing payment and
+          // emit Success so the UI can navigate to the success screen.
+          if (msg.contains('already') ||
+              (msg.contains('paid') && msg.contains('state'))) {
+            await recoverLatestPayment(bookingId);
+          } else {
+            emit(PaymentFailed(failure.message));
+          }
+        },
+        (payment) async {
           if (payment.status == PaymentStatus.paid) {
             emit(PaymentSuccess(payment));
           } else if (payment.status == PaymentStatus.failed) {
@@ -62,6 +73,25 @@ class PaymentCubit extends Cubit<PaymentState> {
           emit(PaymentSuccess(payment));
         } else if (payment.status == PaymentStatus.failed) {
           emit(PaymentFailed('Payment failed'));
+        }
+      },
+    );
+  }
+
+  /// Called when `initiatePayment` returns a terminal error (e.g. "already
+  /// paid" or "cannot be initiated"). Fetches the latest payment for this
+  /// booking and emits `PaymentSuccess` if it was already paid, so the UI
+  /// can show the success card instead of an error.
+  Future<void> recoverLatestPayment(String bookingId) async {
+    emit(PaymentLoading());
+    final result = await getLatestPaymentUseCase(bookingId);
+    result.fold(
+      (failure) => emit(PaymentFailed(failure.message)),
+      (payment) {
+        if (payment.status == PaymentStatus.paid) {
+          emit(PaymentSuccess(payment));
+        } else {
+          emit(PaymentFailed('Payment status: ${payment.status.name}'));
         }
       },
     );

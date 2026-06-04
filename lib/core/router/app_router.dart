@@ -84,6 +84,7 @@ import '../../features/user/features/user_invoices/domain/entities/invoice_entit
 import '../../features/user/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
 import '../../features/user/features/user_ratings/presentation/pages/helper_reviews_page.dart';
 import '../../features/user/features/user_ratings/presentation/pages/rate_booking_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/trip_receipt_page.dart';
 import '../../features/user/features/user_chat/presentation/pages/user_chat_page.dart';
 import '../../features/user/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
 
@@ -362,6 +363,9 @@ class AppRouter {
   // User Rating Routes
   static const String helperReviews = '/helper-reviews/:id';
   static const String rateBooking = '/rate-booking/:bookingId';
+
+  // Trip receipt (shown after TripEnded before rating)
+  static const String tripReceipt = '/trip-receipt/:id';
 
   // Hidden diagnostics
   static const String devRealtime = '/dev/realtime';
@@ -835,8 +839,7 @@ class AppRouter {
         path: scheduledResults,
         name: 'scheduled-results',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          final params = extra?['params'] as ScheduledSearchParams?;
+          final params = state.extra as ScheduledSearchParams?;
           if (params == null) {
             return const Scaffold(
               body: Center(child: Text('Missing search parameters.')),
@@ -868,7 +871,7 @@ class AppRouter {
               body: Center(child: Text('Missing review payload.')),
             );
           }
-          return ScheduledReviewScreen(
+          return ScheduledTripReviewSheet(
             helper: extra['helper'] as HelperBookingEntity,
             params: extra['params'] as ScheduledSearchParams,
           );
@@ -1002,7 +1005,10 @@ class AppRouter {
           if (raw is InstantWaitingRouteArgs) {
             cubit = raw.cubit;
             helper = raw.helper;
-          } else if (raw is Map<String, dynamic>) {
+          } else if (raw is Map) {
+            // Dart map literals default to `Map<String, Object?>`, not
+            // `Map<String, dynamic>` — so the loose `is Map` check is
+            // the only one that catches both shapes the call-sites use.
             cubit = (raw['cubit'] as InstantBookingCubit?) ??
                 sl<InstantBookingCubit>();
             helper = raw['helper'] as instant_helper.HelperSearchResult?;
@@ -1043,7 +1049,7 @@ class AppRouter {
           if (raw is InstantConfirmedRouteArgs) {
             cubit = raw.cubit;
             helper = raw.helper;
-          } else if (raw is Map<String, dynamic>) {
+          } else if (raw is Map) {
             cubit = (raw['cubit'] as InstantBookingCubit?) ??
                 sl<InstantBookingCubit>();
             helper = raw['helper'] as instant_helper.HelperSearchResult?;
@@ -1072,7 +1078,7 @@ class AppRouter {
           if (raw is InstantTripTrackingRouteArgs) {
             cubit = raw.cubit;
             helper = raw.helper;
-          } else if (raw is Map<String, dynamic>) {
+          } else if (raw is Map) {
             cubit = (raw['cubit'] as InstantBookingCubit?) ??
                 sl<InstantBookingCubit>();
             helper = raw['helper'] as instant_helper.HelperSearchResult?;
@@ -1207,6 +1213,15 @@ class AppRouter {
         builder: (context, state) {
           final id = state.pathParameters['bookingId']!;
           return RateBookingPage(bookingId: id);
+        },
+      ),
+
+      GoRoute(
+        path: tripReceipt,
+        name: 'trip-receipt',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return TripReceiptPage(bookingId: id);
         },
       ),
 

@@ -14,10 +14,10 @@ class ScheduledSearchParams extends Equatable {
   final double destinationLatitude;
   final double destinationLongitude;
 
-  // Pickup is required — user must provide before searching (GPS default).
-  final String pickupLocationName;
-  final double pickupLatitude;
-  final double pickupLongitude;
+  // Pickup is supplied at booking time via the meeting point selection.
+  final String? pickupLocationName;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
 
   // Optional filters for Phase 2
   final String? sortBy;
@@ -37,9 +37,9 @@ class ScheduledSearchParams extends Equatable {
     required this.travelersCount,
     required this.destinationLatitude,
     required this.destinationLongitude,
-    required this.pickupLocationName,
-    required this.pickupLatitude,
-    required this.pickupLongitude,
+    this.pickupLocationName,
+    this.pickupLatitude,
+    this.pickupLongitude,
     this.sortBy,
     this.sortOrder,
     this.helperGender,
@@ -80,9 +80,12 @@ class ScheduledSearchParams extends Equatable {
         'travelersCount': travelersCount,
         'destinationLatitude': destinationLatitude,
         'destinationLongitude': destinationLongitude,
-        'pickupLocationName': pickupLocationName,
-        'pickupLatitude': pickupLatitude,
-        'pickupLongitude': pickupLongitude,
+        // Pickup is chosen at booking time; fall back to destination so the
+        // search endpoint validates. The real meeting point overrides this in
+        // BookingCubit.createScheduled.
+        'pickupLocationName': pickupLocationName ?? destinationName,
+        'pickupLatitude': pickupLatitude ?? destinationLatitude,
+        'pickupLongitude': pickupLongitude ?? destinationLongitude,
         if (sortBy != null) 'sortBy': sortBy,
         if (sortOrder != null) 'sortOrder': sortOrder,
         if (minRating != null) 'minRating': minRating,
@@ -108,9 +111,6 @@ class ScheduledSearchParams extends Equatable {
       travelersCount: travelersCount,
       destinationLatitude: destinationLatitude,
       destinationLongitude: destinationLongitude,
-      pickupLocationName: pickupLocationName,
-      pickupLatitude: pickupLatitude,
-      pickupLongitude: pickupLongitude,
       sortBy: sortBy ?? this.sortBy,
       sortOrder: sortOrder ?? this.sortOrder,
       minRating: minRating ?? this.minRating,

@@ -133,8 +133,6 @@ class _TouristHomePageState extends State<TouristHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Warm cream background from the new design (#FAF8F4) — matches
-      // the cream surface the action card + chips sit on.
       backgroundColor: const Color(0xFFFAF8F4),
       body: RefreshIndicator.adaptive(
         onRefresh: _refresh,

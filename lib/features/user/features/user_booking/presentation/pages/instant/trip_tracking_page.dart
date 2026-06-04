@@ -16,6 +16,7 @@ import '../../../../../../../core/services/ratings/pending_rating_tracker.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../../core/services/sos/active_sos_state.dart';
+import '../../../../../../../core/services/sos/sos_overlay_manager.dart';
 import '../../../../../../../core/services/sos/sos_service.dart';
 import '../../../../../../../core/models/tracking/tracking_point_entity.dart';
 import '../../../../../../../core/theme/app_color.dart';
@@ -110,6 +111,8 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   @override
   void initState() {
     super.initState();
+    // This page has its own SOS button — hide the global floating pill.
+    SosOverlayManager.suspend();
     _hub = sl<BookingTrackingHubService>();
     _sosService = sl<SosService>();
     _activeSos = _sosService.activeSos;
@@ -231,6 +234,8 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     _tripEndedSub?.cancel();
     _sosSub?.cancel();
     _routeDebounce?.cancel();
+    // Restore the global floating SOS pill when leaving the tracking page.
+    SosOverlayManager.resume();
     super.dispose();
   }
 
@@ -485,23 +490,86 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     );
     if (reason == null || !mounted) return;
     final ok = await widget.cubit.cancelBooking(widget.bookingId, reason);
-    if (!ok || !mounted) return;
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Failed to cancel trip. Please try again.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: BrandTokens.dangerRed,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     LastHelperLocationStore.instance.clear(widget.bookingId);
     if (!context.mounted) return;
-    context.go(AppRouter.bookingHome);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Trip cancelled successfully.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: BrandTokens.successGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    context.go(AppRouter.home);
   }
 
   Future<void> _callHelper(String? phone) async {
-    final p = (phone ?? '').trim();
-    if (p.isEmpty) return;
     HapticFeedback.selectionClick();
-    final uri = Uri(scheme: 'tel', path: p);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (mounted) {
+    final p = (phone ?? '').trim();
+    if (p.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open phone dialer')),
+        const SnackBar(
+          content: Text('Helper phone number is not available yet'),
+        ),
       );
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: p);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open phone dialer')),
+        );
+      }
     }
   }
 
@@ -571,17 +639,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     }
   }
 
-  /// Pops the OS-native share sheet (Android `ACTION_SEND` /
-  /// iOS `UIActivityViewController`) with a friendly text payload
-  /// containing the helper name, ETA, pickup and destination, plus
-  /// a deep-link the recipient can open back into the app.
-  ///
-  /// We deliberately avoid backend integrations / tokens — the
-  /// payload is plain text so it works in WhatsApp, SMS, Telegram,
-  /// email, anything. When a public read-only tracking URL exists
-  /// on the backend we'll swap [trackingUrl] in here.
-  Future<void> _shareTrip() async {
-    HapticFeedback.selectionClick();
+  /// Builds the plain-text share payload used by both the system
+  /// share sheet and the WhatsApp deep-link.
+  String _buildShareMessage() {
     final booking = _bookingFrom(widget.cubit.state);
     final helperName = widget.helper?.fullName ??
         booking?.helper?.fullName ??
@@ -607,10 +667,95 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
       ..writeln()
       ..writeln()
       ..writeln('Track me live: $trackingUrl');
+    return message.toString();
+  }
+
+  /// Opens a bottom sheet letting the user pick between the OS-native
+  /// share sheet and a direct WhatsApp deep-link. Most riders just
+  /// want to "send this to my wife on WhatsApp" so the direct path
+  /// saves them two taps vs. the system share sheet.
+  Future<void> _shareTrip() async {
+    HapticFeedback.selectionClick();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC6C5D4),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Share your trip',
+                  style: BrandTokens.heading(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: BrandTokens.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Let someone you trust follow you live.',
+                  style: TextStyle(
+                    color: Color(0xFF767683),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _ShareOptionTile(
+                  icon: Icons.chat_rounded,
+                  iconColor: const Color(0xFF25D366),
+                  iconBackground: const Color(0xFFE7F8EE),
+                  title: 'Share on WhatsApp',
+                  subtitle: 'Open a chat and send the trip link',
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    _shareViaWhatsApp();
+                  },
+                ),
+                const SizedBox(height: 10),
+                _ShareOptionTile(
+                  icon: Icons.ios_share_rounded,
+                  iconColor: BrandTokens.primaryBlue,
+                  iconBackground: const Color(0xFFEEEAFB),
+                  title: 'More sharing options',
+                  subtitle: 'SMS, email, copy link, and more',
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    _shareViaSystemSheet();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Pops the OS-native share sheet (Android `ACTION_SEND` /
+  /// iOS `UIActivityViewController`) with a friendly text payload.
+  Future<void> _shareViaSystemSheet() async {
     try {
       await SharePlus.instance.share(
         ShareParams(
-          text: message.toString(),
+          text: _buildShareMessage(),
           subject: 'My Rafiq trip',
         ),
       );
@@ -618,6 +763,30 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not open share sheet: $e')),
+      );
+    }
+  }
+
+  /// Opens WhatsApp directly with the trip message pre-filled. Uses
+  /// the universal `https://wa.me/?text=...` URL which works for
+  /// both WhatsApp and WhatsApp Business and falls back to the
+  /// browser when WhatsApp isn't installed.
+  Future<void> _shareViaWhatsApp() async {
+    final text = Uri.encodeComponent(_buildShareMessage());
+    final waUri = Uri.parse('whatsapp://send?text=$text');
+    final webUri = Uri.parse('https://wa.me/?text=$text');
+    try {
+      if (await canLaunchUrl(waUri)) {
+        await launchUrl(waUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      // Universal wa.me fallback — opens WhatsApp on devices that
+      // have it, or the browser-based hand-off page otherwise.
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open WhatsApp: $e')),
       );
     }
   }
@@ -694,15 +863,19 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.dark,
             statusBarBrightness: Brightness.light,
-            systemNavigationBarColor: Color(0xFFFFFFFF),
+            systemStatusBarContrastEnforced: false,
+            systemNavigationBarColor: Colors.transparent,
             systemNavigationBarIconBrightness: Brightness.dark,
+            systemNavigationBarContrastEnforced: false,
           ),
           child: Scaffold(
             // The map fills the entire screen — extend behind the
             // status bar so the system bar gets a transparent overlay
             // instead of the dark default Android draws when a
             // Scaffold body doesn't reach the top of the device.
-            extendBodyBehindAppBar: true,
+            // No AppBar on this screen — removing extendBodyBehindAppBar
+            // avoids the black rendering artifact at the top edge on some
+            // Android devices when combined with SystemUiMode.edgeToEdge.
             extendBody: true,
             backgroundColor: const Color(0xFFFBF8FF),
             body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
@@ -743,6 +916,12 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                 );
                 return Stack(
                   children: [
+                    // Fills the entire Stack so no dark edge shows during
+                    // Mapbox tile loading (ColoredBox alone takes no space
+                    // in a Stack without Positioned.fill).
+                    const Positioned.fill(
+                      child: ColoredBox(color: Color(0xFFF2F0FA)),
+                    ),
                     // Map.
                     MapWidget(
                       key: const ValueKey('tripTrackingMap'),
@@ -868,7 +1047,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                           helperName: helperName,
                           phone: phone,
                           phaseUi: tripPhase,
-                          onCall: () => _callHelper(phone),
+                          onCall: (phone ?? '').isNotEmpty
+                              ? () => _callHelper(phone)
+                              : _openChat,
                           onChat: _openChat,
                           onShareTrip: _shareTrip,
                           onCancel: (booking?.canCancel ?? false)
@@ -967,9 +1148,8 @@ class _StatusPill extends StatelessWidget {
     if (fallback != null) return '$fallback away';
     switch (phase) {
       case _TripPhase.preStart:
-        return 'Heading your way';
       case _TripPhase.awaitingGps:
-        return 'Connecting GPS…';
+        return 'Heading your way';
       case _TripPhase.toPickup:
         return 'On the way';
       case _TripPhase.toDestination:
@@ -1222,9 +1402,8 @@ class _TrackingSheet extends StatelessWidget {
   String get _statusSubtitle {
     switch (phaseUi) {
       case _TripPhase.preStart:
-        return 'Preparing for pickup';
       case _TripPhase.awaitingGps:
-        return 'Connecting GPS…';
+        return 'On the way to pickup';
       case _TripPhase.toPickup:
         return 'On the way to pickup';
       case _TripPhase.toDestination:
@@ -1336,9 +1515,14 @@ class _TrackingSheet extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _SheetActionButton(
-                  label: 'Contact ${helperName.split(' ').first}',
+                  label: phone != null && phone!.isNotEmpty
+                      ? 'Call ${helperName.split(' ').first}'
+                      : 'Chat ${helperName.split(' ').first}',
                   variant: _SheetActionVariant.filled,
-                  onTap: (phone ?? '').isNotEmpty ? onCall : onChat,
+                  icon: phone != null && phone!.isNotEmpty
+                      ? Icons.call_rounded
+                      : Icons.chat_bubble_outline_rounded,
+                  onTap: onCall,
                 ),
               ),
             ],
@@ -1478,11 +1662,9 @@ class _EtaBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasEta = etaMinutes != null;
     if (!hasEta) {
-      // No ETA yet — render a calm "Awaiting GPS" / "Heading your way"
-      // label instead of a dashed `-- min`.
-      final label = phaseUi == _TripPhase.preStart
-          ? 'HEADING\nYOUR WAY'
-          : 'AWAITING\nGPS';
+      // No ETA yet — always show "HEADING YOUR WAY" regardless of phase
+      // so the user never sees an internal "Awaiting GPS" state.
+      const label = 'HEADING\nYOUR WAY';
       return SizedBox(
         width: 96,
         child: Text(
@@ -1587,10 +1769,12 @@ class _SheetActionButton extends StatelessWidget {
   final String label;
   final _SheetActionVariant variant;
   final VoidCallback onTap;
+  final IconData? icon;
   const _SheetActionButton({
     required this.label,
     required this.variant,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -1625,16 +1809,111 @@ class _SheetActionButton extends StatelessWidget {
           child: Container(
             height: 48,
             alignment: Alignment.center,
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: fg,
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: fg, size: 18),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Share-options bottom sheet row — used by the "Share Trip" picker.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ShareOptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBackground;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ShareOptionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBackground,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF7F5FB),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Color(0xFF1B1B21),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Color(0xFF767683),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF9A98AD),
+                size: 22,
+              ),
+            ],
           ),
         ),
       ),

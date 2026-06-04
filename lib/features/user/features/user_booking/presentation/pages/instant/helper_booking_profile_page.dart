@@ -102,17 +102,17 @@ class _ProfileView extends StatelessWidget {
     HapticFeedback.mediumImpact();
     context.push(
       AppRouter.instantBookingReview,
-      extra: {
-        'cubit': context.read<InstantBookingCubit>(),
-        'helper': helper,
-        'pickup': pickup,
-        'destination': destination,
-        'travelers': travelers,
-        'durationInMinutes': durationInMinutes,
-        'languageCode': languageCode,
-        'requiresCar': requiresCar,
-        'notes': notes,
-      },
+      extra: InstantBookingReviewRouteArgs(
+        cubit: context.read<InstantBookingCubit>(),
+        helper: helper,
+        pickup: pickup,
+        destination: destination,
+        travelers: travelers,
+        durationInMinutes: durationInMinutes,
+        languageCode: languageCode,
+        requiresCar: requiresCar,
+        notes: notes,
+      ),
     );
   }
 

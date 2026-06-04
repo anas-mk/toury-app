@@ -1,20 +1,55 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
-import '../../../../../../../core/services/location_cubit_impl.dart';
-import '../../../../../../../core/theme/brand_tokens.dart';
-import '../../../../../../../core/theme/brand_typography.dart';
-import '../../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../domain/entities/search_params.dart';
 import '../instant/location_picker_page.dart';
 import '../instant/location_pick_result.dart';
 
+// ── Design tokens (matching Stitch output) ──────────────────────────────────
+const _kNavy = Color(0xFF000668);
+const _kBlue = Color(0xFF4851C4);
+const _kAmber = Color(0xFFFE9331);
+const _kSurface = Color(0xFFFBF8FF);
+const _kCard = Color(0xFFFFFFFF);
+const _kMuted = Color(0xFF767683);
+const _kContainerLow = Color(0xFFF4F2FF);
+const _kOutlineVariant = Color(0xFFC6C5D3);
+const _kOnSurface = Color(0xFF1A1B25);
+
+const _kGradient = LinearGradient(
+  colors: [_kNavy, _kBlue],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+const _kCardShadow = [
+  BoxShadow(
+    color: Color(0x141B237E),
+    blurRadius: 32,
+    offset: Offset(0, 12),
+  ),
+];
+
+const _languages = <(String code, String label)>[
+  ('en', 'English'),
+  ('ar', 'Arabic'),
+  ('fr', 'French'),
+  ('es', 'Spanish'),
+  ('de', 'German'),
+  ('it', 'Italian'),
+  ('ru', 'Russian'),
+  ('zh', 'Chinese'),
+  ('ja', 'Japanese'),
+];
+
+// ── Screen ───────────────────────────────────────────────────────────────────
+
 class ScheduledSearchFormScreen extends StatefulWidget {
   final String? initialDestination;
-
   const ScheduledSearchFormScreen({super.key, this.initialDestination});
 
   @override
@@ -22,723 +57,1280 @@ class ScheduledSearchFormScreen extends StatefulWidget {
       _ScheduledSearchFormScreenState();
 }
 
-class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen> {
-  late final TextEditingController _cityCtrl;
-  late final TextEditingController _pickupCtrl;
-
-  DateTime? _date;
-  TimeOfDay? _start;
-  int _durationMinutes = 240;
-  String _languageCode = 'en';
-  bool _requiresCar = false;
-  int _travelers = 1;
-
+class _ScheduledSearchFormScreenState extends State<ScheduledSearchFormScreen>
+    with TickerProviderStateMixin {
+  // Destination
+  final _cityCtrl = TextEditingController();
+  String? _destName;
   double? _destLat;
   double? _destLng;
-  String? _destAddress;
-  String? _destName;
 
-  double? _pickupLat;
-  double? _pickupLng;
-  String? _pickupAddress;
+  // Trip details
+  DateTime _date = () {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    return DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+  }();
+  TimeOfDay _time = const TimeOfDay(hour: 9, minute: 0);
+  int _durationMinutes = 180;
+  int _travelers = 2;
+  String _languageCode = 'en';
+  int _companionIndex = 0; // 0=Local Expert, 1=Driver Guide, 2=Full Service
 
-  bool _gpsLoading = false;
-  bool _submitted = false;
+  // Notes
+  final _notesCtrl = TextEditingController();
 
-  static const _languages = <(String code, String label)>[
-    ('en', 'English'),
-    ('ar', 'Arabic'),
-    ('fr', 'French'),
-    ('es', 'Spanish'),
-    ('de', 'German'),
-    ('it', 'Italian'),
-    ('ru', 'Russian'),
-    ('zh', 'Chinese'),
-    ('ja', 'Japanese'),
-  ];
+  // Cursor blink animation
+  late final AnimationController _cursorCtrl;
 
   @override
   void initState() {
     super.initState();
-    _cityCtrl = TextEditingController(text: widget.initialDestination ?? '');
-    _pickupCtrl = TextEditingController();
-    _tryAutoFillGpsPickup();
+    if (widget.initialDestination != null) {
+      _cityCtrl.text = widget.initialDestination!;
+    }
+    _cursorCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _cityCtrl.dispose();
-    _pickupCtrl.dispose();
+    _notesCtrl.dispose();
+    _cursorCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _tryAutoFillGpsPickup() async {
-    if (!mounted) return;
-    setState(() => _gpsLoading = true);
-    try {
-      final locCubit = sl<LocationCubit>();
-      final coords = await locCubit.requireLocation();
-      if (!mounted) return;
-      if (coords != null && _pickupLat == null) {
-        setState(() {
-          _pickupLat = coords.lat;
-          _pickupLng = coords.lng;
-          if (_pickupCtrl.text.trim().isEmpty) {
-            _pickupCtrl.text = 'My current location';
-          }
-        });
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _gpsLoading = false);
+  // ── helpers ─────────────────────────────────────────────────────────────
+
+  String get _durationLabel {
+    if (_durationMinutes == 480) return 'Full Day';
+    final h = _durationMinutes ~/ 60;
+    final m = _durationMinutes % 60;
+    if (m == 0) return '~$h HRS';
+    return '${h}h ${m}m';
   }
 
-  DateTime? get _composedStart {
-    if (_date == null || _start == null) return null;
-    return DateTime(
-      _date!.year,
-      _date!.month,
-      _date!.day,
-      _start!.hour,
-      _start!.minute,
-    );
+  String _fmtTime(TimeOfDay t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
-  bool get _isInPast {
-    final composed = _composedStart;
-    if (composed == null) return false;
-    return composed.isBefore(DateTime.now());
-  }
 
-  bool get _destCoordsValid =>
-      _destLat != null &&
-      _destLng != null &&
-      _destLat! >= -90 &&
-      _destLat! <= 90 &&
-      _destLng! >= -180 &&
-      _destLng! <= 180;
-
-  bool get _pickupCoordsValid => _pickupLat != null && _pickupLng != null;
-
-  bool get _isValid =>
+  bool get _canSearch =>
       _cityCtrl.text.trim().isNotEmpty &&
-      _destCoordsValid &&
-      _pickupCoordsValid &&
-      _date != null &&
-      _start != null &&
-      !_isInPast &&
-      _durationMinutes >= 60 &&
-      _durationMinutes <= 1440 &&
-      _travelers >= 1;
+      _destLat != null &&
+      _destLng != null;
 
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final result = await showDatePicker(
-      context: context,
-      initialDate: _date ?? now.add(const Duration(days: 1)),
-      firstDate: today,
-      lastDate: now.add(const Duration(days: 365)),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(
-            context,
-          ).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
-        ),
-        child: child!,
-      ),
-    );
-    if (result != null && mounted) setState(() => _date = result);
-  }
+  // ── actions ──────────────────────────────────────────────────────────────
 
   Future<void> _pickDestination() async {
     HapticFeedback.selectionClick();
-    final initial = _destLat == null || _destLng == null
-        ? null
-        : LocationPickResult(
-            name: _cityCtrl.text.trim(),
-            address: _destAddress,
-            latitude: _destLat!,
-            longitude: _destLng!,
-          );
-    final result = await Navigator.of(context).push<LocationPickResult>(
+    final result = await Navigator.push<LocationPickResult>(
+      context,
       MaterialPageRoute(
-        builder: (_) => LocationPickerPage(
-          title: 'Pick destination',
+        builder: (_) => const LocationPickerPage(
+          title: 'Pick Destination',
           isPickup: false,
-          initial: initial,
         ),
       ),
     );
     if (result == null || !mounted) return;
     setState(() {
+      _cityCtrl.text = result.name;
+      _destName = result.name;
       _destLat = result.latitude;
       _destLng = result.longitude;
-      _destAddress = result.address;
-      _destName = result.name;
-      final current = _cityCtrl.text.trim();
-      if (current.isEmpty || current == (widget.initialDestination ?? '')) {
-        _cityCtrl.text = result.name;
-      }
     });
   }
 
-  Future<void> _pickPickup() async {
+  Future<void> _pickDate() async {
     HapticFeedback.selectionClick();
-    final initial = _pickupLat == null || _pickupLng == null
-        ? null
-        : LocationPickResult(
-            name: _pickupCtrl.text.trim(),
-            address: _pickupAddress,
-            latitude: _pickupLat!,
-            longitude: _pickupLng!,
-          );
-    final result = await Navigator.of(context).push<LocationPickResult>(
-      MaterialPageRoute(
-        builder: (_) => LocationPickerPage(
-          title: 'Pick pickup point',
-          isPickup: true,
-          initial: initial,
-        ),
-      ),
-    );
-    if (result == null || !mounted) return;
-    setState(() {
-      _pickupLat = result.latitude;
-      _pickupLng = result.longitude;
-      _pickupAddress = result.address;
-      _pickupCtrl.text = result.name;
-    });
-  }
-
-  Future<void> _pickStart() async {
-    final result = await showTimePicker(
+    final picked = await showDatePicker(
       context: context,
-      initialTime: _start ?? const TimeOfDay(hour: 9, minute: 0),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(
-            context,
-          ).colorScheme.copyWith(primary: BrandTokens.primaryBlue),
+      initialDate: _date,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: _kNavy,
+            onPrimary: Colors.white,
+          ),
         ),
         child: child!,
       ),
     );
-    if (result != null && mounted) setState(() => _start = result);
+    if (picked != null) {
+      setState(() => _date = DateTime(picked.year, picked.month, picked.day));
+    }
   }
 
-  void _submit() {
-    setState(() => _submitted = true);
-    if (!_isValid) return;
-    HapticFeedback.lightImpact();
-    if (_isInPast) return;
-
-    // Convert local start time to UTC before sending
-    final localStart = DateTime(
-      _date!.year,
-      _date!.month,
-      _date!.day,
-      _start!.hour,
-      _start!.minute,
+  Future<void> _pickTime() async {
+    HapticFeedback.selectionClick();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _time,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: _kNavy,
+            onPrimary: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
     );
-    final utcStart = localStart.toUtc();
-    final h = utcStart.hour.toString().padLeft(2, '0');
-    final m = utcStart.minute.toString().padLeft(2, '0');
-
-    final params = ScheduledSearchParams(
-      destinationCity: _cityCtrl.text.trim(),
-      destinationName: _destName ?? _cityCtrl.text.trim(),
-      requestedDate: DateTime.utc(_date!.year, _date!.month, _date!.day),
-      startTime: '$h:$m:00',
-      durationInMinutes: _durationMinutes,
-      requestedLanguage: _languageCode,
-      requiresCar: _requiresCar,
-      travelersCount: _travelers,
-      destinationLatitude: _destLat!,
-      destinationLongitude: _destLng!,
-      pickupLocationName: _pickupCtrl.text.trim().isEmpty
-          ? 'Pickup location'
-          : _pickupCtrl.text.trim(),
-      pickupLatitude: _pickupLat!,
-      pickupLongitude: _pickupLng!,
-    );
-
-    context.push(AppRouter.scheduledResults, extra: {'params': params});
+    if (picked != null) setState(() => _time = picked);
   }
+
+  void _showDurationSheet() {
+    HapticFeedback.selectionClick();
+    const options = [60, 120, 180, 240, 300, 360, 480];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _kCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: _kOutlineVariant,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'TRIP DURATION',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.4,
+                  color: _kMuted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: options.map((mins) {
+                  final selected = mins == _durationMinutes;
+                  final lbl = mins == 480
+                      ? 'Full Day'
+                      : mins < 60
+                          ? '${mins}m'
+                          : '${mins ~/ 60}h';
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _durationMinutes = mins);
+                      Navigator.pop(ctx);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: selected ? _kGradient : null,
+                        color: selected ? null : _kContainerLow,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        lbl,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: selected ? Colors.white : _kNavy,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onSearch() {
+    if (!_canSearch) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Please fill in destination and pickup location.',
+                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: _kNavy,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      );
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    context.push(
+      AppRouter.scheduledResults,
+      extra: ScheduledSearchParams(
+        destinationCity: _cityCtrl.text.trim(),
+        destinationName: _destName ?? _cityCtrl.text.trim(),
+        requestedDate: _date,
+        startTime: _fmtTime(_time),
+        durationInMinutes: _durationMinutes,
+        requestedLanguage: _languageCode,
+        requiresCar: _companionIndex >= 1,
+        travelersCount: _travelers,
+        destinationLatitude: _destLat!,
+        destinationLongitude: _destLng!,
+      ),
+    );
+  }
+
+  // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return PageScaffold(
-      bottomCta: PrimaryGradientButton(
-        label: 'Find helpers',
-        icon: Icons.travel_explore_rounded,
-        onPressed: _isValid ? _submit : null,
-        visualEnabled: _isValid,
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: BrandTokens.bgSoft,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: BrandTokens.textPrimary),
-            title: Text(
-              'Plan your trip',
-              style: BrandTypography.title(weight: FontWeight.w700),
-            ),
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: _kSurface,
+      body: Stack(
+        children: [
+          // Subtle topographic background
+          const Positioned.fill(child: _TopographicBackground()),
+
+          // Right edge dashed scroll indicator
+          Positioned(
+            right: 6,
+            top: topPad + 80,
+            bottom: 136 + bottomPad,
+            child: const _DashedEdgeIndicator(),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            sliver: SliverList.list(
-              children: [
-                Text(
-                  'Tell us where and when, then we’ll match you with helpers '
-                  'available for that window.',
-                  style: BrandTypography.body(color: BrandTokens.textSecondary),
-                ),
-                const SizedBox(height: 24),
 
-                // ── Destination ────────────────────────────────────────
-                _Field(
-                  label: 'Destination',
-                  required: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: _cityCtrl,
-                        onChanged: (_) => setState(() {}),
-                        decoration: _decoration(
-                          hint: 'e.g. Pyramids of Giza, Cairo',
-                          icon: Icons.place_rounded,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _LocationPickButton(
-                        hasCoords: _destCoordsValid,
-                        primaryLabel: _destCoordsValid
-                            ? 'Change destination on map'
-                            : 'Pick destination on map',
-                        coordsPreview: _destCoordsValid
-                            ? '${_destLat!.toStringAsFixed(5)}, ${_destLng!.toStringAsFixed(5)}'
-                            : null,
-                        onTap: _pickDestination,
-                      ),
-                      if (!_destCoordsValid) ...[
-                        const SizedBox(height: 6),
-                        _InlineError(
-                          text:
-                              'Tap the map button to mark exactly where you want to go.',
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
+          // Scrollable content
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: SizedBox(height: topPad + 76)),
 
-                // ── Pickup (REQUIRED — GPS auto-filled) ────────────────
-                _Field(
-                  label: 'Pickup location',
-                  required: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: _pickupCtrl,
-                        onChanged: (_) => setState(() {}),
-                        decoration: _decoration(
-                          hint: 'Hotel name, address…',
-                          icon: _gpsLoading
-                              ? Icons.gps_fixed_rounded
-                              : Icons.my_location_rounded,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _LocationPickButton(
-                        hasCoords: _pickupCoordsValid,
-                        primaryLabel: _gpsLoading
-                            ? 'Getting your location…'
-                            : _pickupCoordsValid
-                            ? 'Change pickup pin'
-                            : 'Pick pickup on map',
-                        coordsPreview: _pickupCoordsValid
-                            ? '${_pickupLat!.toStringAsFixed(5)}, ${_pickupLng!.toStringAsFixed(5)}'
-                            : null,
-                        onTap: _gpsLoading ? () {} : _pickPickup,
-                        loading: _gpsLoading,
-                      ),
-                      if (_submitted &&
-                          !_pickupCoordsValid &&
-                          !_gpsLoading) ...[
-                        const SizedBox(height: 6),
-                        _InlineError(
-                          text:
-                              'Pickup location is required. Enable GPS or pick on the map.',
-                        ),
-                      ],
-                    ],
+              // ── Destination hero card ──────────────────────────────────
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _DestinationHeroCard(
+                    cityCtrl: _cityCtrl,
+                    cursorAnim: _cursorCtrl,
+                    date: _date,
+                    time: _time,
+                    destLat: _destLat,
+                    onPickDestination: _pickDestination,
+                    onPickDate: _pickDate,
+                    onPickTime: _pickTime,
                   ),
                 ),
-                const SizedBox(height: 18),
+              ),
 
-                // ── Date + Start time ──────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(
-                      child: _Field(
-                        label: 'Date',
-                        required: true,
-                        child: _PickerTile(
-                          icon: Icons.event_rounded,
-                          text: _date == null
-                              ? 'Pick a date'
-                              : _formatDate(_date!),
-                          placeholder: _date == null,
-                          onTap: _pickDate,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _Field(
-                        label: 'Start time',
-                        required: true,
-                        child: _PickerTile(
-                          icon: Icons.schedule_rounded,
-                          text: _start == null
-                              ? 'Pick time'
-                              : _start!.format(context),
-                          placeholder: _start == null,
-                          onTap: _pickStart,
-                          hasError: _isInPast,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_isInPast) ...[
-                  const SizedBox(height: 6),
-                  _InlineError(
-                    text:
-                        'Trip start is in the past. Pick a future date and time.',
-                  ),
-                ],
-                const SizedBox(height: 18),
-                _Field(
-                  label: 'Duration',
-                  required: true,
-                  child: _DurationStepper(
-                    minutes: _durationMinutes,
-                    onChanged: (v) => setState(() => _durationMinutes = v),
+              SliverToBoxAdapter(
+                child: _IconDivider(icon: Icons.luggage_outlined),
+              ),
+
+              // ── Itinerary flow ─────────────────────────────────────────
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _ItineraryFlowSection(
+                    durationLabel: _durationLabel,
+                    time: _time,
+                    onTapDuration: _showDurationSheet,
                   ),
                 ),
-                const SizedBox(height: 18),
-                _Field(
-                  label: 'Travelers',
-                  required: true,
-                  child: _TravelersStepper(
-                    value: _travelers,
-                    onChanged: (v) => setState(() => _travelers = v),
+              ),
+
+              SliverToBoxAdapter(
+                child: _IconDivider(icon: Icons.map_outlined),
+              ),
+
+              // ── Travelers + Language ───────────────────────────────────
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _TravelDetailsCard(
+                    travelers: _travelers,
+                    languageCode: _languageCode,
+                    onIncrease: () {
+                      if (_travelers < 12) setState(() => _travelers++);
+                    },
+                    onDecrease: () {
+                      if (_travelers > 1) setState(() => _travelers--);
+                    },
+                    onLanguagePicked: (code) =>
+                        setState(() => _languageCode = code),
                   ),
                 ),
-                const SizedBox(height: 18),
-                _Field(
-                  label: 'Preferred language',
-                  required: true,
-                  child: _LanguagePicker(
-                    selected: _languageCode,
-                    items: _languages,
-                    onSelected: (code) => setState(() => _languageCode = code),
-                  ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // ── Travel companion ───────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _TravelCompanionSection(
+                  selected: _companionIndex,
+                  onSelected: (i) {
+                    HapticFeedback.selectionClick();
+                    setState(() => _companionIndex = i);
+                  },
                 ),
-                const SizedBox(height: 18),
-                _CarToggle(
-                  value: _requiresCar,
-                  onChanged: (v) => setState(() => _requiresCar = v),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // ── Journal notes ──────────────────────────────────────────
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: _JournalNotesCard(controller: _notesCtrl),
                 ),
-              ],
+              ),
+
+              SliverToBoxAdapter(
+                child: SizedBox(height: 140 + bottomPad),
+              ),
+            ],
+          ),
+
+          // Fixed header
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _Header(topPad: topPad),
+          ),
+
+          // Sticky footer
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _SearchFooter(
+              canSearch: _canSearch,
+              onSearch: _onSearch,
+              bottomPad: bottomPad,
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  static String _formatDate(DateTime d) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+// ── Background topographic pattern ──────────────────────────────────────────
+
+class _TopographicBackground extends StatelessWidget {
+  const _TopographicBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _TopoPainter());
+  }
+}
+
+class _TopoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF000568).withValues(alpha: 0.025)
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke;
+
+    for (var i = 0; i < 10; i++) {
+      final y = (size.height / 10) * i;
+      final path = Path();
+      path.moveTo(0, y);
+      for (var x = 0.0; x < size.width; x += 20) {
+        path.quadraticBezierTo(
+          x + 10,
+          y + math.sin(x / 30) * 12,
+          x + 20,
+          y,
+        );
+      }
+      canvas.drawPath(path, paint);
+    }
   }
 
-  InputDecoration _decoration({required String hint, IconData? icon}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: BrandTypography.body(color: BrandTokens.textMuted),
-      filled: true,
-      fillColor: BrandTokens.surfaceWhite,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      prefixIcon: icon == null
-          ? null
-          : Icon(icon, color: BrandTokens.textSecondary, size: 20),
-      border: _border(),
-      enabledBorder: _border(),
-      focusedBorder: _border(width: 1.6, color: BrandTokens.primaryBlue),
-    );
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Right dashed indicator ───────────────────────────────────────────────────
+
+class _DashedEdgeIndicator extends StatelessWidget {
+  const _DashedEdgeIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _DashedPainter());
+  }
+}
+
+class _DashedPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _kAmber.withValues(alpha: 0.35)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    const dashH = 8.0;
+    const gap = 6.0;
+    var y = 0.0;
+    while (y < size.height) {
+      canvas.drawLine(Offset(1, y), Offset(1, y + dashH), paint);
+      y += dashH + gap;
+    }
   }
 
-  OutlineInputBorder _border({
-    Color color = BrandTokens.borderSoft,
-    double width = 1,
-  }) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: BorderSide(color: color, width: width),
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Fixed header ─────────────────────────────────────────────────────────────
+
+class _Header extends StatelessWidget {
+  final double topPad;
+  const _Header({required this.topPad});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: topPad,
+        left: 20,
+        right: 20,
+        bottom: 12,
+      ),
+      decoration: BoxDecoration(
+        color: _kSurface.withValues(alpha: 0.85),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A1B237E),
+            blurRadius: 24,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Back button
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.pop();
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: _kCard,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x0A1B237E),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: _kNavy,
+                size: 20,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              'Plan Your Journey',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: _kNavy,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
+          // Compass icon
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _kAmber.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.explore_outlined,
+              color: _kAmber,
+              size: 22,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _Field extends StatelessWidget {
-  final String label;
-  final bool required;
-  final Widget child;
+// ── Destination hero card ─────────────────────────────────────────────────────
 
-  const _Field({
-    required this.label,
-    required this.child,
-    this.required = false,
+class _DestinationHeroCard extends StatelessWidget {
+  final TextEditingController cityCtrl;
+  final AnimationController cursorAnim;
+  final DateTime date;
+  final TimeOfDay time;
+  final double? destLat;
+  final VoidCallback onPickDestination;
+  final VoidCallback onPickDate;
+  final VoidCallback onPickTime;
+
+  const _DestinationHeroCard({
+    required this.cityCtrl,
+    required this.cursorAnim,
+    required this.date,
+    required this.time,
+    required this.destLat,
+    required this.onPickDestination,
+    required this.onPickDate,
+    required this.onPickTime,
   });
+
+  String _fmtDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${weekdays[d.weekday - 1]}, ${d.day} ${months[d.month - 1]}';
+  }
+
+  String _fmtTime(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m ${t.period == DayPeriod.am ? 'AM' : 'PM'}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final destLabel = cityCtrl.text.trim().isEmpty ? '' : cityCtrl.text.trim();
+    final shortDest =
+        destLabel.length > 12 ? '${destLabel.substring(0, 10)}…' : destLabel;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // "WHERE TO?" label
+          const Text(
+            'WHERE TO?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
+              color: _kMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // Destination city input row
+          GestureDetector(
+            onTap: onPickDestination,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    destLabel.isEmpty ? 'Enter city...' : destLabel,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.8,
+                      color: destLabel.isEmpty
+                          ? _kMuted.withValues(alpha: 0.4)
+                          : _kNavy,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+                // Blinking cursor
+                if (destLabel.isEmpty)
+                  AnimatedBuilder(
+                    animation: cursorAnim,
+                    builder: (_, __) => Opacity(
+                      opacity: cursorAnim.value,
+                      child: Container(
+                        width: 3,
+                        height: 36,
+                        margin: const EdgeInsets.only(left: 2),
+                        decoration: BoxDecoration(
+                          color: _kAmber,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (destLat != null)
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF1DB97A),
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Flight path: static "Meet Pt" → destination arc
+          _FlightPathRow(
+            destLabel: shortDest.isEmpty ? '?' : shortDest,
+            hasDest: destLat != null,
+            onDestTap: onPickDestination,
+          ),
+
+          const SizedBox(height: 16),
+
+          // Date & Time chips
+          Row(
+            children: [
+              Expanded(
+                child: _TapChip(
+                  icon: Icons.calendar_today_outlined,
+                  label: _fmtDate(date),
+                  onTap: onPickDate,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TapChip(
+                  icon: Icons.access_time_rounded,
+                  label: _fmtTime(time),
+                  onTap: onPickTime,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Flight path row ─────────────────────────────────────────────────────────
+
+class _FlightPathRow extends StatelessWidget {
+  final String destLabel;
+  final bool hasDest;
+  final VoidCallback onDestTap;
+
+  const _FlightPathRow({
+    required this.destLabel,
+    required this.hasDest,
+    required this.onDestTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 64,
+      child: Stack(
+        children: [
+          // Arc
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _ArcPainter(),
+            ),
+          ),
+          // Plane icon at top of arc
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Icon(
+                Icons.flight_rounded,
+                color: _kNavy,
+                size: 18,
+              ),
+            ),
+          ),
+          // Left dot + label (Meeting Point — chosen later)
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: _kOutlineVariant,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Meet Pt',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: _kOutlineVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Right dot + label (Destination)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: GestureDetector(
+              onTap: onDestTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: hasDest ? _kAmber : _kOutlineVariant,
+                      shape: BoxShape.circle,
+                      boxShadow: hasDest
+                          ? [
+                              BoxShadow(
+                                color: _kAmber.withValues(alpha: 0.5),
+                                blurRadius: 8,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    destLabel,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: hasDest ? _kMuted : _kOutlineVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArcPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _kAmber.withValues(alpha: 0.35)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    path.moveTo(6, size.height - 18);
+    path.quadraticBezierTo(
+      size.width / 2,
+      -size.height * 0.1,
+      size.width - 6,
+      size.height - 18,
+    );
+
+    // Dashed drawing
+    const dashLen = 6.0;
+    const gapLen = 4.0;
+    final pathMetrics = path.computeMetrics();
+    for (final pm in pathMetrics) {
+      var distance = 0.0;
+      while (distance < pm.length) {
+        final start = distance;
+        final end = math.min(distance + dashLen, pm.length);
+        canvas.drawPath(
+          pm.extractPath(start, end),
+          paint,
+        );
+        distance += dashLen + gapLen;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Tap chip (date/time) ─────────────────────────────────────────────────────
+
+class _TapChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _TapChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: _kContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _kOutlineVariant.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: _kBlue),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kNavy,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Icon divider ─────────────────────────────────────────────────────────────
+
+class _IconDivider extends StatelessWidget {
+  final IconData icon;
+  const _IconDivider({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: Icon(
+          icon,
+          size: 18,
+          color: _kNavy.withValues(alpha: 0.2),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Itinerary flow section ────────────────────────────────────────────────────
+
+class _ItineraryFlowSection extends StatelessWidget {
+  final String durationLabel;
+  final TimeOfDay time;
+  final VoidCallback onTapDuration;
+
+  const _ItineraryFlowSection({
+    required this.durationLabel,
+    required this.time,
+    required this.onTapDuration,
+  });
+
+  bool get _isMorning => time.hour < 12;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const Text(
+          'ITINERARY FLOW',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
+            color: _kMuted,
+          ),
+        ),
+        const SizedBox(height: 16),
         Row(
           children: [
-            Text(
-              label,
-              style: BrandTypography.body(
-                weight: FontWeight.w600,
-                color: BrandTokens.textPrimary,
+            // Sunrise node
+            _TimeNode(
+              icon: Icons.wb_twilight_rounded,
+              color: _kAmber,
+              active: _isMorning,
+              label: 'Morning',
+            ),
+            // Connecting line
+            Expanded(
+              child: Container(
+                height: 2,
+                color: _kOutlineVariant.withValues(alpha: 0.6),
               ),
             ),
-            if (!required) ...[
-              const SizedBox(width: 8),
-              const OptionalChip(compact: true),
-            ],
+            // Duration pill (tappable)
+            GestureDetector(
+              onTap: onTapDuration,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  gradient: _kGradient,
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _kNavy.withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  durationLabel,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _kAmber,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            // Connecting line
+            Expanded(
+              child: Container(
+                height: 2,
+                color: _kOutlineVariant.withValues(alpha: 0.6),
+              ),
+            ),
+            // Sunset/night node
+            _TimeNode(
+              icon: Icons.nightlight_round_outlined,
+              color: _kNavy.withValues(alpha: 0.5),
+              active: !_isMorning,
+              label: 'Evening',
+            ),
           ],
         ),
         const SizedBox(height: 8),
-        child,
+        Center(
+          child: Text(
+            'Tap the pill to change duration',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 11,
+              color: _kMuted.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _PickerTile extends StatelessWidget {
+class _TimeNode extends StatelessWidget {
   final IconData icon;
-  final String text;
-  final bool placeholder;
-  final VoidCallback onTap;
-  final bool hasError;
+  final Color color;
+  final bool active;
+  final String label;
 
-  const _PickerTile({
+  const _TimeNode({
     required this.icon,
-    required this.text,
-    required this.placeholder,
-    required this.onTap,
-    this.hasError = false,
+    required this.color,
+    required this.active,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: BrandTokens.surfaceWhite,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hasError ? BrandTokens.dangerRed : BrandTokens.borderSoft,
-            width: hasError ? 1.4 : 1,
+    return Column(
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: _kCard,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: active ? color : _kOutlineVariant,
+              width: 2,
+            ),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(icon, color: active ? color : _kMuted, size: 22),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: active ? color : _kMuted,
           ),
         ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: hasError
-                  ? BrandTokens.dangerRed
-                  : BrandTokens.textSecondary,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                overflow: TextOverflow.ellipsis,
-                style: BrandTypography.body(
-                  color: placeholder
-                      ? BrandTokens.textMuted
-                      : BrandTokens.textPrimary,
-                ),
-              ),
-            ),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: BrandTokens.textMuted,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }
 
-class _InlineError extends StatelessWidget {
-  final String text;
-  const _InlineError({required this.text});
+// ── Travel details card (travelers + language) ────────────────────────────────
+
+class _TravelDetailsCard extends StatelessWidget {
+  final int travelers;
+  final String languageCode;
+  final VoidCallback onIncrease;
+  final VoidCallback onDecrease;
+  final ValueChanged<String> onLanguagePicked;
+
+  const _TravelDetailsCard({
+    required this.travelers,
+    required this.languageCode,
+    required this.onIncrease,
+    required this.onDecrease,
+    required this.onLanguagePicked,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Row(
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            size: 14,
-            color: BrandTokens.dangerRed,
+          // Travelers stepper
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _kAmber.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.people_alt_outlined,
+                  color: _kAmber,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Travelers',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _kNavy,
+                      ),
+                    ),
+                    const Text(
+                      'Including children',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: _kMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Stepper
+              Row(
+                children: [
+                  _StepperButton(
+                    icon: Icons.remove_rounded,
+                    onTap: onDecrease,
+                    enabled: travelers > 1,
+                  ),
+                  SizedBox(
+                    width: 36,
+                    child: Text(
+                      '$travelers',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: _kNavy,
+                      ),
+                    ),
+                  ),
+                  _StepperButton(
+                    icon: Icons.add_rounded,
+                    onTap: onIncrease,
+                    enabled: travelers < 12,
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: BrandTypography.caption(color: BrandTokens.dangerRed),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Container(
+              height: 1,
+              color: _kOutlineVariant.withValues(alpha: 0.5),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
 
-class _DurationStepper extends StatelessWidget {
-  static const int _stepMinutes = 30;
-  static const int _minMinutes = 60;
-  static const int _maxMinutes = 720;
-
-  final int minutes;
-  final ValueChanged<int> onChanged;
-
-  const _DurationStepper({required this.minutes, required this.onChanged});
-
-  String _formatLabel(int m) {
-    final h = m ~/ 60;
-    final r = m % 60;
-    if (r == 0) return '$h hour${h == 1 ? '' : 's'}';
-    if (h == 0) return '${r}m';
-    return '${h}h ${r}m';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final canDecrement = minutes - _stepMinutes >= _minMinutes;
-    final canIncrement = minutes + _stepMinutes <= _maxMinutes;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.hourglass_top_rounded,
-            color: BrandTokens.textSecondary,
-            size: 20,
+          // Language
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _kContainerLow,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.translate_rounded,
+                  color: _kBlue,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Text(
+                'Guide Language',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kNavy,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(_formatLabel(minutes), style: BrandTypography.body()),
-          ),
-          _StepperButton(
-            icon: Icons.remove_rounded,
-            enabled: canDecrement,
-            onTap: () => onChanged(minutes - _stepMinutes),
-          ),
-          const SizedBox(width: 8),
-          _StepperButton(
-            icon: Icons.add_rounded,
-            enabled: canIncrement,
-            onTap: () => onChanged(minutes + _stepMinutes),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TravelersStepper extends StatelessWidget {
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  const _TravelersStepper({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.group_rounded,
-            color: BrandTokens.textSecondary,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '$value traveler${value == 1 ? '' : 's'}',
-              style: BrandTypography.body(),
+          const SizedBox(height: 14),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _languages.map((lang) {
+                final selected = lang.$1 == languageCode;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onLanguagePicked(lang.$1);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: selected ? _kGradient : null,
+                        color: selected ? null : _kContainerLow,
+                        borderRadius: BorderRadius.circular(99),
+                        border: selected
+                            ? null
+                            : Border.all(
+                                color: _kOutlineVariant.withValues(alpha: 0.5),
+                              ),
+                      ),
+                      child: Text(
+                        lang.$2,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? Colors.white : _kNavy,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
-          ),
-          _StepperButton(
-            icon: Icons.remove_rounded,
-            enabled: value > 1,
-            onTap: () => onChanged(value - 1),
-          ),
-          const SizedBox(width: 8),
-          _StepperButton(
-            icon: Icons.add_rounded,
-            enabled: value < 12,
-            onTap: () => onChanged(value + 1),
           ),
         ],
       ),
@@ -748,155 +1340,316 @@ class _TravelersStepper extends StatelessWidget {
 
 class _StepperButton extends StatelessWidget {
   final IconData icon;
-  final bool enabled;
   final VoidCallback onTap;
+  final bool enabled;
 
   const _StepperButton({
     required this.icon,
-    required this.enabled,
     required this.onTap,
+    required this.enabled,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: enabled ? BrandTokens.borderTinted : BrandTokens.bgSoft,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: enabled
-            ? () {
-                HapticFeedback.selectionClick();
-                onTap();
-              }
-            : null,
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Icon(
-            icon,
-            size: 18,
-            color: enabled ? BrandTokens.primaryBlue : BrandTokens.textMuted,
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: enabled ? _kBlue : _kOutlineVariant,
           ),
+          color: enabled ? _kBlue.withValues(alpha: 0.06) : Colors.transparent,
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? _kBlue : _kOutlineVariant,
         ),
       ),
     );
   }
 }
 
-class _LanguagePicker extends StatelessWidget {
-  final String selected;
-  final List<(String, String)> items;
-  final ValueChanged<String> onSelected;
+// ── Travel companion section ──────────────────────────────────────────────────
 
-  const _LanguagePicker({
+class _TravelCompanionSection extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  const _TravelCompanionSection({
     required this.selected,
-    required this.items,
     required this.onSelected,
   });
 
+  static const _companions = [
+    (Icons.person_pin_circle_rounded, 'Local Expert', 'Walking & transit tours'),
+    (Icons.directions_car_rounded, 'Driver Guide', 'Includes private vehicle'),
+    (Icons.room_service_rounded, 'Full Service', 'Premium VIP experience'),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, i) {
-          final code = items[i].$1;
-          final label = items[i].$2;
-          final selectedNow = code == selected;
-          return GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onSelected(code);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: selectedNow
-                    ? BrandTokens.primaryBlue
-                    : BrandTokens.surfaceWhite,
-                borderRadius: BorderRadius.circular(99),
-                border: Border.all(
-                  color: selectedNow
-                      ? BrandTokens.primaryBlue
-                      : BrandTokens.borderSoft,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                label,
-                style: BrandTypography.body(
-                  weight: FontWeight.w600,
-                  color: selectedNow ? Colors.white : BrandTokens.textPrimary,
-                ),
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'TRAVEL COMPANION',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
+              color: _kMuted,
             ),
-          );
-        },
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemCount: items.length,
-      ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 140,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _companions.length,
+            itemBuilder: (ctx, i) {
+              final item = _companions[i];
+              final isComingSoon = i == 2;
+              final isSelected = i == selected && !isComingSoon;
+              return Padding(
+                padding: EdgeInsets.only(right: i < _companions.length - 1 ? 12 : 0),
+                child: GestureDetector(
+                  onTap: isComingSoon ? null : () => onSelected(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 130,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isComingSoon
+                          ? _kContainerLow.withValues(alpha: 0.5)
+                          : isSelected
+                              ? _kNavy.withValues(alpha: 0.04)
+                              : _kCard.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isComingSoon
+                            ? _kOutlineVariant.withValues(alpha: 0.25)
+                            : isSelected
+                                ? _kNavy
+                                : _kOutlineVariant.withValues(alpha: 0.4),
+                        width: isSelected ? 2 : 1,
+                      ),
+                      boxShadow: isSelected ? _kCardShadow : null,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: isComingSoon
+                                    ? _kOutlineVariant.withValues(alpha: 0.12)
+                                    : isSelected
+                                        ? _kContainerLow
+                                        : _kOutlineVariant.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                item.$1,
+                                size: 18,
+                                color: isComingSoon
+                                    ? _kOutlineVariant.withValues(alpha: 0.5)
+                                    : isSelected
+                                        ? _kBlue
+                                        : _kMuted,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (isComingSoon)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kAmber.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'SOON',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w800,
+                                    color: _kAmber,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              )
+                            else if (isSelected)
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: _kAmber,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          item.$2,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: isComingSoon
+                                ? _kOutlineVariant
+                                : isSelected
+                                    ? _kNavy
+                                    : _kMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.$3,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 10,
+                            color: isComingSoon
+                                ? _kOutlineVariant.withValues(alpha: 0.6)
+                                : _kMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _CarToggle extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
+// ── Journal notes card ────────────────────────────────────────────────────────
 
-  const _CarToggle({required this.value, required this.onChanged});
+class _JournalNotesCard extends StatelessWidget {
+  final TextEditingController controller;
+  const _JournalNotesCard({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onChanged(!value);
-      },
+    return Transform.rotate(
+      angle: -0.012, // -1 degree tilt
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: BrandTokens.surfaceWhite,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: BrandTokens.borderSoft),
+        decoration: const BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(4),
+            topRight: Radius.circular(4),
+            bottomLeft: Radius.circular(4),
+            bottomRight: Radius.circular(4),
+          ),
+          boxShadow: _kCardShadow,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.directions_car_rounded,
-              color: value
-                  ? BrandTokens.primaryBlue
-                  : BrandTokens.textSecondary,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // "Stamp" header row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 0),
+              child: Row(
                 children: [
-                  Text(
-                    'Helper with car',
-                    style: BrandTypography.body(weight: FontWeight.w600),
+                  const Text(
+                    'JOURNAL NOTES',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                      color: _kNavy,
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Only show helpers driving a car for this trip.',
-                    style: BrandTypography.caption(
-                      color: BrandTokens.textSecondary,
+                  const Spacer(),
+                  // Stamp corner decoration
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _kAmber.withValues(alpha: 0.4),
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.sell_outlined,
+                      size: 14,
+                      color: _kAmber,
                     ),
                   ),
                 ],
               ),
             ),
-            Switch.adaptive(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: BrandTokens.primaryBlue,
+            const SizedBox(height: 12),
+            // Lined input area
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: TextField(
+                controller: controller,
+                maxLines: 3,
+                minLines: 3,
+                maxLength: 500,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontStyle: FontStyle.italic,
+                  color: _kOnSurface,
+                  height: 1.7,
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  hintText: 'Any special requests? Must-see places, pace preference, dietary needs...',
+                  hintStyle: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: _kMuted.withValues(alpha: 0.4),
+                  ),
+                  counterStyle: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 10,
+                    color: _kMuted,
+                  ),
+                ),
+              ),
             ),
+            // Dashed bottom line (postcard effect)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              height: 1.5,
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: _kOutlineVariant,
+                    width: 1,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
           ],
         ),
       ),
@@ -904,89 +1657,134 @@ class _CarToggle extends StatelessWidget {
   }
 }
 
-class _LocationPickButton extends StatelessWidget {
-  final bool hasCoords;
-  final String primaryLabel;
-  final String? coordsPreview;
-  final VoidCallback onTap;
-  final bool loading;
+// ── Sticky search footer ──────────────────────────────────────────────────────
 
-  const _LocationPickButton({
-    required this.hasCoords,
-    required this.primaryLabel,
-    required this.coordsPreview,
-    required this.onTap,
-    this.loading = false,
+class _SearchFooter extends StatelessWidget {
+  final bool canSearch;
+  final VoidCallback onSearch;
+  final double bottomPad;
+
+  const _SearchFooter({
+    required this.canSearch,
+    required this.onSearch,
+    required this.bottomPad,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: loading ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: hasCoords
-              ? BrandTokens.borderTinted
-              : BrandTokens.surfaceWhite,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hasCoords ? BrandTokens.primaryBlue : BrandTokens.borderSoft,
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottomPad),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141B237E),
+            blurRadius: 30,
+            offset: Offset(0, -8),
           ),
-        ),
-        child: Row(
-          children: [
-            loading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: BrandTokens.primaryBlue,
-                    ),
-                  )
-                : Icon(
-                    hasCoords ? Icons.check_circle_rounded : Icons.map_rounded,
-                    size: 18,
-                    color: hasCoords
-                        ? BrandTokens.primaryBlue
-                        : BrandTokens.textSecondary,
-                  ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Trust badges
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _BadgeItem(Icons.lock_outline_rounded, 'Secure'),
+              const SizedBox(width: 20),
+              _BadgeItem(Icons.check_circle_outline_rounded, 'Free Search'),
+              const SizedBox(width: 20),
+              _BadgeItem(Icons.verified_outlined, 'Verified Guides'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // CTA button
+          GestureDetector(
+            onTap: onSearch,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: double.infinity,
+              height: 58,
+              decoration: BoxDecoration(
+                gradient: canSearch ? _kGradient : null,
+                color: canSearch ? null : _kOutlineVariant.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(40),
+                boxShadow: canSearch
+                    ? [
+                        BoxShadow(
+                          color: _kNavy.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    primaryLabel,
-                    style: BrandTypography.caption(
-                      weight: FontWeight.w700,
-                      color: hasCoords
-                          ? BrandTokens.primaryBlue
-                          : BrandTokens.textPrimary,
+                    'Find Available Guides',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: canSearch
+                          ? Colors.white
+                          : _kMuted.withValues(alpha: 0.6),
+                      letterSpacing: 0.2,
                     ),
                   ),
-                  if (coordsPreview != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      coordsPreview!,
-                      style: BrandTypography.caption(
-                        color: BrandTokens.textSecondary,
-                      ),
-                    ),
-                  ],
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: canSearch
+                        ? Colors.white
+                        : _kMuted.withValues(alpha: 0.6),
+                    size: 20,
+                  ),
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: BrandTokens.textMuted,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Free to search · Pay only after your trip',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              color: _kMuted.withValues(alpha: 0.7),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _BadgeItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _BadgeItem(this.icon, this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: _kMuted),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _kMuted,
+          ),
+        ),
+      ],
     );
   }
 }
