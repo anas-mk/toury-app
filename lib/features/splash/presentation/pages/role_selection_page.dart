@@ -83,10 +83,8 @@ class _RoleSelectionPageState extends State<RoleSelectionPage>
                 title: loc.translate('tourist'),
                 icon: Icons.explore_outlined,
                 iconColor: scheme.primary,
-                onTap: () => context.push(
-                  AppRouter.login,
-                  extra: 'from_role_selection',
-                ),
+                onTap: () =>
+                    context.push(AppRouter.login, extra: 'from_role_selection'),
               ),
               const SizedBox(height: AppSpacing.md),
               _RoleOption(
