@@ -84,6 +84,7 @@ import '../../features/user/features/user_invoices/domain/entities/invoice_entit
 import '../../features/user/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
 import '../../features/user/features/user_ratings/presentation/pages/helper_reviews_page.dart';
 import '../../features/user/features/user_ratings/presentation/pages/rate_booking_page.dart';
+import '../../features/user/features/user_booking/presentation/pages/trip_receipt_page.dart';
 import '../../features/user/features/user_chat/presentation/pages/user_chat_page.dart';
 import '../../features/user/features/user_booking_tracking/presentation/pages/user_booking_tracking_page.dart';
 
@@ -362,6 +363,9 @@ class AppRouter {
   // User Rating Routes
   static const String helperReviews = '/helper-reviews/:id';
   static const String rateBooking = '/rate-booking/:bookingId';
+
+  // Trip receipt (shown after TripEnded before rating)
+  static const String tripReceipt = '/trip-receipt/:id';
 
   // Hidden diagnostics
   static const String devRealtime = '/dev/realtime';
@@ -1209,6 +1213,15 @@ class AppRouter {
         builder: (context, state) {
           final id = state.pathParameters['bookingId']!;
           return RateBookingPage(bookingId: id);
+        },
+      ),
+
+      GoRoute(
+        path: tripReceipt,
+        name: 'trip-receipt',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return TripReceiptPage(bookingId: id);
         },
       ),
 

@@ -48,9 +48,6 @@ class _TouristBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
 
-    // Row centres the pill horizontally without expanding the nav bar height.
-    // Do NOT use alignment on the outer wrapper — Container(alignment:center)
-    // fills the entire bottomNavigationBar slot, pushing the pill mid-screen.
     return Padding(
       padding: EdgeInsets.only(
         top: 8,
@@ -64,7 +61,6 @@ class _TouristBottomNav extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(40),
-              // Matches design: shadow-[0_8px_30px_rgb(27,35,126,0.06)]
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x0F1B237E),
@@ -78,7 +74,6 @@ class _TouristBottomNav extends StatelessWidget {
               children: List.generate(_icons.length, (i) {
                 final active = i == currentIndex;
                 return Padding(
-                  // gap-8 = 32 px between buttons (left gap on all except first)
                   padding: EdgeInsets.only(left: i == 0 ? 0 : 32),
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -86,7 +81,6 @@ class _TouristBottomNav extends StatelessWidget {
                       HapticFeedback.selectionClick();
                       onTap(i);
                     },
-                    // 9 px padding → 26 + 18 = 44 px minimum tap target
                     child: Padding(
                       padding: const EdgeInsets.all(9),
                       child: AnimatedScale(

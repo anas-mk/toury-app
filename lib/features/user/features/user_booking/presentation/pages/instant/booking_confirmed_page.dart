@@ -172,7 +172,7 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     }
     final uri = Uri(scheme: 'tel', path: p);
     try {
-      await launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -521,8 +521,8 @@ class _HelperCard extends StatelessWidget {
             icon: Icons.call_rounded,
             background: const Color(0xFFEFECF5),
             iconColor: canCall ? BrandTokens.primaryBlue : const Color(0xFFC6C5D4),
-            onTap: onCall,
-            tooltip: 'Call helper',
+            onTap: canCall ? onCall : null,
+            tooltip: canCall ? 'Call helper' : 'No phone number available',
           ),
         ],
       ),

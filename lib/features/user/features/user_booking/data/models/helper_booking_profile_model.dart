@@ -84,6 +84,7 @@ class HelperBookingProfileModel extends HelperBookingProfile {
     required super.canAcceptScheduled,
     super.averageResponseTimeSeconds,
     super.acceptanceRate,
+    super.phoneNumber,
   });
 
   factory HelperBookingProfileModel.fromJson(Map<String, dynamic> json) {
@@ -119,6 +120,10 @@ class HelperBookingProfileModel extends HelperBookingProfile {
       averageResponseTimeSeconds:
           parseIntOrNull(json['averageResponseTimeSeconds']),
       acceptanceRate: parseDoubleOrNull(json['acceptanceRate']),
+      phoneNumber: json['phoneNumber']?.toString() ??
+          json['phone']?.toString() ??
+          json['contactPhone']?.toString() ??
+          json['mobileNumber']?.toString(),
     );
   }
 }

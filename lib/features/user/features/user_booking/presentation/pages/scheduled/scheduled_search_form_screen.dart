@@ -1417,22 +1417,29 @@ class _TravelCompanionSection extends StatelessWidget {
             itemCount: _companions.length,
             itemBuilder: (ctx, i) {
               final item = _companions[i];
-              final isSelected = i == selected;
+              final isComingSoon = i == 2;
+              final isSelected = i == selected && !isComingSoon;
               return Padding(
                 padding: EdgeInsets.only(right: i < _companions.length - 1 ? 12 : 0),
                 child: GestureDetector(
-                  onTap: () => onSelected(i),
+                  onTap: isComingSoon ? null : () => onSelected(i),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: 130,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isSelected
-                          ? _kNavy.withValues(alpha: 0.04)
-                          : _kCard.withValues(alpha: 0.7),
+                      color: isComingSoon
+                          ? _kContainerLow.withValues(alpha: 0.5)
+                          : isSelected
+                              ? _kNavy.withValues(alpha: 0.04)
+                              : _kCard.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? _kNavy : _kOutlineVariant.withValues(alpha: 0.4),
+                        color: isComingSoon
+                            ? _kOutlineVariant.withValues(alpha: 0.25)
+                            : isSelected
+                                ? _kNavy
+                                : _kOutlineVariant.withValues(alpha: 0.4),
                         width: isSelected ? 2 : 1,
                       ),
                       boxShadow: isSelected ? _kCardShadow : null,
@@ -1446,19 +1453,46 @@ class _TravelCompanionSection extends StatelessWidget {
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? _kContainerLow
-                                    : _kOutlineVariant.withValues(alpha: 0.15),
+                                color: isComingSoon
+                                    ? _kOutlineVariant.withValues(alpha: 0.12)
+                                    : isSelected
+                                        ? _kContainerLow
+                                        : _kOutlineVariant.withValues(alpha: 0.15),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 item.$1,
                                 size: 18,
-                                color: isSelected ? _kBlue : _kMuted,
+                                color: isComingSoon
+                                    ? _kOutlineVariant.withValues(alpha: 0.5)
+                                    : isSelected
+                                        ? _kBlue
+                                        : _kMuted,
                               ),
                             ),
                             const Spacer(),
-                            if (isSelected)
+                            if (isComingSoon)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kAmber.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'SOON',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w800,
+                                    color: _kAmber,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              )
+                            else if (isSelected)
                               Container(
                                 width: 8,
                                 height: 8,
@@ -1476,16 +1510,22 @@ class _TravelCompanionSection extends StatelessWidget {
                             fontFamily: 'Outfit',
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? _kNavy : _kMuted,
+                            color: isComingSoon
+                                ? _kOutlineVariant
+                                : isSelected
+                                    ? _kNavy
+                                    : _kMuted,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           item.$3,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 10,
-                            color: _kMuted,
+                            color: isComingSoon
+                                ? _kOutlineVariant.withValues(alpha: 0.6)
+                                : _kMuted,
                           ),
                         ),
                       ],

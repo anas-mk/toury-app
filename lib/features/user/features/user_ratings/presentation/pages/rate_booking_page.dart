@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:toury/features/user/features/user_ratings/presentation/cubit/user_ratings_cubit.dart';
 import 'package:toury/features/user/features/user_ratings/presentation/cubit/user_ratings_state.dart';
 import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/services/ratings/pending_rating_tracker.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/widgets/app_network_image.dart';
 import '../../../user_booking/presentation/cubits/booking_details_cubit.dart';
@@ -32,8 +33,10 @@ class RateBookingPage extends StatelessWidget {
         ),
       ],
       child: BlocListener<UserRatingsCubit, UserRatingsState>(
-        listener: (context, state) {
+        listener: (context, state) async {
           if (state is RatingSuccess) {
+            await sl<PendingRatingTracker>().markSubmitted(bookingId);
+            if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Thank you for your feedback!')),
             );

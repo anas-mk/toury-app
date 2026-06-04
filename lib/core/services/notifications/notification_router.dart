@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../di/injection_container.dart';
+import '../ratings/pending_rating_tracker.dart';
 import '../realtime/event_dedup_cache.dart';
 import '../realtime/realtime_logger.dart';
 
@@ -66,6 +70,13 @@ class NotificationRouter {
       _router?.routerDelegate.navigatorKey.currentContext;
 
   BuildContext? get navigatorContext => _context;
+
+  /// The root overlay — access it directly from the NavigatorState so we
+  /// never rely on `Overlay.maybeOf(ctx)` which looks UP the tree and fails
+  /// when ctx is the Navigator widget itself (not one of its descendants).
+  OverlayState? get overlayState =>
+      _navigatorKey?.currentState?.overlay ??
+      _router?.routerDelegate.navigatorKey.currentState?.overlay;
 
   // ── Pending deep-link buffer ──────────────────────────────────────────────
 
@@ -205,6 +216,15 @@ class NotificationRouter {
     if (navigated && type == 'BookingCancelled') {
       _postFrameSnack('Booking cancelled');
     }
+    // For TripEnded routing to the receipt page, ensure the rating overlay
+    // will fire after the receipt is dismissed — covers the cold-start case
+    // where AppRealtimeCubit's BusBookingTripEnded never fired.
+    if (navigated && type == 'TripEnded' && route.contains('/trip-receipt/')) {
+      final id = (data['bookingId'] ?? data['BookingId'])?.toString() ?? '';
+      if (id.isNotEmpty) {
+        unawaited(sl<PendingRatingTracker>().markPending(id));
+      }
+    }
     return navigated;
   }
 
@@ -236,11 +256,14 @@ class NotificationRouter {
         data['ConversationId']?.toString();
     final paymentStatus = data['paymentStatus']?.toString() ??
         data['PaymentStatus']?.toString();
+    final bookingType = data['bookingType']?.toString() ??
+        data['BookingType']?.toString();
     return _routeFor(
       type,
       bookingId: bookingId,
       conversationId: conversationId,
       paymentStatus: paymentStatus,
+      bookingType: bookingType,
     );
   }
 
@@ -249,11 +272,20 @@ class NotificationRouter {
     String? bookingId,
     String? conversationId,
     String? paymentStatus,
+    String? bookingType,
   }) {
     final id = bookingId ?? '';
+    // Normalise bookingType: backend may send "Instant", "instant", etc.
+    final isInstant =
+        bookingType?.toLowerCase() == 'instant';
     switch (type) {
       case 'BookingAccepted':
-        return id.isEmpty ? null : '/instant/confirmed/$id';
+        // Only route to the instant confirmed screen when the backend
+        // explicitly tags this notification as an Instant booking.
+        // All scheduled bookings (and any future types) land on the
+        // unified detail screen which shows the "Pay Deposit" CTA.
+        if (id.isEmpty) return null;
+        return isInstant ? '/instant/confirmed/$id' : '/booking-details/$id';
       case 'BookingDeclined':
       case 'BookingAwaitingUserAction':
         return id.isEmpty ? null : '/instant/alternatives/$id';
@@ -264,20 +296,17 @@ class NotificationRouter {
       case 'TripStarted':
         return id.isEmpty ? null : '/trip/$id';
       case 'TripEnded':
-        // Conditional: pay-now if backend says payment is awaiting, else
-        // post-trip review screen. Matches the user-flow contract from the
-        // instant-booking redesign work.
         if (id.isEmpty) return null;
-        return paymentStatus == 'AwaitingPayment'
-            ? '/instant/pay-now/$id'
-            : '/booking-details/$id';
+        if (paymentStatus == 'AwaitingPayment') return '/instant/pay-now/$id';
+        // Show the journey receipt first; the rating overlay will appear
+        // automatically once the user dismisses/returns from the receipt.
+        return '/trip-receipt/$id';
       case 'ChatMessage':
-        // /chat/:id consumes a bookingId (see app_router.dart:1024–1028
-        // → UserChatPage(bookingId: id)). conversationId is the defensive
-        // fallback in case the backend ever ships ChatMessage without
-        // bookingId for a non-booking conversation type.
+        // /user-chat/:id — see AppRouter.userChat. conversationId is the
+        // defensive fallback in case the backend ever ships ChatMessage
+        // without bookingId for a non-booking conversation type.
         final chatId = id.isNotEmpty ? id : (conversationId ?? '');
-        return chatId.isEmpty ? null : '/chat/$chatId';
+        return chatId.isEmpty ? null : '/user-chat/$chatId';
       case 'HelperReportResolved':
       case 'ReportResolved':
         return '/reports';
@@ -303,12 +332,11 @@ class NotificationRouter {
       return false;
     }
     try {
-      final ctx = _context;
-      if (ctx != null && ctx.mounted) {
-        ctx.push(route);
-      } else {
-        r.go(route);
-      }
+      // Use push() on the GoRouter object directly — no BuildContext needed,
+      // so this works from cold-start, background taps, and in-app banners.
+      // push() preserves the back stack; go() replaces it.
+      r.push(route);
+      RealtimeLogger.instance.log('Router', 'go', '→ $route (push)');
       return true;
     } catch (e) {
       RealtimeLogger.instance.log(

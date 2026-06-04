@@ -16,6 +16,7 @@ import '../../../../../../../core/services/ratings/pending_rating_tracker.dart';
 import '../../../../../../../core/services/signalr/booking_hub_events.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
 import '../../../../../../../core/services/sos/active_sos_state.dart';
+import '../../../../../../../core/services/sos/sos_overlay_manager.dart';
 import '../../../../../../../core/services/sos/sos_service.dart';
 import '../../../../../../../core/models/tracking/tracking_point_entity.dart';
 import '../../../../../../../core/theme/app_color.dart';
@@ -110,6 +111,8 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   @override
   void initState() {
     super.initState();
+    // This page has its own SOS button — hide the global floating pill.
+    SosOverlayManager.suspend();
     _hub = sl<BookingTrackingHubService>();
     _sosService = sl<SosService>();
     _activeSos = _sosService.activeSos;
@@ -231,6 +234,8 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     _tripEndedSub?.cancel();
     _sosSub?.cancel();
     _routeDebounce?.cancel();
+    // Restore the global floating SOS pill when leaving the tracking page.
+    SosOverlayManager.resume();
     super.dispose();
   }
 
@@ -558,7 +563,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     }
     final uri = Uri(scheme: 'tel', path: p);
     try {
-      await launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -859,7 +864,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
             statusBarIconBrightness: Brightness.dark,
             statusBarBrightness: Brightness.light,
             systemStatusBarContrastEnforced: false,
-            systemNavigationBarColor: Color(0xFFFFFFFF),
+            systemNavigationBarColor: Colors.transparent,
             systemNavigationBarIconBrightness: Brightness.dark,
             systemNavigationBarContrastEnforced: false,
           ),
@@ -868,7 +873,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
             // status bar so the system bar gets a transparent overlay
             // instead of the dark default Android draws when a
             // Scaffold body doesn't reach the top of the device.
-            extendBodyBehindAppBar: true,
+            // No AppBar on this screen — removing extendBodyBehindAppBar
+            // avoids the black rendering artifact at the top edge on some
+            // Android devices when combined with SystemUiMode.edgeToEdge.
             extendBody: true,
             backgroundColor: const Color(0xFFFBF8FF),
             body: BlocBuilder<InstantBookingCubit, InstantBookingState>(
@@ -909,6 +916,12 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                 );
                 return Stack(
                   children: [
+                    // Fills the entire Stack so no dark edge shows during
+                    // Mapbox tile loading (ColoredBox alone takes no space
+                    // in a Stack without Positioned.fill).
+                    const Positioned.fill(
+                      child: ColoredBox(color: Color(0xFFF2F0FA)),
+                    ),
                     // Map.
                     MapWidget(
                       key: const ValueKey('tripTrackingMap'),
@@ -1034,7 +1047,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                           helperName: helperName,
                           phone: phone,
                           phaseUi: tripPhase,
-                          onCall: () => _callHelper(phone),
+                          onCall: (phone ?? '').isNotEmpty
+                              ? () => _callHelper(phone)
+                              : _openChat,
                           onChat: _openChat,
                           onShareTrip: _shareTrip,
                           onCancel: (booking?.canCancel ?? false)
@@ -1133,9 +1148,8 @@ class _StatusPill extends StatelessWidget {
     if (fallback != null) return '$fallback away';
     switch (phase) {
       case _TripPhase.preStart:
-        return 'Heading your way';
       case _TripPhase.awaitingGps:
-        return 'Connecting GPS…';
+        return 'Heading your way';
       case _TripPhase.toPickup:
         return 'On the way';
       case _TripPhase.toDestination:
@@ -1388,9 +1402,8 @@ class _TrackingSheet extends StatelessWidget {
   String get _statusSubtitle {
     switch (phaseUi) {
       case _TripPhase.preStart:
-        return 'Preparing for pickup';
       case _TripPhase.awaitingGps:
-        return 'Connecting GPS…';
+        return 'On the way to pickup';
       case _TripPhase.toPickup:
         return 'On the way to pickup';
       case _TripPhase.toDestination:
@@ -1502,9 +1515,13 @@ class _TrackingSheet extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _SheetActionButton(
-                  label: 'Contact ${helperName.split(' ').first}',
+                  label: phone != null && phone!.isNotEmpty
+                      ? 'Call ${helperName.split(' ').first}'
+                      : 'Chat ${helperName.split(' ').first}',
                   variant: _SheetActionVariant.filled,
-                  icon: Icons.call_rounded,
+                  icon: phone != null && phone!.isNotEmpty
+                      ? Icons.call_rounded
+                      : Icons.chat_bubble_outline_rounded,
                   onTap: onCall,
                 ),
               ),
@@ -1645,11 +1662,9 @@ class _EtaBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasEta = etaMinutes != null;
     if (!hasEta) {
-      // No ETA yet — render a calm "Awaiting GPS" / "Heading your way"
-      // label instead of a dashed `-- min`.
-      final label = phaseUi == _TripPhase.preStart
-          ? 'HEADING\nYOUR WAY'
-          : 'AWAITING\nGPS';
+      // No ETA yet — always show "HEADING YOUR WAY" regardless of phase
+      // so the user never sees an internal "Awaiting GPS" state.
+      const label = 'HEADING\nYOUR WAY';
       return SizedBox(
         width: 96,
         child: Text(

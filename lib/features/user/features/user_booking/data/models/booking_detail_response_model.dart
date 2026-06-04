@@ -20,7 +20,10 @@ class BookingHelperSummaryModel extends BookingHelperSummary {
       profileImageUrl: json['profileImageUrl']?.toString(),
       rating: parseDouble(json['rating']),
       completedTrips: parseInt(json['completedTrips']),
-      phoneNumber: json['phoneNumber']?.toString(),
+      phoneNumber: json['phoneNumber']?.toString() ??
+          json['phone']?.toString() ??
+          json['contactPhone']?.toString() ??
+          json['mobileNumber']?.toString(),
     );
   }
 }

@@ -60,19 +60,21 @@ class _PaymentWebviewPageState extends State<PaymentWebviewPage> {
     if (_resolved || !mounted) return;
     // Backend emits the C# `PaymentStatus` enum name verbatim:
     //   NotRequired | AwaitingPayment | PaymentPending | Paid | Refunded | Failed
-    // Only `Paid` and `Failed` are terminal for this WebView; everything else
-    // means we keep waiting.
+    // Only `Paid` and `Failed` are terminal for this WebView.
     switch (event.status) {
       case 'Paid':
         _resolved = true;
-        context.read<PaymentCubit>().completeMockPayment(widget.paymentId, true);
+        // The gateway already processed the payment server-side.
+        // Fetch the latest payment record and emit success directly —
+        // calling completeMockPayment here would be a duplicate approval
+        // and may fail with "already processed".
+        context.read<PaymentCubit>().recoverLatestPayment(widget.bookingId);
         break;
       case 'Failed':
         _resolved = true;
         context.read<PaymentCubit>().completeMockPayment(widget.paymentId, false);
         break;
       default:
-        // NotRequired | AwaitingPayment | PaymentPending | Refunded → wait.
         break;
     }
   }
@@ -90,7 +92,29 @@ class _PaymentWebviewPageState extends State<PaymentWebviewPage> {
         if (state is PaymentSuccess) {
           context.go(AppRouter.paymentSuccess, extra: widget.bookingId);
         } else if (state is PaymentFailed) {
-          context.go(AppRouter.paymentFailed, extra: widget.bookingId);
+          // Pop back to PaymentMethodPage (which is below in the stack)
+          // so the user can retry without losing the booking-details context.
+          // Only fall back to the full failed page if there is nowhere to pop.
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRouter.paymentFailed, extra: widget.bookingId);
+          }
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(
+                state.message.isNotEmpty
+                    ? state.message
+                    : 'Payment failed. Please try again.',
+              ),
+              backgroundColor: const Color(0xFFE53935),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
         }
       },
       child: Scaffold(

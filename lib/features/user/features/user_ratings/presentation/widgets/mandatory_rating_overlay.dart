@@ -56,7 +56,16 @@ class MandatoryRatingOverlay {
         barrierDismissible: false,
         useRootNavigator: true,
         barrierColor: Colors.black.withValues(alpha: 0.55),
-        builder: (dialogContext) => _RatingDialog(bookingId: bookingId),
+        builder: (dialogContext) => _RatingDialog(
+          bookingId: bookingId,
+          // Capture dialogContext here — stable across async gaps,
+          // unlike the BlocConsumer context which may go stale.
+          onClose: () {
+            if (Navigator.of(dialogContext, rootNavigator: true).canPop()) {
+              Navigator.of(dialogContext, rootNavigator: true).pop();
+            }
+          },
+        ),
       );
     } finally {
       _showing = false;
@@ -84,7 +93,8 @@ class MandatoryRatingOverlay {
 
 class _RatingDialog extends StatelessWidget {
   final String bookingId;
-  const _RatingDialog({required this.bookingId});
+  final VoidCallback onClose;
+  const _RatingDialog({required this.bookingId, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +113,7 @@ class _RatingDialog extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(32),
           ),
-          child: _RatingDialogBody(bookingId: bookingId),
+          child: _RatingDialogBody(bookingId: bookingId, onClose: onClose),
         ),
       ),
     );
@@ -112,7 +122,8 @@ class _RatingDialog extends StatelessWidget {
 
 class _RatingDialogBody extends StatefulWidget {
   final String bookingId;
-  const _RatingDialogBody({required this.bookingId});
+  final VoidCallback onClose;
+  const _RatingDialogBody({required this.bookingId, required this.onClose});
 
   @override
   State<_RatingDialogBody> createState() => _RatingDialogBodyState();
@@ -129,19 +140,30 @@ class _RatingDialogBodyState extends State<_RatingDialogBody> {
       listener: (context, state) async {
         if (state is RatingSuccess && !_submitted) {
           _submitted = true;
+          // Mark submitted first so the overlay doesn't re-show.
           await sl<PendingRatingTracker>().markSubmitted(widget.bookingId);
-          if (!context.mounted) return;
+          // Brief success-animation delay, then close via the stable
+          // dialogContext callback (avoids stale-context / mounted issues).
           await Future<void>.delayed(const Duration(milliseconds: 450));
-          if (!context.mounted) return;
-          Navigator.of(context, rootNavigator: true).pop();
+          widget.onClose();
         } else if (state is RatingError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: BrandTokens.dangerSos,
-              behavior: SnackBarBehavior.floating,
-              content: Text(state.message),
-            ),
-          );
+          final msg = state.message.toLowerCase();
+          // If the booking was already rated (e.g. submitted via RateBookingPage
+          // in a previous session), remove it from pending and close the overlay
+          // so the user is not stuck in an unsubmittable dialog.
+          if (msg.contains('already') || msg.contains('rated')) {
+            await sl<PendingRatingTracker>().markSubmitted(widget.bookingId);
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+            widget.onClose();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: BrandTokens.dangerSos,
+                behavior: SnackBarBehavior.floating,
+                content: Text(state.message),
+              ),
+            );
+          }
         }
       },
       builder: (context, state) {

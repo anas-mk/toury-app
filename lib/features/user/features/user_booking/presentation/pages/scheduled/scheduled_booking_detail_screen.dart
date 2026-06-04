@@ -9,14 +9,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
 import '../../../../../../../core/services/signalr/booking_tracking_hub_service.dart';
-import '../../../../../../../core/services/sos/sos_service.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_status.dart';
 import '../../cubits/scheduled/scheduled_booking_detail_cubit.dart';
 import '../../widgets/scheduled/countdown_chip.dart';
 import 'cancel_booking_sheet.dart';
-import 'rate_helper_sheet.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavy = Color(0xFF000668);
@@ -664,7 +662,9 @@ class _HelperCard extends StatelessWidget {
       return;
     }
     final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   void _chat(BuildContext context) {
@@ -795,13 +795,21 @@ class _HelperCard extends StatelessWidget {
                 ),
               if (booking.chatEnabled) const SizedBox(width: 10),
               Expanded(
-                child: _ActionPill(
-                  icon: Icons.call_rounded,
-                  label: 'Call',
-                  color: const Color(0xFF2E7D32),
-                  bg: const Color(0xFFE8F5E9),
-                  onTap: () => _call(context),
-                ),
+                child: Builder(builder: (ctx) {
+                  final hasPhone =
+                      (booking.helper?.phoneNumber?.trim() ?? '').isNotEmpty;
+                  return _ActionPill(
+                    icon: Icons.call_rounded,
+                    label: 'Call',
+                    color: hasPhone
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFF9E9E9E),
+                    bg: hasPhone
+                        ? const Color(0xFFE8F5E9)
+                        : const Color(0xFFF5F5F5),
+                    onTap: hasPhone ? () => _call(ctx) : null,
+                  );
+                }),
               ),
             ],
           ),
@@ -816,14 +824,14 @@ class _ActionPill extends StatelessWidget {
   final String label;
   final Color color;
   final Color bg;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ActionPill({
     required this.icon,
     required this.label,
     required this.color,
     required this.bg,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
@@ -1677,35 +1685,12 @@ class _StickyBottom extends StatelessWidget {
   List<Widget> _buildActions(BuildContext context) {
     final id = booking.bookingId;
 
-    // Dismiss SOS helper
-    Future<void> showSos() async {
-      HapticFeedback.heavyImpact();
-      final result = await sl<SosService>().trigger(
-        bookingId: id,
-        reason: 'user-trip-sos',
-      );
-      if (!context.mounted) return;
-      final msg = result.success ? 'SOS active — help is on the way.' : (result.message ?? 'SOS failed.');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: result.success ? _kSuccess : _kDanger,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      );
-      if (result.success && context.mounted) {
-        context.read<ScheduledBookingDetailCubit>().onSosTriggered();
-      }
-    }
-
     Future<void> showCancel() async {
       final penalty = _cancellationPenalty(booking);
       final result = await showModalBottomSheet<CancelResult>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.transparent,
         builder: (_) => CancelBookingSheet(
           bookingId: id,
@@ -1757,36 +1742,28 @@ class _StickyBottom extends StatelessWidget {
             ),
         ];
       case BookingStatus.inProgress:
+        // SOS is now handled by the global floating button (SosOverlayManager).
         return [
-          _GhostBtn(
-            label: '🚨 SOS',
-            danger: true,
-            onTap: showSos,
-          ),
           _GradientBtn(
             label: 'Track Live 📍',
             onTap: () => context.push(
-              AppRouter.userTracking.replaceFirst(':id', id),
+              AppRouter.tripLive.replaceFirst(':id', id),
             ),
           ),
         ];
       case BookingStatus.completed:
-        return [
-          _GradientBtn(
-            label: 'Rate Your Guide ⭐',
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => RateHelperSheet(bookingId: id),
-            ),
-          ),
-        ];
+        return const [];
       case BookingStatus.reassignmentInProgress:
       case BookingStatus.waitingForUserAction:
       case BookingStatus.declinedByHelper:
       case BookingStatus.expiredNoResponse:
         return [
+          // User may choose to cancel instead of picking an alternative.
+          _GhostBtn(
+            label: 'Cancel Trip',
+            danger: true,
+            onTap: () => showCancel(),
+          ),
           _GradientBtn(
             label: 'See Alternatives →',
             onTap: () => context.push(
