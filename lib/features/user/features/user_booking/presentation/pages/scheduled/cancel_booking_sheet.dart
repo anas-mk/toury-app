@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -92,6 +94,9 @@ class _CancelBodyState extends State<_CancelBody> {
   void initState() {
     super.initState();
     _reasonCtrl = TextEditingController();
+    // Rebuild only the submit-button row when text changes — avoids
+    // re-animating every chip on every keystroke.
+    _reasonCtrl.addListener(() => setState(() {}));
   }
 
   @override
@@ -118,6 +123,9 @@ class _CancelBodyState extends State<_CancelBody> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final bottomPad   = MediaQuery.paddingOf(context).bottom;
+
     return BlocListener<CancelBookingCubit, CancelBookingState>(
       listener: (context, state) {
         if (state is CancelBookingSuccess) {
@@ -128,168 +136,195 @@ class _CancelBodyState extends State<_CancelBody> {
             SnackBar(
               content: Text(state.message),
               backgroundColor: BrandTokens.dangerRed,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            max(bottomInset, bottomPad) + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: BrandTokens.dangerRedSoft,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.warning_amber_rounded,
-                  color: BrandTokens.dangerRed,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Cancel this booking?',
-                  style: BrandTypography.headline(),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (widget.contextHint != null)
-            _Notice(
-              icon: Icons.info_outline_rounded,
-              text: widget.contextHint!,
-            ),
-          if (widget.refundHint != null) ...[
-            const SizedBox(height: 8),
-            _Notice(
-              icon: widget.forfeitsDeposit
-                  ? Icons.warning_amber_rounded
-                  : Icons.account_balance_wallet_rounded,
-              text: widget.refundHint!,
-              // Forfeit warnings are red so the user can't miss them
-              // (Fix 9). Refundable / free wording stays amber.
-              tone: widget.forfeitsDeposit
-                  ? _NoticeTone.danger
-                  : _NoticeTone.amber,
-            ),
-          ],
-          const SizedBox(height: 18),
-          Text(
-            'Why are you cancelling?',
-            style: BrandTypography.body(weight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _presets
-                .map(
-                  (preset) => GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() {
-                        _selectedPreset = preset;
-                        if (preset != 'Other') _reasonCtrl.clear();
-                      });
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedPreset == preset
-                            ? BrandTokens.primaryBlue
-                            : BrandTokens.surfaceWhite,
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(
-                          color: _selectedPreset == preset
-                              ? BrandTokens.primaryBlue
-                              : BrandTokens.borderSoft,
-                        ),
-                      ),
-                      child: Text(
-                        preset,
-                        style: BrandTypography.caption(
-                          color: _selectedPreset == preset
-                              ? Colors.white
-                              : BrandTokens.textPrimary,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          if (_selectedPreset == 'Other') ...[
-            const SizedBox(height: 14),
-            TextField(
-              controller: _reasonCtrl,
-              maxLines: 3,
-              maxLength: 240,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Tell us briefly\u2026',
-                hintStyle: BrandTypography.body(color: BrandTokens.textMuted),
-                filled: true,
-                fillColor: BrandTokens.surfaceWhite,
-                contentPadding: const EdgeInsets.all(14),
-                counterText: '',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: BrandTokens.borderSoft),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: BrandTokens.borderSoft),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: BrandTokens.primaryBlue,
-                    width: 1.6,
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: BrandTokens.borderSoft,
+                    borderRadius: BorderRadius.circular(99),
                   ),
                 ),
               ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          BlocBuilder<CancelBookingCubit, CancelBookingState>(
-            builder: (context, state) {
-              final loading = state is CancelBookingLoading;
-              return Row(
+              const SizedBox(height: 16),
+
+              Row(
                 children: [
-                  Expanded(
-                    child: GhostButton(
-                      label: 'Keep booking',
-                      icon: Icons.arrow_back_rounded,
-                      onPressed: loading
-                          ? null
-                          : () => Navigator.of(context).pop(),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: BrandTokens.dangerRedSoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: BrandTokens.dangerRed,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _DangerButton(
-                      label: loading ? 'Cancelling\u2026' : 'Yes, cancel',
-                      enabled: !loading && _resolvedReason != null,
-                      onPressed: () => _confirm(context),
+                    child: Text(
+                      'Cancel this booking?',
+                      style: BrandTypography.headline(),
                     ),
                   ),
                 ],
-              );
-            },
+              ),
+              const SizedBox(height: 12),
+              if (widget.contextHint != null)
+                _Notice(
+                  icon: Icons.info_outline_rounded,
+                  text: widget.contextHint!,
+                ),
+              if (widget.refundHint != null) ...[
+                const SizedBox(height: 8),
+                _Notice(
+                  icon: widget.forfeitsDeposit
+                      ? Icons.warning_amber_rounded
+                      : Icons.account_balance_wallet_rounded,
+                  text: widget.refundHint!,
+                  tone: widget.forfeitsDeposit
+                      ? _NoticeTone.danger
+                      : _NoticeTone.amber,
+                ),
+              ],
+              const SizedBox(height: 18),
+              Text(
+                'Why are you cancelling?',
+                style: BrandTypography.body(weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _presets
+                    .map(
+                      (preset) => GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _selectedPreset = preset;
+                            if (preset != 'Other') _reasonCtrl.clear();
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _selectedPreset == preset
+                                ? BrandTokens.primaryBlue
+                                : BrandTokens.surfaceWhite,
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(
+                              color: _selectedPreset == preset
+                                  ? BrandTokens.primaryBlue
+                                  : BrandTokens.borderSoft,
+                            ),
+                          ),
+                          child: Text(
+                            preset,
+                            style: BrandTypography.caption(
+                              color: _selectedPreset == preset
+                                  ? Colors.white
+                                  : BrandTokens.textPrimary,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              if (_selectedPreset == 'Other') ...[
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _reasonCtrl,
+                  maxLines: 3,
+                  maxLength: 240,
+                  decoration: InputDecoration(
+                    hintText: 'Tell us briefly\u2026',
+                    hintStyle:
+                        BrandTypography.body(color: BrandTokens.textMuted),
+                    filled: true,
+                    fillColor: BrandTokens.surfaceWhite,
+                    contentPadding: const EdgeInsets.all(14),
+                    counterText: '',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(color: BrandTokens.borderSoft),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(color: BrandTokens.borderSoft),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                        color: BrandTokens.primaryBlue,
+                        width: 1.6,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              BlocBuilder<CancelBookingCubit, CancelBookingState>(
+                builder: (context, state) {
+                  final loading = state is CancelBookingLoading;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: GhostButton(
+                          label: 'Keep booking',
+                          icon: Icons.arrow_back_rounded,
+                          onPressed: loading
+                              ? null
+                              : () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _DangerButton(
+                          label: loading ? 'Cancelling\u2026' : 'Yes, cancel',
+                          enabled: !loading && _resolvedReason != null,
+                          onPressed: () => _confirm(context),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-        ],
+        ),
       ),
     );
   }

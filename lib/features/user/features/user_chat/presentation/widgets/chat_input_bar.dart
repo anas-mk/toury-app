@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/theme/app_dimens.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
 
+/// Editorial chat input pill — single rounded white pill containing:
+///   • An "add" leading icon (placeholder for future attachments).
+///   • The text field.
+///   • A primary blue circular send button.
+///
+/// Sits on a soft warm-off-white gradient that fades into the body
+/// behind so the messages list peeks through when the user scrolls.
 class ChatInputBar extends StatefulWidget {
   final void Function(String) onSend;
-  final VoidCallback? onQuickReply;
+  final String? hintText;
 
   const ChatInputBar({
     super.key,
     required this.onSend,
-    this.onQuickReply,
+    this.hintText,
   });
 
   @override
@@ -25,7 +32,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
   void initState() {
     super.initState();
     _controller.addListener(() {
-      setState(() => _canSend = _controller.text.trim().isNotEmpty);
+      final next = _controller.text.trim().isNotEmpty;
+      if (next != _canSend) {
+        setState(() => _canSend = next);
+      }
     });
   }
 
@@ -36,95 +46,124 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   void _handleSend() {
-    if (_canSend) {
-      widget.onSend(_controller.text.trim());
-      _controller.clear();
-    }
+    if (!_canSend) return;
+    HapticFeedback.selectionClick();
+    widget.onSend(_controller.text.trim());
+    _controller.clear();
   }
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final quick = widget.onQuickReply;
-
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.lg,
-        AppSpacing.md + MediaQuery.paddingOf(context).bottom,
-      ),
-      decoration: BoxDecoration(
-        color: palette.scaffold,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: palette.isDark ? 0.35 : 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Color(0xFFFAF8F4),
+            Color(0xE6FAF8F4),
+            Color(0x00FAF8F4),
+          ],
+          stops: [0.0, 0.55, 1.0],
+        ),
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            if (quick != null) ...[
-              IconButton(
-                icon: Icon(Icons.flash_on_rounded, color: palette.warning),
-                tooltip: 'Quick replies',
-                onPressed: quick,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-            ],
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: palette.surfaceInset,
-                  borderRadius: BorderRadius.circular(AppRadius.xxl),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: const Color(0xFFE8E4DF)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0F1B237E),
+                  blurRadius: 30,
+                  offset: Offset(0, 8),
                 ),
-                child: TextField(
-                  controller: _controller,
-                  maxLines: 4,
-                  minLines: 1,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  decoration: InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(color: palette.textMuted),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: AppSpacing.md,
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+            child: Row(
+              children: [
+                IconButton(
+                  // Placeholder for attachments. Wired to a snackbar
+                  // for now; can be replaced with a sheet later.
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Attachments coming soon'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: Color(0xFF767683),
+                    size: 24,
+                  ),
+                  splashRadius: 22,
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    maxLines: 4,
+                    minLines: 1,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: const TextStyle(
+                      color: Color(0xFF1B1B21),
+                      fontSize: 16,
+                      height: 1.4,
                     ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
+                    decoration: InputDecoration(
+                      hintText: widget.hintText ?? 'Type a message…',
+                      hintStyle: const TextStyle(
+                        color: Color(0xFF767683),
+                        fontSize: 16,
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _handleSend(),
+                    textInputAction: TextInputAction.send,
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            AnimatedScale(
-              scale: _canSend ? 1.0 : 0.92,
-              duration: AppDurations.fast,
-              child: GestureDetector(
-                onTap: _canSend ? _handleSend : null,
-                child: AnimatedContainer(
-                  duration: AppDurations.fast,
-                  width: AppSize.icon2Xl + AppSpacing.sm,
-                  height: AppSize.icon2Xl + AppSpacing.sm,
-                  decoration: BoxDecoration(
-                    color: _canSend ? palette.primary : palette.disabledFill,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.send_rounded,
-                    color: _canSend ? Colors.white : palette.disabledText,
-                    size: AppSize.iconMd,
+                const SizedBox(width: 4),
+                AnimatedScale(
+                  scale: _canSend ? 1.0 : 0.92,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _canSend ? 1.0 : 0.5,
+                    child: Material(
+                      color: BrandTokens.primaryBlue,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _canSend ? _handleSend : null,
+                        child: const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

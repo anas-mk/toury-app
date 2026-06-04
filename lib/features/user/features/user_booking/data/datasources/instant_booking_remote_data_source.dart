@@ -174,9 +174,12 @@ class InstantBookingRemoteDataSourceImpl
         final res = await dio.post(url, data: body);
         _logResponse('CANCEL', '🛑', res);
         _ensureSuccess(res);
-        final data = envelopeData(res.data as Map<String, dynamic>);
-        if (data['bookingType'] != null) {
-          return BookingDetailModel.fromJson(data);
+        // The server returns `"data": null` on a successful cancel
+        // (the booking is already gone / terminal). Fall through to a
+        // fresh GET instead of crashing on envelopeData's null check.
+        final rawData = (res.data as Map<String, dynamic>)['data'];
+        if (rawData is Map<String, dynamic> && rawData['bookingType'] != null) {
+          return BookingDetailModel.fromJson(rawData);
         }
         return getBookingDetail(bookingId);
       },

@@ -3,9 +3,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
+import 'package:flutter/scheduler.dart' hide Priority;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'app.dart';
 import 'core/config/api_config.dart';
@@ -17,7 +18,9 @@ import 'core/services/notifications/notification_router.dart';
 import 'core/services/realtime/app_realtime_cubit.dart';
 import 'core/services/realtime/booking_realtime_event_bus.dart';
 import 'core/services/realtime/hub_lifecycle_observer.dart';
+import 'features/user/features/user_chat/presentation/unread_chat_tracker.dart';
 import 'features/user/features/user_ratings/presentation/widgets/mandatory_rating_overlay.dart';
+import 'core/services/sos/sos_overlay_manager.dart';
 import 'core/services/signalr/booking_tracking_hub_service.dart';
 import 'core/services/realtime/realtime_logger.dart';
 import 'core/theme/shader_warmup.dart';
@@ -26,21 +29,160 @@ import 'features/helper/features/auth/presentation/cubit/helper_auth_cubit.dart'
 import 'features/user/features/auth/presentation/cubit/auth_cubit.dart';
 import 'firebase_options.dart';
 
-/// Top-level handler so FCM background messages are processed even when the
-/// Dart isolate has been killed. MUST be a top-level (or static) function —
-/// Firebase requires a const-evaluable entry point with the `@pragma`
-/// annotation below.
+/// Top-level background FCM handler — runs in a separate Dart isolate when
+/// the app is in the background or killed.
+///
+/// Since the backend now sends data-only FCM (no `notification` field), the OS
+/// won't render anything automatically. We must display the notification
+/// ourselves here using `flutter_local_notifications`.
+///
+/// IMPORTANT: Do NOT push routes or access DI singletons from here — the
+/// navigator and app state are not available in a background isolate.
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
-  // Background messages are also rendered by the OS via the FCM `notification`
-  // payload; we just log here for diagnostics. Do NOT push routes from a
-  // background isolate — the navigator isn't mounted there.
-  if (kDebugMode) {
-    debugPrint(
-      '🔔 [bg] FCM message: ${message.messageId} '
-      'data=${message.data}',
-    );
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  final data = message.data;
+  final notifType = data['notificationType']?.toString();
+
+  // Build a branded title — backend's data['title'] may be a raw sender name.
+  final String title;
+  if (notifType == 'ChatMessage') {
+    final sender = data['senderName']?.toString() ??
+        data['title']?.toString() ??
+        'Your helper';
+    title = 'New message from $sender';
+  } else {
+    title = data['title']?.toString() ?? _bgTitleFor(notifType);
   }
+  final body = data['body']?.toString() ??
+      data['preview']?.toString() ??
+      '';
+
+  if (title.isEmpty && body.isEmpty) return;
+
+  final channelId = data['channelId']?.toString() ?? _bgChannelFor(notifType);
+  final channelName = _bgChannelNameFor(channelId);
+  final accentColor = Color(_bgColorFor(notifType));
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  await plugin.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('ic_stat_notify'),
+      iOS: DarwinInitializationSettings(),
+    ),
+  );
+
+  final androidPlugin = plugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+  await androidPlugin?.createNotificationChannel(AndroidNotificationChannel(
+    channelId,
+    channelName,
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+    enableLights: true,
+    ledColor: const Color(0xFF000568),
+  ));
+
+  await plugin.show(
+    id: message.hashCode & 0x7FFFFFFF,
+    title: title,
+    body: body,
+    notificationDetails: NotificationDetails(
+      android: AndroidNotificationDetails(
+        channelId,
+        channelName,
+        importance: Importance.high,
+        priority: Priority.high,
+        color: accentColor,
+        icon: 'ic_stat_notify',
+        styleInformation: BigTextStyleInformation(
+          body,
+          htmlFormatBigText: false,
+          summaryText: 'RAFIQ',
+        ),
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    ),
+    // Encode all data fields so the tap handler can route to the right screen.
+    payload: _bgEncodePayload(data),
+  );
+
+  if (kDebugMode) {
+    debugPrint('[bg-fcm] showed notification: type=$notifType title=$title');
+  }
+}
+
+// ── Background handler helpers (top-level, no DI) ────────────────────────────
+
+String _bgTitleFor(String? type) {
+  switch (type) {
+    case 'ChatMessage':      return 'New message';
+    case 'BookingAccepted':  return 'Helper accepted your booking';
+    case 'BookingDeclined':  return 'Helper declined';
+    case 'BookingReassigning': return 'Finding a helper';
+    case 'BookingCancelled': return 'Booking cancelled';
+    case 'TripStarted':      return 'Trip started';
+    case 'TripEnded':        return 'Trip ended';
+    default:                 return 'RAFIQ';
+  }
+}
+
+String _bgChannelFor(String? type) {
+  switch (type) {
+    case 'BookingAccepted':
+    case 'BookingDeclined':
+    case 'BookingReassigning':
+    case 'BookingCancelled':
+    case 'BookingAwaitingUserAction':
+      return 'booking_updates';
+    case 'TripStarted':
+    case 'TripEnded':
+      return 'trip_updates';
+    case 'ChatMessage':
+      return 'high_priority';
+    default:
+      return 'rafiq_default';
+  }
+}
+
+String _bgChannelNameFor(String id) {
+  switch (id) {
+    case 'booking_updates':  return 'Booking updates';
+    case 'trip_updates':     return 'Trip updates';
+    case 'booking_requests': return 'Booking requests';
+    case 'high_priority':    return 'Alerts';
+    default:                 return 'Toury notifications';
+  }
+}
+
+int _bgColorFor(String? type) {
+  switch (type) {
+    case 'BookingAccepted':  return 0xFFD4AF37; // gold
+    case 'ChatMessage':
+    case 'TripStarted':      return 0xFFFE9331; // amber
+    default:                 return 0xFF000568; // navy
+  }
+}
+
+/// Encodes FCM data map into a payload string that
+/// `MessagingService._decodePayload` can read in the main isolate.
+String _bgEncodePayload(Map<String, dynamic> data) {
+  final buf = StringBuffer();
+  data.forEach((k, v) {
+    buf.write(k);
+    buf.write('\x01');
+    buf.write(v?.toString() ?? '');
+    buf.write('\x02');
+  });
+  return buf.toString();
 }
 
 /// True only when [Firebase.initializeApp] succeeded. Other modules
@@ -90,6 +232,27 @@ Future<void> _logFcmTokenOnce() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Edge-to-edge system bars. Without this Android draws a solid
+  // dark band behind the status bar even when an `AnnotatedRegion`
+  // sets `statusBarColor: transparent` — that's what was leaving the
+  // black bar on top of full-bleed pages like the live-track map.
+  //
+  // We pair it with a global SystemUiOverlayStyle baseline (light
+  // surface, dark icons) so any page that doesn't override via
+  // `AnnotatedRegion` still gets sensible defaults instead of
+  // inheriting whatever Android ROM picked.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarContrastEnforced: false,
+    ),
+  );
+
   // Load brand fonts before the first frame so the RAFIQ wordmark is correct.
   try {
     final loader = FontLoader('PermanentMarker')
@@ -99,7 +262,12 @@ void main() async {
 
   // Mapbox SDK 2.x requires the token to be set globally before any MapWidget
   // is instantiated. ResourceOptions was removed in v2.
-  MapboxOptions.setAccessToken(ApiConfig.mapboxToken);
+  // Only set programmatically when the dart-define was actually provided;
+  // otherwise the empty string would override the mapbox_access_token
+  // string resource in android/app/src/main/res/values/strings.xml.
+  if (ApiConfig.mapboxToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(ApiConfig.mapboxToken);
+  }
 
   // Firebase is best-effort: if the native config isn't deployed yet we still
   // want the rest of the app to launch. The MessagingService gracefully
@@ -208,6 +376,12 @@ void main() async {
   // page cubits via their existing public refresh APIs.
   di.sl<AppRealtimeCubit>().attach();
 
+  // App-wide unread-chat counter. Listens to `chatMessageStream`
+  // for the entire session so chat icons on the live-track map and
+  // the booking-confirmed page can render an unread badge — even
+  // before the user opens the chat page itself.
+  UnreadChatTracker.attach(di.sl<BookingTrackingHubService>());
+
   // Bind the GoRouter to the NotificationRouter so FCM taps and SignalR
   // navigation triggers can reach the same routes the rest of the app uses.
   NotificationRouter.instance.bind(
@@ -220,6 +394,11 @@ void main() async {
   // pending-ratings tracker and re-shows on cold start if anything is
   // pending.
   MandatoryRatingOverlay.bind(AppRouter.rootNavigatorKey);
+
+  // Floating SOS pill — appears whenever a TripStarted event fires and
+  // disappears on TripEnded. Mounted after the rating overlay so it
+  // renders on top.
+  SosOverlayManager.bind(AppRouter.rootNavigatorKey);
 
   runApp(
     MultiBlocProvider(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/http_connection_options.dart';
 import 'package:signalr_netcore/hub_connection.dart';
 import 'package:signalr_netcore/hub_connection_builder.dart';
@@ -38,11 +39,37 @@ class UserChatSignalRService {
         .withAutomaticReconnect()
         .build();
 
-    // Listen for messages
-    _hubConnection!.on('ReceiveChatMessage', (args) {
-      if (args != null && args.isNotEmpty) {
-        final data = args[0] as Map<String, dynamic>;
+    // Listen for incoming messages.
+    //
+    // Backend wire-format (per Flutter-Booking-Realtime-Guide § 9.3):
+    // event name `ChatMessage`, payload fields:
+    //   { bookingId, conversationId, messageId, senderId, senderType,
+    //     senderName, recipientId, recipientType, messageType,
+    //     preview, sentAt }
+    //
+    // Note: `preview` is truncated to 100 chars on the server. We use
+    // it as the initial body text — sufficient for typical chat msgs.
+    // For long messages the consumer can re-fetch via REST if needed.
+    //
+    // The sender does NOT receive an echo for their own messages —
+    // the cubit appends its own outgoing message from the POST
+    // response directly.
+    _hubConnection!.on('ChatMessage', (args) {
+      if (args == null || args.isEmpty) return;
+      final raw = args[0];
+      if (raw is! Map) return;
+      final data = Map<String, dynamic>.from(raw);
+      // Normalise the realtime payload onto the same shape our
+      // [ChatMessageModel.fromJson] (used for REST history) expects.
+      // Backend uses `messageId` here but `id` on the REST resource.
+      data['id'] ??= data['messageId'];
+      // The realtime event has `preview`; the REST row uses `text`.
+      data['text'] ??= data['preview'];
+      data['isRead'] ??= false;
+      try {
         _messageController.add(ChatMessageModel.fromJson(data));
+      } catch (_) {
+        // Don't crash the stream on a malformed event — skip it.
       }
     });
 
@@ -77,7 +104,10 @@ class UserChatSignalRService {
     try {
       await _hubConnection!.invoke('JoinBookingRoom', args: [bookingId]);
     } catch (e) {
-      print('Warning: JoinBookingRoom failed (might not be implemented on server yet): $e');
+      if (kDebugMode) {
+        debugPrint(
+            'UserChatSignalRService: JoinBookingRoom failed -> $e');
+      }
     }
   }
 
@@ -86,7 +116,10 @@ class UserChatSignalRService {
     try {
       await _hubConnection!.invoke('LeaveBookingRoom', args: [bookingId]);
     } catch (e) {
-      print('Warning: LeaveBookingRoom failed: $e');
+      if (kDebugMode) {
+        debugPrint(
+            'UserChatSignalRService: LeaveBookingRoom failed -> $e');
+      }
     }
   }
 

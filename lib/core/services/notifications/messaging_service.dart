@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
@@ -12,6 +12,7 @@ import '../realtime/booking_realtime_event_bus.dart';
 import '../realtime/event_dedup_cache.dart';
 import '../realtime/realtime_logger.dart';
 import 'device_token_service.dart';
+import 'in_app_notification_banner.dart';
 import 'notification_router.dart';
 
 /// Coordinates everything FCM-related for the user app:
@@ -38,6 +39,25 @@ class MessagingService {
   static const String _androidChannelDescription =
       'Booking, payment, chat, and SOS notifications';
 
+  // Dedicated channel for notifications posted while the app is in the
+  // foreground. Low importance = appears in the shade but NO heads-up
+  // overlay and NO sound/vibration (the in-app banner handles that).
+  static const String _foregroundChannelId   = 'rafiq_foreground_silent';
+  static const String _foregroundChannelName = 'In-app notifications';
+
+  // Channel IDs that match the backend's ResolveAndroidChannel values.
+  // Each must be created before the first notification arrives — if a
+  // channel referenced in the FCM payload doesn't exist, Android 8+
+  // silently drops the heads-up and sound.
+  static const _extraChannels = [
+    ('booking_updates', 'Booking updates',
+        'Helper accepted / declined, reassignment, cancellation'),
+    ('trip_updates', 'Trip updates', 'Trip started and ended events'),
+    ('booking_requests', 'Booking requests',
+        'Incoming helper requests'),
+    ('high_priority', 'Alerts', 'High-priority system alerts'),
+  ];
+
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
@@ -50,7 +70,7 @@ class MessagingService {
   StreamSubscription<String>? _onTokenRefreshSub;
 
   String? get lastFcmToken => _lastFcmToken;
-  String get deviceIdSync => '—';
+  String get deviceIdSync => 'â€”';
 
   Future<void> initialise() async {
     if (_initialised) return;
@@ -75,13 +95,13 @@ class MessagingService {
       );
 
       if (!kIsWeb && Platform.isAndroid) {
-        // High-importance channel ↔ heads-up + sound + lock-screen body.
+        // High-importance channel â†” heads-up + sound + lock-screen body.
         // MUST stay in sync with the channel id referenced by
         // AndroidManifest's `default_notification_channel_id` meta-data,
         // otherwise OS-rendered FCM pushes fall back to a low-importance
         // system channel (silent, no heads-up). Lock-screen visibility is
         // configured per-notification via AndroidNotificationDetails.visibility
-        // below — the channel itself doesn't expose that field in
+        // below â€” the channel itself doesn't expose that field in
         // flutter_local_notifications v21.
         const channel = AndroidNotificationChannel(
           _androidChannelId,
@@ -94,11 +114,44 @@ class MessagingService {
           enableLights: true,
           ledColor: Color(0xFF276EF1),
         );
-        await _localNotifications
+        final plugin = _localNotifications
             .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin
-            >()
-            ?.createNotificationChannel(channel);
+            >();
+        await plugin?.createNotificationChannel(channel);
+
+        // Create every channel the backend references so Android never
+        // falls back to a silent low-importance system channel.
+        for (final (id, name, desc) in _extraChannels) {
+          await plugin?.createNotificationChannel(
+            AndroidNotificationChannel(
+              id,
+              name,
+              description: desc,
+              importance: Importance.high,
+              enableVibration: true,
+              playSound: true,
+              showBadge: true,
+              enableLights: true,
+              ledColor: const Color(0xFF276EF1),
+            ),
+          );
+        }
+
+        // Silent foreground channel — no heads-up, no sound, no vibration.
+        // Used when the app is open so the in-app banner handles the UX
+        // and the notification only lands silently in the shade.
+        await plugin?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _foregroundChannelId,
+            _foregroundChannelName,
+            description: 'Silently logged while the app is open',
+            importance: Importance.low,
+            enableVibration: false,
+            playSound: false,
+            showBadge: false,
+          ),
+        );
       }
 
       _initialised = true;
@@ -127,7 +180,7 @@ class MessagingService {
       RealtimeLogger.instance.log(
         'FCM',
         'start.skip',
-        'Firebase not initialized — push notifications disabled',
+        'Firebase not initialized â€” push notifications disabled',
         isError: true,
       );
       return;
@@ -144,7 +197,7 @@ class MessagingService {
         RealtimeLogger.instance.log(
           'FCM',
           'token',
-          '…${token.substring(token.length - 10)}',
+          'â€¦${token.substring(token.length - 10)}',
         );
         await deviceTokenService.registerCurrentDevice();
       } else {
@@ -178,7 +231,7 @@ class MessagingService {
         RealtimeLogger.instance.log(
           'FCM',
           'token.refresh',
-          '…${newToken.substring(newToken.length - 10)}',
+          'â€¦${newToken.substring(newToken.length - 10)}',
         );
         try {
           await deviceTokenService.registerCurrentDevice();
@@ -232,75 +285,236 @@ class MessagingService {
   void _onForegroundMessage(RemoteMessage message) {
     final data = _stringifyData(message.data);
     final eventId = message.data['eventId']?.toString();
+    final notifType = data['notificationType'];
     RealtimeLogger.instance.log(
       'FCM',
       'foreground',
-      'data=${message.data} notification=${message.notification?.title}',
+      'type=$notifType eventId=$eventId',
       eventId: eventId,
     );
-    if (data['notificationType'] == 'Test') {
-      _postFrameSnackFromRoot('Test push (dev)');
-      if (eventId != null && eventId.isNotEmpty) {
-        EventDedupCache.instance.mark(eventId);
-      }
+
+    if (notifType == 'Test') {
+      showInAppBanner('Test push (dev)', '', null, 'Test');
+      EventDedupCache.instance.mark(eventId);
       return;
     }
-    final isDup = EventDedupCache.instance.contains(eventId);
-    _showHeadsUp(message, isDuplicate: isDup);
-    if (!isDup && eventId != null && eventId.isNotEmpty) {
-      EventDedupCache.instance.mark(eventId);
+
+    // App is in FOREGROUND â†’ show our overlay banner.
+    // If SignalR already handled this event (dedup hit), skip silently â€”
+    // the banner was already displayed via maybeInAppBannerFromBusEvent.
+    if (EventDedupCache.instance.contains(eventId)) {
+      RealtimeLogger.instance.log(
+        'FCM',
+        'foreground.dedup',
+        'eventId already seen via SignalR â€” overlay already shown',
+        eventId: eventId,
+      );
+      return;
     }
+    EventDedupCache.instance.mark(eventId);
+
+    // Always use branded titles — the backend's data['title'] may be a raw
+    // sender name (e.g. "Ahmed Hassan") which is not a notification title.
+    final (title, fallbackBody) = _brandedContent(notifType, message.data, message.notification);
+    final body = data['body']?.toString() ??
+        data['preview']?.toString() ??
+        fallbackBody;
+
+    showInAppBanner(title, body, Map<String, dynamic>.from(message.data), notifType);
   }
 
   void showInAppBanner(
     String title,
     String body, [
     Map<String, dynamic>? data,
+    String? notificationType,
   ]) {
-    final line = title.isEmpty
-        ? body
-        : (body.isEmpty ? title : '$title: $body');
-    _postFrameSnackFromRoot(line);
+    // InAppBannerHost in app.dart renders the banner via ValueNotifier —
+    // no overlay state lookup, no frame-phase checking needed.
+    InAppNotificationBanner.show(
+      title: title,
+      body: body,
+      notificationType: notificationType,
+      onTap: data == null
+          ? null
+          : () => NotificationRouter.instance.routeFromData(
+                data,
+                reason: 'in-app-banner-tap',
+              ),
+    );
+    // Also post to the system notification shade so the user can see it
+    // when they pull down the drawer (even while the app is open).
+    unawaited(_showSystemNotification(
+      title: title,
+      body: body,
+      notificationType: notificationType,
+      data: data,
+    ));
+  }
+
+  Future<void> _showSystemNotification({
+    required String title,
+    required String body,
+    required String? notificationType,
+    Map<String, dynamic>? data,
+  }) async {
+    if (!_initialised || kIsWeb) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    try {
+      final payload = data != null ? _encodePayload(data) : null;
+      final id = DateTime.now().millisecondsSinceEpoch & 0x7FFFFFFF;
+      // Always use the silent foreground channel when the app is open:
+      // no heads-up overlay, no sound — the in-app banner handles UX.
+      // The notification is still written to the shade so the user sees
+      // it when they pull down.
+      await _localNotifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _foregroundChannelId,
+            _foregroundChannelName,
+            importance: Importance.low,
+            priority: Priority.low,
+            showWhen: true,
+            playSound: false,
+            enableVibration: false,
+            visibility: NotificationVisibility.private,
+          ),
+        ),
+        payload: payload,
+      );
+    } catch (e, st) {
+      RealtimeLogger.instance.log(
+        'FCM', 'localNotif.error', '$e\n$st', isError: true,
+      );
+    }
+  }
+
+  String _encodePayload(Map<String, dynamic> data) {
+    return data.entries.map((e) => '${e.key}\x01${e.value}').join('\x02');
   }
 
   void maybeInAppBannerFromBusEvent(BookingRealtimeBusEvent e) {
     late final String eventId;
-    String title = 'Rafiq';
+    String title = 'RAFIQ';
     String body = '';
+    String? notifType;
+    Map<String, dynamic>? routeData;
+
     if (e is BusBookingStatusChanged) {
-      if (e.event.newStatus != 'Confirmed') return;
       eventId = e.event.eventId;
-      title = 'Booking update';
-      body = e.event.newStatus;
+      switch (e.event.newStatus) {
+        case 'AcceptedByHelper':
+          title = 'Helper accepted your booking';
+          body = 'Your booking has been accepted. Open the app for details.';
+          notifType = 'BookingAccepted';
+          routeData = {
+            'notificationType': 'BookingAccepted',
+            'bookingId': e.event.bookingId,
+            'eventId': eventId,
+          };
+        case 'DeclinedByHelper':
+        case 'ExpiredNoResponse':
+          title = 'Helper declined your booking';
+          body = 'The helper declined. We\'ll suggest another one.';
+          notifType = 'BookingDeclined';
+          routeData = {
+            'notificationType': 'BookingDeclined',
+            'bookingId': e.event.bookingId,
+            'eventId': eventId,
+          };
+        case 'ReassignmentInProgress':
+          title = 'Finding a helper';
+          body = 'Searching for an available helperâ€¦';
+          notifType = 'BookingReassigning';
+          routeData = {
+            'notificationType': 'BookingReassigning',
+            'bookingId': e.event.bookingId,
+            'eventId': eventId,
+          };
+        case 'WaitingForUserAction':
+          title = 'Action needed';
+          body = 'Please choose from available helpers.';
+          notifType = 'BookingAwaitingUserAction';
+          routeData = {
+            'notificationType': 'BookingAwaitingUserAction',
+            'bookingId': e.event.bookingId,
+            'eventId': eventId,
+          };
+        case 'ConfirmedAwaitingPayment':
+        case 'ConfirmedPaid':
+        case 'Upcoming':
+          title = 'Booking confirmed';
+          body = 'Complete payment to lock in your trip.';
+          notifType = 'BookingAccepted';
+          routeData = {
+            'notificationType': 'BookingAccepted',
+            'bookingId': e.event.bookingId,
+            'eventId': eventId,
+          };
+        case 'CancelledByHelper':
+        case 'CancelledBySystem':
+          title = 'Booking cancelled';
+          body = 'Your booking was cancelled.';
+          notifType = 'BookingCancelled';
+          routeData = {
+            'notificationType': 'BookingCancelled',
+            'bookingId': e.event.bookingId,
+            'eventId': eventId,
+          };
+        default:
+          return;
+      }
     } else if (e is BusBookingTripStarted) {
       eventId = e.event.eventId;
       title = 'Trip started';
       body = 'Your trip is underway.';
+      notifType = 'TripStarted';
+      routeData = {
+        'notificationType': 'TripStarted',
+        'bookingId': e.event.bookingId,
+        'eventId': eventId,
+      };
     } else if (e is BusBookingTripEnded) {
       eventId = e.event.eventId;
       title = 'Trip ended';
       body = 'Time to complete payment.';
+      notifType = 'TripEnded';
+      routeData = {
+        'notificationType': 'TripEnded',
+        'bookingId': e.event.bookingId,
+        'eventId': eventId,
+      };
     } else if (e is BusBookingPaymentChanged) {
       eventId = e.event.eventId;
-      title = 'Payment';
+      title = 'Payment update';
       body = e.event.status;
+    } else if (e is BusChatMessage) {
+      eventId = e.event.eventId;
+      final sender = (e.event.senderName?.isNotEmpty == true)
+          ? e.event.senderName!
+          : 'your helper';
+      title = 'New message from $sender';
+      body = e.event.preview?.isNotEmpty == true
+          ? e.event.preview!
+          : 'You received a new message.';
+      notifType = 'ChatMessage';
+      routeData = {
+        'notificationType': 'ChatMessage',
+        'bookingId': e.event.bookingId,
+        'eventId': eventId,
+      };
     } else {
       return;
     }
+
     if (eventId.isNotEmpty && EventDedupCache.instance.contains(eventId)) {
       return;
     }
-    showInAppBanner(title, body);
-  }
-
-  void _postFrameSnackFromRoot(String text) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = NotificationRouter.instance.navigatorContext;
-      if (ctx == null || !ctx.mounted) return;
-      ScaffoldMessenger.maybeOf(
-        ctx,
-      )?.showSnackBar(SnackBar(content: Text(text)));
-    });
+    EventDedupCache.instance.mark(eventId);
+    showInAppBanner(title, body, routeData, notifType);
   }
 
   void _onMessageOpenedApp(RemoteMessage message) {
@@ -329,100 +543,44 @@ class MessagingService {
     NotificationRouter.instance.routeFromData(data, reason: 'local-tap');
   }
 
-  Future<void> _showHeadsUp(
-    RemoteMessage message, {
-    required bool isDuplicate,
-  }) async {
-    void markEvent() {
-      final eid = message.data['eventId']?.toString();
-      EventDedupCache.instance.mark(eid);
-    }
 
-    final notif = message.notification;
-    if (notif == null) {
-      final type = message.data['notificationType']?.toString() ?? 'Toury';
-      if (!isDuplicate) {
-        await _postLocal(
-          id: message.hashCode & 0x7FFFFFFF,
-          title: type,
-          body: message.data['preview']?.toString() ?? '',
-          payload: _encodePayload(message.data),
-        );
-        markEvent();
-      }
-      return;
-    }
-    if (isDuplicate) {
-      RealtimeLogger.instance.log(
-        'FCM',
-        'dedup',
-        'eventId already seen via SignalR — suppressing heads-up',
-        eventId: message.data['eventId']?.toString(),
-      );
-      return;
-    }
-    await _postLocal(
-      id: message.hashCode & 0x7FFFFFFF,
-      title: notif.title ?? 'Toury',
-      body: notif.body ?? '',
-      payload: _encodePayload(message.data),
-    );
-    markEvent();
-  }
+  /// Returns RAFIQ-branded (title, body) regardless of what the FCM
+  /// `notification` field contains. The FCM notification.title is often the
+  /// helper's name (set by the backend), which we never want to surface
+  /// directly as the notification title.
+  static (String, String) _brandedContent(
+    String? type,
+    Map<String, dynamic> data,
+    RemoteNotification? notif,
+  ) {
+    // Prefer the preview / body from the data payload when available,
+    // since it's what the backend explicitly set for our consumption.
+    final dataBody = data['preview']?.toString() ??
+        data['body']?.toString() ??
+        notif?.body ??
+        '';
 
-  Future<void> _postLocal({
-    required int id,
-    required String title,
-    required String body,
-    required String payload,
-  }) async {
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        _androidChannelId,
-        _androidChannelName,
-        channelDescription: _androidChannelDescription,
-        importance: Importance.high,
-        priority: Priority.high,
-        playSound: true,
-        // Brand tint applied to the silhouette icon and the lock-screen
-        // accent dot. Same hex as `notification_color` in
-        // android/app/src/main/res/values/colors.xml so foreground
-        // (Dart-rendered) and background (OS-rendered) pushes match.
-        color: Color(0xFF276EF1),
-        // Show full title + body on the lock screen. Switch to
-        // NotificationVisibility.secret if a future privacy audit
-        // decides chat previews / booking ids are too revealing on
-        // a locked device.
-        visibility: NotificationVisibility.public,
-        // TODO(notification-icon): Replace placeholder with proper
-        // white-silhouette PNG generated from Android Asset Studio.
-        // Current placeholder is the colored launcher logo, which
-        // Android 5+ will render as a white square in the status bar.
-        // See Problem 3 follow-up + NOTIFICATION_ICON_TODO.md.
-        icon: 'ic_stat_notify',
-      );
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-      await _localNotifications.show(
-        id: id,
-        title: title,
-        body: body,
-        notificationDetails: const NotificationDetails(
-          android: androidDetails,
-          iOS: iosDetails,
-        ),
-        payload: payload,
-      );
-    } catch (e) {
-      RealtimeLogger.instance.log(
-        'FCM',
-        'localShow.error',
-        '$e',
-        isError: true,
-      );
+    switch (type) {
+      case 'ChatMessage':
+        final sender = data['senderName']?.toString() ??
+            data['helperName']?.toString() ??
+            notif?.title ??
+            'Your helper';
+        return ('New message from $sender', dataBody);
+      case 'BookingAccepted':
+        return ('Helper accepted your booking', dataBody.isNotEmpty ? dataBody : 'Your booking has been accepted.');
+      case 'BookingDeclined':
+        return ('Helper declined', dataBody.isNotEmpty ? dataBody : 'The helper declined. We\'ll suggest another one.');
+      case 'BookingReassigning':
+        return ('Finding a helper', dataBody.isNotEmpty ? dataBody : 'Searching for an available helperâ€¦');
+      case 'BookingCancelled':
+        return ('Booking cancelled', dataBody.isNotEmpty ? dataBody : 'Your booking was cancelled.');
+      case 'TripStarted':
+        return ('Trip started', dataBody.isNotEmpty ? dataBody : 'Your trip is underway.');
+      case 'TripEnded':
+        return ('Trip ended', dataBody.isNotEmpty ? dataBody : 'Time to complete payment.');
+      default:
+        return ('RAFIQ', dataBody.isNotEmpty ? dataBody : (notif?.title ?? ''));
     }
   }
 
@@ -520,17 +678,6 @@ class MessagingService {
 
   Map<String, dynamic> _stringifyData(Map<String, dynamic> data) {
     return data.map((k, v) => MapEntry(k, v?.toString()));
-  }
-
-  String _encodePayload(Map<String, dynamic> data) {
-    final buf = StringBuffer();
-    data.forEach((k, v) {
-      buf.write(k);
-      buf.write('\x01');
-      buf.write(v?.toString() ?? '');
-      buf.write('\x02');
-    });
-    return buf.toString();
   }
 
   Map<String, dynamic>? _decodePayload(String payload) {

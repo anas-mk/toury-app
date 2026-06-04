@@ -631,7 +631,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         case 403:
           return 'Access denied. Please contact support.';
         case 404:
-          return 'Service not found. Please try again later.';
+          return errorMessage.isNotEmpty ? errorMessage : 'Account not found. Please check your email and try again.';
         case 409:
           return errorMessage.isNotEmpty ? errorMessage : 'Email already exists. Please use a different email.';
         case 422:

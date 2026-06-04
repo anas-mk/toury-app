@@ -133,8 +133,37 @@ class _PayNowPageState extends State<PayNowPage> {
               if (state is PaymentInitiated) {
                 final url = state.payment.paymentUrl;
                 if (url != null && url.isNotEmpty) {
+                  final initialUri = Uri.tryParse(url);
                   final ctrl = WebViewController()
                     ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                    ..setNavigationDelegate(NavigationDelegate(
+                      onNavigationRequest: (req) {
+                        // Allow the initial payment page to load freely.
+                        return NavigationDecision.navigate;
+                      },
+                      onUrlChange: (change) {
+                        final newUrl = change.url ?? '';
+                        if (newUrl.isEmpty) return;
+                        final newUri = Uri.tryParse(newUrl);
+                        // Detect redirect away from the payment gateway:
+                        // when the host changes, the gateway has finished
+                        // processing (success or failure). Check real status.
+                        final hostChanged = initialUri != null &&
+                            newUri != null &&
+                            newUri.host != initialUri.host;
+                        // Also detect common success/failure URL keywords.
+                        final lower = newUrl.toLowerCase();
+                        final hasSignal = lower.contains('success') ||
+                            lower.contains('callback') ||
+                            lower.contains('return') ||
+                            lower.contains('complete') ||
+                            lower.contains('fail') ||
+                            lower.contains('cancel');
+                        if (hostChanged || hasSignal) {
+                          _paymentCubit.recoverLatestPayment(widget.bookingId);
+                        }
+                      },
+                    ))
                     ..loadRequest(Uri.parse(url));
                   setState(() => _web = ctrl);
                 } else {
@@ -168,11 +197,16 @@ class _PayNowPageState extends State<PayNowPage> {
                 final msg = state.message.toLowerCase();
                 final terminal = msg.contains('cannot be initiated') ||
                     msg.contains('completed') ||
-                    msg.contains('already paid');
+                    msg.contains('already paid') ||
+                    msg.contains('already initiated');
                 if (terminal && !_terminalInitiateError) {
+                  // The payment might have already succeeded in a previous
+                  // session. Attempt to recover the latest payment for this
+                  // booking and surface the success card if it's paid.
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
                     setState(() => _terminalInitiateError = true);
+                    _paymentCubit.recoverLatestPayment(widget.bookingId);
                   });
                 }
                 return _ErrorCard(

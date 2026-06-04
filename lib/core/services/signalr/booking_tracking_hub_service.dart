@@ -28,7 +28,7 @@ import 'booking_hub_events.dart';
 ///
 /// Every incoming event is:
 ///   1. Logged through [RealtimeLogger] (`📡 RT:` prefix).
-///   2. Marked in [EventDedupCache] so a duplicate FCM doesn't re-process it.
+///   2. Logged in [EventDedupCache] by the banner layer after it shows — FCM dedup happens there.
 ///   3. Parsed leniently (PascalCase OR camelCase keys).
 ///   4. Pushed onto BOTH a typed stream (preferred) and the legacy
 ///      `Map<String, dynamic>` stream (helper-side cubits still depend on it).
@@ -475,7 +475,10 @@ class BookingTrackingHubService {
         }
         final parsed = parse(raw);
         final eid = eventIdOf?.call(parsed);
-        EventDedupCache.instance.mark(eid);
+        // NOTE: do NOT mark eid here. maybeInAppBannerFromBusEvent marks it
+        // after showing the banner, which is what blocks the duplicate FCM.
+        // Marking here (before push) would cause the banner check to see
+        // "already seen" and silently drop every SignalR-triggered banner.
         RealtimeLogger.instance.log(
           'SignalR',
           name,
@@ -551,15 +554,26 @@ class BookingTrackingHubService {
     hub.on('HelperLocationUpdate', (args) {
       try {
         final raw = _firstMap(args);
-        if (raw == null) return;
+        if (raw == null) {
+          RealtimeLogger.instance.log(
+            'SignalR',
+            'HelperLocationUpdate.empty',
+            'args=$args',
+            isError: true,
+          );
+          return;
+        }
         final ev = HelperLocationUpdateEvent.fromMap(raw);
         EventDedupCache.instance.mark(ev.eventId);
         RealtimeLogger.instance.log(
           'SignalR',
           'HelperLocationUpdate',
-          'lat=${ev.latitude.toStringAsFixed(5)} '
+          'booking=${ev.bookingId} '
+              'lat=${ev.latitude.toStringAsFixed(5)} '
               'lng=${ev.longitude.toStringAsFixed(5)} '
-              'phase=${ev.phase}',
+              'phase=${ev.phase} '
+              'etaPickup=${ev.etaToPickupMinutes} '
+              'etaDest=${ev.etaToDestinationMinutes}',
           eventId: ev.eventId,
         );
         _helperLocationUpdate.add(ev);

@@ -67,6 +67,7 @@ class HelperBookingProfile extends Equatable {
   final String? gender;
   final int? age;
   final String? bio;
+  final String? phoneNumber;
   final double rating;
   final int ratingCount;
   final int completedTrips;
@@ -105,6 +106,7 @@ class HelperBookingProfile extends Equatable {
     required this.canAcceptScheduled,
     this.averageResponseTimeSeconds,
     this.acceptanceRate,
+    this.phoneNumber,
   });
 
   @override
@@ -130,5 +132,6 @@ class HelperBookingProfile extends Equatable {
         canAcceptScheduled,
         averageResponseTimeSeconds,
         acceptanceRate,
+        phoneNumber,
       ];
 }

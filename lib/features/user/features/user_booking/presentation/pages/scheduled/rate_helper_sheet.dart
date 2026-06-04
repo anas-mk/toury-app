@@ -128,8 +128,14 @@ class _RateHelperSheetState extends State<RateHelperSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Bottom padding: keyboard inset + device safe-area (home indicator).
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    Widget content;
+
     if (_loadingState) {
-      return const SizedBox(
+      content = const SizedBox(
         height: 120,
         child: Center(
           child: CircularProgressIndicator(
@@ -137,17 +143,12 @@ class _RateHelperSheetState extends State<RateHelperSheet> {
           ),
         ),
       );
-    }
-
-    if (_alreadyRated) {
-      return Column(
+    } else if (_alreadyRated) {
+      content = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Already rated \u2713',
-            style: BrandTypography.headline(),
-          ),
+          Text('Already rated \u2713', style: BrandTypography.headline()),
           const SizedBox(height: 8),
           Text(
             'You\u2019ve already rated this helper. Thanks for the feedback!',
@@ -160,73 +161,117 @@ class _RateHelperSheetState extends State<RateHelperSheet> {
           ),
         ],
       );
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Rate your helper',
-          style: BrandTypography.headline(),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Your honest feedback helps us match you better next time.',
-          style: BrandTypography.body(color: BrandTokens.textSecondary),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: _StarRow(
-            value: _stars,
-            onChanged: (v) => setState(() => _stars = v),
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _commentCtrl,
-          maxLines: 4,
-          maxLength: _commentMax,
-          decoration: InputDecoration(
-            hintText: 'Share what stood out (optional)',
-            hintStyle: BrandTypography.body(color: BrandTokens.textMuted),
-            filled: true,
-            fillColor: BrandTokens.surfaceWhite,
-            contentPadding: const EdgeInsets.all(14),
-            counterText: '',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: BrandTokens.borderSoft),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: BrandTokens.borderSoft),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                color: BrandTokens.primaryBlue,
-                width: 1.6,
+    } else {
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Drag handle.
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC6C5D4),
+                borderRadius: BorderRadius.circular(99),
               ),
             ),
           ),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 8),
+          Text('Rate your helper', style: BrandTypography.headline()),
+          const SizedBox(height: 4),
           Text(
-            _error!,
-            style: BrandTypography.caption(color: BrandTokens.dangerRed),
+            'Your honest feedback helps us match you better next time.',
+            style: BrandTypography.body(color: BrandTokens.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: _StarRow(
+              value: _stars,
+              onChanged: (v) => setState(() => _stars = v),
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _commentCtrl,
+            maxLines: 3,
+            maxLength: _commentMax,
+            decoration: InputDecoration(
+              hintText: 'Share what stood out (optional)',
+              hintStyle: BrandTypography.body(color: BrandTokens.textMuted),
+              filled: true,
+              fillColor: BrandTokens.surfaceWhite,
+              contentPadding: const EdgeInsets.all(14),
+              counterText: '',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: BrandTokens.borderSoft),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: BrandTokens.borderSoft),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: BrandTokens.primaryBlue,
+                  width: 1.6,
+                ),
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: BrandTokens.dangerRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: BrandTokens.dangerRed.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline_rounded,
+                      color: BrandTokens.dangerRed, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: BrandTypography.caption(
+                          color: BrandTokens.dangerRed),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          PrimaryGradientButton(
+            label: _submitting ? 'Submitting\u2026' : 'Submit rating',
+            icon: _submitting ? null : Icons.check_rounded,
+            isLoading: _submitting,
+            onPressed: _canSubmit ? _submit : null,
+            visualEnabled: _canSubmit,
           ),
         ],
-        const SizedBox(height: 12),
-        PrimaryGradientButton(
-          label: _submitting ? 'Submitting\u2026' : 'Submit rating',
-          icon: Icons.check_rounded,
-          onPressed: _canSubmit ? _submit : null,
-          visualEnabled: _canSubmit,
-        ),
-        const SizedBox(height: 8),
-      ],
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        16,
+        24,
+        // Push content above keyboard AND above home indicator.
+        bottomInset > 0 ? bottomInset + 16 : bottomPad + 24,
+      ),
+      child: content,
     );
   }
 }
