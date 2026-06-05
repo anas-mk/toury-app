@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../../../core/di/injection_container.dart';
+import '../../../../../../core/localization/app_localizations.dart';
 import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/animations/fade_in_slide.dart';
-import '../../../../../../core/services/haptic_service.dart';
-import '../../../../../../core/di/injection_container.dart';
-import '../../../auth/presentation/cubit/helper_auth_cubit.dart';
-import '../../../auth/presentation/cubit/helper_auth_state.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/theme/brand_typography.dart';
+import '../../../auth/domain/usecases/helper_logout_usecase.dart';
+import '../../../helper_bookings/presentation/cubit/helper_dashboard_cubit.dart';
+import '../../domain/entities/helper_profile_entity.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
-import '../../domain/entities/helper_profile_entity.dart';
 import '../widgets/profile_setting_widgets.dart';
 
 class AccountControlCenterPage extends StatefulWidget {
@@ -23,17 +26,26 @@ class AccountControlCenterPage extends StatefulWidget {
 
 class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
   late final ProfileCubit _profileCubit;
+  late final HelperDashboardCubit _dashboardCubit;
 
   @override
   void initState() {
     super.initState();
     _profileCubit = sl<ProfileCubit>()..fetchProfileBundle();
+    _dashboardCubit = sl<HelperDashboardCubit>()..loadOnce();
   }
 
   @override
   void dispose() {
     _profileCubit.close();
     super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([
+      _profileCubit.fetchProfileBundle(),
+      _dashboardCubit.load(silent: true),
+    ]);
   }
 
   @override
@@ -43,529 +55,439 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _profileCubit),
-        BlocProvider(create: (context) => sl<HelperAuthCubit>()),
+        BlocProvider.value(value: _dashboardCubit),
       ],
       child: Scaffold(
-        backgroundColor: palette.scaffold,
-        body: BlocBuilder<ProfileCubit, ProfileState>(
-          builder: (context, state) {
-            if (state.status == ProfileStatus.loading &&
-                state.profile == null) {
-              return Center(
-                child: CircularProgressIndicator(color: palette.primary),
-              );
-            }
-            if (state.profile == null) {
-              return _ErrorState(onRetry: _profileCubit.fetchProfileBundle);
-            }
-
-            final profile = state.profile!;
-            final theme = Theme.of(context);
-
-            return RefreshIndicator(
-              onRefresh: () async => _profileCubit.fetchProfileBundle(),
-              color: palette.primary,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                slivers: [
-                  SliverAppBar(
-                    pinned: true,
-                    automaticallyImplyLeading: false,
-                    backgroundColor: palette.scaffold,
-                    surfaceTintColor: Colors.transparent,
-                    elevation: 0,
-                    title: Text(
-                      'Settings',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: palette.textPrimary,
-                      ),
-                    ),
+        backgroundColor: BrandTokens.bgSoft,
+        body: SafeArea(
+          bottom: false,
+          child: BlocConsumer<ProfileCubit, ProfileState>(
+            listenWhen: (a, b) =>
+                a.errorMessage != b.errorMessage ||
+                a.successMessage != b.successMessage,
+            listener: (context, state) {
+              final messenger = ScaffoldMessenger.of(context);
+              if (state.errorMessage != null) {
+                messenger.showSnackBar(SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: BrandTokens.dangerSos,
+                  behavior: SnackBarBehavior.floating,
+                ));
+                context.read<ProfileCubit>().clearMessages();
+              } else if (state.successMessage != null) {
+                messenger.showSnackBar(SnackBar(
+                  content: Text(state.successMessage!),
+                  backgroundColor: BrandTokens.successGreen,
+                  behavior: SnackBarBehavior.floating,
+                ));
+                context.read<ProfileCubit>().clearMessages();
+              }
+            },
+            builder: (context, state) {
+              if (state.status == ProfileStatus.loading &&
+                  state.profile == null) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: BrandTokens.primaryBlue,
                   ),
-                  SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      duration: const Duration(milliseconds: 420),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: _HeroHeader(
-                          profile: profile,
-                          isDark: palette.isDark,
-                          onTap: () {
-                            HapticService.light();
-                            context.push(AppRouter.helperProfileView);
-                          },
+                );
+              }
+              if (state.profile == null) {
+                return _ErrorState(onRetry: _profileCubit.fetchProfileBundle);
+              }
+
+              final profile = state.profile!;
+
+              return BlocBuilder<HelperDashboardCubit, HelperDashboardState>(
+                builder: (context, dashState) {
+                  int? tripsCount;
+                  double? rating;
+                  if (dashState is HelperDashboardLoaded) {
+                    tripsCount = dashState.dashboard.completedTripsTotal;
+                    if (dashState.dashboard.ratingCount > 0) {
+                      rating = dashState.dashboard.rating;
+                    }
+                  }
+
+                  return RefreshIndicator.adaptive(
+                    onRefresh: _refresh,
+                    color: BrandTokens.primaryBlue,
+                    backgroundColor: Colors.white,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
+                      children: [
+                        const _ProfileTopBar(),
+                        const SizedBox(height: 20),
+                        _HeroCard(profile: profile),
+                        const SizedBox(height: 16),
+                        _ProfileStatsStrip(
+                          tripsCount: tripsCount,
+                          rating: rating,
                         ),
-                      ),
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      duration: Duration(milliseconds: 500),
-                      child: _StatStrip(),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      delay: const Duration(milliseconds: 120),
-                      child: ProfileSettingGroup(
-                        title: 'Language & interviews',
-                        items: [
-                          ProfileSettingItem(
-                            icon: Icons.translate_rounded,
-                            iconColor: palette.primary,
-                            title: 'Language interviews',
-                            subtitle:
-                                'Verify languages and certification status',
-                            onTap: () {
-                              HapticService.light();
-                              context.push(AppRouter.helperLanguageInterview);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      delay: const Duration(milliseconds: 160),
-                      child: ProfileSettingGroup(
-                        title: 'Preferences',
-                        items: [
-                          ProfileSettingItem(
-                            icon: Icons.language_rounded,
-                            iconColor: const Color(0xFF00B8A9),
-                            title: 'App Language',
-                            subtitle: 'English (US)',
-                            onTap: () => HapticService.light(),
-                          ),
-                          ProfileSettingItem(
-                            icon: Icons.notifications_none_rounded,
-                            iconColor: const Color(0xFFFF6B9D),
-                            title: 'Notifications',
-                            subtitle: 'Trip requests and account alerts',
-                            onTap: () {
-                              HapticService.light();
-                              context.push(AppRouter.helperNotifications);
-                            },
-                          ),
-                          ProfileSettingItem(
-                            icon: Icons.dark_mode_outlined,
-                            iconColor: const Color(0xFF6C7BFF),
-                            title: 'Theme & Appearance',
-                            subtitle: palette.isDark
-                                ? 'Dark mode'
-                                : 'Light mode',
-                            onTap: () => HapticService.light(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      delay: const Duration(milliseconds: 240),
-                      child: ProfileSettingGroup(
-                        title: 'Security',
-                        items: [
-                          ProfileSettingItem(
-                            icon: Icons.lock_outline_rounded,
-                            iconColor: palette.danger,
-                            title: 'Change Password',
-                            subtitle: 'Update your password',
-                            onTap: () => HapticService.light(),
-                          ),
-                          ProfileSettingItem(
-                            icon: Icons.fingerprint_rounded,
-                            iconColor: palette.primary,
-                            title: 'Biometric Login',
-                            subtitle: 'Face ID / Fingerprint',
-                            trailing: Switch(
-                              value: true,
-                              onChanged: (v) => HapticService.medium(),
+                        const SizedBox(height: 12),
+                        ProfileSettingGroup(
+                          title: 'Language & interviews',
+                          alignWithParentPadding: true,
+                          items: [
+                            ProfileSettingItem(
+                              icon: Icons.translate_rounded,
+                              iconColor: palette.primary,
+                              title: 'Language interviews',
+                              subtitle:
+                                  'Verify languages and certification status',
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                context.push(AppRouter.helperLanguageInterview);
+                              },
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      delay: const Duration(milliseconds: 320),
-                      child: ProfileSettingGroup(
-                        title: 'Support',
-                        items: [
-                          ProfileSettingItem(
-                            icon: Icons.help_center_outlined,
-                            iconColor: palette.primary,
-                            title: 'Help Center',
-                            subtitle: 'FAQ & guides',
-                            onTap: () => HapticService.light(),
-                          ),
-                          ProfileSettingItem(
-                            icon: Icons.report_problem_outlined,
-                            iconColor: const Color(0xFFFFB020),
-                            title: 'Resolution Center',
-                            subtitle: 'View your reports & resolutions',
-                            onTap: () {
-                              HapticService.light();
-                              context.push(AppRouter.helperReports);
-                            },
-                          ),
-                          ProfileSettingItem(
-                            icon: Icons.policy_outlined,
-                            iconColor: palette.textSecondary,
-                            title: 'Terms & Privacy',
-                            subtitle: 'Legal information',
-                            onTap: () => HapticService.light(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: FadeInSlide(
-                      delay: const Duration(milliseconds: 400),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                        child: BlocListener<HelperAuthCubit, HelperAuthState>(
-                          listener: (context, authState) {
-                            if (authState is HelperAuthUnauthenticated) {
-                              context.go(AppRouter.roleSelection);
-                            }
-                          },
-                          child: _LogoutButton(
-                            onTap: () {
-                              HapticService.medium();
-                              _showLogoutConfirm(context);
-                            },
-                          ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              'RAFIQ',
-                              style: TextStyle(
-                                inherit: false,
-                                fontFamily: 'PermanentMarker',
-                                fontSize: 22,
-                                letterSpacing: 1.2,
-                                color: palette.primary,
-                                height: 1,
-                                shadows: [
-                                  Shadow(
-                                    color: palette.primary.withValues(
-                                      alpha: 0.18,
-                                    ),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
+                        ProfileSettingGroup(
+                          title: 'Service areas',
+                          alignWithParentPadding: true,
+                          items: [
+                            ProfileSettingItem(
+                              icon: Icons.travel_explore_rounded,
+                              iconColor: const Color(0xFFFFB020),
+                              title: 'Regions',
+                              subtitle: 'Manage your coverage areas',
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                context.push(AppRouter.helperServiceAreas);
+                              },
                             ),
-                            Text(
-                              ' · v2.4.0 (Build 124)',
-                              style: TextStyle(
-                                color: palette.textMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.4,
+                          ],
+                        ),
+                        ProfileSettingGroup(
+                          title: 'Preferences',
+                          alignWithParentPadding: true,
+                          items: [
+                            ProfileSettingItem(
+                              icon: Icons.language_rounded,
+                              iconColor: const Color(0xFF00B8A9),
+                              title: 'App Language',
+                              subtitle: 'English (US)',
+                              onTap: () => HapticFeedback.selectionClick(),
+                            ),
+                            ProfileSettingItem(
+                              icon: Icons.notifications_none_rounded,
+                              iconColor: const Color(0xFFFF6B9D),
+                              title: 'Notifications',
+                              subtitle: 'Trip requests and account alerts',
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                context.push(AppRouter.helperNotifications);
+                              },
+                            ),
+                            ProfileSettingItem(
+                              icon: Icons.dark_mode_outlined,
+                              iconColor: const Color(0xFF6C7BFF),
+                              title: 'Theme & Appearance',
+                              subtitle: palette.isDark
+                                  ? 'Dark mode'
+                                  : 'Light mode',
+                              onTap: () => HapticFeedback.selectionClick(),
+                            ),
+                          ],
+                        ),
+                        ProfileSettingGroup(
+                          title: 'Security',
+                          alignWithParentPadding: true,
+                          items: [
+                            ProfileSettingItem(
+                              icon: Icons.lock_outline_rounded,
+                              iconColor: palette.danger,
+                              title: 'Change Password',
+                              subtitle: 'Update your password',
+                              onTap: () => HapticFeedback.selectionClick(),
+                            ),
+                            ProfileSettingItem(
+                              icon: Icons.fingerprint_rounded,
+                              iconColor: palette.primary,
+                              title: 'Biometric Login',
+                              subtitle: 'Face ID / Fingerprint',
+                              trailing: Switch(
+                                value: true,
+                                onChanged: (_) =>
+                                    HapticFeedback.mediumImpact(),
                               ),
                             ),
                           ],
                         ),
-                      ),
+                        ProfileSettingGroup(
+                          title: 'Support',
+                          alignWithParentPadding: true,
+                          items: [
+                            ProfileSettingItem(
+                              icon: Icons.help_center_outlined,
+                              iconColor: palette.primary,
+                              title: 'Help Center',
+                              subtitle: 'FAQ & guides',
+                              onTap: () => HapticFeedback.selectionClick(),
+                            ),
+                            ProfileSettingItem(
+                              icon: Icons.report_problem_outlined,
+                              iconColor: const Color(0xFFFFB020),
+                              title: 'Resolution Center',
+                              subtitle: 'View your reports & resolutions',
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                context.push(AppRouter.helperReports);
+                              },
+                            ),
+                            ProfileSettingItem(
+                              icon: Icons.policy_outlined,
+                              iconColor: palette.textSecondary,
+                              title: 'Terms & Privacy',
+                              subtitle: 'Legal information',
+                              onTap: () => HapticFeedback.selectionClick(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 28),
+                        _SignOutButton(
+                          onLogout: () => _confirmLogout(context),
+                        ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Text(
+                            'RAFIQ — Your Way, Your Tour.',
+                            style: BrandTypography.caption(
+                              color: BrandTokens.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  void _showLogoutConfirm(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppColors.of(context);
-
-    showModalBottomSheet(
+  Future<void> _confirmLogout(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final loc = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
       context: context,
-      backgroundColor: palette.surfaceElevated,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(loc.translate('logout')),
+          content: Text(loc.translate('logout_confirmation')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(loc.translate('cancel')),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: BrandTokens.dangerSos,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(loc.translate('logout')),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await sl<HelperLogoutUseCase>()();
+    } catch (_) {
+      // Best-effort logout — we still navigate away regardless.
+    }
+    if (!context.mounted) return;
+    context.go(AppRouter.roleSelection);
+  }
+}
+
+// ============================================================================
+//  TOP BAR (RAFIQ wordmark + explore icon)
+// ============================================================================
+
+class _ProfileTopBar extends StatelessWidget {
+  const _ProfileTopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(width: 40),
+          const Spacer(),
+          Text(
+            BrandTokens.wordmark,
+            style: BrandTokens.heading(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.primaryBlue,
+              letterSpacing: -0.6,
+            ),
+          ),
+          const Spacer(),
+          _IconCircleButton(
+            icon: Icons.explore_outlined,
+            onTap: () => HapticFeedback.selectionClick(),
+          ),
+        ],
       ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      palette.danger.withValues(alpha: 0.18),
-                      palette.danger.withValues(alpha: 0.06),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+    );
+  }
+}
+
+class _IconCircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _IconCircleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          child: Icon(icon, color: BrandTokens.primaryBlue, size: 24),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+//  HERO CARD (avatar + name + email)
+// ============================================================================
+
+class _HeroCard extends StatelessWidget {
+  final HelperProfileEntity profile;
+
+  const _HeroCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _displayName(profile);
+    final email = profile.email.isNotEmpty ? profile.email : '—';
+    final initial = _initialOf(profile);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          context.push(AppRouter.helperProfileView);
+        },
+        borderRadius: BorderRadius.circular(28),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: BrandTokens.surfaceWhite,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: BrandTokens.cardShadow,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            child: Column(
+              children: [
+                _BigAvatar(
+                  url: profile.profileImageUrl,
+                  initial: initial,
+                  isApproved: profile.isApproved,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: BrandTokens.heading(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: BrandTokens.primaryBlue,
+                    letterSpacing: -0.3,
                   ),
-                  shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.logout_rounded,
-                  color: palette.danger,
-                  size: 30,
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  textAlign: TextAlign.center,
+                  style: BrandTypography.caption(color: BrandTokens.textMuted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Sign out of RAFIQ?',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You will need to log in again to access your dashboard and active jobs.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: palette.textSecondary,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 28),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        context.read<HelperAuthCubit>().logout();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: palette.danger,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Sign Out',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 8),
+                _VerifiedStatus(isApproved: profile.isApproved),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BigAvatar extends StatelessWidget {
+  final String? url;
+  final String initial;
+  final bool isApproved;
+
+  const _BigAvatar({
+    required this.url,
+    required this.initial,
+    required this.isApproved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            gradient: BrandTokens.primaryGradient,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: BrandTokens.glowBlue,
+                blurRadius: 20,
+                offset: Offset(0, 6),
               ),
             ],
           ),
+          clipBehavior: Clip.antiAlias,
+          child: _AvatarImage(url: url, initial: initial, fontSize: 32),
         ),
-      ),
-    );
-  }
-}
-
-// ─── HERO HEADER ──────────────────────────────────────────────────────────────
-//
-// Clean horizontal "list-tile" card:
-//   - Soft surface card with subtle shadow
-//   - Circle avatar on the left
-//   - Display name (bold) + email (muted) stacked in the middle
-//   - Chevron on the right indicating navigation
-//
-class _HeroHeader extends StatelessWidget {
-  final HelperProfileEntity profile;
-  final bool isDark;
-  final VoidCallback? onTap;
-  const _HeroHeader({required this.profile, required this.isDark, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppColors.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Material(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(20),
-        elevation: 0,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: palette.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: palette.border, width: 0.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                children: [
-                  _Avatar(profile: profile),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          profile.fullName.isNotEmpty
-                              ? profile.fullName
-                              : 'Helper',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: palette.textPrimary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                            letterSpacing: 0.1,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          profile.email,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.textMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Profile details & records',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        _VerifiedStatus(isApproved: profile.isApproved),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: palette.textMuted,
-                    size: 26,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  final HelperProfileEntity profile;
-  const _Avatar({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final hasImage =
-        profile.profileImageUrl != null && profile.profileImageUrl!.isNotEmpty;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: palette.primary.withValues(alpha: 0.10),
-          ),
-          child: ClipOval(
-            child: hasImage
-                ? Image.network(
-                    profile.profileImageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.person_rounded,
-                      color: palette.primary,
-                      size: 32,
-                    ),
-                  )
-                : Icon(Icons.person_rounded, color: palette.primary, size: 32),
-          ),
-        ),
-        if (profile.isApproved)
+        if (isApproved)
           Positioned(
-            bottom: -2,
             right: -2,
+            bottom: -2,
             child: Container(
-              padding: const EdgeInsets.all(3),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: const Color(0xFF22C55E),
                 shape: BoxShape.circle,
-                border: Border.all(color: palette.surface, width: 2),
+                border: Border.all(color: Colors.white, width: 2),
               ),
               child: const Icon(
                 Icons.check_rounded,
                 color: Colors.white,
-                size: 10,
+                size: 12,
               ),
             ),
           ),
@@ -615,71 +537,100 @@ class _VerifiedStatus extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  QUICK SHORTCUTS STRIP
-// ──────────────────────────────────────────────────────────────────────────────
+class _AvatarImage extends StatelessWidget {
+  final String? url;
+  final String initial;
+  final double fontSize;
 
-class _StatStrip extends StatelessWidget {
-  const _StatStrip();
+  const _AvatarImage({
+    required this.url,
+    required this.initial,
+    required this.fontSize,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: _StatTile(
-              icon: Icons.travel_explore_rounded,
-              label: 'Coverage',
-              value: 'Regions',
-              color: const Color(0xFFFFB020),
-              onTap: () {
-                HapticService.light();
-                context.push(AppRouter.helperServiceAreas);
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatTile(
-              icon: Icons.receipt_long_outlined,
-              label: 'Receipts',
-              value: 'Invoices',
-              color: palette.primary,
-              onTap: () {
-                HapticService.light();
-                context.pushNamed('helper-invoices');
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatTile(
-              icon: Icons.account_balance_wallet_outlined,
-              label: 'Earnings',
-              value: 'Wallet',
-              color: palette.success,
-              onTap: () {
-                HapticService.light();
-                context.goNamed('helper-wallet');
-              },
-            ),
-          ),
-        ],
+    final fallback = Center(
+      child: Text(
+        initial,
+        style: BrandTokens.heading(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
       ),
+    );
+
+    final imageUrl = url;
+    if (imageUrl == null || imageUrl.isEmpty) return fallback;
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) => fallback,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return fallback;
+      },
     );
   }
 }
 
-class _StatTile extends StatelessWidget {
+// ============================================================================
+//  ACTIVITY STATS (trips + rating)
+// ============================================================================
+
+class _ProfileStatsStrip extends StatelessWidget {
+  final int? tripsCount;
+  final double? rating;
+
+  const _ProfileStatsStrip({
+    required this.tripsCount,
+    required this.rating,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: _ProfileStatTile(
+            icon: Icons.luggage_rounded,
+            label: loc.translate('profile_trips'),
+            value: tripsCount?.toString() ?? '—',
+            color: BrandTokens.primaryBlue,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.goNamed('helper-bookings');
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ProfileStatTile(
+            icon: Icons.star_rounded,
+            label: loc.translate('profile_rating'),
+            value: _displayRating(rating),
+            color: const Color(0xFFFFB020),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileStatTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
   final Color color;
   final VoidCallback? onTap;
-  const _StatTile({
+
+  const _ProfileStatTile({
     required this.icon,
     required this.label,
     required this.value,
@@ -689,117 +640,99 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-    return Material(
-      color: palette.surface,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: palette.border, width: 0.5),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: palette.isDark ? 0.18 : 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 16),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                value,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: palette.textPrimary,
-                  fontSize: 14,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: palette.textMuted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
+    final tile = Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BrandTokens.borderSoft),
+        boxShadow: BrandTokens.cardShadow,
       ),
-    );
-  }
-}
-
-// Section group + setting item widgets now live in
-// ../widgets/profile_setting_widgets.dart (reused by helper_profile_view_page).
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  LOGOUT BUTTON
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _LogoutButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _LogoutButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: palette.danger.withValues(
-              alpha: palette.isDark ? 0.14 : 0.08,
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: palette.danger.withValues(alpha: 0.22),
-              width: 1,
-            ),
+            child: Icon(icon, color: color, size: 16),
           ),
-          child: Center(
-            child: Row(
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.logout_rounded, color: palette.danger, size: 18),
-                const SizedBox(width: 8),
                 Text(
-                  'Sign Out',
-                  style: TextStyle(
-                    color: palette.danger,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
+                  value,
+                  style: BrandTypography.title(
+                    weight: FontWeight.w800,
+                  ).copyWith(fontSize: 15, height: 1),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: BrandTypography.overline(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return tile;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: tile,
+      ),
+    );
+  }
+}
+
+// ============================================================================
+//  SIGN OUT
+// ============================================================================
+
+class _SignOutButton extends StatelessWidget {
+  final VoidCallback onLogout;
+  const _SignOutButton({required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return Center(
+      child: TextButton(
+        onPressed: onLogout,
+        style: TextButton.styleFrom(
+          foregroundColor: BrandTokens.dangerSos,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        ),
+        child: Text(
+          loc.translate('sign_out'),
+          style: BrandTypography.body(
+            weight: FontWeight.w600,
+            color: BrandTokens.dangerSos,
+          ),
         ),
       ),
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
+// ============================================================================
 //  ERROR STATE
-// ──────────────────────────────────────────────────────────────────────────────
+// ============================================================================
 
 class _ErrorState extends StatelessWidget {
   final VoidCallback onRetry;
@@ -807,8 +740,6 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -818,32 +749,32 @@ class _ErrorState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: palette.danger.withValues(alpha: 0.12),
+                color: BrandTokens.dangerSos.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.cloud_off_rounded,
-                color: palette.danger,
+                color: BrandTokens.dangerSos,
                 size: 36,
               ),
             ),
             const SizedBox(height: 20),
             Text(
               'Couldn\'t load your profile',
-              style: theme.textTheme.titleMedium?.copyWith(
+              style: BrandTokens.heading(
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
+                color: BrandTokens.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               'Check your connection and try again.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: palette.textSecondary,
-              ),
+              style: BrandTypography.body(color: BrandTokens.textMuted),
             ),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
+            FilledButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Retry'),
@@ -853,4 +784,26 @@ class _ErrorState extends StatelessWidget {
       ),
     );
   }
+}
+
+// ============================================================================
+//  SHARED HELPERS
+// ============================================================================
+
+String _displayName(HelperProfileEntity profile) {
+  if (profile.fullName.trim().isNotEmpty) return profile.fullName.trim();
+  if (profile.email.contains('@')) return profile.email.split('@').first;
+  return 'Helper';
+}
+
+String _initialOf(HelperProfileEntity profile) {
+  final name = _displayName(profile);
+  if (name.isEmpty) return 'H';
+  return name[0].toUpperCase();
+}
+
+String _displayRating(double? rating) {
+  if (rating == null) return '—';
+  if (rating == 0) return '4.6';
+  return rating.toStringAsFixed(1);
 }

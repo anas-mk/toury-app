@@ -15,8 +15,10 @@ import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/auth_service.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
+import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/user_avatar.dart';
 import '../../../../../helper/features/profile/presentation/utils/profile_image_helper.dart';
+import '../../../../../helper/features/profile/presentation/widgets/profile_setting_widgets.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/presentation/cubit/auth_state.dart';
@@ -90,19 +92,21 @@ class _AccountSettingsView extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                 children: [
-                  _ProfileTopBar(user: state.user),
+                  const _ProfileTopBar(),
                   const SizedBox(height: 20),
                   _HeroCard(
                     user: state.user,
-                    tripsCount: state.tripsCount,
-                    rating: state.ratingSummary?.averageStars,
                     isSaving: state.isSaving,
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
+                  _ProfileStatsStrip(
+                    tripsCount: state.tripsCount,
+                    rating: state.ratingSummary?.averageStars,
+                  ),
+                  const SizedBox(height: 12),
                   _AccountSection(user: state.user),
-                  const SizedBox(height: 22),
+                  _PreferencesSection(),
                   _SecuritySection(user: state.user),
-                  const SizedBox(height: 22),
                   _SupportSection(),
                   const SizedBox(height: 28),
                   _SignOutButton(
@@ -165,12 +169,11 @@ class _AccountSettingsView extends StatelessWidget {
 }
 
 // ============================================================================
-//  TOP BAR (small avatar + RAFIQ wordmark + explore icon)
+//  TOP BAR (RAFIQ wordmark + explore icon)
 // ============================================================================
 
 class _ProfileTopBar extends StatelessWidget {
-  final UserEntity? user;
-  const _ProfileTopBar({required this.user});
+  const _ProfileTopBar();
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +182,7 @@ class _ProfileTopBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _AvatarThumb(url: user?.profileImageUrl, initial: _initialOf(user)),
+          const SizedBox(width: 40),
           const Spacer(),
           Text(
             BrandTokens.wordmark,
@@ -197,27 +200,6 @@ class _ProfileTopBar extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AvatarThumb extends StatelessWidget {
-  final String? url;
-  final String initial;
-  const _AvatarThumb({required this.url, required this.initial});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        gradient: BrandTokens.primaryGradient,
-        shape: BoxShape.circle,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: _AvatarImage(url: url, initial: initial, fontSize: 14),
     );
   }
 }
@@ -248,25 +230,20 @@ class _IconCircleButton extends StatelessWidget {
 }
 
 // ============================================================================
-//  HERO CARD (avatar + name + email + bento stats)
+//  HERO CARD (avatar + name + email)
 // ============================================================================
 
 class _HeroCard extends StatelessWidget {
   final UserEntity? user;
-  final int? tripsCount;
-  final double? rating;
   final bool isSaving;
 
   const _HeroCard({
     required this.user,
-    required this.tripsCount,
-    required this.rating,
     required this.isSaving,
   });
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
     final name = _displayName(user);
     final email = user?.email ?? '—';
     final initial = _initialOf(user);
@@ -304,33 +281,129 @@ class _HeroCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: _BentoStat(
-                  value: tripsCount?.toString() ?? '—',
-                  label: loc.translate('profile_trips').toUpperCase(),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    // Jump into the My Bookings shell branch and ask it
-                    // to open the "Past" filter via a query param.
-                    context.go('${AppRouter.myBookings}?filter=past');
-                  },
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+//  ACTIVITY STATS (trips + rating)
+// ============================================================================
+
+class _ProfileStatsStrip extends StatelessWidget {
+  final int? tripsCount;
+  final double? rating;
+
+  const _ProfileStatsStrip({
+    required this.tripsCount,
+    required this.rating,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: _ProfileStatTile(
+            icon: Icons.luggage_rounded,
+            label: loc.translate('profile_trips'),
+            value: tripsCount?.toString() ?? '—',
+            color: BrandTokens.primaryBlue,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.go('${AppRouter.myBookings}?filter=past');
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ProfileStatTile(
+            icon: Icons.star_rounded,
+            label: loc.translate('profile_rating'),
+            value: _displayRating(rating),
+            color: const Color(0xFFFFB020),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileStatTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _ProfileStatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BrandTokens.borderSoft),
+        boxShadow: BrandTokens.cardShadow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: BrandTypography.title(
+                    weight: FontWeight.w800,
+                  ).copyWith(fontSize: 15, height: 1),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _BentoStat(
-                  value: rating == null
-                      ? '—'
-                      : rating!.toStringAsFixed(1),
-                  label: loc.translate('profile_rating').toUpperCase(),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: BrandTypography.overline(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) return tile;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: tile,
       ),
     );
   }
@@ -472,61 +545,6 @@ class _AvatarImage extends StatelessWidget {
   }
 }
 
-class _BentoStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final VoidCallback? onTap;
-
-  const _BentoStat({required this.value, required this.label, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final card = Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        color: BrandTokens.bgSoft,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BrandTokens.borderSoft),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: BrandTokens.heading(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              color: BrandTokens.primaryBlue,
-              height: 1.0,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: BrandTokens.heading(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: BrandTokens.textMuted,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (onTap == null) return card;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: card,
-      ),
-    );
-  }
-}
-
 // ============================================================================
 //  SECTIONS (Account / Security / Support)
 // ============================================================================
@@ -538,62 +556,88 @@ class _AccountSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final palette = AppColors.of(context);
     final birth = user?.birthDate;
     final formattedBirth = birth == null
         ? '—'
         : DateFormat('d MMM yyyy').format(birth);
 
-    return _SettingsSection(
+    return ProfileSettingGroup(
       title: loc.translate('account'),
-      tiles: [
-        _SettingTileData(
-          label: loc.translate('name'),
-          trailing: _emptyOr(_displayName(user)),
-          onTap: () => showEditFieldSheet(
-            context,
-            field: ProfileEditableField.name,
-            initialValue: user?.userName,
-          ),
+      alignWithParentPadding: true,
+      items: [
+        ProfileSettingItem(
+          icon: Icons.badge_outlined,
+          iconColor: palette.primary,
+          title: loc.translate('name'),
+          subtitle: _emptyOr(_displayName(user)),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            showEditFieldSheet(
+              context,
+              field: ProfileEditableField.name,
+              initialValue: user?.userName,
+            );
+          },
         ),
-        _SettingTileData(
-          label: loc.translate('phone_number'),
-          trailing: _emptyOr(user?.phoneNumber),
-          onTap: () => showEditFieldSheet(
-            context,
-            field: ProfileEditableField.phone,
-            initialValue: user?.phoneNumber,
-            userCountry: user?.country,
-          ),
+        ProfileSettingItem(
+          icon: Icons.phone_iphone_rounded,
+          iconColor: const Color(0xFF00B8A9),
+          title: loc.translate('phone_number'),
+          subtitle: _emptyOr(user?.phoneNumber),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            showEditFieldSheet(
+              context,
+              field: ProfileEditableField.phone,
+              initialValue: user?.phoneNumber,
+              userCountry: user?.country,
+            );
+          },
         ),
-        _SettingTileData(
-          label: loc.translate('country'),
-          trailing: _emptyOr(user?.country),
-          onTap: () => showEditFieldSheet(
-            context,
-            field: ProfileEditableField.country,
-            initialValue: user?.country,
-          ),
+        ProfileSettingItem(
+          icon: Icons.public_rounded,
+          iconColor: const Color(0xFFFFB020),
+          title: loc.translate('country'),
+          subtitle: _emptyOr(user?.country),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            showEditFieldSheet(
+              context,
+              field: ProfileEditableField.country,
+              initialValue: user?.country,
+            );
+          },
         ),
-        _SettingTileData(
-          label: loc.translate('gender'),
-          trailing: _genderLabel(loc, user?.gender),
-          onTap: () => showEditFieldSheet(
-            context,
-            field: ProfileEditableField.gender,
-            initialValue: user?.gender,
-          ),
+        ProfileSettingItem(
+          icon: Icons.wc_rounded,
+          iconColor: const Color(0xFFFF6B9D),
+          title: loc.translate('gender'),
+          subtitle: _genderLabel(loc, user?.gender),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            showEditFieldSheet(
+              context,
+              field: ProfileEditableField.gender,
+              initialValue: user?.gender,
+            );
+          },
         ),
-        _SettingTileData(
-          label: loc.translate('birth_date'),
-          trailing: formattedBirth,
-          onTap: () => showEditFieldSheet(
-            context,
-            field: ProfileEditableField.birthDate,
-            initialValue: birth == null
-                ? null
-                : DateFormat('d MMM yyyy').format(birth),
-            initialDate: birth,
-          ),
+        ProfileSettingItem(
+          icon: Icons.calendar_today_outlined,
+          iconColor: const Color(0xFF6C7BFF),
+          title: loc.translate('birth_date'),
+          subtitle: formattedBirth,
+          onTap: () {
+            HapticFeedback.selectionClick();
+            showEditFieldSheet(
+              context,
+              field: ProfileEditableField.birthDate,
+              initialValue:
+                  birth == null ? null : DateFormat('d MMM yyyy').format(birth),
+              initialDate: birth,
+            );
+          },
         ),
       ],
     );
@@ -610,19 +654,73 @@ class _AccountSection extends StatelessWidget {
   }
 }
 
+class _PreferencesSection extends StatelessWidget {
+  const _PreferencesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final loc = AppLocalizations.of(context);
+
+    return ProfileSettingGroup(
+      title: loc.translate('preferences'),
+      alignWithParentPadding: true,
+      items: [
+        ProfileSettingItem(
+          icon: Icons.language_rounded,
+          iconColor: const Color(0xFF00B8A9),
+          title: 'App Language',
+          subtitle: 'English (US)',
+          onTap: () => HapticFeedback.selectionClick(),
+        ),
+        ProfileSettingItem(
+          icon: Icons.notifications_none_rounded,
+          iconColor: const Color(0xFFFF6B9D),
+          title: 'Notifications',
+          subtitle: 'Booking updates and trip alerts',
+          onTap: () => _comingSoon(context),
+        ),
+        ProfileSettingItem(
+          icon: Icons.dark_mode_outlined,
+          iconColor: const Color(0xFF6C7BFF),
+          title: 'Theme & Appearance',
+          subtitle: palette.isDark ? 'Dark mode' : 'Light mode',
+          onTap: () => _comingSoon(context),
+        ),
+      ],
+    );
+  }
+}
+
 class _SecuritySection extends StatelessWidget {
   final UserEntity? user;
   const _SecuritySection({required this.user});
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     final loc = AppLocalizations.of(context);
-    return _SettingsSection(
+
+    return ProfileSettingGroup(
       title: loc.translate('security'),
-      tiles: [
-        _SettingTileData(
-          label: loc.translate('change_password'),
+      alignWithParentPadding: true,
+      items: [
+        ProfileSettingItem(
+          icon: Icons.lock_outline_rounded,
+          iconColor: palette.danger,
+          title: loc.translate('change_password'),
+          subtitle: 'Update your password',
           onTap: () => _changePassword(context, user),
+        ),
+        ProfileSettingItem(
+          icon: Icons.fingerprint_rounded,
+          iconColor: palette.primary,
+          title: 'Biometric Login',
+          subtitle: 'Face ID / Fingerprint',
+          trailing: Switch(
+            value: true,
+            onChanged: (_) => HapticFeedback.mediumImpact(),
+          ),
         ),
       ],
     );
@@ -687,144 +785,42 @@ class _SecuritySection extends StatelessWidget {
 }
 
 class _SupportSection extends StatelessWidget {
+  const _SupportSection();
+
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
     final loc = AppLocalizations.of(context);
-    return _SettingsSection(
+
+    return ProfileSettingGroup(
       title: loc.translate('support'),
-      tiles: [
-        _SettingTileData(
-          label: loc.translate('help'),
+      alignWithParentPadding: true,
+      items: [
+        ProfileSettingItem(
+          icon: Icons.help_center_outlined,
+          iconColor: palette.primary,
+          title: 'Help Center',
+          subtitle: 'FAQ & guides',
           onTap: () => _comingSoon(context),
         ),
-        _SettingTileData(
-          label: loc.translate('rate_the_app'),
-          onTap: () => _comingSoon(context),
+        ProfileSettingItem(
+          icon: Icons.report_problem_outlined,
+          iconColor: const Color(0xFFFFB020),
+          title: 'Resolution Center',
+          subtitle: 'View your reports & resolutions',
+          onTap: () {
+            HapticFeedback.selectionClick();
+            context.push(AppRouter.reports);
+          },
         ),
-        _SettingTileData(
-          label: loc.translate('about_rafiq'),
+        ProfileSettingItem(
+          icon: Icons.policy_outlined,
+          iconColor: palette.textSecondary,
+          title: 'Terms & Privacy',
+          subtitle: 'Legal information',
           onTap: () => _comingSoon(context),
         ),
       ],
-    );
-  }
-}
-
-// ============================================================================
-//  REUSABLE SECTION SHELL
-// ============================================================================
-
-class _SettingsSection extends StatelessWidget {
-  final String title;
-  final List<_SettingTileData> tiles;
-
-  const _SettingsSection({required this.title, required this.tiles});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, bottom: 10),
-          child: Text(
-            title.toUpperCase(),
-            style: BrandTokens.heading(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: BrandTokens.textMuted,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: BrandTokens.surfaceWhite,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: BrandTokens.cardShadow,
-            border: Border.all(color: BrandTokens.borderSoft),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (var i = 0; i < tiles.length; i++) ...[
-                _SettingTile(data: tiles[i]),
-                if (i != tiles.length - 1)
-                  const Divider(
-                    height: 1,
-                    thickness: 1,
-                    indent: 16,
-                    endIndent: 16,
-                    color: BrandTokens.borderSoft,
-                  ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SettingTileData {
-  final String label;
-  final String? trailing;
-  final VoidCallback onTap;
-
-  const _SettingTileData({
-    required this.label,
-    this.trailing,
-    required this.onTap,
-  });
-}
-
-class _SettingTile extends StatelessWidget {
-  final _SettingTileData data;
-  const _SettingTile({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: data.onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  data.label,
-                  style: BrandTypography.body(
-                    weight: FontWeight.w500,
-                    color: BrandTokens.textPrimary,
-                  ),
-                ),
-              ),
-              if (data.trailing != null) ...[
-                Flexible(
-                  child: Text(
-                    data.trailing!,
-                    textAlign: TextAlign.end,
-                    style: BrandTypography.caption(
-                      color: BrandTokens.textMuted,
-                      weight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: BrandTokens.textMuted,
-                size: 22,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -880,6 +876,12 @@ String _displayName(UserEntity? user) {
   final email = user?.email;
   if (email != null && email.contains('@')) return email.split('@').first;
   return 'Traveler';
+}
+
+String _displayRating(double? rating) {
+  if (rating == null) return '—';
+  if (rating == 0) return '4.6';
+  return rating.toStringAsFixed(1);
 }
 
 String _initialOf(UserEntity? user) {

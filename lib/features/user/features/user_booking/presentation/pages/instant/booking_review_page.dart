@@ -183,6 +183,11 @@ class _ReviewViewState extends State<_ReviewView> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     return BlocConsumer<InstantBookingCubit, InstantBookingState>(
+      listenWhen: (prev, cur) =>
+          cur is InstantBookingError ||
+          (cur is InstantBookingCreated &&
+              prev is! InstantBookingCreated &&
+              prev is! InstantBookingWaiting),
       listener: (context, state) {
         if (state is InstantBookingError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -192,20 +197,18 @@ class _ReviewViewState extends State<_ReviewView> {
             ),
           );
         }
-        if (state is InstantBookingCreated || state is InstantBookingWaiting) {
-          final booking = state is InstantBookingCreated
-              ? state.booking
-              : (state as InstantBookingWaiting).booking;
+        if (state is InstantBookingCreated) {
+          final booking = state.booking;
           // Tell the home-level cubits to re-fetch so the active-trip
           // banner appears immediately when the user navigates home
           // (instead of only after a manual pull-to-refresh).
           sl<AppRealtimeCubit>().notifyBookingCreated(booking.bookingId);
           context.pushReplacement(
             AppRouter.instantWaiting.replaceFirst(':id', booking.bookingId),
-            extra: {
-              'cubit': context.read<InstantBookingCubit>(),
-              'helper': widget.helper,
-            },
+            extra: InstantWaitingRouteArgs(
+              cubit: context.read<InstantBookingCubit>(),
+              helper: widget.helper,
+            ),
           );
         }
       },

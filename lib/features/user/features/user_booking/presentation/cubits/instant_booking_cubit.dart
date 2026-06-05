@@ -236,6 +236,12 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
     _stopWatching();
   }
 
+  /// Syncs local state after another layer (e.g. [CancelBookingSheet])
+  /// already called the cancel API.
+  void acknowledgeUserCancellation(String reason) {
+    if (!isClosed) _emitCancelled(reason);
+  }
+
   // ------------------------------------------------------------------
   // 4) Cancel from the user side
   // ------------------------------------------------------------------

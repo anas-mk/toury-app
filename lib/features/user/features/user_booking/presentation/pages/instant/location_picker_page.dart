@@ -135,7 +135,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     _searchDebouncer.dispose();
     _reverseDebounce?.cancel();
     _bootstrapTimeout?.cancel();
-    _reverseCancel?.cancel('disposed');
+    _cancelActiveReverseRequest('disposed');
     _searchCtrl.dispose();
     _searchFocus.dispose();
     _centerVN.dispose();
@@ -508,9 +508,18 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 
   // -------------------- reverse geocoding --------------------
 
+  void _cancelActiveReverseRequest([String reason = 'cancelled']) {
+    final token = _reverseCancel;
+    if (token == null) return;
+    _reverseCancel = null;
+    if (!token.isCancelled) {
+      token.cancel(reason);
+    }
+  }
+
   void _scheduleReverseGeocode(_LL latLng, {bool immediate = false}) {
     _reverseDebounce?.cancel();
-    _reverseCancel?.cancel('superseded');
+    _cancelActiveReverseRequest('superseded');
     final key = _reverseKey(latLng);
     final cached = _reverseCache[key];
     if (cached != null &&
@@ -555,6 +564,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       if (!mounted || token.isCancelled) return;
       _applyReverseResult(latLng, null);
       _resolvingVN.value = false;
+    } finally {
+      if (identical(_reverseCancel, token)) {
+        _reverseCancel = null;
+      }
     }
   }
 

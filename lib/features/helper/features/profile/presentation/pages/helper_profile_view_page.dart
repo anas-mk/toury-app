@@ -4,13 +4,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../../core/config/api_config.dart';
-import '../../../../../../core/router/app_router.dart';
-import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/theme/app_color.dart';
-import '../../../../../../core/widgets/animations/fade_in_slide.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/car_entity.dart';
-import '../../domain/entities/certificate_entity.dart';
 import '../../domain/entities/helper_profile_entity.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
@@ -25,12 +23,6 @@ String _formatShortDate(DateTime d) {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
   return '${d.day} ${months[d.month - 1]} ${d.year}';
-}
-
-String _formatOnboardingLabel(String s) {
-  if (s.isEmpty) return '—';
-  final cleaned = s.replaceAll('_', ' ').toLowerCase();
-  return cleaned[0].toUpperCase() + cleaned.substring(1);
 }
 
 String _formatGenderLabel(String g) {
@@ -56,80 +48,46 @@ String _formatEnumLabel(String s) {
   return v[0].toUpperCase() + v.substring(1);
 }
 
-/// Read-only summary of helper profile data. Opened from **Account → profile card**
-/// (`/helper/profile-view`) for a focused view of identity and vehicle records.
+/// Read-only helper profile summary — opened from Account → profile card.
 class HelperProfileViewPage extends StatelessWidget {
   const HelperProfileViewPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-
     return Scaffold(
-      backgroundColor: palette.scaffold,
+      backgroundColor: BrandTokens.bgSoft,
       body: BlocBuilder<ProfileCubit, ProfileState>(
         buildWhen: (p, c) => p.profile != c.profile || p.status != c.status,
         builder: (context, state) {
           final profile = state.profile;
           if (profile == null) {
-            return Center(
-              child: CircularProgressIndicator(color: palette.primary),
+            return const Center(
+              child: CircularProgressIndicator(color: BrandTokens.primaryBlue),
             );
           }
 
-          final profileImg = ApiConfig.resolveImageUrl(profile.profileImageUrl);
-          final selfieRaw = profile.selfieImageUrl ?? '';
-          final selfieResolved = ApiConfig.resolveImageUrl(selfieRaw);
-          final showSelfie = selfieRaw.isNotEmpty &&
-              selfieResolved.isNotEmpty &&
-              selfieResolved != profileImg;
-
-          return RefreshIndicator(
+          return RefreshIndicator.adaptive(
             onRefresh: () async =>
                 context.read<ProfileCubit>().fetchProfileBundle(),
-            color: palette.primary,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
+            color: BrandTokens.primaryBlue,
+            backgroundColor: Colors.white,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
               ),
-              slivers: [
-                _ProfileAppBar(profile: profile),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                  sliver: SliverList.list(
-                    children: [
-                      FadeInSlide(
-                        child: _PersonalDetailsCard(profile: profile),
-                      ),
-                      if (showSelfie) ...[
-                        const SizedBox(height: 14),
-                        FadeInSlide(
-                          delay: const Duration(milliseconds: 60),
-                          child: _VerificationPhotoCard(url: selfieRaw),
-                        ),
-                      ],
-                      const SizedBox(height: 14),
-                      FadeInSlide(
-                        delay: const Duration(milliseconds: 80),
-                        child: _VehicleSection(car: profile.car),
-                      ),
-                      const SizedBox(height: 14),
-                      FadeInSlide(
-                        delay: const Duration(milliseconds: 100),
-                        child: _CertificatesSection(
-                          certificates: profile.certificates,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: FadeInSlide(
-                    delay: const Duration(milliseconds: 120),
-                    child: _ActionsSection(profile: profile),
-                  ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 28)),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              children: [
+                const _PageHeader(title: 'Profile'),
+                const SizedBox(height: 12),
+                _HeroCard(profile: profile),
+                const SizedBox(height: 16),
+                _InfoSection(profile: profile),
+                if (profile.car != null) ...[
+                  const SizedBox(height: 12),
+                  _VehicleCard(car: profile.car!),
+                ],
+                const SizedBox(height: 12),
+                _ManageSection(profile: profile),
               ],
             ),
           );
@@ -139,212 +97,221 @@ class HelperProfileViewPage extends StatelessWidget {
   }
 }
 
-// ─── App bar + header ─────────────────────────────────────────────────────────
+// ─── Header ───────────────────────────────────────────────────────────────────
 
-class _ProfileAppBar extends StatelessWidget {
-  final HelperProfileEntity profile;
+class _PageHeader extends StatelessWidget {
+  final String title;
 
-  const _ProfileAppBar({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    return SliverAppBar(
-      pinned: true,
-      stretch: true,
-      expandedHeight: 168,
-      backgroundColor: palette.scaffold,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back_ios_new_rounded,
-          color: palette.textPrimary,
-          size: 20,
-        ),
-        onPressed: () {
-          HapticService.light();
-          context.pop();
-        },
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(52, 0, 16, 12),
-        title: Text(
-          'Profile',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: palette.textPrimary,
-            letterSpacing: -0.2,
-          ),
-        ),
-        background: _HeaderBackdrop(profile: profile),
-      ),
-    );
-  }
-}
-
-class _HeaderBackdrop extends StatelessWidget {
-  final HelperProfileEntity profile;
-
-  const _HeaderBackdrop({required this.profile});
+  const _PageHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
+    final canPop = Navigator.of(context).canPop();
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                palette.primary.withValues(alpha: palette.isDark ? 0.14 : 0.08),
-                palette.scaffold,
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          left: 20,
-          right: 20,
-          bottom: 44,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              _Avatar(profile: profile),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      profile.fullName.isNotEmpty
-                          ? profile.fullName
-                          : 'Helper',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: palette.textPrimary,
-                        fontSize: 20,
-                        letterSpacing: -0.3,
-                      ),
+              if (canPop)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      context.pop();
+                    },
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: BrandTokens.textPrimary,
+                      size: 20,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      profile.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _StatusChip(
-                          label: !profile.isActive
-                              ? 'Inactive'
-                              : profile.isApproved
-                                  ? 'Verified'
-                                  : 'Pending review',
-                          tone: !profile.isActive
-                              ? _ChipTone.danger
-                              : profile.isApproved
-                                  ? _ChipTone.success
-                                  : _ChipTone.warning,
-                          icon: !profile.isActive
-                              ? Icons.pause_circle_outline_rounded
-                              : profile.isApproved
-                                  ? Icons.verified_outlined
-                                  : Icons.schedule_rounded,
-                        ),
-                        if (profile.onboardingStatus.isNotEmpty)
-                          _StatusChip(
-                            label: _formatOnboardingLabel(
-                              profile.onboardingStatus,
-                            ),
-                            tone: _ChipTone.neutral,
-                            icon: Icons.flag_outlined,
-                          ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
+              Text(
+                title,
+                style: BrandTypography.title(
+                  weight: FontWeight.w800,
+                ).copyWith(fontSize: 18),
               ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-enum _ChipTone { success, warning, danger, neutral }
+// ─── Hero ─────────────────────────────────────────────────────────────────────
 
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final _ChipTone tone;
-  final IconData icon;
+class _HeroCard extends StatelessWidget {
+  final HelperProfileEntity profile;
 
-  const _StatusChip({
-    required this.label,
-    required this.tone,
-    required this.icon,
+  const _HeroCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _displayName(profile);
+    final email = profile.email.isNotEmpty ? profile.email : '—';
+    final initial = _initialOf(profile);
+    final imageUrl = ApiConfig.resolveImageUrl(profile.profileImageUrl);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: BrandTokens.cardShadow,
+      ),
+      child: Column(
+        children: [
+          _ProfileAvatar(
+            url: imageUrl.isNotEmpty ? imageUrl : null,
+            initial: initial,
+            isApproved: profile.isApproved,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: BrandTokens.heading(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: BrandTokens.primaryBlue,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            email,
+            textAlign: TextAlign.center,
+            style: BrandTypography.caption(color: BrandTokens.textMuted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          _VerifiedBadge(isApproved: profile.isApproved),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  final String? url;
+  final String initial;
+  final bool isApproved;
+
+  const _ProfileAvatar({
+    required this.url,
+    required this.initial,
+    required this.isApproved,
   });
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            gradient: BrandTokens.primaryGradient,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: BrandTokens.glowBlue,
+                blurRadius: 20,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: url != null
+              ? Image.network(
+                  url!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _initialFallback(initial),
+                )
+              : _initialFallback(initial),
+        ),
+        if (isApproved)
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF22C55E),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(
+                Icons.check_rounded,
+                color: Colors.white,
+                size: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _initialFallback(String initial) {
+    return Center(
+      child: Text(
+        initial,
+        style: BrandTokens.heading(
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+class _VerifiedBadge extends StatelessWidget {
+  final bool isApproved;
+
+  const _VerifiedBadge({required this.isApproved});
+
+  @override
+  Widget build(BuildContext context) {
     final palette = AppColors.of(context);
-    final Color fg;
-    final Color bg;
-    switch (tone) {
-      case _ChipTone.success:
-        fg = palette.success;
-        bg = palette.success.withValues(alpha: palette.isDark ? 0.2 : 0.12);
-      case _ChipTone.warning:
-        fg = palette.warning;
-        bg = palette.warning.withValues(alpha: palette.isDark ? 0.2 : 0.12);
-      case _ChipTone.danger:
-        fg = palette.danger;
-        bg = palette.danger.withValues(alpha: palette.isDark ? 0.2 : 0.12);
-      case _ChipTone.neutral:
-        fg = palette.textSecondary;
-        bg = palette.surfaceInset;
-    }
+    final color = isApproved ? const Color(0xFF22C55E) : palette.warning;
+    final label = isApproved ? 'Verified Helper' : 'Pending review';
+    final icon = isApproved
+        ? Icons.verified_rounded
+        : Icons.hourglass_top_rounded;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: fg.withValues(alpha: 0.25),
-          width: 0.5,
-        ),
+        color: color.withValues(alpha: palette.isDark ? 0.18 : 0.12),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.30), width: 0.6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 5),
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              color: fg,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+              height: 1,
             ),
           ),
         ],
@@ -353,128 +320,44 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
+// ─── Info rows ────────────────────────────────────────────────────────────────
+
+class _InfoSection extends StatelessWidget {
   final HelperProfileEntity profile;
 
-  const _Avatar({required this.profile});
+  const _InfoSection({required this.profile});
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final url = ApiConfig.resolveImageUrl(profile.profileImageUrl);
-    final hasImage = url.isNotEmpty;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: palette.surface,
-            border: Border.all(color: palette.border, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: palette.isDark ? 0.35 : 0.06,
-                ),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: hasImage
-              ? Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Icon(
-                    Icons.person_rounded,
-                    color: palette.textMuted,
-                    size: 34,
-                  ),
-                )
-              : Icon(
-                  Icons.person_rounded,
-                  color: palette.textMuted,
-                  size: 34,
-                ),
-        ),
-        if (profile.isApproved)
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: palette.success,
-                shape: BoxShape.circle,
-                border: Border.all(color: palette.scaffold, width: 2),
-              ),
-              child: const Icon(
-                Icons.check_rounded,
-                color: Colors.white,
-                size: 11,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// ─── Sections ─────────────────────────────────────────────────────────────────
-
-class _PersonalDetailsCard extends StatelessWidget {
-  final HelperProfileEntity profile;
-
-  const _PersonalDetailsCard({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
+    return _BrandCard(
       title: 'Details',
       child: Column(
         children: [
-          _DetailTile(
-            icon: Icons.badge_outlined,
-            label: 'Full name',
-            value: profile.fullName.isNotEmpty ? profile.fullName : '—',
-          ),
-          _tileDivider(context),
-          _DetailTile(
-            icon: Icons.email_outlined,
-            label: 'Email',
-            value: profile.email,
-            copyable: true,
-          ),
-          _tileDivider(context),
-          _DetailTile(
+          _InfoRow(
             icon: Icons.phone_outlined,
             label: 'Phone',
             value: profile.phoneNumber.isNotEmpty ? profile.phoneNumber : '—',
             copyable: profile.phoneNumber.isNotEmpty,
           ),
-          _tileDivider(context),
-          _DetailTile(
+          const _InfoDivider(),
+          _InfoRow(
             icon: Icons.transgender_rounded,
             label: 'Gender',
             value: _formatGenderLabel(profile.gender),
           ),
-          _tileDivider(context),
-          _DetailTile(
+          const _InfoDivider(),
+          _InfoRow(
             icon: Icons.cake_outlined,
             label: 'Birth date',
             value: profile.birthDate != null
                 ? '${_formatShortDate(profile.birthDate!)} · ${_ageFromBirth(profile.birthDate!)} yrs'
                 : '—',
           ),
-          _tileDivider(context),
-          _DetailTile(
+          const _InfoDivider(),
+          _InfoRow(
             icon: Icons.fingerprint_rounded,
             label: 'Helper ID',
-            value: profile.helperId,
+            value: profile.helperId.isNotEmpty ? profile.helperId : '—',
             copyable: profile.helperId.isNotEmpty,
             mono: true,
           ),
@@ -484,88 +367,18 @@ class _PersonalDetailsCard extends StatelessWidget {
   }
 }
 
-Widget _tileDivider(BuildContext context) {
-  final palette = AppColors.of(context);
-  return Padding(
-    padding: const EdgeInsets.only(left: 44),
-    child: Divider(height: 1, thickness: 0.5, color: palette.border),
-  );
-}
+class _VehicleCard extends StatelessWidget {
+  final CarEntity car;
 
-class _VerificationPhotoCard extends StatelessWidget {
-  final String url;
-
-  const _VerificationPhotoCard({required this.url});
+  const _VehicleCard({required this.car});
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-    final resolved = ApiConfig.resolveImageUrl(url);
+    final subtitle = [car.color, car.carType]
+        .where((s) => s.isNotEmpty)
+        .join(' · ');
 
-    return _SurfaceCard(
-      title: 'Verification photo',
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: AspectRatio(
-          aspectRatio: 16 / 10,
-          child: Image.network(
-            resolved,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              color: palette.surfaceInset,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.hide_image_outlined,
-                      color: palette.textMuted,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Unavailable',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VehicleSection extends StatelessWidget {
-  final CarEntity? car;
-
-  const _VehicleSection({required this.car});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    if (car == null) {
-      return _SurfaceCard(
-        title: 'Vehicle',
-        child: Text(
-          'No vehicle on file. Add one from the action below.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: palette.textSecondary,
-            height: 1.35,
-          ),
-        ),
-      );
-    }
-
-    final c = car!;
-    return _SurfaceCard(
+    return _BrandCard(
       title: 'Vehicle',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -573,14 +386,15 @@ class _VehicleSection extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: palette.surfaceInset,
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.directions_car_rounded,
-                  color: palette.primary,
+                  color: BrandTokens.primaryBlue,
                   size: 22,
                 ),
               ),
@@ -590,41 +404,38 @@ class _VehicleSection extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${c.brand} ${c.model}'.trim(),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: palette.textPrimary,
-                      ),
+                      '${car.brand} ${car.model}'.trim(),
+                      style: BrandTypography.title(weight: FontWeight.w700),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      [c.color, c.carType]
-                          .where((s) => s.isNotEmpty)
-                          .join(' · '),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.textSecondary,
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: BrandTypography.caption(
+                          color: BrandTokens.textMuted,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          _DetailTile(
+          const SizedBox(height: 12),
+          _InfoRow(
             icon: Icons.pin_outlined,
             label: 'License plate',
-            value: c.licensePlate.isNotEmpty ? c.licensePlate : '—',
-            copyable: c.licensePlate.isNotEmpty,
+            value: car.licensePlate.isNotEmpty ? car.licensePlate : '—',
+            copyable: car.licensePlate.isNotEmpty,
             mono: true,
-            dense: true,
+            compact: true,
           ),
-          _tileDivider(context),
-          _DetailTile(
+          const _InfoDivider(),
+          _InfoRow(
             icon: Icons.local_gas_station_outlined,
             label: 'Energy',
-            value: _formatEnumLabel(c.energyType),
-            dense: true,
+            value: _formatEnumLabel(car.energyType),
+            compact: true,
           ),
         ],
       ),
@@ -632,118 +443,128 @@ class _VehicleSection extends StatelessWidget {
   }
 }
 
-class _CertificatesSection extends StatelessWidget {
-  final List<CertificateEntity> certificates;
+class _BrandCard extends StatelessWidget {
+  final String title;
+  final Widget child;
 
-  const _CertificatesSection({required this.certificates});
+  const _BrandCard({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    return _SurfaceCard(
-      title: 'Certificates (${certificates.length})',
-      child: certificates.isEmpty
-          ? Text(
-              'None uploaded yet. Language verification lives under Interviews.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: palette.textSecondary,
-                height: 1.35,
-              ),
-            )
-          : Column(
-              children: [
-                for (var i = 0; i < certificates.length; i++) ...[
-                  _CertificateRow(cert: certificates[i]),
-                  if (i < certificates.length - 1) const SizedBox(height: 12),
-                ],
-              ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: BrandTokens.borderSoft),
+        boxShadow: BrandTokens.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              title.toUpperCase(),
+              style: BrandTypography.overline(),
             ),
+          ),
+          child,
+        ],
+      ),
     );
   }
 }
 
-class _CertificateRow extends StatelessWidget {
-  final CertificateEntity cert;
-
-  const _CertificateRow({required this.cert});
+class _InfoDivider extends StatelessWidget {
+  const _InfoDivider();
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
+    return const Padding(
+      padding: EdgeInsets.only(left: 36),
+      child: Divider(height: 1, thickness: 1, color: BrandTokens.borderSoft),
+    );
+  }
+}
 
-    final issued = cert.issueDate != null ? _formatShortDate(cert.issueDate!) : null;
-    final expires =
-        cert.expiryDate != null ? _formatShortDate(cert.expiryDate!) : null;
-    final isExpired =
-        cert.expiryDate != null && cert.expiryDate!.isBefore(DateTime.now());
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool copyable;
+  final bool mono;
+  final bool compact;
 
-    final meta = <String>[
-      if ((cert.issuingOrganization ?? '').isNotEmpty)
-        cert.issuingOrganization!,
-      if (issued != null) 'Issued $issued',
-      if (expires != null)
-        '${isExpired ? 'Expired' : 'Expires'} $expires',
-    ].join(' · ');
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.copyable = false,
+    this.mono = false,
+    this.compact = false,
+  });
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: palette.surfaceInset,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(
-            color: isExpired ? palette.danger : palette.primary,
-            width: 3,
-          ),
-        ),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: compact ? 8 : 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.workspace_premium_outlined,
-            color: isExpired ? palette.danger : palette.primary,
-            size: 22,
-          ),
+          Icon(icon, size: 18, color: BrandTokens.textMuted),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(label, style: BrandTypography.overline()),
+                const SizedBox(height: 3),
                 Text(
-                  cert.name.isNotEmpty ? cert.name : 'Certificate',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: palette.textPrimary,
+                  value,
+                  style: BrandTypography.body(
+                    weight: FontWeight.w600,
+                  ).copyWith(
+                    fontFamily: mono ? 'monospace' : null,
+                    height: 1.25,
                   ),
                 ),
-                if (meta.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    meta,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isExpired ? palette.danger : palette.textSecondary,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
+          if (copyable)
+            IconButton(
+              onPressed: () async {
+                HapticFeedback.selectionClick();
+                await Clipboard.setData(ClipboardData(text: value));
+                if (!context.mounted) return;
+                AppSnackbar.show(
+                  context,
+                  message: '$label copied',
+                  tone: AppSnackTone.success,
+                );
+              },
+              icon: const Icon(
+                Icons.copy_rounded,
+                size: 18,
+                color: BrandTokens.textMuted,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
         ],
       ),
     );
   }
 }
 
-class _ActionsSection extends StatelessWidget {
+// ─── Manage actions ───────────────────────────────────────────────────────────
+
+class _ManageSection extends StatelessWidget {
   final HelperProfileEntity profile;
 
-  const _ActionsSection({required this.profile});
+  const _ManageSection({required this.profile});
 
   @override
   Widget build(BuildContext context) {
@@ -752,6 +573,7 @@ class _ActionsSection extends StatelessWidget {
 
     return ProfileSettingGroup(
       title: 'Manage',
+      alignWithParentPadding: true,
       items: [
         ProfileSettingItem(
           icon: Icons.edit_outlined,
@@ -759,7 +581,7 @@ class _ActionsSection extends StatelessWidget {
           title: 'Edit basic info',
           subtitle: 'Name, phone, birthday',
           onTap: () {
-            HapticService.light();
+            HapticFeedback.selectionClick();
             ProfileInfoForm.show(context, profile);
           },
         ),
@@ -771,7 +593,7 @@ class _ActionsSection extends StatelessWidget {
           badge: profile.isApproved ? 'Verified' : 'Pending',
           badgeColor: profile.isApproved ? palette.success : palette.warning,
           onTap: () {
-            HapticService.light();
+            HapticFeedback.selectionClick();
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -791,7 +613,7 @@ class _ActionsSection extends StatelessWidget {
               ? '${profile.car!.brand} ${profile.car!.model}'
               : 'Not set',
           onTap: () {
-            HapticService.light();
+            HapticFeedback.selectionClick();
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -800,145 +622,21 @@ class _ActionsSection extends StatelessWidget {
             );
           },
         ),
-        ProfileSettingItem(
-          icon: Icons.translate_rounded,
-          iconColor: const Color(0xFF00B8A9),
-          title: 'Languages & interviews',
-          subtitle: 'Certification and exams',
-          onTap: () {
-            HapticService.light();
-            context.push(AppRouter.helperLanguageInterview);
-          },
-        ),
       ],
     );
   }
 }
 
-// ─── Shared layout ────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-class _SurfaceCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _SurfaceCard({
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: palette.textPrimary,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
+String _displayName(HelperProfileEntity profile) {
+  if (profile.fullName.trim().isNotEmpty) return profile.fullName.trim();
+  if (profile.email.contains('@')) return profile.email.split('@').first;
+  return 'Helper';
 }
 
-class _DetailTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool copyable;
-  final bool mono;
-  final bool dense;
-
-  const _DetailTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.copyable = false,
-    this.mono = false,
-    this.dense = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-    final vPad = dense ? 10.0 : 12.0;
-
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: vPad),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: palette.textMuted),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: palette.textMuted,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11.5,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    height: 1.25,
-                    fontFamily: mono ? 'monospace' : null,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (copyable)
-            IconButton(
-              onPressed: () async {
-                HapticService.light();
-                await Clipboard.setData(ClipboardData(text: value));
-                if (!context.mounted) return;
-                AppSnackbar.show(
-                  context,
-                  message: '$label copied',
-                  tone: AppSnackTone.success,
-                );
-              },
-              icon: Icon(
-                Icons.copy_rounded,
-                size: 18,
-                color: palette.textMuted,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 36,
-                minHeight: 36,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+String _initialOf(HelperProfileEntity profile) {
+  final name = _displayName(profile);
+  if (name.isEmpty) return 'H';
+  return name[0].toUpperCase();
 }

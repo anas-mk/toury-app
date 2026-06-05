@@ -159,7 +159,7 @@ class _ScheduledTripConfigSheetState extends State<ScheduledTripConfigSheet> {
       filled: true,
       fillColor: BrandTokens.surfaceWhite,
       contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       prefixIcon: icon == null
           ? null
           : Icon(icon, color: BrandTokens.textSecondary, size: 20),
@@ -242,6 +242,9 @@ class _MeetingPointPicker extends StatelessWidget {
           case MeetingPointType.airport:
             icon = Icons.flight_rounded;
             break;
+          case MeetingPointType.destination:
+            icon = Icons.flag_rounded;
+            break;
           case MeetingPointType.custom:
             icon = Icons.place_rounded;
             break;
@@ -280,7 +283,7 @@ class _MeetingPointPicker extends StatelessWidget {
                   style: BrandTypography.body(
                     weight: FontWeight.w600,
                     color:
-                        selectedNow ? Colors.white : BrandTokens.textPrimary,
+                    selectedNow ? Colors.white : BrandTokens.textPrimary,
                   ),
                 ),
               ],
@@ -333,7 +336,7 @@ class _TripSummaryCard extends StatelessWidget {
             label: 'Destination',
             primary: destinationName,
             secondary:
-                '${destinationLatitude.toStringAsFixed(5)}, '
+            '${destinationLatitude.toStringAsFixed(5)}, '
                 '${destinationLongitude.toStringAsFixed(5)}',
           ),
           const SizedBox(height: 12),
@@ -349,12 +352,12 @@ class _TripSummaryCard extends StatelessWidget {
             label: 'Pickup',
             primary: hasPickup
                 ? (pickupLocationName?.isNotEmpty == true
-                    ? pickupLocationName!
-                    : 'Pinned location')
+                ? pickupLocationName!
+                : 'Pinned location')
                 : 'Not set — you can add it later via chat',
             secondary: hasPickup
                 ? '${pickupLatitude!.toStringAsFixed(5)}, '
-                    '${pickupLongitude!.toStringAsFixed(5)}'
+                '${pickupLongitude!.toStringAsFixed(5)}'
                 : null,
             muted: !hasPickup,
           ),

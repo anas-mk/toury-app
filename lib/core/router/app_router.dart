@@ -18,7 +18,7 @@ import '../../features/helper/features/language_interview/presentation/cubit/exa
 import '../../features/helper/features/language_interview/presentation/pages/interview_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/pre_interview_screen.dart';
 import '../../features/helper/features/language_interview/presentation/pages/exams_page.dart';
-import '../../features/user/features/auth/presentation/pages/google_verify_code_page.dart';
+import '../../features/helper/features/profile/presentation/pages/profile_page.dart';
 import '../../features/user/features/home/presentation/pages/tourist_home_page.dart';
 import '../../features/user/features/payments/presentation/cubit/payment_cubit.dart';
 import '../../features/user/features/user_booking/presentation/cubits/search_helpers_cubit.dart';
@@ -42,8 +42,6 @@ import '../../features/user/features/auth/presentation/pages/reset_password_page
 import '../../features/user/features/auth/presentation/pages/verify_code_page.dart';
 import '../../features/user/features/home/presentation/pages/home_layout.dart';
 import '../../features/helper/features/profile/presentation/pages/account_control_center_page.dart';
-import '../../features/helper/features/profile/presentation/pages/helper_profile_view_page.dart';
-import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart';
 import '../../features/user/features/user_booking/presentation/pages/booking_home_page.dart';
 import '../../features/user/features/user_booking/domain/entities/search_params.dart';
 import '../../features/user/features/user_booking/presentation/pages/scheduled/scheduled_search_form_screen.dart';
@@ -84,8 +82,6 @@ import '../../features/user/features/payments/domain/entities/payment_entity.dar
 import '../../features/user/features/user_invoices/presentation/pages/user_invoices_page.dart';
 import '../../features/user/features/user_invoices/domain/entities/invoice_entity.dart';
 import '../../features/user/features/user_invoices/presentation/pages/user_invoice_detail_page.dart';
-import '../../features/user/features/user_invoices/presentation/pages/user_invoice_view_page.dart';
-import '../../features/helper/features/language_interview/presentation/pages/interview_under_review_page.dart';
 import '../../features/user/features/user_ratings/presentation/pages/helper_reviews_page.dart';
 import '../../features/user/features/user_ratings/presentation/pages/rate_booking_page.dart';
 import '../../features/user/features/user_chat/presentation/pages/user_chat_page.dart';
@@ -108,6 +104,9 @@ import '../../features/helper/features/helper_invoices/presentation/pages/wallet
 import '../../features/helper/features/helper_bookings/presentation/pages/active_booking_page.dart';
 import '../../features/helper/features/helper_bookings/presentation/pages/helper_booking_details_page.dart';
 import '../../features/helper/features/helper_notifications/presentation/pages/helper_notifications_page.dart';
+import '../../features/helper/features/language_interview/presentation/pages/interview_under_review_page.dart';
+import '../../features/helper/features/profile/presentation/pages/helper_profile_view_page.dart';
+import '../../features/helper/features/profile/presentation/cubit/profile_cubit.dart';
 
 import 'dart:async';
 
@@ -221,15 +220,60 @@ class InstantConfirmedRouteArgs {
 }
 
 class InstantTripTrackingRouteArgs {
-  const InstantTripTrackingRouteArgs({
-    required this.cubit,
-    required this.helper,
-  });
+  const InstantTripTrackingRouteArgs({required this.cubit, required this.helper});
   final InstantBookingCubit cubit;
   final instant_helper.HelperSearchResult? helper;
 }
 
-// Placeholder pages for specialized authentication / gate states.
+/// Resolves cubit + helper for instant-flow routes opened either from
+/// the booking wizard (typed/map `extra`) or from home deep-links
+/// (path only — fresh cubit hydrates from booking id).
+({InstantBookingCubit cubit, instant_helper.HelperSearchResult? helper})
+    resolveInstantFlowArgs(Object? extra) {
+  if (extra is InstantWaitingRouteArgs) {
+    return (cubit: extra.cubit, helper: extra.helper);
+  }
+  if (extra is InstantConfirmedRouteArgs) {
+    return (cubit: extra.cubit, helper: extra.helper);
+  }
+  if (extra is InstantTripTrackingRouteArgs) {
+    return (cubit: extra.cubit, helper: extra.helper);
+  }
+  if (extra is Map) {
+    final cubit = extra['cubit'];
+    if (cubit is InstantBookingCubit) {
+      return (
+        cubit: cubit,
+        helper: extra['helper'] as instant_helper.HelperSearchResult?,
+      );
+    }
+  }
+  return (cubit: sl<InstantBookingCubit>(), helper: null);
+}
+
+/// Accepts [ScheduledSearchParams] directly or `{ 'params': … }` map extras.
+ScheduledSearchParams? resolveScheduledSearchParams(Object? extra) {
+  if (extra is ScheduledSearchParams) return extra;
+  if (extra is Map) {
+    final params = extra['params'];
+    if (params is ScheduledSearchParams) return params;
+  }
+  return null;
+}
+
+// Placeholder page for Google
+// Placeholder pages for specialized authentication states
+class GoogleVerifyCodePage extends StatelessWidget {
+  final String email;
+  const GoogleVerifyCodePage({super.key, required this.email});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: Text('Google Verify Code Page for $email (Placeholder)'),
+    ),
+  );
+}
+
 class HelperOnboardingPage extends StatelessWidget {
   const HelperOnboardingPage({super.key});
   @override
@@ -291,31 +335,22 @@ class AccountInactivePage extends StatelessWidget {
 }
 
 class AppRouter {
-  // ---------------------------------------------------------------------------
-  // Route paths — grouped by domain (single source of truth for GoRouter).
-  // ---------------------------------------------------------------------------
-
-  // ── Shared / splash ───────────────────────────────────────────────────────
+  // ----------------------------------------
+  // Routes
+  // ----------------------------------------
   static const String splash = '/';
   static const String roleSelection = '/role-selection';
-  static const String devRealtime = '/dev/realtime';
-
-  // ── Tourist auth ───────────────────────────────────────────────────────────
+  static const String home = '/home';
   static const String login = '/login';
   static const String register = 'register';
-  static const String verifyCode = '/verify-code';
+  static const String verifyCode =
+      '/verify-code'; // ✨ Added this route constant
   static const String enterPassword = 'enter-password/:email';
   static const String forgotPassword = 'forgot-password';
   static const String resetPassword = 'reset-password';
   static const String googleVerifyCode = 'verify-google-code/:email';
-
-  // ── Tourist shell (bottom nav) ─────────────────────────────────────────────
-  static const String home = '/home';
-  static const String myBookings = '/my-bookings';
-  static const String userInvoices = '/user-invoices';
   static const String accountSettings = 'account-settings';
-
-  // ── Tourist booking ─────────────────────────────────────────────────────────
+  static const String profile = 'profile';
   static const String bookingHome = '/booking-home';
   static const String scheduledSearch = '/scheduled/search';
   static const String scheduledResults = '/scheduled/results';
@@ -325,8 +360,10 @@ class AppRouter {
   static const String helperProfile = '/helper-profile/:id';
   static const String bookingConfirm = '/booking-confirm';
   static const String bookingDetails = '/booking-details/:id';
+  // Removed: scheduledTripDetails (use bookingDetails instead).
+  static const String myBookings = '/my-bookings';
 
-  // ── Instant booking ─────────────────────────────────────────────────────────
+  // ── Instant Booking (rebuilt) ──────────────────────────────────────
   static const String instantTripDetails = '/instant/details';
   static const String instantHelpersList = '/instant/helpers';
   static const String instantHelperProfile = '/instant/helpers/:id';
@@ -340,51 +377,60 @@ class AppRouter {
   static const String tripLive = '/trip/:id';
   static const String instantPayNow = '/instant/pay-now/:id';
 
-  /// FCM / SignalR chat deep link (booking id).
+  /// Push contract — `id` is booking / conversation id on the wire.
   static const String chatByConversation = '/chat/:id';
   static const String reports = '/reports';
 
-  // ── Tourist payments ────────────────────────────────────────────────────────
+  // Payment Routes
   static const String paymentMethod = '/payment-method/:bookingId';
   static const String paymentProcessing = '/payment-processing';
   static const String paymentWebview = '/payment-webview';
   static const String paymentSuccess = '/payment-success';
   static const String paymentFailed = '/payment-failed';
 
-  // ── Tourist invoices (pushed) ───────────────────────────────────────────────
+  // User Invoice Routes
+  static const String userInvoices = '/user-invoices';
   static const String userInvoiceDetail = '/invoice-detail/:id';
   static const String userInvoiceView = '/invoice-view/:id';
 
-  // ── Tourist chat, tracking, ratings ─────────────────────────────────────────
+  // User Chat Routes
   static const String userChat = '/user-chat/:id';
+
   static const String userTracking = '/user-tracking/:id';
+
+  // User Rating Routes
   static const String helperReviews = '/helper-reviews/:id';
   static const String rateBooking = '/rate-booking/:bookingId';
 
-  // ── Helper auth ─────────────────────────────────────────────────────────────
+  // Hidden diagnostics
+  static const String devRealtime = '/dev/realtime';
+
+  // Helper Constants
   static const String helperLogin = '/helper-login';
   static const String helperRegister = 'helper-register';
   static const String helperEnterPassword = 'enter-password/:email';
   static const String helperVerifyCode = 'helper-verify-code/:email';
   static const String helperRegisterVerifyOtp = 'helper-register-verify-otp';
 
-  // ── Helper gates & interviews ───────────────────────────────────────────────
+  // Status Routes
   static const String helperOnboarding = '/helper-onboarding';
   static const String waitingApproval = '/waiting-approval';
   static const String accountInactive = '/account-inactive';
-  static const String preInterview = '/pre-interview';
   static const String interviewScreen = '/interview-screen';
-  static const String interviewUnderReview = '/helper/interview-under-review';
+  static const String interviewUnderReview = '/interview-under-review';
+  static const String preInterview = '/pre-interview';
+  static const String helperProfileView = '/helper/profile-view';
 
-  // ── Helper shell (bottom nav) ───────────────────────────────────────────────
+  // Helper Shell Routes
   static const String helperHome = '/helper/home';
   static const String helperBookings = '/helper/bookings';
   static const String helperWallet = '/helper/wallet';
   static const String helperAccount = '/helper/account';
-  static const String helperProfileView = '/helper/profile-view';
   static const String helperLanguageInterview = '/helper/language-interview';
 
-  // ── Helper pushed routes ────────────────────────────────────────────────────
+  // Helper Sub-Routes
+  static const String helperDashboard =
+      helperHome; // For backward compatibility if needed
   static const String helperRequests = '/helper/requests';
   static const String helperNotifications = '/helper/notifications';
   static const String helperRequestDetails = '/helper/request-details/:id';
@@ -429,6 +475,10 @@ class AppRouter {
         roleSelection,
         login,
         helperLogin,
+        register,
+        '/helper-register',
+        forgotPassword,
+        resetPassword,
         verifyCode,
         devRealtime,
       ];
@@ -465,8 +515,8 @@ class AppRouter {
       //
       // Done LAST so we don't race the role-based redirects above.
       if (isAuthenticated && !isPublic) {
-        final pendingRoute = NotificationRouter.instance
-            .consumePendingDeepLink();
+        final pendingRoute =
+            NotificationRouter.instance.consumePendingDeepLink();
         if (pendingRoute != null && pendingRoute != matchedPath) {
           return pendingRoute;
         }
@@ -476,28 +526,18 @@ class AppRouter {
     },
 
     routes: [
-      // ═══════════════════════════════════════════════════════════════════════
-      // Shared
-      // ═══════════════════════════════════════════════════════════════════════
       GoRoute(
         path: splash,
         name: 'splash',
         builder: (context, state) => const SplashPage(),
       ),
+
       GoRoute(
         path: roleSelection,
         name: 'role-selection',
         builder: (context, state) => const RoleSelectionPage(),
       ),
-      GoRoute(
-        path: devRealtime,
-        name: 'dev-realtime',
-        builder: (context, state) => const RealtimeDiagnosticsPage(),
-      ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Auth
-      // ═══════════════════════════════════════════════════════════════════════
       GoRoute(
         path: verifyCode,
         name: 'verify-code',
@@ -506,6 +546,8 @@ class AppRouter {
           return VerifyCodePage(email: email);
         },
       ),
+
+      // 1. Tourist Login Flow
       GoRoute(
         path: login,
         name: 'login',
@@ -522,14 +564,6 @@ class AppRouter {
             builder: (context, state) {
               final email = state.pathParameters['email']!;
               return EnterPasswordPage(email: email);
-            },
-          ),
-          GoRoute(
-            path: googleVerifyCode,
-            name: 'google-verify-code',
-            builder: (context, state) {
-              final email = state.pathParameters['email']!;
-              return GoogleVerifyCodePage(email: email);
             },
           ),
           GoRoute(
@@ -550,9 +584,7 @@ class AppRouter {
         ],
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Helper — Auth
-      // ═══════════════════════════════════════════════════════════════════════
+      // 2. Helper Authentication
       GoRoute(
         path: helperLogin,
         name: 'helper-login',
@@ -606,9 +638,7 @@ class AppRouter {
         ],
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Helper — Main shell (bottom nav)
-      // ═══════════════════════════════════════════════════════════════════════
+      // 3. Helper Main Shell
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return HelperHomeLayout(navigationShell: navigationShell);
@@ -630,8 +660,7 @@ class AppRouter {
               GoRoute(
                 path: helperBookings,
                 name: 'helper-bookings',
-                builder: (context, state) =>
-                    const BookingsCenterPage(initialTabIndex: 0),
+                builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
               ),
             ],
           ),
@@ -658,15 +687,12 @@ class AppRouter {
         ],
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Helper — Pushed routes
-      // ═══════════════════════════════════════════════════════════════════════
+      // 4. Helper Sub-Pages (Pushed on top of Shell)
       GoRoute(
         path: helperRequests,
         name: 'helper-requests',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) =>
-            const BookingsCenterPage(initialTabIndex: 0),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 0),
       ),
       GoRoute(
         path: helperNotifications,
@@ -678,20 +704,10 @@ class AppRouter {
         ),
       ),
       GoRoute(
-        path: helperProfileView,
-        name: 'helper-profile-view',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => BlocProvider(
-          create: (_) => sl<ProfileCubit>()..fetchProfileBundle(),
-          child: const HelperProfileViewPage(),
-        ),
-      ),
-      GoRoute(
         path: helperUpcoming,
         name: 'helper-upcoming',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) =>
-            const BookingsCenterPage(initialTabIndex: 1),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 1),
       ),
       GoRoute(
         path: helperRequestDetails,
@@ -725,8 +741,7 @@ class AppRouter {
         path: helperHistory,
         name: 'helper-history',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) =>
-            const BookingsCenterPage(initialTabIndex: 2),
+        builder: (context, state) => const BookingsCenterPage(initialTabIndex: 2),
       ),
       GoRoute(
         path: helperLanguageInterview,
@@ -734,9 +749,7 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ExamsPage(),
       ),
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Main shell (bottom nav)
-      // ═══════════════════════════════════════════════════════════════════════
+      // 5. Tourist Home & Flow (Shell Route)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return HomeLayout(navigationShell: navigationShell);
@@ -791,15 +804,20 @@ class AppRouter {
                 path: '/$accountSettings',
                 name: 'account-settings',
                 builder: (context, state) => const AccountSettingsPage(),
+                routes: [
+                  GoRoute(
+                    path: profile,
+                    name: 'profile',
+                    builder: (context, state) => const ProfilePage(),
+                  ),
+                ],
               ),
             ],
           ),
         ],
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Helper — Gates & language interview
-      // ═══════════════════════════════════════════════════════════════════════
+      // 6. Helper Status & Interview
       GoRoute(
         path: helperOnboarding,
         name: 'helper-onboarding',
@@ -839,13 +857,17 @@ class AppRouter {
       GoRoute(
         path: interviewUnderReview,
         name: 'interview-under-review',
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const InterviewUnderReviewPage(),
       ),
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Booking (scheduled, instant, legacy confirm)
-      // ═══════════════════════════════════════════════════════════════════════
+      GoRoute(
+        path: helperProfileView,
+        name: 'helper-profile-view',
+        builder: (context, state) => BlocProvider<ProfileCubit>(
+          create: (_) => sl<ProfileCubit>()..fetchProfileBundle(),
+          child: const HelperProfileViewPage(),
+        ),
+      ),
+      // 7. User Booking Routes
       GoRoute(
         path: bookingHome,
         name: 'booking-home',
@@ -867,8 +889,7 @@ class AppRouter {
         path: scheduledResults,
         name: 'scheduled-results',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          final params = extra?['params'] as ScheduledSearchParams?;
+          final params = resolveScheduledSearchParams(state.extra);
           if (params == null) {
             return const Scaffold(
               body: Center(child: Text('Missing search parameters.')),
@@ -882,11 +903,17 @@ class AppRouter {
         name: 'scheduled-helper-profile',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as Map<String, dynamic>?;
+          final extra = state.extra;
+          HelperBookingEntity? helper;
+          ScheduledSearchParams? params;
+          if (extra is Map) {
+            helper = extra['helper'] as HelperBookingEntity?;
+            params = resolveScheduledSearchParams(extra['params']);
+          }
           return ScheduledHelperProfileScreen(
             helperId: id,
-            initialHelper: extra?['helper'] as HelperBookingEntity?,
-            searchParams: extra?['params'] as ScheduledSearchParams?,
+            initialHelper: helper,
+            searchParams: params,
           );
         },
       ),
@@ -894,15 +921,22 @@ class AppRouter {
         path: scheduledReview,
         name: 'scheduled-review',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          if (extra == null) {
+          final extra = state.extra;
+          if (extra is! Map) {
             return const Scaffold(
               body: Center(child: Text('Missing review payload.')),
             );
           }
-          return ScheduledReviewScreen(
-            helper: extra['helper'] as HelperBookingEntity,
-            params: extra['params'] as ScheduledSearchParams,
+          final helper = extra['helper'];
+          final params = resolveScheduledSearchParams(extra['params']);
+          if (helper is! HelperBookingEntity || params == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing review payload.')),
+            );
+          }
+          return ScheduledTripReviewSheet(
+            helper: helper,
+            params: params,
           );
         },
       ),
@@ -1022,11 +1056,11 @@ class AppRouter {
         name: 'instant-waiting',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as InstantWaitingRouteArgs;
+          final args = resolveInstantFlowArgs(state.extra);
           return WaitingForHelperPage(
-            cubit: extra.cubit,
+            cubit: args.cubit,
             bookingId: id,
-            helper: extra.helper,
+            helper: args.helper,
           );
         },
       ),
@@ -1047,11 +1081,11 @@ class AppRouter {
         name: 'instant-confirmed',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as InstantConfirmedRouteArgs;
+          final args = resolveInstantFlowArgs(state.extra);
           return BookingConfirmedPage(
-            cubit: extra.cubit,
+            cubit: args.cubit,
             bookingId: id,
-            helper: extra.helper,
+            helper: args.helper,
           );
         },
       ),
@@ -1060,11 +1094,11 @@ class AppRouter {
         name: 'instant-trip-tracking',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          final extra = state.extra as InstantTripTrackingRouteArgs;
+          final args = resolveInstantFlowArgs(state.extra);
           return TripTrackingPage(
-            cubit: extra.cubit,
+            cubit: args.cubit,
             bookingId: id,
-            helper: extra.helper,
+            helper: args.helper,
           );
         },
       ),
@@ -1081,13 +1115,13 @@ class AppRouter {
         name: 'instant-pay-now',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return PayNowPage(bookingId: id);
+          return PayNowPage(
+            bookingId: id,
+          );
         },
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Payments
-      // ═══════════════════════════════════════════════════════════════════════
+      // ── Payments ────────────────────────────────────────────────────────
       GoRoute(
         path: paymentMethod,
         name: 'payment-method',
@@ -1152,9 +1186,7 @@ class AppRouter {
         },
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Invoices (pushed from tab or detail)
-      // ═══════════════════════════════════════════════════════════════════════
+      // ── User Invoices ──────────────────────────────────────────────────
       GoRoute(
         path: userInvoiceDetail,
         name: 'user-invoice-detail',
@@ -1169,13 +1201,11 @@ class AppRouter {
         name: 'user-invoice-view',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return UserInvoiceViewPage(invoiceId: id);
+          return UserInvoiceDetailPage(invoiceId: id);
         },
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Ratings & reports
-      // ═══════════════════════════════════════════════════════════════════════
+      // ── User Ratings ──────────────────────────────────────────────────
       GoRoute(
         path: helperReviews,
         name: 'helper-reviews',
@@ -1195,9 +1225,14 @@ class AppRouter {
         },
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Tourist — Chat & tracking
-      // ═══════════════════════════════════════════════════════════════════════
+      // ── Diagnostics (hidden — enter the URL manually) ────────────────────
+      GoRoute(
+        path: devRealtime,
+        name: 'dev-realtime',
+        builder: (context, state) => const RealtimeDiagnosticsPage(),
+      ),
+
+      // ── User Chat ──────────────────────────────────────────────────
       GoRoute(
         path: userChat,
         name: 'user-chat',
@@ -1232,6 +1267,7 @@ class AppRouter {
         builder: (context, state) => const UserReportsPlaceholderPage(),
       ),
 
+      // ── User Booking Tracking ─────────────────────────────────────────
       GoRoute(
         path: userTracking,
         name: 'user-tracking',
@@ -1260,9 +1296,8 @@ class AppRouter {
         },
       ),
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Helper — Location, service areas, wallet, ratings, SOS
-      // ═══════════════════════════════════════════════════════════════════════
+
+
       GoRoute(
         path: helperEligibilityDebug,
         name: 'helper-eligibility-debug',
@@ -1273,6 +1308,7 @@ class AppRouter {
         ),
       ),
 
+      // ── Helper Service Areas ─────────────────────────────────────────────
       GoRoute(
         path: helperServiceAreas,
         name: 'helper-service-areas',
@@ -1306,6 +1342,7 @@ class AppRouter {
           );
         },
       ),
+      // ── Helper Invoices ─────────────────────────────────────────────
       GoRoute(
         path: helperInvoices,
         name: 'helper-invoices',
@@ -1334,6 +1371,7 @@ class AppRouter {
           transitionsBuilder: _slideUp,
         ),
       ),
+      // ── Helper Ratings ─────────────────────────────────────────────
       GoRoute(
         path: helperRatings,
         name: 'helper-ratings',
@@ -1386,9 +1424,7 @@ class AppRouter {
             key: state.pageKey,
             child: MultiBlocProvider(
               providers: [
-                BlocProvider<HelperSosCubit>(
-                  create: (_) => sl<HelperSosCubit>(),
-                ),
+                BlocProvider<HelperSosCubit>(create: (_) => sl<HelperSosCubit>()),
                 BlocProvider.value(value: sl<HelperLocationCubit>()),
               ],
               child: HelperSosPage(bookingId: bookingId),
@@ -1415,18 +1451,12 @@ class AppRouter {
                     color: theme.colorScheme.error.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.error_outline_rounded,
-                    size: 64,
-                    color: theme.colorScheme.error,
-                  ),
+                  child: Icon(Icons.error_outline_rounded, size: 64, color: theme.colorScheme.error),
                 ),
                 const SizedBox(height: AppTheme.space2XL),
                 Text(
                   'Page Not Found',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppTheme.spaceLG),

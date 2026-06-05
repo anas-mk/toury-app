@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../../core/di/injection_container.dart';
-import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/services/location/mapbox_geocoding_service.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/brand_tokens.dart';
+import '../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
@@ -83,7 +85,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   }
 
   Future<void> _pickOnMap() async {
-    HapticService.light();
+    HapticFeedback.selectionClick();
     final result = await ServiceAreaCoverageMapPicker.show(
       context,
       initialLat: _locationPicked ? _lat : null,
@@ -104,7 +106,7 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   }
 
   void _submit(BuildContext context) {
-    HapticService.medium();
+    HapticFeedback.mediumImpact();
     if (!_locationPicked) {
       AppSnackbar.show(
         context,
@@ -145,12 +147,10 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-
     return BlocProvider.value(
       value: sl<ServiceAreasCubit>(),
       child: Scaffold(
-        backgroundColor: palette.scaffold,
+        backgroundColor: BrandTokens.bgSoft,
         body: BlocListener<ServiceAreasCubit, ServiceAreasState>(
           listener: (context, state) {
             if (state is ServiceAreaOperationSuccess) {
@@ -166,13 +166,21 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
           child: Form(
             key: _formKey,
             child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
               slivers: [
-                _SliverHero(isEditing: _isEditing),
+                SliverToBoxAdapter(
+                  child: _PageHeader(
+                    title: _isEditing ? 'Edit Region' : 'Add Region',
+                  ),
+                ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
                   sliver: SliverList.list(
                     children: [
+                      const _SectionLabel(text: 'Location'),
+                      const SizedBox(height: 10),
                       FadeInSlide(
                         child: _LocationPickerCard(
                           locationPicked: _locationPicked,
@@ -192,13 +200,15 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                           locationPicked: _locationPicked,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+                      const _SectionLabel(text: 'Preferences'),
+                      const SizedBox(height: 10),
                       FadeInSlide(
-                        delay: const Duration(milliseconds: 180),
+                        delay: const Duration(milliseconds: 120),
                         child: _PrimaryToggleCard(
                           value: _isPrimary,
                           onChanged: (v) {
-                            HapticService.medium();
+                            HapticFeedback.mediumImpact();
                             setState(() => _isPrimary = v);
                           },
                         ),
@@ -211,9 +221,8 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
                           return _SubmitButton(
                             isEditing: _isEditing,
                             isLoading: isLoading,
-                            onPressed: isLoading
-                                ? null
-                                : () => _submit(context),
+                            onPressed:
+                                isLoading ? null : () => _submit(context),
                           );
                         },
                       ),
@@ -230,113 +239,50 @@ class _AddEditServiceAreaPageState extends State<AddEditServiceAreaPage> {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  SLIVER HERO
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Page Header ─────────────────────────────────────────────────────────────
 
-class _SliverHero extends StatelessWidget {
-  final bool isEditing;
+class _PageHeader extends StatelessWidget {
+  final String title;
 
-  const _SliverHero({required this.isEditing});
+  const _PageHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
     final palette = AppColors.of(context);
-    final theme = Theme.of(context);
+    final canPop = Navigator.of(context).canPop();
 
-    return SliverAppBar(
-      pinned: true,
-      stretch: true,
-      expandedHeight: 170,
-      backgroundColor: palette.scaffold,
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back_ios_new_rounded,
-          color: palette.textPrimary,
-        ),
-        onPressed: () {
-          HapticService.light();
-          context.pop();
-        },
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(56, 0, 20, 14),
-        title: Text(
-          isEditing ? 'Edit Region' : 'Add Region',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: palette.textPrimary,
-            letterSpacing: -0.2,
-          ),
-        ),
-        background: Stack(
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      palette.primary.withValues(
-                        alpha: palette.isDark ? 0.30 : 0.18,
-                      ),
-                      const Color(
-                        0xFF7B61FF,
-                      ).withValues(alpha: palette.isDark ? 0.18 : 0.08),
-                      palette.scaffold,
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 16, 8),
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (canPop)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      context.pop();
+                    },
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: palette.textPrimary,
+                      size: 20,
+                    ),
+                    tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                   ),
                 ),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: BrandTypography.title(
+                  weight: FontWeight.w800,
+                ).copyWith(fontSize: 18),
               ),
-            ),
-            Positioned(
-              top: -30,
-              right: -30,
-              child: _Orb(color: palette.primary, size: 160),
-            ),
-            Positioned(
-              left: 20,
-              bottom: 50,
-              right: 20,
-              child: Text(
-                isEditing
-                    ? 'Update where you offer services'
-                    : 'Add a new region to expand your reach',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: palette.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Orb extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const _Orb({required this.color, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              color.withValues(alpha: 0.30),
-              color.withValues(alpha: 0.0),
             ],
           ),
         ),
@@ -345,9 +291,26 @@ class _Orb extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  LOCATION PICKER CARD
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Section Label ───────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SectionLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text.toUpperCase(),
+        style: BrandTypography.overline(),
+      ),
+    );
+  }
+}
+
+// ─── Location Picker Card ────────────────────────────────────────────────────
 
 class _LocationPickerCard extends StatelessWidget {
   final bool locationPicked;
@@ -366,35 +329,22 @@ class _LocationPickerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-    final accent = palette.primary;
-
     return Material(
-      color: Colors.transparent,
+      color: BrandTokens.surfaceWhite,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: palette.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: locationPicked
-                  ? accent.withValues(alpha: 0.40)
-                  : palette.border,
-              width: locationPicked ? 1.0 : 0.6,
+                  ? BrandTokens.primaryBlue.withValues(alpha: 0.35)
+                  : BrandTokens.borderSoft,
             ),
-            boxShadow: locationPicked
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.18),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : null,
+            boxShadow: BrandTokens.cardShadow,
           ),
           child: Row(
             children: [
@@ -402,26 +352,32 @@ class _LocationPickerCard extends StatelessWidget {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      accent.withValues(alpha: palette.isDark ? 0.28 : 0.18),
-                      accent.withValues(alpha: palette.isDark ? 0.14 : 0.08),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
+                  gradient: locationPicked
+                      ? BrandTokens.primaryGradient
+                      : LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFFFFB020).withValues(alpha: 0.18),
+                            BrandTokens.primaryBlue.withValues(alpha: 0.14),
+                          ],
+                        ),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: accent.withValues(alpha: 0.30),
-                    width: 0.8,
+                    color: locationPicked
+                        ? BrandTokens.primaryBlue.withValues(alpha: 0.22)
+                        : const Color(0xFFFFB020).withValues(alpha: 0.22),
+                    width: 0.6,
                   ),
                 ),
                 child: Icon(
                   locationPicked
                       ? Icons.check_circle_rounded
-                      : Icons.add_location_alt_rounded,
-                  color: accent,
-                  size: 26,
+                      : Icons.map_rounded,
+                  color: locationPicked
+                      ? Colors.white
+                      : BrandTokens.primaryBlue,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 14),
@@ -430,31 +386,25 @@ class _LocationPickerCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      locationPicked ? 'Location Selected' : 'Pick on Map',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: palette.textPrimary,
-                      ),
+                      locationPicked ? 'Location selected' : 'Pick on map',
+                      style: BrandTypography.title(weight: FontWeight.w800)
+                          .copyWith(fontSize: 16),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       locationPicked
-                          ? '${radiusKm.round()} km coverage · ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'
-                          : 'Set center & coverage circle on the map',
+                          ? '${radiusKm.round()} km coverage · ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}'
+                          : 'Set center and coverage circle on the map',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.textSecondary,
-                        fontFamily: locationPicked ? 'monospace' : null,
-                      ),
+                      style: BrandTypography.caption(),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Icon(
+              const Icon(
                 Icons.chevron_right_rounded,
-                color: palette.textMuted,
+                color: BrandTokens.textMuted,
                 size: 22,
               ),
             ],
@@ -465,9 +415,7 @@ class _LocationPickerCard extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  RESOLVED LOCATION CARD
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Resolved Location Card ──────────────────────────────────────────────────
 
 class _ResolvedLocationCard extends StatelessWidget {
   final String? city;
@@ -484,22 +432,32 @@ class _ResolvedLocationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
-
     final hasCity = (city ?? '').isNotEmpty;
     final hasCountry = (country ?? '').isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: palette.surfaceInset,
+        color: BrandTokens.surfaceWhite,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border, width: 0.6),
+        border: Border.all(color: BrandTokens.borderSoft),
+        boxShadow: BrandTokens.cardShadow,
       ),
       child: Row(
         children: [
-          Icon(Icons.location_city_rounded, color: palette.primary, size: 22),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.location_city_rounded,
+              color: BrandTokens.primaryBlue,
+              size: 22,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: isResolving
@@ -510,8 +468,8 @@ class _ResolvedLocationCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'Resolving city / country…',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: palette.textSecondary,
+                          style: BrandTypography.body(
+                            color: BrandTokens.textMuted,
                           ),
                         ),
                       ),
@@ -524,23 +482,18 @@ class _ResolvedLocationCard extends StatelessWidget {
                         !locationPicked
                             ? 'No location yet'
                             : hasCity
-                            ? city!
-                            : 'City not found',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: palette.textPrimary,
-                        ),
+                                ? city!
+                                : 'City not found',
+                        style: BrandTypography.body(weight: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         !locationPicked
                             ? 'Pick a point on the map to auto-fill'
                             : hasCountry
-                            ? country!
-                            : 'Country not found',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: palette.textSecondary,
-                        ),
+                                ? country!
+                                : 'Country not found',
+                        style: BrandTypography.caption(),
                       ),
                     ],
                   ),
@@ -551,9 +504,7 @@ class _ResolvedLocationCard extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  PRIMARY TOGGLE
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Primary Toggle ──────────────────────────────────────────────────────────
 
 class _PrimaryToggleCard extends StatelessWidget {
   final bool value;
@@ -563,19 +514,19 @@ class _PrimaryToggleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
     const accent = Color(0xFFFFB020);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: value ? accent.withValues(alpha: 0.45) : palette.border,
-          width: value ? 1.0 : 0.6,
+          color: value
+              ? accent.withValues(alpha: 0.40)
+              : BrandTokens.borderSoft,
         ),
+        boxShadow: BrandTokens.cardShadow,
       ),
       child: Row(
         children: [
@@ -583,16 +534,11 @@ class _PrimaryToggleCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  accent.withValues(alpha: palette.isDark ? 0.28 : 0.18),
-                  accent.withValues(alpha: palette.isDark ? 0.14 : 0.08),
-                ],
-              ),
+              color: accent.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: accent.withValues(alpha: 0.30),
-                width: 0.8,
+                color: accent.withValues(alpha: 0.28),
+                width: 0.6,
               ),
             ),
             child: const Icon(Icons.star_rounded, color: accent, size: 22),
@@ -603,18 +549,13 @@ class _PrimaryToggleCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Set as Primary Region',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: palette.textPrimary,
-                  ),
+                  'Set as primary region',
+                  style: BrandTypography.body(weight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Travelers see your primary region first',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: palette.textSecondary,
-                  ),
+                  style: BrandTypography.caption(),
                 ),
               ],
             ),
@@ -630,9 +571,7 @@ class _PrimaryToggleCard extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-//  SUBMIT BUTTON
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Submit Button ─────────────────────────────────────────────────────────────
 
 class _SubmitButton extends StatelessWidget {
   final bool isEditing;
@@ -647,29 +586,15 @@ class _SubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final theme = Theme.of(context);
     final disabled = onPressed == null;
 
     return Opacity(
       opacity: disabled ? 0.7 : 1.0,
-      child: Container(
+      child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [palette.primary, const Color(0xFF7B61FF)],
-          ),
-          boxShadow: disabled
-              ? null
-              : [
-                  BoxShadow(
-                    color: palette.primary.withValues(alpha: 0.35),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+          gradient: BrandTokens.primaryGradient,
+          boxShadow: disabled ? null : BrandTokens.cardShadow,
         ),
         child: Material(
           color: Colors.transparent,
@@ -693,11 +618,10 @@ class _SubmitButton extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            isEditing ? 'Save Changes' : 'Add Service Region',
-                            style: theme.textTheme.titleSmall?.copyWith(
+                            isEditing ? 'Save changes' : 'Add region',
+                            style: BrandTypography.body(
                               color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.3,
+                              weight: FontWeight.w700,
                             ),
                           ),
                         ],

@@ -9,20 +9,32 @@ class ProfileSettingGroup extends StatelessWidget {
   final String title;
   final List<Widget> items;
 
+  /// When true, skips the built-in horizontal margin so the group lines up
+  /// with a parent that already applies screen gutters (e.g. profile ListView).
+  final bool alignWithParentPadding;
+
   const ProfileSettingGroup({
     super.key,
     required this.title,
     required this.items,
+    this.alignWithParentPadding = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = AppColors.of(context);
+    final titlePadding = alignWithParentPadding
+        ? const EdgeInsets.fromLTRB(16, 22, 0, 10)
+        : const EdgeInsets.fromLTRB(28, 22, 20, 10);
+    final cardMargin = alignWithParentPadding
+        ? EdgeInsets.zero
+        : const EdgeInsets.symmetric(horizontal: 16);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(28, 22, 20, 10),
+          padding: titlePadding,
           child: Text(
             title,
             style: TextStyle(
@@ -34,7 +46,7 @@ class ProfileSettingGroup extends StatelessWidget {
           ),
         ),
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
+          margin: cardMargin,
           decoration: BoxDecoration(
             color: palette.surface,
             borderRadius: BorderRadius.circular(22),

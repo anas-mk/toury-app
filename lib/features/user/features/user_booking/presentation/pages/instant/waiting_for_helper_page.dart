@@ -210,13 +210,10 @@ class _WaitingForHelperPageState extends State<WaitingForHelperPage> {
       ),
     );
     // The [CancelBookingSheet] uses its own [CancelBookingCubit] and
-    // returns a [CancelResult] when the API confirms. We mirror that
-    // outcome into the InstantBookingCubit so any other listener
-    // (e.g. the helpers list) sees a consistent terminal state.
+    // already hit the cancel API. Mirror the outcome locally so other
+    // listeners see a consistent terminal state without a second POST.
     if (result == null || !mounted) return;
-    unawaited(
-      widget.cubit.cancelBooking(widget.bookingId, result.reason),
-    );
+    widget.cubit.acknowledgeUserCancellation(result.reason);
     _goHome();
   }
 

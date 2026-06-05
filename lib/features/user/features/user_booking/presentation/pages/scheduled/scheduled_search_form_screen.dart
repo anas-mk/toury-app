@@ -556,7 +556,11 @@ class _Header extends StatelessWidget {
           GestureDetector(
             onTap: () {
               HapticFeedback.selectionClick();
-              context.pop();
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(AppRouter.home);
+              }
             },
             child: Container(
               width: 44,
