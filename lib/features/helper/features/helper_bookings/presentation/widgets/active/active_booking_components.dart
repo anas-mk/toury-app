@@ -15,6 +15,7 @@ import '../../../../../../../core/utils/currency_format.dart';
 import '../../../../../../../core/widgets/map_tracking_chrome.dart';
 import '../../../../helper_sos/presentation/cubit/helper_sos_cubit.dart';
 import '../../../domain/entities/helper_booking_entities.dart';
+import '../../../domain/entities/helper_booking_status_x.dart';
 import '../shared/booking_action_button.dart';
 import '../shared/route_stop_row.dart';
 
@@ -173,7 +174,7 @@ class ActiveTrackingSheet extends StatelessWidget {
   final VoidCallback onChat;
   final HelperSosState sosState;
   final VoidCallback onCancelSos;
-  final bool hasArrivedAtPickup;
+  final bool canStartTripNow;
   final double? distanceToPickupMeters;
 
   const ActiveTrackingSheet({
@@ -187,7 +188,7 @@ class ActiveTrackingSheet extends StatelessWidget {
     required this.onChat,
     required this.sosState,
     required this.onCancelSos,
-    required this.hasArrivedAtPickup,
+    required this.canStartTripNow,
     required this.distanceToPickupMeters,
   });
 
@@ -334,12 +335,16 @@ class ActiveTrackingSheet extends StatelessWidget {
         isStarted || s.contains('progress') || s.contains('started');
 
     if (booking.canStartTrip || (s.contains('accept') && !tripActive)) {
-      final canStartNow = hasArrivedAtPickup;
+      final canStartNow = canStartTripNow ||
+          booking.canStartTrip ||
+          (distanceToPickupMeters != null &&
+              distanceToPickupMeters! <=
+                  HelperBookingProximityX.startTripRadiusMeters);
       final distanceLabel = distanceToPickupMeters == null
-          ? 'Calculating distance to pickup...'
+          ? 'Calculating distance to user...'
           : distanceToPickupMeters! >= 1000
-              ? '${(distanceToPickupMeters! / 1000).toStringAsFixed(1)} km to pickup'
-              : '${distanceToPickupMeters!.round()} m to pickup';
+              ? '${(distanceToPickupMeters! / 1000).toStringAsFixed(1)} km to user'
+              : '${distanceToPickupMeters!.round()} m to user';
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -365,7 +370,7 @@ class ActiveTrackingSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
           ],
           BookingActionButton.tripAction(
-            label: canStartNow ? 'Start Trip' : 'Reach Pickup to Start',
+            label: canStartNow ? 'Start Trip' : 'Reach User to Start',
             color: palette.success,
             onTap: canStartNow ? onStartTrip : null,
             actionType: 'start',
@@ -579,7 +584,7 @@ class _TripOverviewSection extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _StatTile(
-                  label: distanceLabel != null ? 'To Pickup' : 'Trip Type',
+                  label: distanceLabel != null ? 'To User' : 'Trip Type',
                   value: distanceLabel ??
                       (booking.isInstant ? 'Instant' : 'Scheduled'),
                   icon: distanceLabel != null

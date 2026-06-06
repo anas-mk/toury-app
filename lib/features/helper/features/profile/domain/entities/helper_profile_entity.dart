@@ -35,6 +35,27 @@ class HelperProfileEntity extends Equatable {
     required this.certificates,
   });
 
+  HelperProfileEntity copyWith({
+    String? profileImageUrl,
+    String? selfieImageUrl,
+  }) {
+    return HelperProfileEntity(
+      helperId: helperId,
+      fullName: fullName,
+      email: email,
+      phoneNumber: phoneNumber,
+      gender: gender,
+      birthDate: birthDate,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      selfieImageUrl: selfieImageUrl ?? this.selfieImageUrl,
+      onboardingStatus: onboardingStatus,
+      isApproved: isApproved,
+      isActive: isActive,
+      car: car,
+      certificates: certificates,
+    );
+  }
+
   @override
   List<Object?> get props => [
         helperId,

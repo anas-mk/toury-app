@@ -1,44 +1,46 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../../core/theme/brand_tokens.dart';
 
+/// Round white SOS trigger — matches the user live-tracking control.
 class HelperSosFloatingButton extends StatelessWidget {
-  const HelperSosFloatingButton({super.key, required this.onPressed});
+  const HelperSosFloatingButton({
+    super.key,
+    required this.onPressed,
+    this.size = 56,
+  });
 
   final VoidCallback onPressed;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: BrandTokens.dangerRed.withValues(alpha: 0.35),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 0,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Ink(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: BrandTokens.dangerRed,
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(24),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 24, // AppTheme.spaceLG equivalent
-              vertical: 14,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  color: BrandTokens.surfaceWhite,
-                  size: 22,
-                ),
-              ],
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(
+              Icons.emergency_rounded,
+              color: BrandTokens.dangerRed,
+              size: size * 0.46,
             ),
           ),
         ),

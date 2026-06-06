@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/end_trip_result.dart';
 import '../../domain/usecases/helper_bookings_usecases.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 
@@ -65,13 +66,21 @@ class TripActionCubit extends Cubit<TripActionState> {
     }
   }
 
-  Future<void> end(String bookingId) async {
+  Future<void> end(String bookingId, {HelperBooking? booking}) async {
     emit(const TripActionLoading('end'));
 
     try {
-      final earnings = await _endTrip(bookingId);
+      final apiResult = await _endTrip(bookingId);
+      final result = booking == null
+          ? apiResult
+          : apiResult.mergeBookingFallback(
+              payout: booking.payout,
+              paymentMethod: booking.paymentMethod,
+              paymentStatus: booking.paymentStatus,
+              finalPrice: booking.finalPrice,
+            );
       if (isClosed) return;
-      emit(TripActionSuccess('end', result: earnings, message: 'Trip ended successfully'));
+      emit(TripActionSuccess('end', result: result, message: 'Trip ended successfully'));
     } catch (e) {
       if (isClosed) return;
       emit(TripActionError(e.toString()));
@@ -80,7 +89,7 @@ class TripActionCubit extends Cubit<TripActionState> {
 
   // Keep these for backward compatibility if needed by some pages passing the whole booking
   Future<void> startTrip(HelperBooking booking) => start(booking.id);
-  Future<void> endTrip(HelperBooking booking) => end(booking.id);
+  Future<void> endTrip(HelperBooking booking) => end(booking.id, booking: booking);
 
   void reset() => emit(const TripActionInitial());
 }

@@ -37,6 +37,7 @@ import '../widgets/details/booking_route_card.dart';
 import '../widgets/details/booking_status_banner.dart';
 import '../widgets/details/traveler_info_section.dart';
 import '../widgets/shared/booking_action_button.dart';
+import '../../domain/entities/end_trip_result.dart';
 import '../widgets/shared/trip_completed_dialog.dart';
 
 class HelperBookingDetailsPage extends StatefulWidget {
@@ -131,9 +132,16 @@ class _HelperBookingDetailsPageState extends State<HelperBookingDetailsPage> {
                   // disappears immediately when the user navigates back.
                   sl<ActiveBookingCubit>().clear();
                   sl<ActiveBookingCubit>().load(silent: true);
+                  final result = state.result is EndTripResult
+                      ? state.result as EndTripResult
+                      : EndTripResult(
+                          earnings: (state.result as num?)?.toDouble() ?? 0,
+                        );
                   showTripCompletedDialog(
                     context,
-                    earnings: state.result as double,
+                    earnings: result.earnings,
+                    paymentMethod: result.paymentMethod,
+                    paymentStatus: result.paymentStatus,
                     primaryLabel: 'Done',
                     onPrimary: () => context.pop(),
                   );

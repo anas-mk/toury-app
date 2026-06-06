@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../../../../../core/services/location_service.dart' show LocationService;
+import '../../../../../../core/services/location_service.dart'
+    show LocationService;
 import '../../../../../../core/services/auth_service.dart';
 import '../../domain/entities/helper_location_entities.dart';
 import '../../domain/entities/signalr_connection_state.dart';
@@ -18,13 +19,12 @@ class HelperLocationTrackingService {
     required ConnectSignalRUseCase connectUseCase,
     required DisconnectSignalRUseCase disconnectUseCase,
     required Stream<SignalRConnectionState> signalRStateStream,
-  })  : _coreLocationService = coreLocationService,
-        _authService = authService,
-        _streamUseCase = streamUseCase,
-        _updateUseCase = updateUseCase,
-        _connectUseCase = connectUseCase,
-        _disconnectUseCase = disconnectUseCase {
-    
+  }) : _coreLocationService = coreLocationService,
+       _authService = authService,
+       _streamUseCase = streamUseCase,
+       _updateUseCase = updateUseCase,
+       _connectUseCase = connectUseCase,
+       _disconnectUseCase = disconnectUseCase {
     // 1. Listen to global SignalR state
     _signalRSubscription = signalRStateStream.listen((state) {
       _currentSignalRState = state;
@@ -33,7 +33,9 @@ class HelperLocationTrackingService {
 
     // 2. Listen to Auth changes to handle token refresh or logout
     _authSubscription = _authService.authTokenChanges.listen((token) {
-      debugPrint('[HelperLocationService] Token updated, refreshing tracking...');
+      debugPrint(
+        '[HelperLocationService] Token updated, refreshing tracking...',
+      );
       _authToken = token;
       if (_isTrackingStarted) {
         _restartTracking();
@@ -54,7 +56,8 @@ class HelperLocationTrackingService {
   StreamSubscription<Position>? _gpsSubscription;
   StreamSubscription<SignalRConnectionState>? _signalRSubscription;
   StreamSubscription<String>? _authSubscription;
-  SignalRConnectionState _currentSignalRState = SignalRConnectionState.disconnected;
+  SignalRConnectionState _currentSignalRState =
+      SignalRConnectionState.disconnected;
   SignalRConnectionState get currentSignalRState => _currentSignalRState;
 
   // State
@@ -75,7 +78,9 @@ class HelperLocationTrackingService {
   // Constants - Production Uber-like settings
   static const Duration _idleThrottle = Duration(seconds: 10);
   static const Duration _tripThrottle = Duration(seconds: 4);
-  static const Duration _heartbeatInterval = Duration(seconds: 15); // Guaranteed interval
+  static const Duration _heartbeatInterval = Duration(
+    seconds: 15,
+  ); // Guaranteed interval
   static const double _idleDistanceThreshold = 10.0; // More sensitive
   static const double _tripDistanceThreshold = 5.0;
 
@@ -92,7 +97,9 @@ class HelperLocationTrackingService {
     _activeBookingId = bookingId ?? _activeBookingId;
     if (availability != null) _availability = availability;
 
-    final shouldBeTracking = _availability == HelperAvailabilityState.availableNow || _activeBookingId != null;
+    final shouldBeTracking =
+        _availability == HelperAvailabilityState.availableNow ||
+        _activeBookingId != null;
 
     if (shouldBeTracking) {
       return await _startTracking();
@@ -109,7 +116,9 @@ class HelperLocationTrackingService {
     }
 
     if (_authToken == null || _authToken!.isEmpty) {
-      debugPrint('[HelperLocationService] CRITICAL: Cannot start tracking without token.');
+      debugPrint(
+        '[HelperLocationService] CRITICAL: Cannot start tracking without token.',
+      );
       return false;
     }
 
@@ -121,7 +130,9 @@ class HelperLocationTrackingService {
       return false;
     }
 
-    debugPrint('[HelperLocationService] Starting tracking session (Token: ${_authToken!.substring(0, 5)}...)');
+    debugPrint(
+      '[HelperLocationService] Starting tracking session (Token: ${_authToken!.substring(0, 5)}...)',
+    );
     _isTrackingStarted = true;
 
     // 1. Ensure SignalR is connected
@@ -133,11 +144,13 @@ class HelperLocationTrackingService {
 
     // 2. Start core GPS (Android Foreground Service)
     await _coreLocationService.startTracking();
-    
+
     // 3. Subscribe to GPS updates
     _gpsSubscription?.cancel();
-    _gpsSubscription = _coreLocationService.positionStream.listen(_handlePositionUpdate);
-    
+    _gpsSubscription = _coreLocationService.positionStream.listen(
+      _handlePositionUpdate,
+    );
+
     return true;
   }
 
@@ -148,15 +161,15 @@ class HelperLocationTrackingService {
 
   Future<void> _stopTracking() async {
     if (!_isTrackingStarted) return;
-    
+
     debugPrint('[HelperLocationService] Stopping tracking session...');
     _isTrackingStarted = false;
-    
+
     await _gpsSubscription?.cancel();
     _gpsSubscription = null;
-    
+
     await _disconnectUseCase.execute();
-    
+
     _lastApiUpdateTime = null;
     _lastUpdateLocation = null;
   }
@@ -183,12 +196,15 @@ class HelperLocationTrackingService {
 
     final isTrip = _activeBookingId != null;
     final throttle = isTrip ? _tripThrottle : _idleThrottle;
-    final distanceThreshold = isTrip ? _tripDistanceThreshold : _idleDistanceThreshold;
+    final distanceThreshold = isTrip
+        ? _tripDistanceThreshold
+        : _idleDistanceThreshold;
 
     final now = DateTime.now();
 
     // 1. Minimum Throttle Check
-    if (_lastApiUpdateTime != null && now.difference(_lastApiUpdateTime!) < throttle) {
+    if (_lastApiUpdateTime != null &&
+        now.difference(_lastApiUpdateTime!) < throttle) {
       return;
     }
 
@@ -201,13 +217,15 @@ class HelperLocationTrackingService {
         location.latitude,
         location.longitude,
       );
-      
+
       if (distance >= distanceThreshold) {
         shouldUpdate = true;
-      } 
+      }
       // Heartbeat: Force update every 30s to keep backend "fresh"
       else if (now.difference(_lastApiUpdateTime!) >= _heartbeatInterval) {
-        debugPrint('[HelperLocationService] Heartbeat: Sending stationary update.');
+        debugPrint(
+          '[HelperLocationService] Heartbeat: Sending stationary update.',
+        );
         shouldUpdate = true;
       }
     } else {
@@ -242,4 +260,3 @@ class HelperLocationTrackingService {
     _locationController.close();
   }
 }
-

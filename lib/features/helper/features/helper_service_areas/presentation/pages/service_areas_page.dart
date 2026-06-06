@@ -5,13 +5,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../../core/di/injection_container.dart';
 import '../../../../../../core/router/app_router.dart';
+import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/theme/app_color.dart';
+import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../core/theme/brand_typography.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
 import '../../../../../../core/widgets/app_dialog.dart';
 import '../../../../../../core/widgets/app_empty_state.dart';
 import '../../../../../../core/widgets/app_loading.dart';
+import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/service_area_entities.dart';
 import '../cubit/service_areas_cubit.dart';
@@ -28,6 +31,8 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
   List<ServiceAreaEntity> _cachedAreas = const [];
   bool _hasLoadedOnce = false;
 
+  static const _fabClearance = 88.0;
+
   @override
   void initState() {
     super.initState();
@@ -41,13 +46,13 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
   }
 
   Future<void> _openAdd() async {
-    HapticFeedback.selectionClick();
+    HapticService.light();
     await context.push(AppRouter.helperAddServiceArea);
     if (mounted) _cubit.loadAreas();
   }
 
   Future<void> _openEdit(ServiceAreaEntity area) async {
-    HapticFeedback.selectionClick();
+    HapticService.light();
     await context.push(AppRouter.helperEditServiceArea, extra: area);
     if (mounted) _cubit.loadAreas();
   }
@@ -75,112 +80,195 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _cubit,
-      child: Scaffold(
-        backgroundColor: BrandTokens.bgSoft,
-        body: BlocConsumer<ServiceAreasCubit, ServiceAreasState>(
-          listener: (context, state) {
-            if (state is ServiceAreaOperationSuccess) {
-              AppSnackbar.show(
-                context,
-                message: state.message,
-                tone: AppSnackTone.success,
-              );
-            } else if (state is ServiceAreasError) {
-              AppSnackbar.show(
-                context,
-                message: state.message,
-                tone: AppSnackTone.danger,
-              );
-            }
-          },
-          builder: (context, state) {
-            _cacheState(state);
-            final areas = _sortedAreas(_cachedAreas);
-            final showInitialSpinner =
-                state is ServiceAreasLoading && !_hasLoadedOnce;
-            final hasPrimary = areas.any((a) => a.isPrimary);
-            final totalRadiusKm = areas.fold<double>(
-              0,
-              (sum, area) => sum + area.radiusKm,
+      child: BlocConsumer<ServiceAreasCubit, ServiceAreasState>(
+        listener: (context, state) {
+          if (state is ServiceAreaOperationSuccess) {
+            AppSnackbar.show(
+              context,
+              message: state.message,
+              tone: AppSnackTone.success,
             );
+          } else if (state is ServiceAreasError) {
+            AppSnackbar.show(
+              context,
+              message: state.message,
+              tone: AppSnackTone.danger,
+            );
+          }
+        },
+        builder: (context, state) {
+          _cacheState(state);
+          final palette = AppColors.of(context);
+          final theme = Theme.of(context);
+          final areas = _sortedAreas(_cachedAreas);
+          final showInitialSpinner =
+              state is ServiceAreasLoading && !_hasLoadedOnce;
 
-            return RefreshIndicator.adaptive(
-              onRefresh: () async => _cubit.loadAreas(),
-              color: BrandTokens.primaryBlue,
-              backgroundColor: Colors.white,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                slivers: [
-                  const SliverToBoxAdapter(
-                    child: _PageHeader(title: 'Regions'),
-                  ),
-                  if (!showInitialSpinner && areas.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: _StatsStrip(
-                        count: areas.length,
-                        hasPrimary: hasPrimary,
-                        totalRadiusKm: totalRadiusKm.round(),
+          return AppScaffold(
+            backgroundColor: palette.scaffold,
+            floatingActionButton: showInitialSpinner
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: FloatingActionButton.extended(
+                      onPressed: _openAdd,
+                      elevation: 6,
+                      highlightElevation: 10,
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                      icon: const Icon(Icons.add_location_alt_rounded, size: 20),
+                      label: Text(
+                        'Add region',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
+                  ),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.endFloat,
+            body: RefreshIndicator.adaptive(
+              onRefresh: () async => _cubit.loadAreas(),
+              color: palette.primary,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                slivers: [
+                  SliverAppBar(
+                    backgroundColor: palette.scaffold,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 0,
+                    pinned: true,
+                    automaticallyImplyLeading: false,
+                    leading: Navigator.of(context).canPop()
+                        ? IconButton(
+                            onPressed: () {
+                              HapticService.light();
+                              context.pop();
+                            },
+                            icon: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: palette.textPrimary,
+                              size: 18,
+                            ),
+                          )
+                        : null,
+                    title: Text(
+                      'Regions',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(44),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.pageGutter,
+                          0,
+                          AppSpacing.pageGutter,
+                          AppSpacing.md,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            areas.isEmpty
+                                ? 'Add service areas so travelers can find you'
+                                : '${areas.length} active region${areas.length == 1 ? '' : 's'}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: palette.textSecondary,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   if (showInitialSpinner)
                     const SliverFillRemaining(
                       hasScrollBody: false,
-                      child: Center(child: AppSpinner.large()),
+                      child: Center(child: AppLoading(fullScreen: false)),
                     )
                   else if (areas.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: Center(
-                        child: AppEmptyState(
-                          icon: Icons.travel_explore_rounded,
-                          title: 'No regions yet',
-                          message:
-                              'Add at least one service area so travelers can find you in scheduled searches.',
-                          actionLabel: 'Add your first region',
-                          onAction: _openAdd,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.pageGutter,
+                          0,
+                          AppSpacing.pageGutter,
+                          _fabClearance,
+                        ),
+                        child: Center(
+                          child: AppEmptyState(
+                            icon: Icons.travel_explore_rounded,
+                            title: 'No regions yet',
+                            message:
+                                'Tap Add region to pin your first coverage area on the map.',
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.xl,
+                            ),
+                          ),
                         ),
                       ),
                     )
-                  else ...[
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                        child: _AddRegionButton(onPressed: _openAdd),
-                      ),
-                    ),
+                  else
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                      sliver: SliverList.separated(
-                        itemCount: areas.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final area = areas[index];
-                          return FadeInSlide(
-                            delay: Duration(milliseconds: 50 * index),
-                            child: _RegionCard(
-                              area: area,
-                              onEdit: () => _openEdit(area),
-                              onDelete: () => _confirmDelete(context, area),
-                            ),
-                          );
-                        },
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.pageGutter,
+                        AppSpacing.sm,
+                        AppSpacing.pageGutter,
+                        _fabClearance,
                       ),
-                    ),
-                    if (areas.length == 1)
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(16, 0, 16, 24),
-                          child: _MultiRegionHint(),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index == areas.length) {
+                              if (areas.length != 1) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  top: AppSpacing.md,
+                                ),
+                                child: const _MultiRegionHint(),
+                              );
+                            }
+
+                            final area = areas[index];
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: index == areas.length - 1 &&
+                                        areas.length == 1
+                                    ? AppSpacing.md
+                                    : AppSpacing.md,
+                              ),
+                              child: FadeInSlide(
+                                delay: Duration(
+                                  milliseconds: (index * 50).clamp(0, 240),
+                                ),
+                                child: _RegionCard(
+                                  area: area,
+                                  onEdit: () => _openEdit(area),
+                                  onDelete: () => _confirmDelete(context, area),
+                                ),
+                              ),
+                            );
+                          },
+                          childCount: areas.length + (areas.length == 1 ? 1 : 0),
                         ),
                       ),
-                  ],
+                    ),
                 ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -189,7 +277,7 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
     BuildContext context,
     ServiceAreaEntity area,
   ) async {
-    HapticFeedback.selectionClick();
+    HapticService.light();
     final confirmed = await AppDialog.confirm(
       context: context,
       title: 'Remove this region?',
@@ -204,230 +292,6 @@ class _ServiceAreasPageState extends State<ServiceAreasPage> {
       HapticFeedback.mediumImpact();
       context.read<ServiceAreasCubit>().deleteArea(area.id);
     }
-  }
-}
-
-// ─── Page Header ─────────────────────────────────────────────────────────────
-
-class _PageHeader extends StatelessWidget {
-  final String title;
-
-  const _PageHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    final canPop = Navigator.of(context).canPop();
-
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 4, 16, 8),
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              if (canPop)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () {
-                      HapticFeedback.selectionClick();
-                      context.pop();
-                    },
-                    icon: Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: palette.textPrimary,
-                      size: 20,
-                    ),
-                    tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                  ),
-                ),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: BrandTypography.title(
-                  weight: FontWeight.w800,
-                ).copyWith(fontSize: 18),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Stats Strip ─────────────────────────────────────────────────────────────
-
-class _StatsStrip extends StatelessWidget {
-  final int count;
-  final bool hasPrimary;
-  final int totalRadiusKm;
-
-  const _StatsStrip({
-    required this.count,
-    required this.hasPrimary,
-    required this.totalRadiusKm,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: _StatTile(
-              icon: Icons.map_rounded,
-              label: 'Regions',
-              value: '$count',
-              color: BrandTokens.primaryBlue,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _StatTile(
-              icon: Icons.star_rounded,
-              label: 'Primary',
-              value: hasPrimary ? 'Set' : 'None',
-              color: const Color(0xFFFFB020),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _StatTile(
-              icon: Icons.radar_rounded,
-              label: 'Coverage',
-              value: '${totalRadiusKm}km',
-              color: const Color(0xFF6366F1),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-      decoration: BoxDecoration(
-        color: BrandTokens.surfaceWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BrandTokens.borderSoft),
-        boxShadow: BrandTokens.cardShadow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 16),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  value,
-                  style: BrandTypography.title(
-                    weight: FontWeight.w800,
-                  ).copyWith(fontSize: 15, height: 1),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: BrandTypography.overline(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Add Button ──────────────────────────────────────────────────────────────
-
-class _AddRegionButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _AddRegionButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: BrandTokens.surfaceWhite,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: BrandTokens.borderSoft),
-            boxShadow: BrandTokens.cardShadow,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  gradient: BrandTokens.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.add_location_alt_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Add region',
-                  style: BrandTypography.body(weight: FontWeight.w600),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: BrandTokens.textMuted,
-                size: 22,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -446,103 +310,107 @@ class _RegionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
     final cityLabel = area.city.isNotEmpty ? area.city : '—';
     final subtitle = [
       if ((area.areaName ?? '').isNotEmpty) area.areaName!,
       area.country,
     ].join(' · ');
+    final isPrimary = area.isPrimary;
+    final accent = isPrimary ? BrandTokens.accentAmber : palette.primary;
 
     return Material(
-      color: BrandTokens.surfaceWhite,
-      borderRadius: BorderRadius.circular(20),
+      color: palette.surfaceElevated,
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onEdit,
-        child: Container(
+        child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(
-              color: area.isPrimary
-                  ? const Color(0xFFFFB020).withValues(alpha: 0.35)
-                  : BrandTokens.borderSoft,
+              color: isPrimary
+                  ? BrandTokens.accentAmber.withValues(alpha: 0.35)
+                  : palette.border,
             ),
-            boxShadow: BrandTokens.cardShadow,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: palette.isDark ? 0.18 : 0.04,
+                ),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _CityBadge(label: _cityInitials(cityLabel)),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _CityBadge(label: _cityInitials(cityLabel), accent: accent),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cityLabel,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: palette.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.xxs),
                         Text(
-                          cityLabel,
-                          style: BrandTypography.title(
-                            weight: FontWeight.w800,
-                          ).copyWith(fontSize: 16),
+                          subtitle,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: palette.textSecondary,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle.isEmpty ? '—' : subtitle,
-                          style: BrandTypography.caption(),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
                       ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: BrandTokens.dangerSos,
-                      size: 20,
-                    ),
-                    tooltip: 'Remove region',
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(36, 36),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _StatusPill(area: area),
-                  const SizedBox(width: 8),
-                  _MetaChip(
-                    icon: Icons.radio_button_checked_rounded,
-                    label: '${area.radiusKm.round()} km',
-                    color: BrandTokens.primaryBlue,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Edit region'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: BrandTokens.primaryBlue,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          _StatusPill(area: area),
+                          _MetaChip(
+                            icon: Icons.radar_rounded,
+                            label: '${area.radiusKm.round()} km radius',
+                            color: palette.primary,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                IconButton(
+                  onPressed: onDelete,
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    color: palette.danger,
+                    size: 20,
+                  ),
+                  tooltip: 'Remove region',
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(36, 36),
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: palette.textMuted,
+                  size: 22,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -561,38 +429,33 @@ class _RegionCard extends StatelessWidget {
 
 class _CityBadge extends StatelessWidget {
   final String label;
+  final Color accent;
 
-  const _CityBadge({required this.label});
+  const _CityBadge({required this.label, required this.accent});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 50,
-      height: 50,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFFFFB020).withValues(alpha: 0.18),
-            BrandTokens.primaryBlue.withValues(alpha: 0.14),
+            accent.withValues(alpha: 0.22),
+            accent.withValues(alpha: 0.08),
           ],
         ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFFFFB020).withValues(alpha: 0.22),
-          width: 0.6,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
       ),
       child: Center(
         child: Text(
           label,
-          style: BrandTokens.heading(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: BrandTokens.primaryBlue,
-            letterSpacing: 0.6,
-          ),
+          style: BrandTypography.title(
+            weight: FontWeight.w800,
+          ).copyWith(fontSize: 13, color: accent, letterSpacing: 0.4),
         ),
       ),
     );
@@ -606,38 +469,35 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final IconData icon;
-    final String label;
-    final Color color;
-
-    if (area.isPrimary) {
-      icon = Icons.star_rounded;
-      label = 'Primary';
-      color = const Color(0xFFFFB020);
-    } else {
-      icon = Icons.place_outlined;
-      label = 'Secondary';
-      color = BrandTokens.textMuted;
-    }
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    final isPrimary = area.isPrimary;
+    final color =
+        isPrimary ? BrandTokens.accentAmber : palette.textSecondary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + AppSpacing.xs,
+        vertical: AppSpacing.xs + 2,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
+          Icon(
+            isPrimary ? Icons.star_rounded : Icons.place_outlined,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: AppSpacing.xs),
           Text(
-            label,
-            style: TextStyle(
+            isPrimary ? 'Primary' : 'Secondary',
+            style: theme.textTheme.labelSmall?.copyWith(
               color: color,
-              fontSize: 11,
               fontWeight: FontWeight.w700,
-              height: 1,
             ),
           ),
         ],
@@ -659,23 +519,29 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + AppSpacing.xs,
+        vertical: AppSpacing.xs + 2,
+      ),
       decoration: BoxDecoration(
-        color: BrandTokens.bgSoft,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: BrandTokens.borderSoft),
+        color: palette.surfaceInset,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: palette.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
+          const SizedBox(width: AppSpacing.xs),
           Text(
             label,
-            style: BrandTypography.caption(
-              color: BrandTokens.textPrimary,
-              weight: FontWeight.w600,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -689,32 +555,40 @@ class _MultiRegionHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFFFFB020);
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    const accent = BrandTokens.accentAmber;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: 0.25)),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lightbulb_outline_rounded, color: accent),
-          const SizedBox(width: 12),
+          Icon(Icons.lightbulb_outline_rounded, color: accent, size: 20),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Want more bookings?',
-                  style: BrandTypography.body(weight: FontWeight.w700),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xxs),
                 Text(
                   'Helpers with multiple regions get up to 3× more requests.',
-                  style: BrandTypography.caption(),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: palette.textSecondary,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),

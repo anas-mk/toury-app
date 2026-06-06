@@ -227,8 +227,9 @@ class ProfileCubit extends Cubit<ProfileState> {
         errorMessage: failure.message,
       )),
       (url) {
-        // Reflect updated URL locally without a full network reload.
-        final updated = state.profile;
+        final updated = state.profile?.copyWith(
+          profileImageUrl: url.isNotEmpty ? url : state.profile?.profileImageUrl,
+        );
         emit(state.copyWith(
           status: ProfileStatus.success,
           profile: updated,

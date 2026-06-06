@@ -10,6 +10,7 @@ import '../../../domain/entities/helper_booking_entity.dart';
 import '../../../domain/entities/search_params.dart';
 import '../../cubits/search_helpers_cubit.dart';
 import '../../cubits/search_helpers_state.dart';
+import 'scheduled_search_context.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavy = Color(0xFF000668);
@@ -133,6 +134,10 @@ class _ScheduledSearchResultsScreenState
 
   void _openHelperProfile(BuildContext ctx, HelperBookingEntity helper) {
     HapticFeedback.lightImpact();
+    ScheduledSearchContext.instance.rememberHelper(
+      params: _params,
+      helper: helper,
+    );
     ctx.push(
       AppRouter.scheduledHelperProfile.replaceFirst(':id', helper.id),
       extra: {'helper': helper, 'params': _params},
@@ -212,6 +217,10 @@ class _ScheduledSearchResultsScreenState
                               );
                             }
                             if (state is SearchHelpersLoaded) {
+                              ScheduledSearchContext.instance.rememberResults(
+                                params: _params,
+                                helpers: state.helpers,
+                              );
                               if (state.helpers.isEmpty) {
                                 return SliverFillRemaining(
                                   hasScrollBody: false,

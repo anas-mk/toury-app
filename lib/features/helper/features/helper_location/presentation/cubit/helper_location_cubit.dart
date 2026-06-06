@@ -37,7 +37,7 @@ class HelperLocationError extends HelperLocationState {
 }
 
 /// Cubit for Helper Location UI.
-/// 
+///
 /// This Cubit is a thin wrapper around [HelperLocationTrackingService].
 /// It displays the current location and delegates commands to the singleton service.
 class HelperLocationCubit extends Cubit<HelperLocationState> {
@@ -49,23 +49,27 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
   HelperLocationCubit({
     required HelperLocationTrackingService trackingService,
     required GetLocationStatusUseCase getLocationStatusUseCase,
-  })  : _trackingService = trackingService,
-        _getStatusUseCase = getLocationStatusUseCase,
-        super(HelperLocationInitial()) {
-    
+  }) : _trackingService = trackingService,
+       _getStatusUseCase = getLocationStatusUseCase,
+       super(HelperLocationInitial()) {
     // Listen to the centralized service
     _locationSubscription = _trackingService.locationStream.listen((location) {
       if (!isClosed) {
-        emit(HelperLocationTracking(
-          location: location,
-          connectionState: _trackingService.currentSignalRState,
-        ));
+        emit(
+          HelperLocationTracking(
+            location: location,
+            connectionState: _trackingService.currentSignalRState,
+          ),
+        );
       }
     });
   }
 
   /// Entry point after login or on dashboard init.
-  Future<bool> initialize(String token, {HelperAvailabilityState? availability}) async {
+  Future<bool> initialize(
+    String token, {
+    HelperAvailabilityState? availability,
+  }) async {
     final ok = await _trackingService.updateTrackingState(
       token: token,
       availability: availability,
@@ -94,8 +98,12 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
   }
 
   /// Update availability (Online/Offline/etc).
-  Future<bool> setAvailabilityState(HelperAvailabilityState availability) async {
-    final ok = await _trackingService.updateTrackingState(availability: availability);
+  Future<bool> setAvailabilityState(
+    HelperAvailabilityState availability,
+  ) async {
+    final ok = await _trackingService.updateTrackingState(
+      availability: availability,
+    );
     if (!ok && !isClosed) {
       emit(HelperLocationPermissionDenied());
     }
@@ -115,8 +123,8 @@ class HelperLocationCubit extends Cubit<HelperLocationState> {
   @override
   Future<void> close() {
     _locationSubscription?.cancel();
-    // NOTE: We do NOT stop the _trackingService here because it is a singleton 
-    // that should continue running even if this specific Cubit is destroyed 
+    // NOTE: We do NOT stop the _trackingService here because it is a singleton
+    // that should continue running even if this specific Cubit is destroyed
     // (e.g. during page navigation).
     return super.close();
   }

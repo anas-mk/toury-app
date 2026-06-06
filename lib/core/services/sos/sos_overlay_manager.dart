@@ -24,7 +24,9 @@ class SosOverlayManager {
   static StreamSubscription<BookingRealtimeBusEvent>? _busSub;
   static OverlayEntry? _entry;
   static String? _activeBookingId;
-  static bool _suspended = false;
+  static int _suspendCount = 0;
+
+  static bool get _suspended => _suspendCount > 0;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -35,21 +37,24 @@ class SosOverlayManager {
   }
 
   /// Hide the pill temporarily (e.g. when a page has its own SOS UI).
-  /// The active booking id is preserved; call [resume] to re-show.
+  /// The active booking id is preserved; call [resume] once per [suspend].
   static void suspend() {
-    _suspended = true;
+    _suspendCount++;
     _removeOverlay();
   }
 
-  /// Re-show the pill if a trip is still active.
+  /// Re-show the pill when the last suspend is cleared and a trip is active.
   static void resume() {
-    _suspended = false;
-    if (_activeBookingId != null) _showOverlay();
+    if (_suspendCount <= 0) return;
+    _suspendCount--;
+    if (!_suspended && _activeBookingId != null) _showOverlay();
   }
 
   static void dispose() {
     _busSub?.cancel();
     _removeOverlay();
+    _suspendCount = 0;
+    _activeBookingId = null;
   }
 
   // ── Private ────────────────────────────────────────────────────────────────

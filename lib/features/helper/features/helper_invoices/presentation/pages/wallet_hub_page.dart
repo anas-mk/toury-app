@@ -9,21 +9,17 @@ import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/utils/currency_format.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
-import '../../../../../../core/widgets/app_empty_state.dart';
 import '../../../../../../core/widgets/app_error_state.dart';
-import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../../helper_bookings/domain/entities/helper_earnings_entities.dart';
 import '../../../helper_bookings/presentation/cubit/helper_bookings_cubits.dart';
 import '../cubit/helper_invoices_cubit.dart';
-import '../widgets/invoice_list_item.dart';
+import '../data/static_wallet_data.dart';
 
 /// Single canonical "money" page for the Helper.
 ///
-/// Tabs:
-///  • Overview  — earnings hero + invoice summary at a glance.
-///  • Invoices  — full paginated invoice list (powered by the same widgets
-///    used in `InvoicesPage` so we keep one source of truth for cards).
+/// Shows an earnings overview at a glance. Full invoice management lives in
+/// [InvoicesPage] (`helper-invoices` route).
 class WalletHubPage extends StatefulWidget {
   const WalletHubPage({super.key});
 
@@ -31,37 +27,34 @@ class WalletHubPage extends StatefulWidget {
   State<WalletHubPage> createState() => _WalletHubPageState();
 }
 
-class _WalletHubPageState extends State<WalletHubPage>
-    with SingleTickerProviderStateMixin {
+class _WalletHubPageState extends State<WalletHubPage> {
   late final EarningsCubit _earningsCubit;
-  late final HelperInvoicesCubit _invoicesCubit;
   late final HelperInvoicesCubit _summaryCubit;
-  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _earningsCubit = sl<EarningsCubit>()..load();
-    _invoicesCubit = sl<HelperInvoicesCubit>()..loadInvoices();
     _summaryCubit = sl<HelperInvoicesCubit>()..loadSummary();
-    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
   void dispose() {
     _earningsCubit.close();
-    _invoicesCubit.close();
     _summaryCubit.close();
-    _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _refreshAll() async {
     await Future.wait([
       _earningsCubit.load(),
-      _invoicesCubit.refresh(),
       _summaryCubit.loadSummary(),
     ]);
+  }
+
+  void _openInvoices() {
+    HapticService.light();
+    context.pushNamed('helper-invoices');
   }
 
   @override
@@ -72,7 +65,6 @@ class _WalletHubPageState extends State<WalletHubPage>
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _earningsCubit),
-        BlocProvider.value(value: _invoicesCubit),
         BlocProvider.value(value: _summaryCubit),
       ],
       child: AppScaffold(
@@ -92,12 +84,12 @@ class _WalletHubPageState extends State<WalletHubPage>
           actions: [
             IconButton(
               icon: Icon(
-                Icons.history_rounded,
+                Icons.receipt_long_rounded,
                 color: palette.textSecondary,
                 size: 20,
               ),
-              tooltip: 'All invoices',
-              onPressed: () => context.pushNamed('helper-invoices'),
+              tooltip: 'Your invoices',
+              onPressed: _openInvoices,
             ),
             IconButton(
               icon: Icon(
@@ -113,88 +105,28 @@ class _WalletHubPageState extends State<WalletHubPage>
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(56),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                0,
-                AppSpacing.lg,
-                AppSpacing.md,
-              ),
-              child: _SegmentedTabs(controller: _tabController),
-            ),
-          ),
         ),
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _OverviewTab(onRefresh: _refreshAll),
-            _InvoicesTab(cubit: _invoicesCubit),
-          ],
+        body: _WalletOverview(
+          summaryCubit: _summaryCubit,
+          onRefresh: _refreshAll,
+          onOpenInvoices: _openInvoices,
         ),
       ),
     );
   }
 }
 
-// ─── Segmented Tabs ──────────────────────────────────────────────────────────
-class _SegmentedTabs extends StatelessWidget {
-  final TabController controller;
-  const _SegmentedTabs({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.surfaceElevated,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: palette.border),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: TabBar(
-        controller: controller,
-        indicator: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [palette.primary, palette.primaryStrong],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          boxShadow: [
-            BoxShadow(
-              color: palette.primary.withValues(alpha: 0.22),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: Colors.white,
-        unselectedLabelColor: palette.textSecondary,
-        labelStyle: const TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 13,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-        ),
-        tabs: const [
-          Tab(text: 'Overview'),
-          Tab(text: 'Invoices'),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Overview Tab ────────────────────────────────────────────────────────────
-class _OverviewTab extends StatelessWidget {
+// ─── Overview ────────────────────────────────────────────────────────────────
+class _WalletOverview extends StatelessWidget {
+  final HelperInvoicesCubit summaryCubit;
   final Future<void> Function() onRefresh;
-  const _OverviewTab({required this.onRefresh});
+  final VoidCallback onOpenInvoices;
+
+  const _WalletOverview({
+    required this.summaryCubit,
+    required this.onRefresh,
+    required this.onOpenInvoices,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -234,6 +166,7 @@ class _OverviewTab extends StatelessWidget {
             buildWhen: (a, b) => b is EarningsLoaded || a is EarningsLoaded,
             builder: (context, state) {
               if (state is EarningsLoaded) {
+                final earnings = state.earnings;
                 return FadeInSlide(
                   delay: const Duration(milliseconds: 120),
                   child: Row(
@@ -241,7 +174,7 @@ class _OverviewTab extends StatelessWidget {
                       Expanded(
                         child: _MiniStat(
                           label: 'This Week',
-                          value: Money.egp(state.earnings.week, decimals: false),
+                          value: Money.egp(earnings.week, decimals: false),
                           color: palette.primary,
                           icon: Icons.calendar_view_week_rounded,
                         ),
@@ -250,7 +183,7 @@ class _OverviewTab extends StatelessWidget {
                       Expanded(
                         child: _MiniStat(
                           label: 'This Month',
-                          value: Money.egp(state.earnings.month, decimals: false),
+                          value: Money.egp(earnings.month, decimals: false),
                           color: palette.success,
                           icon: Icons.calendar_month_rounded,
                         ),
@@ -262,16 +195,44 @@ class _OverviewTab extends StatelessWidget {
               return const SizedBox(height: 80);
             },
           ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.xl),
+          FadeInSlide(
+            delay: const Duration(milliseconds: 180),
+            child: _SectionHeader(
+              title: 'Your invoices',
+              actionLabel: 'View all',
+              onAction: onOpenInvoices,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
-            bloc: BlocProvider.of<HelperInvoicesCubit>(context),
+            bloc: summaryCubit,
             buildWhen: (a, b) =>
-                b is InvoiceSummaryLoaded || a is InvoiceSummaryLoaded,
+                b is InvoiceSummaryLoaded ||
+                b is InvoiceSummaryLoading ||
+                b is InvoicesError ||
+                a is InvoiceSummaryLoaded,
             builder: (context, state) {
+              if (state is InvoiceSummaryLoading || state is InvoicesInitial) {
+                return const _InvoiceSummaryShimmer();
+              }
               if (state is InvoiceSummaryLoaded) {
+                final summary = StaticWalletData.invoiceSummaryForDisplay(
+                  state.summary,
+                );
                 return FadeInSlide(
-                  delay: const Duration(milliseconds: 180),
-                  child: _InvoiceSummaryStrip(summary: state),
+                  delay: const Duration(milliseconds: 200),
+                  child: _InvoiceSummaryStrip(
+                    invoiceCount: summary.invoiceCount,
+                    netAmount: summary.netAmount,
+                    onTap: onOpenInvoices,
+                  ),
+                );
+              }
+              if (state is InvoicesError) {
+                return AppErrorState(
+                  message: state.message,
+                  onRetry: () => summaryCubit.loadSummary(),
                 );
               }
               return const SizedBox.shrink();
@@ -280,29 +241,34 @@ class _OverviewTab extends StatelessWidget {
           const SizedBox(height: AppSpacing.xl),
           FadeInSlide(
             delay: const Duration(milliseconds: 220),
-            child: _SectionHeader(
+            child: const _SectionHeader(
               title: 'Recent Payouts',
-              actionLabel: null,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           BlocBuilder<EarningsCubit, EarningsState>(
             builder: (context, state) {
               if (state is EarningsLoaded) {
-                final list = state.earnings.recentEarnings;
-                if (list.isEmpty) {
-                  return AppEmptyState(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: 'No payouts yet',
-                    message:
-                        'Your earnings will appear here once you complete trips.',
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.xl,
+                final payouts = state.earnings.recentEarnings;
+                if (payouts.isEmpty) {
+                  return FadeInSlide(
+                    delay: const Duration(milliseconds: 240),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.lg,
+                      ),
+                      child: Text(
+                        'No payouts yet',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.of(context).textSecondary,
+                            ),
+                      ),
                     ),
                   );
                 }
                 return Column(
-                  children: list.asMap().entries.map((entry) {
+                  children: payouts.asMap().entries.map((entry) {
                     return FadeInSlide(
                       delay: Duration(
                         milliseconds: 240 + (entry.key * 50).clamp(0, 240),
@@ -539,20 +505,26 @@ class _MiniStat extends StatelessWidget {
 
 // ─── Invoice Summary Strip ───────────────────────────────────────────────────
 class _InvoiceSummaryStrip extends StatelessWidget {
-  final InvoiceSummaryLoaded summary;
-  const _InvoiceSummaryStrip({required this.summary});
+  final int invoiceCount;
+  final double netAmount;
+  final VoidCallback onTap;
+
+  const _InvoiceSummaryStrip({
+    required this.invoiceCount,
+    required this.netAmount,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = AppColors.of(context);
-    final s = summary.summary;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        onTap: () => context.pushNamed('helper-invoices'),
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
@@ -588,17 +560,10 @@ class _InvoiceSummaryStrip extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${s.invoiceCount} invoices · Net ${Money.egp(s.netAmount, decimals: false)}',
+                      '$invoiceCount invoices · Net ${Money.egp(netAmount, decimals: false)}',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: palette.textPrimary,
                         fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Tap to see all your invoices',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: palette.textMuted,
                       ),
                     ),
                   ],
@@ -617,11 +582,33 @@ class _InvoiceSummaryStrip extends StatelessWidget {
   }
 }
 
+class _InvoiceSummaryShimmer extends StatelessWidget {
+  const _InvoiceSummaryShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    return Container(
+      height: 72,
+      decoration: BoxDecoration(
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+      ),
+    );
+  }
+}
+
 // ─── Section Header ──────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String? actionLabel;
-  const _SectionHeader({required this.title, this.actionLabel});
+  final VoidCallback? onAction;
+
+  const _SectionHeader({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -638,12 +625,20 @@ class _SectionHeader extends StatelessWidget {
             color: palette.textPrimary,
           ),
         ),
-        if (actionLabel != null)
-          Text(
-            actionLabel!,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: palette.primary,
-              fontWeight: FontWeight.w700,
+        if (actionLabel != null && onAction != null)
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              actionLabel!,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: palette.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
       ],
@@ -715,78 +710,6 @@ class _PayoutTile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─── Invoices Tab ────────────────────────────────────────────────────────────
-class _InvoicesTab extends StatelessWidget {
-  final HelperInvoicesCubit cubit;
-  const _InvoicesTab({required this.cubit});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-
-    return BlocBuilder<HelperInvoicesCubit, HelperInvoicesState>(
-      bloc: cubit,
-      buildWhen: (a, b) =>
-          b is InvoicesLoaded ||
-          b is InvoicesLoading ||
-          b is InvoicesEmpty ||
-          b is InvoicesError,
-      builder: (context, state) {
-        if (state is InvoicesLoading || state is InvoicesInitial) {
-          return const Center(child: AppLoading(fullScreen: false));
-        }
-        if (state is InvoicesError) {
-          return AppErrorState(
-            message: state.message,
-            onRetry: () => cubit.refresh(),
-          );
-        }
-        if (state is InvoicesEmpty ||
-            (state is InvoicesLoaded && state.invoices.isEmpty)) {
-          return RefreshIndicator.adaptive(
-            onRefresh: () async => cubit.refresh(),
-            color: palette.primary,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.xxl),
-              children: [
-                AppEmptyState(
-                  icon: Icons.receipt_long_rounded,
-                  title: 'No invoices yet',
-                  message:
-                      'Completed bookings with billing details will appear here.',
-                  padding: const EdgeInsets.all(AppSpacing.xxl),
-                ),
-              ],
-            ),
-          );
-        }
-        if (state is InvoicesLoaded) {
-          return RefreshIndicator.adaptive(
-            onRefresh: () async => cubit.refresh(),
-            color: palette.primary,
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                0,
-                AppSpacing.md,
-                0,
-                AppSpacing.huge,
-              ),
-              itemCount: state.invoices.length,
-              itemBuilder: (context, index) => FadeInSlide(
-                delay: Duration(milliseconds: (index * 40).clamp(0, 240)),
-                child: InvoiceListItem(invoice: state.invoices[index]),
-              ),
-            ),
-          );
-        }
-        return const SizedBox.shrink();
-      },
     );
   }
 }

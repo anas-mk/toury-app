@@ -15,6 +15,7 @@ import '../../domain/entities/helper_profile_entity.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
 import '../widgets/profile_setting_widgets.dart';
+import '../widgets/static_app_language_picker.dart';
 
 class AccountControlCenterPage extends StatefulWidget {
   const AccountControlCenterPage({super.key});
@@ -27,6 +28,7 @@ class AccountControlCenterPage extends StatefulWidget {
 class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
   late final ProfileCubit _profileCubit;
   late final HelperDashboardCubit _dashboardCubit;
+  String _selectedAppLanguageCode = 'en';
 
   @override
   void initState() {
@@ -46,6 +48,16 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
       _profileCubit.fetchProfileBundle(),
       _dashboardCubit.load(silent: true),
     ]);
+  }
+
+  Future<void> _openAppLanguagePicker() async {
+    HapticFeedback.selectionClick();
+    final picked = await showStaticAppLanguagePicker(
+      context,
+      selectedCode: _selectedAppLanguageCode,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _selectedAppLanguageCode = picked.code);
   }
 
   @override
@@ -169,8 +181,10 @@ class _AccountControlCenterPageState extends State<AccountControlCenterPage> {
                               icon: Icons.language_rounded,
                               iconColor: const Color(0xFF00B8A9),
                               title: 'App Language',
-                              subtitle: 'English (US)',
-                              onTap: () => HapticFeedback.selectionClick(),
+                              subtitle: staticAppLanguageForCode(
+                                _selectedAppLanguageCode,
+                              ).label,
+                              onTap: _openAppLanguagePicker,
                             ),
                             ProfileSettingItem(
                               icon: Icons.notifications_none_rounded,

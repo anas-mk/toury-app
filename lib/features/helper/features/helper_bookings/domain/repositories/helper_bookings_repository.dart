@@ -1,4 +1,5 @@
 import '../entities/helper_booking_entities.dart';
+import '../entities/end_trip_result.dart';
 import '../entities/helper_earnings_entities.dart';
 import '../entities/helper_dashboard_entity.dart';
 import '../entities/helper_availability_state.dart';
@@ -18,7 +19,7 @@ abstract class HelperBookingsRepository {
   Future<List<HelperBooking>> getUpcomingBookings();
   Future<HelperBooking?> getActiveBooking();
   Future<void> startTrip(String bookingId);
-  Future<double> endTrip(String bookingId);
+  Future<EndTripResult> endTrip(String bookingId);
   Future<List<HelperBooking>> getHistory({
     String? status,
     DateTime? from,

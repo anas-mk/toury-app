@@ -1,3 +1,4 @@
+import '../../domain/entities/end_trip_result.dart';
 import '../../domain/entities/helper_booking_entities.dart';
 import '../../domain/entities/helper_dashboard_entity.dart';
 import '../../domain/entities/helper_availability_state.dart';
@@ -52,7 +53,8 @@ class HelperBookingsRepositoryImpl implements HelperBookingsRepository {
   Future<void> startTrip(String bookingId) => remoteDataSource.startTrip(bookingId);
 
   @override
-  Future<double> endTrip(String bookingId) => remoteDataSource.endTrip(bookingId);
+  Future<EndTripResult> endTrip(String bookingId) =>
+      remoteDataSource.endTrip(bookingId);
 
   @override
   Future<List<HelperBooking>> getHistory({
@@ -61,8 +63,69 @@ class HelperBookingsRepositoryImpl implements HelperBookingsRepository {
     DateTime? to,
     int page = 1,
     int pageSize = 20,
-  }) =>
-      remoteDataSource.getHistory(status: status, from: from, to: to, page: page, pageSize: pageSize);
+  }) async {
+    final items = await remoteDataSource.getHistory(
+      status: status,
+      from: from,
+      to: to,
+      page: page,
+      pageSize: pageSize,
+    );
+    return _enrichHistoryRoutes(items);
+  }
+
+  Future<List<HelperBooking>> _enrichHistoryRoutes(
+    List<HelperBookingModel> items,
+  ) async {
+    return Future.wait(items.map(_enrichHistoryItem));
+  }
+
+  Future<HelperBooking> _enrichHistoryItem(HelperBookingModel item) async {
+    if (_hasRouteLabels(item)) return item;
+
+    try {
+      final details = await remoteDataSource.getBookingDetails(item.id);
+      return item.copyWith(
+        pickupLocation: _firstNonEmpty([
+          item.pickupLocation,
+          details.pickupLocation,
+        ]),
+        destinationLocation: _firstNonEmpty([
+          item.destinationLocation,
+          details.destinationLocation,
+          details.destinationCity,
+          item.destinationCity,
+        ]),
+        pickupLat: details.pickupLat != 0 ? details.pickupLat : item.pickupLat,
+        pickupLng: details.pickupLng != 0 ? details.pickupLng : item.pickupLng,
+        destinationLat:
+            details.destinationLat != 0 ? details.destinationLat : item.destinationLat,
+        destinationLng:
+            details.destinationLng != 0 ? details.destinationLng : item.destinationLng,
+      );
+    } catch (_) {
+      return item.copyWith(
+        destinationLocation: _firstNonEmpty([
+          item.destinationLocation,
+          item.destinationCity,
+        ]),
+      );
+    }
+  }
+
+  bool _hasRouteLabels(HelperBooking booking) {
+    final hasPickup = booking.pickupLocation.trim().isNotEmpty;
+    final hasDestination = booking.destinationLocation.trim().isNotEmpty ||
+        booking.destinationCity.trim().isNotEmpty;
+    return hasPickup && hasDestination;
+  }
+
+  String _firstNonEmpty(List<String> values) {
+    for (final value in values) {
+      if (value.trim().isNotEmpty) return value.trim();
+    }
+    return '';
+  }
 
   @override
   Future<HelperEarnings> getEarnings() => remoteDataSource.getEarnings();

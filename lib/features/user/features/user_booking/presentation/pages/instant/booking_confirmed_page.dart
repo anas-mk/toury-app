@@ -75,23 +75,25 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     _helperLocationSub = _hub.helperLocationUpdateStream
         .where((e) => e.bookingId == widget.bookingId)
         .listen((event) {
-      if (!mounted) return;
-      setState(() => _latestLocation = event);
-      // Mirror the live tick to the persistent cache so when the
-      // user pops to live track the marker shows up on first paint
-      // even if the realtime stream hasn't ticked since.
-      LastHelperLocationStore.instance.save(LastHelperLocation(
-        bookingId: widget.bookingId,
-        latitude: event.latitude,
-        longitude: event.longitude,
-        heading: event.heading,
-        speedKmh: event.speedKmh,
-        etaToPickupMinutes: event.etaToPickupMinutes,
-        etaToDestinationMinutes: event.etaToDestinationMinutes,
-        phase: event.phase,
-        capturedAt: event.capturedAt ?? DateTime.now().toUtc(),
-      ));
-    });
+          if (!mounted) return;
+          setState(() => _latestLocation = event);
+          // Mirror the live tick to the persistent cache so when the
+          // user pops to live track the marker shows up on first paint
+          // even if the realtime stream hasn't ticked since.
+          LastHelperLocationStore.instance.save(
+            LastHelperLocation(
+              bookingId: widget.bookingId,
+              latitude: event.latitude,
+              longitude: event.longitude,
+              heading: event.heading,
+              speedKmh: event.speedKmh,
+              etaToPickupMinutes: event.etaToPickupMinutes,
+              etaToDestinationMinutes: event.etaToDestinationMinutes,
+              phase: event.phase,
+              capturedAt: event.capturedAt ?? DateTime.now().toUtc(),
+            ),
+          );
+        });
     // Hydrate the cubit when the user lands here via deep-link from
     // the home banner — no cubit history yet, so we kick a fetch.
     final state = widget.cubit.state;
@@ -112,8 +114,9 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
   /// wait for SignalR to push something newer. Best-effort — the
   /// live stream always wins once it kicks in.
   Future<void> _hydrateFromCache() async {
-    final cached =
-        await LastHelperLocationStore.instance.load(widget.bookingId);
+    final cached = await LastHelperLocationStore.instance.load(
+      widget.bookingId,
+    );
     if (!mounted || cached == null || _latestLocation != null) return;
     // Synthesise a HelperLocationUpdateEvent shape from the stored
     // snapshot — only the fields the UI reads from `_statusText()`
@@ -141,6 +144,12 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
 
   void _onTripStarted(BookingTripStartedEvent event) {
     if (!mounted) return;
+    if (event.bookingId != widget.bookingId) return;
+    // Only auto-open tracking when the user is still on this screen.
+    // If they already tapped "Track live", the stack top is /tracking/
+    // and replacing it would remount the map for no reason.
+    final matched = GoRouterState.of(context).matchedLocation;
+    if (!matched.contains('/confirmed/')) return;
     context.pushReplacement(
       AppRouter.instantTripTracking.replaceFirst(':id', widget.bookingId),
       extra: {'cubit': widget.cubit, 'helper': widget.helper},
@@ -166,7 +175,9 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
     if (p.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Helper phone number is not available yet')),
+        const SnackBar(
+          content: Text('Helper phone number is not available yet'),
+        ),
       );
       return;
     }
@@ -268,17 +279,21 @@ class _BookingConfirmedPageState extends State<BookingConfirmedPage> {
                           child: IntrinsicHeight(
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(
-                                  24, 12, 24, 24),
+                                24,
+                                12,
+                                24,
+                                24,
+                              ),
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.stretch,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   const SizedBox(height: 24),
                                   _SuccessHeader(name: displayName),
                                   const SizedBox(height: 28),
                                   _HelperCard(
                                     name: displayName,
-                                    avatarUrl: summary?.profileImageUrl ??
+                                    avatarUrl:
+                                        summary?.profileImageUrl ??
                                         widget.helper?.profileImageUrl,
                                     statusText: _statusText(),
                                     canCall: (phone ?? '').isNotEmpty,
@@ -378,8 +393,7 @@ class _SuccessHeaderState extends State<_SuccessHeader>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color:
-                            BrandTokens.primaryBlue.withValues(alpha: 0.10),
+                        color: BrandTokens.primaryBlue.withValues(alpha: 0.10),
                         blurRadius: 30,
                         spreadRadius: -8,
                         offset: const Offset(0, 8),
@@ -520,7 +534,9 @@ class _HelperCard extends StatelessWidget {
           _IconCircleButton(
             icon: Icons.call_rounded,
             background: const Color(0xFFEFECF5),
-            iconColor: canCall ? BrandTokens.primaryBlue : const Color(0xFFC6C5D4),
+            iconColor: canCall
+                ? BrandTokens.primaryBlue
+                : const Color(0xFFC6C5D4),
             onTap: canCall ? onCall : null,
             tooltip: canCall ? 'Call helper' : 'No phone number available',
           ),
@@ -564,7 +580,9 @@ class _StatusDotState extends State<_StatusDot>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFE9331).withValues(alpha: 0.45 * (1 - t)),
+                color: const Color(
+                  0xFFFE9331,
+                ).withValues(alpha: 0.45 * (1 - t)),
                 blurRadius: 4 + 4 * t,
                 spreadRadius: 1 + t,
               ),
@@ -711,9 +729,7 @@ class _TimelineRow extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Container(
                       width: 2,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE4E1EA),
-                      ),
+                      decoration: const BoxDecoration(color: Color(0xFFE4E1EA)),
                     ),
                   ),
                 ),
@@ -880,10 +896,7 @@ class _SecondaryCta extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(40),
-            border: Border.all(
-              color: const Color(0xFFC6C5D4),
-              width: 1.4,
-            ),
+            border: Border.all(color: const Color(0xFFC6C5D4), width: 1.4),
           ),
           alignment: Alignment.center,
           child: Row(

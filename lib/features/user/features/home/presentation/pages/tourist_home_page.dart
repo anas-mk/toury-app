@@ -13,6 +13,7 @@ import '../../../../../../core/utils/jwt_payload.dart';
 import '../../../../../../core/widgets/booking_status_chip.dart';
 import '../../../../../../core/widgets/brand/brand_kit.dart';
 import '../../../../../../core/widgets/user_avatar.dart';
+import '../../../../../../core/localization/app_localizations.dart';
 import '../../../user_booking/domain/entities/booking_detail_entity.dart';
 import '../../../user_booking/presentation/cubits/booking_status_cubit.dart';
 import '../../../user_booking/presentation/cubits/booking_status_state.dart';
@@ -341,14 +342,23 @@ class _HomeHero extends StatelessWidget {
             ),
           ),
 
-          // ── Top bar: menu + RAFIQ on left, avatar on right ──────
+          // ── Top bar: avatar + RAFIQ on left ─────────────────────
           Positioned(
             top: mediaTop + 12,
             left: 16,
             right: 16,
             child: _HomeTopBar(
-              onMenu: () => context.goNamed('account-settings'),
               onAvatar: () => context.goNamed('account-settings'),
+              onNotifications: () {
+                HapticFeedback.selectionClick();
+                final loc = AppLocalizations.of(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(loc.translate('feature_coming_soon')),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             ),
           ),
 
@@ -394,20 +404,36 @@ class _HomeHero extends StatelessWidget {
 }
 
 // ============================================================================
-//  TOP BAR (menu + RAFIQ wordmark on left, user avatar on right)
+//  TOP BAR (user avatar + RAFIQ wordmark on left)
 // ============================================================================
 
 class _HomeTopBar extends StatelessWidget {
-  final VoidCallback onMenu;
   final VoidCallback onAvatar;
+  final VoidCallback onNotifications;
 
-  const _HomeTopBar({required this.onMenu, required this.onAvatar});
+  const _HomeTopBar({
+    required this.onAvatar,
+    required this.onNotifications,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _HeroIconButton(icon: Icons.menu_rounded, onTap: onMenu),
+        UserAvatar(
+          size: 36,
+          fontSize: 13,
+          backgroundColor: Colors.white.withValues(alpha: 0.18),
+          foregroundColor: Colors.white,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onAvatar();
+          },
+        ),
         const SizedBox(width: 10),
         RichText(
           text: const TextSpan(
@@ -424,21 +450,38 @@ class _HomeTopBar extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        UserAvatar(
-          size: 36,
-          fontSize: 13,
-          backgroundColor: Colors.white.withValues(alpha: 0.18),
-          foregroundColor: Colors.white,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.4),
-            width: 1.5,
-          ),
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onAvatar();
-          },
+        _HeroIconButton(
+          icon: Icons.notifications_outlined,
+          onTap: onNotifications,
         ),
       ],
+    );
+  }
+}
+
+class _HeroIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _HeroIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 24),
+      ),
     );
   }
 }
@@ -614,33 +657,6 @@ class _FindGuideButtonState extends State<_FindGuideButton> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _HeroIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _HeroIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: Colors.transparent,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 24),
       ),
     );
   }

@@ -181,15 +181,6 @@ class _HeroHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              _CircleIconButton(
-                icon: Icons.filter_list_rounded,
-                onTap: () {},
-              ),
-              const SizedBox(width: 8),
-              _CircleIconButton(
-                icon: Icons.calendar_today_outlined,
-                onTap: () {},
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -450,34 +441,6 @@ class _StatCard extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppColors.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: palette.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: palette.border),
-          ),
-          child: Icon(icon, color: palette.textSecondary, size: 19),
         ),
       ),
     );

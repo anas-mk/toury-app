@@ -137,18 +137,37 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
 
   /// Push / deep-link entry for [TripTrackingEntryPage] (no prior cubit tree).
   Future<void> hydrateForTripDeepLink(String bookingId) async {
+    if (isClosed) return;
     final detail = await _fetchOrFail(bookingId);
-    if (detail == null) return;
+    if (detail == null || isClosed) return;
     final s = detail.status;
     if (s == BookingStatus.completed) {
-      emit(const InstantBookingError('This trip has already ended.'));
+      if (!isClosed) {
+        emit(const InstantBookingError('This trip has already ended.'));
+      }
       return;
     }
     if (s == BookingStatus.inProgress || s.isFirm) {
-      emit(InstantBookingAccepted(detail));
+      if (!isClosed) emit(InstantBookingAccepted(detail));
       return;
     }
     await _handleStatusFromDetail(detail);
+  }
+
+  /// Lightweight refresh for [TripTrackingPage] after `/start` — keeps the
+  /// cubit on [InstantBookingAccepted] with the latest InProgress payload.
+  Future<void> refreshLiveTripDetail(String bookingId) async {
+    if (isClosed) return;
+    final result = await getBookingDetailUC(bookingId);
+    if (isClosed) return;
+    result.fold(
+      (failure) {
+        if (!isClosed) emit(InstantBookingError(failure.message));
+      },
+      (detail) {
+        if (!isClosed) emit(InstantBookingAccepted(detail));
+      },
+    );
   }
 
   Future<void> _onStatusChanged(BookingStatusChangedEvent event) async {
@@ -168,10 +187,12 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
   }
 
   Future<BookingDetail?> _fetchOrFail(String bookingId) async {
+    if (isClosed) return null;
     final result = await getBookingDetailUC(bookingId);
+    if (isClosed) return null;
     return result.fold(
       (failure) {
-        emit(InstantBookingError(failure.message));
+        if (!isClosed) emit(InstantBookingError(failure.message));
         return null;
       },
       (detail) => detail,
@@ -179,24 +200,26 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
   }
 
   Future<void> _refreshBooking(String bookingId) async {
+    if (isClosed) return;
     if (_watchedBookingId != null && bookingId != _watchedBookingId) return;
     final result = await getBookingDetailUC(bookingId);
+    if (isClosed) return;
     result.fold(
       (failure) {
-        emit(InstantBookingError(failure.message));
+        if (!isClosed) emit(InstantBookingError(failure.message));
       },
       (detail) async {
-        // Re-route based on the freshly-fetched status — covers the case
-        // where SignalR was offline and we missed the push.
+        if (isClosed) return;
         await _handleStatusFromDetail(detail);
       },
     );
   }
 
   Future<void> _handleStatusFromDetail(BookingDetail detail) async {
+    if (isClosed) return;
     final status = detail.status;
     if (status.isFirm) {
-      emit(InstantBookingAccepted(detail));
+      if (!isClosed) emit(InstantBookingAccepted(detail));
       _stopWatching();
       return;
     }
@@ -209,29 +232,35 @@ class InstantBookingCubit extends Cubit<InstantBookingState> {
       case BookingStatus.cancelledByUser:
       case BookingStatus.cancelledByHelper:
       case BookingStatus.cancelledBySystem:
-        _emitCancelled(detail.cancellationReason ?? 'Booking cancelled');
+        if (!isClosed) _emitCancelled(detail.cancellationReason ?? 'Booking cancelled');
         break;
       case BookingStatus.inProgress:
       case BookingStatus.completed:
-        emit(InstantBookingAccepted(detail));
+        if (!isClosed) emit(InstantBookingAccepted(detail));
         _stopWatching();
         break;
       default:
-        emit(InstantBookingWaiting(detail));
+        if (!isClosed) emit(InstantBookingWaiting(detail));
         break;
     }
   }
 
   Future<void> _emitDeclinedFromDetail(BookingDetail detail) async {
+    if (isClosed) return;
     final altResult = await getAlternativesUC(detail.bookingId);
+    if (isClosed) return;
     altResult.fold(
-      (failure) => emit(InstantBookingError(failure.message)),
-      (alternatives) =>
-          emit(InstantBookingDeclined(detail, alternatives)),
+      (failure) {
+        if (!isClosed) emit(InstantBookingError(failure.message));
+      },
+      (alternatives) {
+        if (!isClosed) emit(InstantBookingDeclined(detail, alternatives));
+      },
     );
   }
 
   void _emitCancelled(String reason) {
+    if (isClosed) return;
     emit(InstantBookingCancelled(reason));
     _stopWatching();
   }
