@@ -8,12 +8,12 @@ import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/app_dimens.dart';
 import '../../../../../../core/utils/currency_format.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
-import '../../../../../../core/widgets/app_empty_state.dart';
 import '../../../../../../core/widgets/app_error_state.dart';
 import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_scaffold.dart';
 import '../../domain/entities/invoice_entities.dart';
 import '../cubit/helper_invoices_cubit.dart';
+import '../data/static_invoices.dart';
 import '../widgets/invoice_list_item.dart';
 
 class InvoicesPage extends StatefulWidget {
@@ -64,6 +64,45 @@ class _InvoicesPageState extends State<InvoicesPage> {
     HapticService.light();
     setState(() => _activeFilter = f);
     _cubit.loadInvoices(statusFilter: f);
+  }
+
+  SliverList _staticInvoicesSliver(String? filter) {
+    final invoices = StaticInvoices.forFilter(filter);
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (ctx, i) => FadeInSlide(
+          delay: Duration(milliseconds: 60 + (i * 30).clamp(0, 240)),
+          child: InvoiceListItem(
+            invoice: invoices[i],
+            onTap: () {},
+          ),
+        ),
+        childCount: invoices.length,
+      ),
+    );
+  }
+
+  SliverList _invoiceListSliver(List<InvoiceEntity> invoices, {required bool hasMore}) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (ctx, i) {
+          if (i == invoices.length) {
+            return hasMore
+                ? const Padding(
+                    padding: EdgeInsets.all(AppSpacing.lg),
+                    child: Center(child: AppSpinner.large()),
+                  )
+                : const SizedBox(height: AppSpacing.huge);
+          }
+          return FadeInSlide(
+            delay: Duration(milliseconds: 60 + (i * 30).clamp(0, 240)),
+            child: InvoiceListItem(invoice: invoices[i]),
+          );
+        },
+        childCount: invoices.length + 1,
+      ),
+    );
   }
 
   @override
@@ -132,18 +171,9 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   ),
                 );
               }
-              if (state is InvoicesEmpty) {
-                return SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: AppEmptyState(
-                      icon: Icons.receipt_long_rounded,
-                      title: 'No invoices yet',
-                      message: 'Completed trips will generate invoices here.',
-                      padding: const EdgeInsets.all(AppSpacing.xxxl),
-                    ),
-                  ),
-                );
+              if (state is InvoicesEmpty ||
+                  (state is InvoicesLoaded && state.invoices.isEmpty)) {
+                return _staticInvoicesSliver(_activeFilter);
               }
               if (state is InvoicesError) {
                 return SliverFillRemaining(
@@ -155,24 +185,9 @@ class _InvoicesPageState extends State<InvoicesPage> {
                 );
               }
               if (state is InvoicesLoaded) {
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (ctx, i) {
-                      if (i == state.invoices.length) {
-                        return state.hasMore
-                            ? const Padding(
-                                padding: EdgeInsets.all(AppSpacing.lg),
-                                child: Center(child: AppSpinner.large()),
-                              )
-                            : const SizedBox(height: AppSpacing.huge);
-                      }
-                      return FadeInSlide(
-                        delay: Duration(milliseconds: 60 + (i * 30).clamp(0, 240)),
-                        child: InvoiceListItem(invoice: state.invoices[i]),
-                      );
-                    },
-                    childCount: state.invoices.length + 1,
-                  ),
+                return _invoiceListSliver(
+                  state.invoices,
+                  hasMore: state.hasMore,
                 );
               }
               return const SliverToBoxAdapter(child: SizedBox.shrink());
@@ -213,8 +228,6 @@ class _SliverHeader extends StatelessWidget {
     return SliverAppBar(
       backgroundColor: palette.scaffold,
       pinned: true,
-      stretch: true,
-      expandedHeight: 200,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
@@ -227,132 +240,12 @@ class _SliverHeader extends StatelessWidget {
       ),
       title: Text(
         'Invoices',
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w700,
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
           color: palette.textPrimary,
         ),
       ),
-      centerTitle: false,
-      flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.parallax,
-        background: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.pageGutter,
-            64,
-            AppSpacing.pageGutter,
-            AppSpacing.lg,
-          ),
-          child: _HeaderHero(),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderHero extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppColors.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: palette.isDark
-              ? [
-                  palette.primary.withValues(alpha: 0.32),
-                  palette.primaryStrong.withValues(alpha: 0.18),
-                  palette.success.withValues(alpha: 0.18),
-                ]
-              : [
-                  palette.primary,
-                  palette.primaryStrong.withValues(alpha: 0.92),
-                  palette.success.withValues(alpha: 0.85),
-                ],
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        boxShadow: [
-          BoxShadow(
-            color: palette.primary.withValues(
-              alpha: palette.isDark ? 0.20 : 0.30,
-            ),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -22,
-            right: -16,
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.10),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -28,
-            left: -8,
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.18),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.30),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.receipt_long_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Text(
-                    'My Invoices',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Your full payout & billing history',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.88),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      centerTitle: true,
     );
   }
 }

@@ -1,8 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:image_picker/image_picker.dart';
 import '../../../../../../core/config/api_config.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
@@ -12,6 +14,7 @@ import '../../domain/entities/car_entity.dart';
 import '../../domain/entities/helper_profile_entity.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
+import '../utils/profile_image_helper.dart';
 import '../widgets/profile_info/profile_info_form.dart';
 import '../widgets/profile_setting_widgets.dart';
 import 'identity_verification_page.dart';
@@ -56,8 +59,30 @@ class HelperProfileViewPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: BrandTokens.bgSoft,
-      body: BlocBuilder<ProfileCubit, ProfileState>(
-        buildWhen: (p, c) => p.profile != c.profile || p.status != c.status,
+      body: BlocConsumer<ProfileCubit, ProfileState>(
+        listenWhen: (previous, current) =>
+            previous.successMessage != current.successMessage ||
+            previous.errorMessage != current.errorMessage,
+        listener: (context, state) {
+          if (state.successMessage != null) {
+            AppSnackbar.show(
+              context,
+              message: state.successMessage!,
+              tone: AppSnackTone.success,
+            );
+            context.read<ProfileCubit>().clearMessages();
+          } else if (state.errorMessage != null) {
+            AppSnackbar.show(
+              context,
+              message: state.errorMessage!,
+              tone: AppSnackTone.danger,
+            );
+            context.read<ProfileCubit>().clearMessages();
+          }
+        },
+        buildWhen: (previous, current) =>
+            previous.profile != current.profile ||
+            previous.status != current.status,
         builder: (context, state) {
           final profile = state.profile;
           if (profile == null) {
@@ -65,6 +90,9 @@ class HelperProfileViewPage extends StatelessWidget {
               child: CircularProgressIndicator(color: BrandTokens.primaryBlue),
             );
           }
+
+          final isUploadingImage =
+              state.status == ProfileStatus.uploadingImage;
 
           return RefreshIndicator.adaptive(
             onRefresh: () async =>
@@ -79,7 +107,10 @@ class HelperProfileViewPage extends StatelessWidget {
               children: [
                 const _PageHeader(title: 'Profile'),
                 const SizedBox(height: 12),
-                _HeroCard(profile: profile),
+                _HeroCard(
+                  profile: profile,
+                  isUploadingImage: isUploadingImage,
+                ),
                 const SizedBox(height: 16),
                 _InfoSection(profile: profile),
                 if (profile.car != null) ...[
@@ -150,8 +181,12 @@ class _PageHeader extends StatelessWidget {
 
 class _HeroCard extends StatelessWidget {
   final HelperProfileEntity profile;
+  final bool isUploadingImage;
 
-  const _HeroCard({required this.profile});
+  const _HeroCard({
+    required this.profile,
+    this.isUploadingImage = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +208,10 @@ class _HeroCard extends StatelessWidget {
             url: imageUrl.isNotEmpty ? imageUrl : null,
             initial: initial,
             isApproved: profile.isApproved,
+            isUploading: isUploadingImage,
+            onEditTap: isUploadingImage
+                ? null
+                : () => _showProfileImagePickerSheet(context),
           ),
           const SizedBox(height: 14),
           Text(
@@ -205,11 +244,15 @@ class _ProfileAvatar extends StatelessWidget {
   final String? url;
   final String initial;
   final bool isApproved;
+  final bool isUploading;
+  final VoidCallback? onEditTap;
 
   const _ProfileAvatar({
     required this.url,
     required this.initial,
     required this.isApproved,
+    this.isUploading = false,
+    this.onEditTap,
   });
 
   @override
@@ -234,14 +277,66 @@ class _ProfileAvatar extends StatelessWidget {
             ],
           ),
           clipBehavior: Clip.antiAlias,
-          child: url != null
-              ? Image.network(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (url != null)
+                Image.network(
                   url!,
                   fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
                   errorBuilder: (_, __, ___) => _initialFallback(initial),
                 )
-              : _initialFallback(initial),
+              else
+                _initialFallback(initial),
+              if (isUploading)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  alignment: Alignment.center,
+                  child: const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
+        if (onEditTap != null)
+          Positioned(
+            left: -2,
+            bottom: -2,
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onEditTap!();
+                },
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: BrandTokens.accentAmber,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (isApproved)
           Positioned(
             right: -2,
@@ -265,7 +360,13 @@ class _ProfileAvatar extends StatelessWidget {
   }
 
   Widget _initialFallback(String initial) {
-    return Center(
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        gradient: BrandTokens.primaryGradient,
+      ),
       child: Text(
         initial,
         style: BrandTokens.heading(
@@ -639,4 +740,180 @@ String _initialOf(HelperProfileEntity profile) {
   final name = _displayName(profile);
   if (name.isEmpty) return 'H';
   return name[0].toUpperCase();
+}
+
+Future<void> _showProfileImagePickerSheet(BuildContext context) {
+  final cubit = context.read<ProfileCubit>();
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    useRootNavigator: true,
+    builder: (sheetContext) {
+      return BlocProvider.value(
+        value: cubit,
+        child: const _ProfileImagePickerSheet(),
+      );
+    },
+  );
+}
+
+class _ProfileImagePickerSheet extends StatelessWidget {
+  const _ProfileImagePickerSheet();
+
+  Future<void> _pick(BuildContext context, ImageSource source) async {
+    HapticFeedback.selectionClick();
+    final cubit = context.read<ProfileCubit>();
+
+    File? file;
+    try {
+      file = await ProfileImageHelper.pickAndValidateImage(source);
+    } on FormatException catch (e) {
+      if (!context.mounted) return;
+      AppSnackbar.show(
+        context,
+        message: e.message,
+        tone: AppSnackTone.danger,
+      );
+      return;
+    } catch (_) {
+      if (!context.mounted) return;
+      AppSnackbar.show(
+        context,
+        message: 'Could not pick image. Please try again.',
+        tone: AppSnackTone.danger,
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+
+    if (file == null) return;
+
+    await cubit.uploadProfileImage(file);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: BrandTokens.surfaceWhite,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: BrandTokens.borderSoft,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Change profile photo',
+              style: BrandTokens.heading(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: BrandTokens.primaryBlue,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose a clear photo of yourself. Max size 5 MB.',
+              style: BrandTypography.caption(color: BrandTokens.textMuted),
+            ),
+            const SizedBox(height: 20),
+            _PickerOptionRow(
+              icon: Icons.photo_camera_rounded,
+              label: 'Take photo',
+              onTap: () => _pick(context, ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+            _PickerOptionRow(
+              icon: Icons.photo_library_rounded,
+              label: 'Choose from gallery',
+              onTap: () => _pick(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: BrandTokens.textSecondary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickerOptionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _PickerOptionRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: BrandTokens.bgSoft,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: BrandTokens.borderSoft),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: BrandTokens.primaryBlue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: BrandTokens.primaryBlue, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: BrandTypography.body(
+                    weight: FontWeight.w600,
+                    color: BrandTokens.textPrimary,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: BrandTokens.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

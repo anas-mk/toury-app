@@ -135,13 +135,13 @@ class BookingCard extends StatelessWidget {
                             _Stop(
                               icon: Icons.circle,
                               color: palette.success,
-                              text: booking.pickupLocation,
+                              text: booking.pickupLocationLabel,
                               showConnector: true,
                             ),
                             _Stop(
                               icon: Icons.location_on_rounded,
                               color: palette.danger,
-                              text: booking.destinationLocation,
+                              text: booking.destinationLocationLabel,
                               showConnector: false,
                             ),
                             const SizedBox(height: AppSpacing.md),

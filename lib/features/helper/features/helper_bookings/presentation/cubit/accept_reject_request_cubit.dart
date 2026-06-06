@@ -43,10 +43,8 @@ class AcceptRejectRequestCubit extends Cubit<AcceptRejectRequestState> {
   final AcceptBookingUseCase _acceptBooking;
   final DeclineBookingUseCase _declineBooking;
 
-  AcceptRejectRequestCubit(
-    this._acceptBooking,
-    this._declineBooking,
-  ) : super(const AcceptRejectRequestInitial());
+  AcceptRejectRequestCubit(this._acceptBooking, this._declineBooking)
+    : super(const AcceptRejectRequestInitial());
 
   Future<void> acceptRequest(String bookingId) async {
     emit(const AcceptLoading());

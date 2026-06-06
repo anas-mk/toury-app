@@ -36,26 +36,36 @@ class BookingDetailsCubit extends Cubit<BookingDetailsState> {
   }) : super(BookingDetailsInitial());
 
   Future<void> loadDetails(String bookingId) async {
+    if (isClosed) return;
     emit(BookingDetailsLoading());
     final result = await getBookingDetailsUseCase(bookingId);
+    if (isClosed) return;
     result.fold(
-      (failure) => emit(BookingDetailsError(failure.message)),
+      (failure) {
+        if (!isClosed) emit(BookingDetailsError(failure.message));
+      },
       (booking) async {
+        if (isClosed) return;
         // If the booking already embeds helper info, use it directly.
         if (booking.helper != null) {
-          emit(BookingDetailsLoaded(booking, booking.helper!));
+          if (!isClosed) emit(BookingDetailsLoaded(booking, booking.helper!));
           return;
         }
         // Fallback: fetch by the helper's own ID from the assignment.
         final helperId = booking.currentAssignment?.helperId;
         if (helperId == null) {
-          emit(BookingDetailsError('Helper information not available'));
+          if (!isClosed) emit(BookingDetailsError('Helper information not available'));
           return;
         }
         final helperResult = await getHelperProfileUseCase(helperId);
+        if (isClosed) return;
         helperResult.fold(
-          (failure) => emit(BookingDetailsError(failure.message)),
-          (helper) => emit(BookingDetailsLoaded(booking, helper)),
+          (failure) {
+            if (!isClosed) emit(BookingDetailsError(failure.message));
+          },
+          (helper) {
+            if (!isClosed) emit(BookingDetailsLoaded(booking, helper));
+          },
         );
       },
     );

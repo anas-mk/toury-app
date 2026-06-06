@@ -7,13 +7,13 @@ import '../../../../../../core/router/app_router.dart';
 import '../../../../../../core/services/haptic_service.dart';
 import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/animations/fade_in_slide.dart';
-import '../../../../../../core/widgets/app_empty_state.dart';
 import '../../../../../../core/widgets/app_error_state.dart';
 import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../data/models/language_model.dart';
 import '../cubit/exams_cubit.dart';
 import '../cubit/exams_state.dart';
+import '../data/static_languages.dart';
 
 /// Helper-side language interview hub.
 ///
@@ -48,8 +48,37 @@ class _ExamsPageView extends StatelessWidget {
       listener: _handleStateTransitions,
       child: Scaffold(
         backgroundColor: palette.scaffold,
+        appBar: AppBar(
+          backgroundColor: palette.scaffold,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          leading: Navigator.of(context).canPop()
+              ? IconButton(
+                  onPressed: () {
+                    HapticService.light();
+                    context.pop();
+                  },
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: palette.textPrimary,
+                    size: 18,
+                  ),
+                )
+              : null,
+          title: Text(
+            'Language Interviews',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: palette.textPrimary,
+                ),
+          ),
+        ),
         body: BlocBuilder<ExamsCubit, ExamsState>(
           builder: (context, state) {
+            final showInitialSpinner =
+                state.status == ExamsStatus.interviewLoading &&
+                    state.languages.isEmpty;
+
             return RefreshIndicator(
               color: palette.primary,
               onRefresh: () => context.read<ExamsCubit>().getLanguages(),
@@ -58,10 +87,13 @@ class _ExamsPageView extends StatelessWidget {
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
                 slivers: [
-                  const SliverToBoxAdapter(child: _HeroHeader()),
-                  if (state.languages.isNotEmpty)
+                  if (!showInitialSpinner)
                     SliverToBoxAdapter(
-                      child: _StatsStrip(languages: state.languages),
+                      child: _StatsStrip(
+                        languages: state.languages.isNotEmpty
+                            ? state.languages
+                            : StaticLanguages.samples,
+                      ),
                     ),
                   _buildBody(context, state),
                   const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -123,171 +155,33 @@ class _ExamsPageView extends StatelessWidget {
     }
 
     if (state.languages.isEmpty) {
-      return const SliverFillRemaining(
-        hasScrollBody: false,
-        child: AppEmptyState(
-          icon: Icons.translate_rounded,
-          title: 'No interviews available',
-          message:
-              'When language interviews are enabled for your account, they will appear here.',
-        ),
+      return _languageListSliver(
+        StaticLanguages.samples,
+        isPreview: true,
       );
     }
 
+    return _languageListSliver(state.languages);
+  }
+
+  Widget _languageListSliver(
+    List<LanguageModel> languages, {
+    bool isPreview = false,
+  }) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       sliver: SliverList.separated(
-        itemCount: state.languages.length,
+        itemCount: languages.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           return FadeInSlide(
             delay: Duration(milliseconds: 60 * index),
-            child: _LanguageCard(language: state.languages[index]),
+            child: _LanguageCard(
+              language: languages[index],
+              isPreview: isPreview,
+            ),
           );
         },
-      ),
-    );
-  }
-}
-
-// ─── Hero Header ─────────────────────────────────────────────────────────────
-
-class _HeroHeader extends StatelessWidget {
-  const _HeroHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppColors.of(context);
-    final canPop = Navigator.of(context).canPop();
-
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 4, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (canPop)
-              IconButton(
-                onPressed: () => context.pop(),
-                icon: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: palette.textPrimary,
-                  size: 20,
-                ),
-                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: palette.isDark
-                      ? const [Color(0xFF1B2046), Color(0xFF3A2360)]
-                      : [palette.primary, const Color(0xFF7B61FF)],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.primary.withValues(
-                      alpha: palette.isDark ? 0.18 : 0.30,
-                    ),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: -28,
-                    right: -28,
-                    child: _Orb(
-                      size: 110,
-                      color: Colors.white.withValues(alpha: 0.10),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -36,
-                    right: 60,
-                    child: _Orb(
-                      size: 70,
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            width: 0.6,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.translate_rounded,
-                          color: Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Language Interviews',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 19,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Verify the languages you speak to unlock more bookings',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.82),
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Orb extends StatelessWidget {
-  final double size;
-  final Color color;
-  const _Orb({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
       ),
     );
   }
@@ -419,7 +313,12 @@ class _StatTile extends StatelessWidget {
 
 class _LanguageCard extends StatelessWidget {
   final LanguageModel language;
-  const _LanguageCard({required this.language});
+  final bool isPreview;
+
+  const _LanguageCard({
+    required this.language,
+    this.isPreview = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -509,6 +408,7 @@ class _LanguageCard extends StatelessWidget {
                   isContinuing: isContinuing,
                   canStart: canStart,
                   hasCooldown: hasCooldown,
+                  isPreview: isPreview,
                 ),
               ],
             ),
@@ -687,12 +587,14 @@ class _ActionButton extends StatelessWidget {
   final bool isContinuing;
   final bool canStart;
   final bool hasCooldown;
+  final bool isPreview;
 
   const _ActionButton({
     required this.language,
     required this.isContinuing,
     required this.canStart,
     required this.hasCooldown,
+    this.isPreview = false,
   });
 
   @override
@@ -728,15 +630,17 @@ class _ActionButton extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () {
-          HapticService.medium();
-          final cubit = context.read<ExamsCubit>();
-          if (isContinuing) {
-            cubit.loadInterview(language.activeInterviewId!);
-          } else {
-            cubit.startInterview(language.code);
-          }
-        },
+        onTap: isPreview
+            ? null
+            : () {
+                HapticService.medium();
+                final cubit = context.read<ExamsCubit>();
+                if (isContinuing) {
+                  cubit.loadInterview(language.activeInterviewId!);
+                } else {
+                  cubit.startInterview(language.code);
+                }
+              },
         borderRadius: BorderRadius.circular(12),
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

@@ -86,9 +86,20 @@ class _ScheduledTripReviewSheetState extends State<ScheduledTripReviewSheet> {
   }
 
   double get _estimatedTotal {
-    final rate = widget.helper.hourlyRate ?? widget.params.durationInMinutes / 60 * 100;
-    final hours = widget.params.durationInMinutes / 60;
-    return rate * hours;
+    final fromSearch = widget.helper.estimatedPrice;
+    if (fromSearch != null && fromSearch > 0) return fromSearch;
+
+    final rate = widget.helper.hourlyRate ?? 0;
+    if (rate > 0) {
+      return rate * (widget.params.durationInMinutes / 60);
+    }
+
+    return 0;
+  }
+
+  bool get _priceFromSearch {
+    final p = widget.helper.estimatedPrice;
+    return p != null && p > 0;
   }
 
   String _fmtDate(DateTime d) {
@@ -196,6 +207,7 @@ class _ScheduledTripReviewSheetState extends State<ScheduledTripReviewSheet> {
                           params: widget.params,
                           meetingPoint: _meetingPoint,
                           estimatedTotal: _estimatedTotal,
+                          priceFromSearch: _priceFromSearch,
                           fmtDate: _fmtDate,
                           onBack: _prev,
                           onConfirm: () {
@@ -815,6 +827,7 @@ class _Step3Summary extends StatelessWidget {
   final ScheduledSearchParams params;
   final MeetingPointType meetingPoint;
   final double estimatedTotal;
+  final bool priceFromSearch;
   final String Function(DateTime) fmtDate;
   final VoidCallback onBack;
   final VoidCallback onConfirm;
@@ -824,6 +837,7 @@ class _Step3Summary extends StatelessWidget {
     required this.params,
     required this.meetingPoint,
     required this.estimatedTotal,
+    required this.priceFromSearch,
     required this.fmtDate,
     required this.onBack,
     required this.onConfirm,
@@ -834,7 +848,14 @@ class _Step3Summary extends StatelessWidget {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
     final h = params.durationInMinutes / 60;
     final rate = helper.hourlyRate ?? 0;
-    final fee = estimatedTotal * 0.1;
+    final hoursLabel = h % 1 == 0 ? '${h.toInt()}' : h.toStringAsFixed(1);
+    final fee = priceFromSearch ? 0.0 : estimatedTotal * 0.1;
+    final guideLabel = priceFromSearch
+        ? 'Estimated trip price'
+        : 'Guide fee (EGP ${rate.toStringAsFixed(0)} × ${hoursLabel}h)';
+    final guideValue = priceFromSearch
+        ? estimatedTotal
+        : rate * h;
 
     return BlocBuilder<BookingCubit, BookingState>(
       builder: (context, state) {
@@ -885,15 +906,16 @@ class _Step3Summary extends StatelessWidget {
                 child: Column(
                   children: [
                     _PriceRow(
-                      label:
-                          'Guide fee (EGP ${rate.toStringAsFixed(0)} × ${h % 1 == 0 ? h.toInt() : h}h)',
-                      value: 'EGP ${(rate * h).toStringAsFixed(0)}',
+                      label: guideLabel,
+                      value: 'EGP ${guideValue.toStringAsFixed(0)}',
                     ),
-                    const SizedBox(height: 10),
-                    _PriceRow(
-                      label: 'Platform service fee',
-                      value: 'EGP ${fee.toStringAsFixed(0)}',
-                    ),
+                    if (fee > 0) ...[
+                      const SizedBox(height: 10),
+                      _PriceRow(
+                        label: 'Platform service fee',
+                        value: 'EGP ${fee.toStringAsFixed(0)}',
+                      ),
+                    ],
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Container(

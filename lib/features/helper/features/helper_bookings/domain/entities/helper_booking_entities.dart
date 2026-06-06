@@ -22,6 +22,9 @@ class HelperBooking extends Equatable {
   final int travelersCount;
   final String? meetingPointType;
   final double payout;
+  final String? paymentMethod;
+  final String? paymentStatus;
+  final double? finalPrice;
   final String status;
   final String? language;
   final String? notes;
@@ -56,6 +59,9 @@ class HelperBooking extends Equatable {
     this.travelersCount = 1,
     this.meetingPointType,
     required this.payout,
+    this.paymentMethod,
+    this.paymentStatus,
+    this.finalPrice,
     required this.status,
     this.language,
     this.notes,
@@ -91,6 +97,9 @@ class HelperBooking extends Equatable {
     int? travelersCount,
     String? meetingPointType,
     double? payout,
+    String? paymentMethod,
+    String? paymentStatus,
+    double? finalPrice,
     String? status,
     String? language,
     String? notes,
@@ -125,6 +134,9 @@ class HelperBooking extends Equatable {
       travelersCount: travelersCount ?? this.travelersCount,
       meetingPointType: meetingPointType ?? this.meetingPointType,
       payout: payout ?? this.payout,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      finalPrice: finalPrice ?? this.finalPrice,
       status: status ?? this.status,
       language: language ?? this.language,
       notes: notes ?? this.notes,
@@ -162,6 +174,9 @@ class HelperBooking extends Equatable {
         travelersCount,
         meetingPointType,
         payout,
+        paymentMethod,
+        paymentStatus,
+        finalPrice,
         status,
         language,
         notes,

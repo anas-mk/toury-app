@@ -15,6 +15,7 @@ import '../../cubits/booking_state.dart';
 import '../../cubits/helper_booking_profile_cubit.dart';
 import '../instant/location_pick_result.dart';
 import '../instant/location_picker_page.dart';
+import 'scheduled_search_context.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavy = Color(0xFF000668);
@@ -99,6 +100,7 @@ class ScheduledHelperProfileScreen extends StatelessWidget {
         child: _ProfilePageBody(
           helperId: helperId,
           searchParams: searchParams,
+          initialHelper: initialHelper,
         ),
       ),
     );
@@ -110,10 +112,12 @@ class ScheduledHelperProfileScreen extends StatelessWidget {
 class _ProfilePageBody extends StatefulWidget {
   final String helperId;
   final ScheduledSearchParams? searchParams;
+  final HelperBookingEntity? initialHelper;
 
   const _ProfilePageBody({
     required this.helperId,
     required this.searchParams,
+    this.initialHelper,
   });
 
   @override
@@ -133,10 +137,39 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
     super.dispose();
   }
 
-  double _estimatedTotal(HelperBookingProfile profile) {
-    if (widget.searchParams == null) return 0;
-    return profile.hourlyRate * (widget.searchParams!.durationInMinutes / 60);
+  bool get _priceFromSearch {
+    final p = _resolvedHelper?.estimatedPrice;
+    return p != null && p > 0;
   }
+
+  HelperBookingEntity? get _resolvedHelper =>
+      widget.initialHelper ??
+      ScheduledSearchContext.instance.helperFor(widget.helperId);
+
+  ScheduledSearchParams? get _resolvedParams =>
+      widget.searchParams ?? ScheduledSearchContext.instance.params;
+
+  double _estimatedTotal(HelperBookingProfile profile) {
+    final fromSearch = _resolvedHelper?.estimatedPrice;
+    if (fromSearch != null && fromSearch > 0) return fromSearch;
+
+    final params = _resolvedParams;
+    if (params == null) return 0;
+
+    final helperRate = _resolvedHelper?.hourlyRate;
+    if (helperRate != null && helperRate > 0) {
+      return helperRate * (params.durationInMinutes / 60);
+    }
+
+    if (profile.hourlyRate > 0) {
+      return profile.hourlyRate * (params.durationInMinutes / 60);
+    }
+
+    return 0;
+  }
+
+  double _serviceFee(double estTotal) =>
+      _priceFromSearch ? 0 : estTotal * 0.1;
 
   String _fmtDate(DateTime d) {
     const months = [
@@ -171,7 +204,7 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
 
   Future<void> _pickMeetingLocation(MeetingPointType type) async {
     if (type == MeetingPointType.airport) {
-      final airport = _airportForCity(widget.searchParams?.destinationCity);
+      final airport = _airportForCity(_resolvedParams?.destinationCity);
       setState(() {
         _meetingPoint = type;
         _meetingLocation = airport;
@@ -180,7 +213,7 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
     }
 
     if (type == MeetingPointType.destination) {
-      final params = widget.searchParams;
+      final params = _resolvedParams;
       if (params != null) {
         setState(() {
           _meetingPoint = type;
@@ -213,11 +246,11 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
   }
 
   void _submit(BuildContext ctx, HelperBookingProfile profile) {
-    if (widget.searchParams == null || _meetingLocation == null) return;
+    if (_resolvedParams == null || _meetingLocation == null) return;
     HapticFeedback.mediumImpact();
     ctx.read<BookingCubit>().createScheduled(
           helperId: profile.helperId,
-          params: widget.searchParams!,
+          params: _resolvedParams!,
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
           meetingPointType: _meetingPoint == MeetingPointType.destination
               ? MeetingPointType.custom.wire
@@ -256,6 +289,8 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
 
           final profile = profileState.profile;
           final estTotal = _estimatedTotal(profile);
+          final serviceFee = _serviceFee(estTotal);
+          final grandTotal = estTotal + serviceFee;
 
           return Stack(
             children: [
@@ -309,7 +344,7 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
 
                           // Step 1 — Trip Details
                           _Step1Card(
-                            params: widget.searchParams,
+                            params: _resolvedParams,
                             fmtDate: _fmtDate,
                           ),
 
@@ -332,8 +367,10 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
                               ignoring: !_step2Done,
                               child: _Step3Card(
                                 profile: profile,
-                                params: widget.searchParams,
+                                params: _resolvedParams,
                                 estTotal: estTotal,
+                                serviceFee: serviceFee,
+                                priceFromSearch: _priceFromSearch,
                               ),
                             ),
                           ),
@@ -356,10 +393,10 @@ class _ProfilePageBodyState extends State<_ProfilePageBody> {
                   builder: (context, bookingState) {
                     final loading = bookingState is BookingLoading;
                     return _StickyBottom(
-                      estTotal: estTotal,
+                      estTotal: grandTotal,
                       helperFirstName: profile.fullName.split(' ').first,
                       loading: loading,
-                      canRequest: widget.searchParams != null &&
+                      canRequest: _resolvedParams != null &&
                           profile.canAcceptScheduled &&
                           _step2Done,
                       bottomPad: bottomPad,
@@ -1402,17 +1439,24 @@ class _Step3Card extends StatelessWidget {
   final HelperBookingProfile profile;
   final ScheduledSearchParams? params;
   final double estTotal;
+  final double serviceFee;
+  final bool priceFromSearch;
 
   const _Step3Card({
     required this.profile,
     required this.params,
     required this.estTotal,
+    required this.serviceFee,
+    required this.priceFromSearch,
   });
 
   @override
   Widget build(BuildContext context) {
     final h = (params?.durationInMinutes ?? 240) / 60;
-    final fee = estTotal * 0.1;
+    final hoursLabel = h % 1 == 0 ? '${h.toInt()}' : h.toStringAsFixed(1);
+    final guideLabel = priceFromSearch
+        ? 'Estimated trip price'
+        : 'Guide Fee ($hoursLabel h × EGP ${profile.hourlyRate.toStringAsFixed(0)})';
 
     return Container(
       decoration: BoxDecoration(
@@ -1442,21 +1486,22 @@ class _Step3Card extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _PriceRow(
-            label:
-                'Guide Fee (${h % 1 == 0 ? h.toInt() : h}h × EGP ${profile.hourlyRate.toStringAsFixed(0)})',
+            label: guideLabel,
             value: 'EGP ${estTotal.toStringAsFixed(0)}',
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Container(
-              height: 1,
-              color: _kOutlineVariant.withValues(alpha: 0.3),
+          if (serviceFee > 0) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Container(
+                height: 1,
+                color: _kOutlineVariant.withValues(alpha: 0.3),
+              ),
             ),
-          ),
-          _PriceRow(
-            label: 'Logistics & Taxes',
-            value: 'EGP ${fee.toStringAsFixed(0)}',
-          ),
+            _PriceRow(
+              label: 'Logistics & Taxes',
+              value: 'EGP ${serviceFee.toStringAsFixed(0)}',
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: Container(
@@ -1477,7 +1522,7 @@ class _Step3Card extends StatelessWidget {
                 ),
               ),
               Text(
-                'EGP ${(estTotal + fee).toStringAsFixed(0)}',
+                'EGP ${(estTotal + serviceFee).toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 18,

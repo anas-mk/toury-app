@@ -14,6 +14,8 @@ import '../../../../../../../core/utils/currency_format.dart';
 Future<void> showTripCompletedDialog(
   BuildContext context, {
   required double earnings,
+  String? paymentMethod,
+  String? paymentStatus,
   String title = 'Trip Completed!',
   String primaryLabel = 'Done',
   IconData primaryIcon = Icons.check_rounded,
@@ -42,6 +44,8 @@ Future<void> showTripCompletedDialog(
           scale: scale,
           child: _TripCompletedContent(
             earnings: earnings,
+            paymentMethod: paymentMethod,
+            paymentStatus: paymentStatus,
             title: title,
             primaryLabel: primaryLabel,
             primaryIcon: primaryIcon,
@@ -59,6 +63,8 @@ Future<void> showTripCompletedDialog(
 
 class _TripCompletedContent extends StatelessWidget {
   final double earnings;
+  final String? paymentMethod;
+  final String? paymentStatus;
   final String title;
   final String primaryLabel;
   final IconData primaryIcon;
@@ -70,6 +76,8 @@ class _TripCompletedContent extends StatelessWidget {
 
   const _TripCompletedContent({
     required this.earnings,
+    this.paymentMethod,
+    this.paymentStatus,
     required this.title,
     required this.primaryLabel,
     required this.primaryIcon,
@@ -164,6 +172,14 @@ class _TripCompletedContent extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (paymentMethod != null ||
+                              paymentStatus != null) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            _PaymentSummaryChip(
+                              paymentMethod: paymentMethod,
+                              paymentStatus: paymentStatus,
+                            ),
+                          ],
                           if (subtitle != null) ...[
                             const SizedBox(height: AppSpacing.md),
                             Text(
@@ -253,6 +269,151 @@ class _TripCompletedContent extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+String tripPaymentMethodLabel(String? method) {
+  if (method == null || method.trim().isEmpty) return '';
+  switch (method.trim().toLowerCase()) {
+    case 'cash':
+      return 'Cash';
+    case 'mockcard':
+    case 'card':
+      return 'Card';
+    case 'visa':
+      return 'Visa';
+    case 'wallet':
+      return 'Wallet';
+    default:
+      return method;
+  }
+}
+
+String tripPaymentSummaryTitle({
+  String? paymentMethod,
+  String? paymentStatus,
+}) {
+  final methodLabel = tripPaymentMethodLabel(paymentMethod);
+  if (methodLabel.isNotEmpty) return methodLabel;
+
+  final status = paymentStatus?.trim().toLowerCase() ?? '';
+  if (status == 'paid') return 'Paid';
+  if (status == 'awaitingpayment' || status == 'paymentpending') {
+    return 'Awaiting payment';
+  }
+  if (status == 'notrequired') return 'No payment required';
+  return 'Payment';
+}
+
+String tripPaymentStatusLine({
+  String? paymentMethod,
+  String? paymentStatus,
+}) {
+  final methodLabel = tripPaymentMethodLabel(paymentMethod);
+  final status = paymentStatus?.trim().toLowerCase() ?? '';
+
+  if (status == 'awaitingpayment' || status == 'paymentpending') {
+    return methodLabel.isNotEmpty
+        ? 'Traveler will pay by $methodLabel'
+        : 'Traveler will pay after trip';
+  }
+  if (status == 'paid') {
+    return methodLabel.isNotEmpty
+        ? 'Paid by $methodLabel'
+        : 'Payment collected';
+  }
+  if (status == 'notrequired') {
+    return 'No payment required';
+  }
+  if (methodLabel.isNotEmpty) {
+    return 'Payment method: $methodLabel';
+  }
+  return 'Payment details pending';
+}
+
+class _PaymentSummaryChip extends StatelessWidget {
+  final String? paymentMethod;
+  final String? paymentStatus;
+
+  const _PaymentSummaryChip({
+    this.paymentMethod,
+    this.paymentStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppColors.of(context);
+    final theme = Theme.of(context);
+    final title = tripPaymentSummaryTitle(
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
+    );
+    final isCash = paymentMethod?.trim().toLowerCase() == 'cash';
+    final isCard = !isCash &&
+        {'mockcard', 'card', 'visa', 'wallet'}
+            .contains(paymentMethod?.trim().toLowerCase());
+    final isPaid = paymentStatus?.trim().toLowerCase() == 'paid';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: palette.surfaceInset,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: palette.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(
+              isCash
+                  ? Icons.payments_rounded
+                  : isCard
+                      ? Icons.credit_card_rounded
+                      : isPaid
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.account_balance_wallet_outlined,
+              color: palette.primary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  tripPaymentStatusLine(
+                    paymentMethod: paymentMethod,
+                    paymentStatus: paymentStatus,
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

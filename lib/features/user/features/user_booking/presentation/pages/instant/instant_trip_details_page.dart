@@ -20,13 +20,20 @@ import 'location_picker_page.dart';
 // HTML secondary color: #924C00 (dark amber used for FROM dot)
 const Color _kSecondary = Color(0xFF924C00);
 
-class InstantTripDetailsPage extends StatelessWidget {
+class InstantTripDetailsPage extends StatefulWidget {
   const InstantTripDetailsPage({super.key});
 
   @override
+  State<InstantTripDetailsPage> createState() => _InstantTripDetailsPageState();
+}
+
+class _InstantTripDetailsPageState extends State<InstantTripDetailsPage> {
+  late final InstantBookingCubit _cubit = sl<InstantBookingCubit>();
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<InstantBookingCubit>(),
+    return BlocProvider.value(
+      value: _cubit,
       child: const _View(),
     );
   }

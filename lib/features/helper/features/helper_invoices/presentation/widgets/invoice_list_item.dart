@@ -15,8 +15,14 @@ import 'payment_status_pill.dart';
 class InvoiceListItem extends StatelessWidget {
   final InvoiceEntity invoice;
   final EdgeInsets? margin;
+  final VoidCallback? onTap;
 
-  const InvoiceListItem({super.key, required this.invoice, this.margin});
+  const InvoiceListItem({
+    super.key,
+    required this.invoice,
+    this.margin,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -53,10 +59,11 @@ class InvoiceListItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.xl + AppSpacing.xs),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.xl + AppSpacing.xs),
-          onTap: () => context.pushNamed(
-            'helper-invoice-detail',
-            pathParameters: {'id': invoice.invoiceId},
-          ),
+          onTap: onTap ??
+              () => context.pushNamed(
+                    'helper-invoice-detail',
+                    pathParameters: {'id': invoice.invoiceId},
+                  ),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.pageGutter),
             child: Row(

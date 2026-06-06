@@ -3,12 +3,14 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' hide Size;
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../../../core/di/injection_container.dart';
 import '../../../../../../../core/router/app_router.dart';
+import '../../../../../../../core/services/location_service.dart';
 import '../../../../../../../core/services/location/last_helper_location_store.dart';
 import '../../../../../../../core/services/location/map_markers.dart';
 import '../../../../../../../core/services/location/mapbox_directions_service.dart';
@@ -23,6 +25,7 @@ import '../../../../../../../core/theme/app_color.dart';
 import '../../../../../../../core/theme/brand_tokens.dart';
 import '../../../../../../../core/utils/number_format.dart';
 import '../../../../../../../core/widgets/app_network_image.dart';
+import '../../../../../../../core/widgets/map_tracking_chrome.dart';
 import '../../../../user_booking_tracking/domain/usecases/get_latest_location_usecase.dart';
 import '../../../../user_chat/presentation/widgets/unread_chat_badge.dart';
 import '../../../domain/entities/app_payment_method.dart';
@@ -71,11 +74,21 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   PolylineAnnotationManager? _polylineManager;
   StreamSubscription<HelperLocationUpdateEvent>? _locationSub;
   StreamSubscription<BookingTripEndedEvent>? _tripEndedSub;
+  StreamSubscription<BookingTripStartedEvent>? _tripStartedSub;
   StreamSubscription<ActiveSosState?>? _sosSub;
 
   HelperLocationUpdateEvent? _latest;
   ActiveSosState? _activeSos;
   bool _tripEnded = false;
+  bool _isFollowing = true;
+  bool _followUserLocation = false;
+  bool _tripNavigationActive = false;
+  double? _sheetExtentFraction;
+  StreamSubscription<geo.Position>? _userGpsSub;
+
+  static const double _sheetInitial = 0.42;
+  static const double _sheetMin = 0.24;
+  static const double _sheetMax = 0.74;
   bool _cancelingSos = false;
   final _directions = MapboxDirectionsService();
   Timer? _routeDebounce;
@@ -122,6 +135,9 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     _tripEndedSub = _hub.bookingTripEndedStream
         .where((e) => e.bookingId == widget.bookingId)
         .listen(_onTripEnded);
+    _tripStartedSub = _hub.bookingTripStartedStream
+        .where((e) => e.bookingId == widget.bookingId)
+        .listen((_) => _activateTripNavigation());
     _sosSub = _sosService.activeSosStream.listen((state) {
       if (!mounted) return;
       setState(() {
@@ -143,6 +159,16 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     _ensureConnected();
     _primeFromServer();
     _loadCachedSnapshot();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeActivateNavigationOnMount());
+  }
+
+  void _maybeActivateNavigationOnMount() {
+    if (!mounted || _tripNavigationActive || _tripEnded) return;
+    final booking = _bookingFrom(widget.cubit.state);
+    final phase = _latest?.phase ?? _primedSnapshot?.phase;
+    if (booking?.status == BookingStatus.inProgress || phase == 'InProgress') {
+      _activateTripNavigation();
+    }
   }
 
   /// Hydrates the map with the last helper location we saw (from a
@@ -232,11 +258,20 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   void dispose() {
     _locationSub?.cancel();
     _tripEndedSub?.cancel();
+    _tripStartedSub?.cancel();
     _sosSub?.cancel();
     _routeDebounce?.cancel();
+    _stopUserGpsStream();
     // Restore the global floating SOS pill when leaving the tracking page.
     SosOverlayManager.resume();
     super.dispose();
+  }
+
+  bool get _tripInProgress {
+    final booking = _bookingFrom(widget.cubit.state);
+    return _tripNavigationActive ||
+        _latest?.phase == 'InProgress' ||
+        booking?.status == BookingStatus.inProgress;
   }
 
   void _onMapCreated(MapboxMap mapboxMap) async {
@@ -248,6 +283,86 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     final state = widget.cubit.state;
     final booking = _bookingFrom(state);
     if (booking != null) _drawRoute(booking);
+    if (_tripInProgress) {
+      unawaited(_beginUserLocationFollow(animateCamera: false));
+    }
+  }
+
+  Future<void> _enableUserLocationPuck() async {
+    final map = _mapboxMap;
+    if (map == null) return;
+    try {
+      // ignore: deprecated_member_use
+      final pulseArgb = BrandTokens.primaryBlue.value;
+      await map.location.updateSettings(
+        LocationComponentSettings(
+          enabled: true,
+          pulsingEnabled: true,
+          showAccuracyRing: true,
+          puckBearingEnabled: true,
+          pulsingColor: pulseArgb,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _beginUserLocationFollow({bool animateCamera = true}) async {
+    final loc = sl<LocationService>();
+    final granted = await loc.checkPermissions();
+    if (!granted || !mounted) return;
+
+    await _enableUserLocationPuck();
+
+    if (_userGpsSub == null) {
+      _userGpsSub = geo.Geolocator.getPositionStream(
+        locationSettings: const geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+          distanceFilter: 5,
+        ),
+      ).listen(
+        _onUserGpsUpdate,
+        onError: (_) {},
+      );
+    }
+
+    if (!animateCamera || !_followUserLocation || !_tripInProgress) return;
+
+    final pos = await loc.getCurrentPosition();
+    if (pos != null && mounted) {
+      _onUserGpsUpdate(pos, forceCamera: true);
+    }
+  }
+
+  void _stopUserGpsStream() {
+    _userGpsSub?.cancel();
+    _userGpsSub = null;
+  }
+
+  void _onUserGpsUpdate(geo.Position pos, {bool forceCamera = false}) {
+    if (!mounted || !_followUserLocation || !_tripInProgress) return;
+    if (!_isFollowing && !forceCamera) return;
+    _recenterNavigation(
+      pos.latitude,
+      pos.longitude,
+      heading: pos.heading.isFinite ? pos.heading : null,
+      animationMs: forceCamera ? 600 : 380,
+    );
+  }
+
+  void _showLocationSnack(String message, {String? actionLabel}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(message),
+        action: actionLabel == null
+            ? null
+            : SnackBarAction(
+                label: actionLabel,
+                onPressed: () => geo.Geolocator.openAppSettings(),
+              ),
+      ),
+    );
   }
 
   /// Idempotently draws the static pickup + destination pins and
@@ -391,19 +506,21 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   bool _routeRefreshAllowed = true;
 
   void _onLocation(HelperLocationUpdateEvent event) {
+    final isOnTrip = event.phase == 'InProgress';
+    if (!_tripNavigationActive && isOnTrip) {
+      _activateTripNavigation(
+        lat: event.latitude,
+        lng: event.longitude,
+        heading: event.heading,
+      );
+    }
+
     setState(() {
       _latest = event;
     });
-    // Persist for the next session so a cold start (or a SignalR
-    // drop) still has *some* helper position to render until the
-    // next live tick lands.
     _persistLatestLocation(event);
-    // Smoothly follow the helper pin as it moves.
-    _mapboxMap?.setCamera(CameraOptions(
-      center: Point(coordinates: Position(event.longitude, event.latitude)),
-      zoom: 16,
-    ));
     _updateHelperPin(event.latitude, event.longitude);
+    _followHelperOnMap(event);
 
     // Refresh the polyline at most every 10 s. The polyline now
     // tracks where the helper is *actually heading*: to the pickup
@@ -467,7 +584,11 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     if (!mounted) return;
     setState(() {
       _tripEnded = true;
+      _tripNavigationActive = false;
+      _isFollowing = false;
+      _followUserLocation = false;
     });
+    _stopUserGpsStream();
     // Clean up the cached snapshot so a future booking with the
     // same id can't reuse a stale marker.
     LastHelperLocationStore.instance.clear(widget.bookingId);
@@ -626,16 +747,183 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     );
   }
 
-  void _recenter() {
+  Future<void> _recenter() async {
     HapticFeedback.selectionClick();
-    if (_latest != null) {
-      _mapboxMap?.setCamera(CameraOptions(
-        center: Point(
-          coordinates:
-              Position(_latest!.longitude, _latest!.latitude),
+    final loc = sl<LocationService>();
+    final result = await loc.getCurrentLocation();
+
+    switch (result) {
+      case LocationSuccess(:final latitude, :final longitude):
+        setState(() {
+          _followUserLocation = true;
+          _isFollowing = true;
+        });
+        await _enableUserLocationPuck();
+        if (_tripInProgress) {
+          await _beginUserLocationFollow(animateCamera: false);
+          _recenterNavigation(latitude, longitude);
+        } else {
+          _mapboxMap?.flyTo(
+            CameraOptions(
+              center: Point(coordinates: Position(longitude, latitude)),
+              zoom: 16,
+              pitch: 0,
+              bearing: 0,
+            ),
+            MapAnimationOptions(duration: 600),
+          );
+        }
+      case LocationPermissionDenied():
+        _showLocationSnack('Enable location to see where you are');
+      case LocationPermissionPermanentlyDenied():
+        _showLocationSnack(
+          'Location permission is disabled',
+          actionLabel: 'Settings',
+        );
+      case LocationServiceDisabled():
+        _showLocationSnack('Turn on location services on your device');
+      case LocationError(:final message):
+        if (kDebugMode) {
+          debugPrint('TripTrackingPage: getCurrentLocation -> $message');
+        }
+        _showLocationSnack('Could not get your current location');
+    }
+  }
+
+  void _recenterNavigation(
+    double lat,
+    double lng, {
+    double? heading,
+    int animationMs = 600,
+  }) {
+    _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 18.2,
+        pitch: 58,
+        bearing: (heading != null && heading.isFinite) ? heading : null,
+      ),
+      MapAnimationOptions(duration: animationMs),
+    );
+  }
+
+  Future<void> _enterNavigationMode({
+    required double lat,
+    required double lng,
+    double? heading,
+  }) async {
+    final map = _mapboxMap;
+    if (map == null) return;
+
+    const stage1Ms = 520;
+    const stage2Ms = 980;
+
+    map.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 17.6,
+        pitch: 0,
+        bearing: 0,
+      ),
+      MapAnimationOptions(duration: stage1Ms),
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: stage1Ms + 40));
+    if (!mounted || _mapboxMap == null) return;
+
+    _mapboxMap!.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 18.6,
+        pitch: 62,
+        bearing: (heading != null && heading.isFinite) ? heading : null,
+      ),
+      MapAnimationOptions(duration: stage2Ms),
+    );
+  }
+
+  void _followHelperOnMap(HelperLocationUpdateEvent event) {
+    if (!_isFollowing || _tripEnded) return;
+    if (_followUserLocation && _tripInProgress) return;
+    if (_tripNavigationActive || event.phase == 'InProgress') {
+      _recenterNavigation(
+        event.latitude,
+        event.longitude,
+        heading: event.heading,
+        animationMs: 380,
+      );
+    } else {
+      _mapboxMap?.flyTo(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(event.longitude, event.latitude),
+          ),
+          zoom: 16,
+          pitch: 0,
+          bearing: 0,
         ),
-        zoom: 16,
-      ));
+        MapAnimationOptions(duration: 380),
+      );
+    }
+  }
+
+  void _activateTripNavigation({
+    double? lat,
+    double? lng,
+    double? heading,
+  }) {
+    if (!mounted || _tripEnded || _tripNavigationActive) return;
+
+    final helperLat =
+        lat ?? _latest?.latitude ?? _primedSnapshot?.latitude ?? _persistedLast?.latitude;
+    final helperLng =
+        lng ?? _latest?.longitude ?? _primedSnapshot?.longitude ?? _persistedLast?.longitude;
+    final helperHeading =
+        heading ?? _latest?.heading ?? _persistedLast?.heading;
+
+    setState(() {
+      _tripNavigationActive = true;
+      _followUserLocation = true;
+      _isFollowing = true;
+    });
+
+    unawaited(_activateUserTripCamera(
+      helperLat: helperLat,
+      helperLng: helperLng,
+      helperHeading: helperHeading,
+    ));
+
+    if (_latest != null) {
+      unawaited(_refreshHelperRoute(_latest!));
+    }
+
+    unawaited(widget.cubit.refreshLiveTripDetail(widget.bookingId));
+  }
+
+  Future<void> _activateUserTripCamera({
+    double? helperLat,
+    double? helperLng,
+    double? helperHeading,
+  }) async {
+    await _beginUserLocationFollow(animateCamera: false);
+    if (!mounted) return;
+
+    final userPos = await sl<LocationService>().getCurrentPosition();
+    if (userPos != null) {
+      await _enterNavigationMode(
+        lat: userPos.latitude,
+        lng: userPos.longitude,
+        heading: userPos.heading.isFinite ? userPos.heading : null,
+      );
+      return;
+    }
+
+    if (helperLat != null && helperLng != null) {
+      await _enterNavigationMode(
+        lat: helperLat,
+        lng: helperLng,
+        heading: helperHeading,
+      );
     }
   }
 
@@ -914,6 +1202,14 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                   hasGps: _latest != null || _primedSnapshot != null,
                   rawPhase: activePhase,
                 );
+                final liveSheetExtent =
+                    (_sheetExtentFraction ?? _sheetInitial)
+                        .clamp(_sheetMin, _sheetMax)
+                        .toDouble();
+                final fabBottomInset = MapTrackingLayout.floatingButtonBottomInset(
+                  context,
+                  sheetPeekFraction: liveSheetExtent,
+                );
                 return Stack(
                   children: [
                     // Fills the entire Stack so no dark edge shows during
@@ -939,6 +1235,14 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                       ),
                       styleUri: MapboxStyles.LIGHT,
                       onMapCreated: _onMapCreated,
+                      onScrollListener: (_) {
+                        if (_isFollowing || _followUserLocation) {
+                          setState(() {
+                            _isFollowing = false;
+                            _followUserLocation = false;
+                          });
+                        }
+                      },
                     ),
                     // Floating top status pill.
                     Positioned(
@@ -975,45 +1279,46 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                         iconColor: BrandTokens.primaryBlue,
                       ),
                     ),
-                    // Right side floating actions.
+                    // Right-side actions — anchored above the tracking sheet.
                     Positioned(
                       right: 16,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            UnreadChatBadge(
-                              bookingId: widget.bookingId,
-                              offset: const Offset(2, -2),
-                              child: _RoundButton(
-                                icon: Icons.chat_bubble_outline_rounded,
-                                onTap: _openChat,
-                                background: Colors.white,
-                                iconColor: BrandTokens.primaryBlue,
-                                size: 56,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (!_tripEnded)
-                              _RoundButton(
-                                icon: Icons.emergency_rounded,
-                                onTap: _openSosSheet,
-                                background: Colors.white,
-                                iconColor: BrandTokens.dangerRed,
-                                size: 56,
-                              ),
-                            const SizedBox(height: 16),
-                            _RoundButton(
-                              icon: Icons.my_location_rounded,
-                              onTap: _recenter,
+                      bottom: fabBottomInset,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          UnreadChatBadge(
+                            bookingId: widget.bookingId,
+                            offset: const Offset(2, -2),
+                            child: _RoundButton(
+                              icon: Icons.chat_bubble_outline_rounded,
+                              onTap: _openChat,
                               background: Colors.white,
-                              iconColor: BrandTokens.textSecondary,
-                              size: 48,
+                              iconColor: BrandTokens.primaryBlue,
+                              size: 56,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (!_tripEnded)
+                            _RoundButton(
+                              icon: Icons.emergency_rounded,
+                              onTap: _openSosSheet,
+                              background: Colors.white,
+                              iconColor: BrandTokens.dangerRed,
+                              size: 56,
+                            ),
+                          if (!_tripEnded) const SizedBox(height: 16),
+                          _RoundButton(
+                            icon: Icons.my_location_rounded,
+                            onTap: () => unawaited(_recenter()),
+                            background: _followUserLocation && _isFollowing
+                                ? BrandTokens.primaryBlue
+                                : Colors.white,
+                            iconColor: _followUserLocation && _isFollowing
+                                ? Colors.white
+                                : BrandTokens.textSecondary,
+                            size: 48,
+                          ),
+                        ],
                       ),
                     ),
                     if (_activeSos != null)
@@ -1032,31 +1337,42 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                       child: _OsmAttribution(),
                     ),
                     // Bottom sheet (driver card with progress bar).
-                    DraggableScrollableSheet(
-                      initialChildSize: 0.42,
-                      minChildSize: 0.24,
-                      maxChildSize: 0.74,
-                      builder: (context, scrollController) {
-                        return _TrackingSheet(
-                          scrollController: scrollController,
-                          latest: _latest,
-                          primedSnapshot: _primedSnapshot,
-                          booking: booking,
-                          route: _lastRoute,
-                          helperImageUrl: helperImage,
-                          helperName: helperName,
-                          phone: phone,
-                          phaseUi: tripPhase,
-                          onCall: (phone ?? '').isNotEmpty
-                              ? () => _callHelper(phone)
-                              : _openChat,
-                          onChat: _openChat,
-                          onShareTrip: _shareTrip,
-                          onCancel: (booking?.canCancel ?? false)
-                              ? () => _onCancel(context)
-                              : null,
-                        );
+                    NotificationListener<DraggableScrollableNotification>(
+                      onNotification: (notification) {
+                        final current = _sheetExtentFraction ?? _sheetInitial;
+                        if ((current - notification.extent).abs() > 0.001) {
+                          setState(
+                            () => _sheetExtentFraction = notification.extent,
+                          );
+                        }
+                        return false;
                       },
+                      child: DraggableScrollableSheet(
+                        initialChildSize: _sheetInitial,
+                        minChildSize: _sheetMin,
+                        maxChildSize: _sheetMax,
+                        builder: (context, scrollController) {
+                          return _TrackingSheet(
+                            scrollController: scrollController,
+                            latest: _latest,
+                            primedSnapshot: _primedSnapshot,
+                            booking: booking,
+                            route: _lastRoute,
+                            helperImageUrl: helperImage,
+                            helperName: helperName,
+                            phone: phone,
+                            phaseUi: tripPhase,
+                            onCall: (phone ?? '').isNotEmpty
+                                ? () => _callHelper(phone)
+                                : _openChat,
+                            onChat: _openChat,
+                            onShareTrip: _shareTrip,
+                            onCancel: (booking?.canCancel ?? false)
+                                ? () => _onCancel(context)
+                                : null,
+                          );
+                        },
+                      ),
                     ),
                   ],
                 );

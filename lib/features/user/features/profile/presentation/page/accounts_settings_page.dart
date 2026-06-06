@@ -19,6 +19,7 @@ import '../../../../../../core/theme/app_color.dart';
 import '../../../../../../core/widgets/user_avatar.dart';
 import '../../../../../helper/features/profile/presentation/utils/profile_image_helper.dart';
 import '../../../../../helper/features/profile/presentation/widgets/profile_setting_widgets.dart';
+import '../../../../../helper/features/profile/presentation/widgets/static_app_language_picker.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/presentation/cubit/auth_state.dart';
@@ -654,8 +655,25 @@ class _AccountSection extends StatelessWidget {
   }
 }
 
-class _PreferencesSection extends StatelessWidget {
+class _PreferencesSection extends StatefulWidget {
   const _PreferencesSection();
+
+  @override
+  State<_PreferencesSection> createState() => _PreferencesSectionState();
+}
+
+class _PreferencesSectionState extends State<_PreferencesSection> {
+  String _selectedAppLanguageCode = 'en';
+
+  Future<void> _openAppLanguagePicker() async {
+    HapticFeedback.selectionClick();
+    final picked = await showStaticAppLanguagePicker(
+      context,
+      selectedCode: _selectedAppLanguageCode,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _selectedAppLanguageCode = picked.code);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -670,8 +688,8 @@ class _PreferencesSection extends StatelessWidget {
           icon: Icons.language_rounded,
           iconColor: const Color(0xFF00B8A9),
           title: 'App Language',
-          subtitle: 'English (US)',
-          onTap: () => HapticFeedback.selectionClick(),
+          subtitle: staticAppLanguageForCode(_selectedAppLanguageCode).label,
+          onTap: _openAppLanguagePicker,
         ),
         ProfileSettingItem(
           icon: Icons.notifications_none_rounded,

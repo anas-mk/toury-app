@@ -583,7 +583,7 @@ class _DashboardHeader extends StatelessWidget {
                       child: InkWell(
                         onTap: () {
                           HapticService.light();
-                          context.push(AppRouter.helperAccount);
+                          context.go(AppRouter.helperAccount);
                         },
                         customBorder: const CircleBorder(),
                         child: _GradientAvatar(imageUrl: imageUrl),
@@ -868,15 +868,8 @@ class _SectionTitle extends StatelessWidget {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: BoxDecoration(
-                  color: palette.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(99),
-                  border: Border.all(
-                    color: palette.primary.withValues(alpha: 0.20),
-                  ),
-                ),
                 child: Icon(
-                  Icons.arrow_forward_rounded,
+                  Icons.arrow_forward_ios,
                   size: 16,
                   color: palette.primary,
                 ),

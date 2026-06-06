@@ -24,6 +24,9 @@ class HelperBookingModel extends HelperBooking {
     super.travelersCount,
     super.meetingPointType,
     required super.payout,
+    super.paymentMethod,
+    super.paymentStatus,
+    super.finalPrice,
     required super.status,
     super.language,
     super.notes,
@@ -58,9 +61,16 @@ class HelperBookingModel extends HelperBooking {
         ?? json['travelerProfileImage']?.toString()
         ?? json['travelerImage']?.toString();
 
-    final destinationCity = json['destinationCity'] ?? '';
-    final pickupLocation = json['pickupLocationName'] ?? json['pickupLocation'] ?? '';
-    final destinationLocation = json['destinationName'] ?? json['destinationLocation'] ?? '';
+    final destinationCity = json['destinationCity']?.toString() ?? '';
+    final pickupLocation = _readLocation(
+      json,
+      nameKeys: ['pickupLocationName', 'pickupLocation', 'pickupAddress'],
+    );
+    final destinationLocation = _readLocation(
+      json,
+      nameKeys: ['destinationName', 'destinationLocation'],
+      fallback: destinationCity,
+    );
     final pickupLat = (json['pickupLatitude'] ?? json['pickupLat'] as num?)?.toDouble() ?? 0.0;
     final pickupLng = (json['pickupLongitude'] ?? json['pickupLng'] as num?)?.toDouble() ?? 0.0;
     final destinationLat = (json['destinationLatitude'] ?? json['destinationLat'] as num?)?.toDouble() ?? 0.0;
@@ -96,7 +106,12 @@ class HelperBookingModel extends HelperBooking {
     final requiresCar = json['requiresCar'] ?? false;
     final travelersCount = (json['travelersCount'] as num?)?.toInt() ?? 1;
     final meetingPointType = json['meetingPointType'];
-    final payout = (json['estimatedPayout'] ?? json['finalPayout'] ?? json['payout'] as num?)?.toDouble() ?? 0.0;
+    final payout = _readPayout(json);
+    final paymentMethod = _readPaymentMethod(json);
+    final paymentStatus = json['paymentStatus']?.toString();
+    final finalPrice = json['finalPrice'] != null
+        ? (json['finalPrice'] as num).toDouble()
+        : null;
     final startedAtRaw = json['startedAt'];
     final completedAtRaw = json['completedAt'];
     final cancelledAtRaw = json['cancelledAt'];
@@ -144,6 +159,9 @@ class HelperBookingModel extends HelperBooking {
       travelersCount: travelersCount,
       meetingPointType: meetingPointType,
       payout: payout,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
+      finalPrice: finalPrice,
       status: status,
       language: language,
       notes: notes,
@@ -181,6 +199,9 @@ class HelperBookingModel extends HelperBooking {
       'travelersCount': travelersCount,
       'meetingPointType': meetingPointType,
       'estimatedPayout': payout,
+      'paymentMethod': paymentMethod,
+      'paymentStatus': paymentStatus,
+      'finalPrice': finalPrice,
       'status': status,
       'requestedLanguage': language,
       'notes': notes,
@@ -194,6 +215,57 @@ class HelperBookingModel extends HelperBooking {
       'canStartTrip': canStartTrip,
       'canEndTrip': canEndTrip,
     };
+  }
+
+  static double _readPayout(Map<String, dynamic> json) {
+    const keys = ['estimatedPayout', 'finalPayout', 'payout', 'helperPayout'];
+    for (final key in keys) {
+      final parsed = _parsePositiveDouble(json[key]);
+      if (parsed != null) return parsed;
+    }
+    return 0;
+  }
+
+  static String _readLocation(
+    Map<String, dynamic> json, {
+    required List<String> nameKeys,
+    String fallback = '',
+  }) {
+    for (final key in nameKeys) {
+      final value = json[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    }
+    return fallback.trim();
+  }
+
+  static double? _parsePositiveDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) {
+      final parsed = value.toDouble();
+      return parsed > 0 ? parsed : null;
+    }
+    if (value is String) {
+      final parsed = double.tryParse(value.trim());
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return null;
+  }
+
+  static String? _readPaymentMethod(Map<String, dynamic> json) {
+    final direct = json['paymentMethod'] ?? json['method'];
+    if (direct != null && direct.toString().trim().isNotEmpty) {
+      return direct.toString();
+    }
+    final payment = json['payment'];
+    if (payment is Map) {
+      final nested = payment['method'] ?? payment['paymentMethod'];
+      if (nested != null && nested.toString().trim().isNotEmpty) {
+        return nested.toString();
+      }
+    }
+    return null;
   }
 }
 

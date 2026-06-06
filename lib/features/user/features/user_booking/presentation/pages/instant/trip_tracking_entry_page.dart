@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../../../core/di/injection_container.dart';
+import '../../../../../../../core/services/sos/sos_overlay_manager.dart';
 import '../../cubits/instant_booking_cubit.dart';
 import '../../cubits/instant_booking_state.dart';
 import 'trip_tracking_page.dart';
@@ -23,6 +24,8 @@ class _TripTrackingEntryPageState extends State<TripTrackingEntryPage> {
   @override
   void initState() {
     super.initState();
+    // Hide the global draggable SOS while on tracking (including load).
+    SosOverlayManager.suspend();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _cubit.hydrateForTripDeepLink(widget.bookingId);
     });
@@ -30,6 +33,7 @@ class _TripTrackingEntryPageState extends State<TripTrackingEntryPage> {
 
   @override
   void dispose() {
+    SosOverlayManager.resume();
     _cubit.close();
     super.dispose();
   }

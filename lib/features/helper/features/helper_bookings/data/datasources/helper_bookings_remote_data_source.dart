@@ -5,6 +5,7 @@ import '../../../../../../core/errors/exceptions.dart';
 import '../models/helper_booking_models.dart';
 import '../models/helper_dashboard_model.dart';
 import '../models/helper_earnings_models.dart';
+import '../../domain/entities/end_trip_result.dart';
 
 abstract class HelperBookingsRemoteDataSource {
   Future<HelperDashboardModel> getDashboard({CancelToken? cancelToken});
@@ -21,7 +22,7 @@ abstract class HelperBookingsRemoteDataSource {
   Future<List<HelperBookingModel>> getUpcomingBookings({CancelToken? cancelToken});
   Future<HelperBookingModel?> getActiveBooking({CancelToken? cancelToken});
   Future<void> startTrip(String id, {CancelToken? cancelToken});
-  Future<double> endTrip(String id, {CancelToken? cancelToken});
+  Future<EndTripResult> endTrip(String id, {CancelToken? cancelToken});
   Future<List<HelperBookingModel>> getHistory({
     String? status,
     DateTime? from,
@@ -250,15 +251,49 @@ class HelperBookingsRemoteDataSourceImpl implements HelperBookingsRemoteDataSour
   }
 
   @override
-  Future<double> endTrip(String id, {CancelToken? cancelToken}) async {
+  Future<EndTripResult> endTrip(String id, {CancelToken? cancelToken}) async {
     try {
       final url = ApiConfig.helperEndTrip(id);
       debugPrint('➡️ [TripAction] END URL: $url (ID: $id)');
       final res = await dio.post(url, cancelToken: cancelToken);
       _assertOk(res);
-      final raw = res.data;
-      final earnings = (raw is Map) ? (raw['data']?['earnings'] ?? raw['earnings'] ?? 0) : 0;
-      return (earnings as num).toDouble();
+      var result = EndTripResult.fromResponse(res.data);
+
+      if (result.paymentMethod == null || result.paymentMethod!.trim().isEmpty) {
+        try {
+          final payRes = await dio.get(
+            ApiConfig.getLatestPayment(id),
+            cancelToken: cancelToken,
+          );
+          final payData = payRes.data;
+          if (payData is Map) {
+            final enriched = EndTripResult.fromResponse(payData);
+            if (enriched.paymentMethod != null) {
+              result = result.copyWith(paymentMethod: enriched.paymentMethod);
+            } else {
+              final root = Map<String, dynamic>.from(payData);
+              final data = root['data'];
+              final payload =
+                  data is Map ? Map<String, dynamic>.from(data) : root;
+              final method = payload['method'] ?? payload['paymentMethod'];
+              if (method != null && method.toString().trim().isNotEmpty) {
+                result = result.copyWith(
+                  paymentMethod: method.toString(),
+                );
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ [TripAction] latest payment lookup failed: $e');
+        }
+      }
+
+      debugPrint(
+        '✅ [TripAction] END parsed earnings=${result.earnings} '
+        'method=${result.paymentMethod ?? '-'} '
+        'status=${result.paymentStatus ?? '-'}',
+      );
+      return result;
     } on DioException catch (e) {
       throw ServerException(_msg(e));
     }

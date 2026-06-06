@@ -20,10 +20,12 @@ import '../../../../../../core/widgets/app_loading.dart';
 import '../../../../../../core/widgets/app_snackbar.dart';
 import '../../../../../../core/theme/brand_tokens.dart';
 import '../../domain/entities/helper_booking_status_x.dart';
+import '../../domain/entities/end_trip_result.dart';
 import '../widgets/shared/trip_completed_dialog.dart';
 import '../../../helper_ratings/presentation/widgets/rate_traveler_dialog.dart';
 import '../../../helper_location/presentation/cubit/helper_location_cubit.dart';
 import '../../../../../../core/services/auth_service.dart';
+import '../../../../../../core/services/sos/sos_overlay_manager.dart';
 import '../../../../../../core/services/location/mapbox_directions_service.dart';
 import '../../../helper_booking_tracking/domain/usecases/get_latest_location_usecase.dart'
     as helper_track;
@@ -74,17 +76,17 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
   double? _helperLat;
   double? _helperLng;
   List<TrackingPointEntity> _trackingHistory = const [];
-  bool _hasArrivedAtPickup = false;
   bool _didPrimeTracking = false;
   double? _sheetExtentFraction;
-  // Helper must be within this radius of the pickup before "Start Trip"
-  // becomes tappable on the live-tracking sheet.
-  static const double _pickupArrivalThresholdMeters = 100;
+  static const double _startTripRadiusMeters =
+      HelperBookingProximityX.startTripRadiusMeters;
   static const Duration _routeFetchMinInterval = Duration(seconds: 20);
 
   @override
   void initState() {
     super.initState();
+    // This page has its own SOS button anchored to the tracking sheet.
+    SosOverlayManager.suspend();
     _activeCubit = sl<ActiveBookingCubit>();
     _tripActionCubit = sl<TripActionCubit>();
     _locationCubit = sl<HelperLocationCubit>();
@@ -110,6 +112,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   @override
   void dispose() {
+    SosOverlayManager.resume();
     _helperMarker = null;
     _helperPointAnnotationManager = null;
     _pointAnnotationManager = null;
@@ -157,16 +160,92 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     double lng, {
     double? heading,
     int animationMs = 600,
+    bool inTrip = false,
   }) {
     _mapboxMap?.flyTo(
       CameraOptions(
         center: Point(coordinates: Position(lng, lat)),
-        zoom: 17.5,
-        pitch: 50,
+        zoom: inTrip ? 18.2 : 17.5,
+        pitch: inTrip ? 58 : 50,
         bearing: (heading != null && heading.isFinite) ? heading : null,
       ),
       MapAnimationOptions(duration: animationMs),
     );
+  }
+
+  /// Google Maps–style "start navigation" camera: zoom in, then tilt into 3D.
+  Future<void> _enterNavigationMode({
+    required double lat,
+    required double lng,
+    double? heading,
+  }) async {
+    final map = _mapboxMap;
+    if (map == null) return;
+
+    const stage1Ms = 520;
+    const stage2Ms = 980;
+
+    map.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 17.6,
+        pitch: 0,
+        bearing: 0,
+      ),
+      MapAnimationOptions(duration: stage1Ms),
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: stage1Ms + 40));
+    if (!mounted || _mapboxMap == null) return;
+
+    _mapboxMap!.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(lng, lat)),
+        zoom: 18.6,
+        pitch: 62,
+        bearing: (heading != null && heading.isFinite) ? heading : null,
+      ),
+      MapAnimationOptions(duration: stage2Ms),
+    );
+  }
+
+  void _onTripStarted(BuildContext context) {
+    final booking = _currentBooking;
+    if (booking != null) {
+      _currentBooking = booking.copyWith(
+        status: 'InProgress',
+        canStartTrip: false,
+        canEndTrip: true,
+      );
+      _isFollowing = true;
+      final baseExtents = MapTrackingLayout.helperSheetExtents(context);
+      _sheetExtentFraction = (baseExtents.initial - 0.08)
+          .clamp(baseExtents.min, baseExtents.max);
+      _lastRouteMode = null;
+      _drawRoute(_currentBooking!);
+    }
+
+    setState(() {});
+
+    if (_helperLat != null && _helperLng != null) {
+      final locState = _locationCubit.state;
+      final heading =
+          locState is HelperLocationTracking ? locState.location.heading : null;
+      unawaited(
+        _enterNavigationMode(
+          lat: _helperLat!,
+          lng: _helperLng!,
+          heading: heading,
+        ),
+      );
+    }
+
+    final id = _currentBooking?.id ?? widget.bookingId;
+    if (id.isNotEmpty) {
+      _activeCubit.loadById(id, silent: true);
+    } else {
+      _activeCubit.load(silent: true);
+    }
   }
 
   // ── Route drawing ───────────────────────────────────────────────────────
@@ -373,24 +452,6 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
       } catch (_) {}
     }
 
-    if (_currentBooking != null && _helperLat != null && _helperLng != null) {
-      final arrived =
-          _distanceMeters(
-            _helperLat!,
-            _helperLng!,
-            _currentBooking!.pickupLat,
-            _currentBooking!.pickupLng,
-          ) <=
-          _pickupArrivalThresholdMeters;
-      if (mounted) {
-        setState(() {
-          _hasArrivedAtPickup = arrived;
-        });
-      }
-    }
-    // If the map was already created before tracking data arrived, draw the
-    // helper's seed position now (the _onMapCreated guard already handles the
-    // reverse race where the map fires first).
     if (_mapboxMap != null) {
       if (_helperLat != null && _helperLng != null) {
         unawaited(_updateHelperMarker(_helperLat!, _helperLng!));
@@ -399,6 +460,7 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
         _drawRoute(_currentBooking!);
       }
     }
+    if (mounted) setState(() {});
   }
 
   bool _shouldFetchRoute(double fromLat, double fromLng, String mode) {
@@ -575,26 +637,17 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
               if (state is TripActionSuccess) {
                 if (state.actionType == 'start') {
                   AppSnackbar.success(context, 'Trip started!');
-                  _activeCubit.load();
-                  // Switch to navigation-mode camera immediately at the
-                  // helper's current position — NOT at the destination.
-                  if (_helperLat != null && _helperLng != null) {
-                    final locState = _locationCubit.state;
-                    final heading = locState is HelperLocationTracking
-                        ? locState.location.heading
-                        : null;
-                    _recenterNavigation(
-                      _helperLat!,
-                      _helperLng!,
-                      heading: heading,
-                    );
-                  }
+                  _onTripStarted(context);
                 } else if (state.actionType == 'end') {
-                  final earnings = state.result as double? ?? 0.0;
+                  final result = state.result is EndTripResult
+                      ? state.result as EndTripResult
+                      : EndTripResult(
+                          earnings: (state.result as num?)?.toDouble() ?? 0,
+                        );
                   final booking = _currentBooking;
                   _showEarningsDialog(
                     context,
-                    earnings,
+                    result,
                     onDismiss: () {
                       if (booking != null) {
                         _openRateTravelerDialog(context, booking);
@@ -618,12 +671,20 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                 return const Center(child: AppLoading(fullScreen: false));
               }
               if (state is ActiveBookingLoaded && state.booking != null) {
-                _currentBooking = state.booking;
+                final incoming = state.booking!;
+                final local = _currentBooking;
+                if (local == null || local.id != incoming.id) {
+                  _currentBooking = incoming;
+                } else if (local.isTripStarted && !incoming.isTripStarted) {
+                  // Keep optimistic in-progress until the backend catches up.
+                } else {
+                  _currentBooking = incoming;
+                }
                 if (!_didPrimeTracking) {
                   _didPrimeTracking = true;
-                  unawaited(_primeTrackingFromApi(state.booking!.id));
+                  unawaited(_primeTrackingFromApi(incoming.id));
                 }
-                return _buildModernContent(context, state.booking!);
+                return _buildModernContent(context, _currentBooking!);
               }
               if (state is ActiveBookingError) {
                 return _buildErrorState(context, state.message);
@@ -661,6 +722,16 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
     final liveSheetExtent = ((_sheetExtentFraction ?? sheetExtents.initial)
             .clamp(sheetExtents.min, sheetExtents.max))
         .toDouble();
+    final distanceToUserMeters = (_helperLat != null && _helperLng != null)
+        ? booking.distanceToUserMeters(
+            helperLat: _helperLat!,
+            helperLng: _helperLng!,
+          )
+        : null;
+    final canStartTripNow = booking.canHelperStartTripNow(
+      helperLat: _helperLat,
+      helperLng: _helperLng,
+    );
 
     return Stack(
       fit: StackFit.expand,
@@ -721,25 +792,29 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                   heading: locState.location.heading,
                 ),
               );
-              final arrived =
-                  _distanceMeters(
-                    lat,
-                    lng,
-                    booking.pickupLat,
-                    booking.pickupLng,
-                  ) <=
-                  _pickupArrivalThresholdMeters;
-              if (_hasArrivedAtPickup != arrived) {
-                setState(() => _hasArrivedAtPickup = arrived);
+              final canStart = booking.canHelperStartTripNow(
+                helperLat: lat,
+                helperLng: lng,
+              );
+              if (!canStart && !booking.canStartTrip) {
+                final distance = booking.distanceToUserMeters(
+                  helperLat: lat,
+                  helperLng: lng,
+                );
+                if (distance != null &&
+                    distance <= _startTripRadiusMeters * 1.5) {
+                  _activeCubit.loadById(booking.id, silent: true);
+                }
               }
+              if (mounted) setState(() {});
               if (_isFollowing) {
-                // Same turn-by-turn-style camera toward pickup and toward
-                // destination so the map tracks the helper while driving.
+                final inTrip = (_currentBooking ?? booking).isTripStarted;
                 _recenterNavigation(
                   lat,
                   lng,
                   heading: locState.location.heading,
                   animationMs: 380,
+                  inTrip: inTrip,
                 );
               }
               // Re-draw route from helper's current position → destination.
@@ -811,16 +886,8 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
                     booking: booking,
                     isStarted: isStarted,
                     status: status,
-                    hasArrivedAtPickup: _hasArrivedAtPickup,
-                    distanceToPickupMeters:
-                        (_helperLat != null && _helperLng != null)
-                        ? _distanceMeters(
-                            _helperLat!,
-                            _helperLng!,
-                            booking.pickupLat,
-                            booking.pickupLng,
-                          )
-                        : null,
+                    canStartTripNow: canStartTripNow,
+                    distanceToPickupMeters: distanceToUserMeters,
                     sosState: sosState,
                     onEndTrip: () => unawaited(_confirmEnd(context, booking)),
                     onStartTrip: () => _tripActionCubit.startTrip(booking),
@@ -961,12 +1028,14 @@ class _ActiveBookingPageState extends State<ActiveBookingPage> {
 
   void _showEarningsDialog(
     BuildContext context,
-    double earnings, {
+    EndTripResult result, {
     VoidCallback? onDismiss,
   }) {
     showTripCompletedDialog(
       context,
-      earnings: earnings,
+      earnings: result.earnings,
+      paymentMethod: result.paymentMethod,
+      paymentStatus: result.paymentStatus,
       title: 'Trip Completed!',
       subtitle: 'How was your traveler?',
       primaryLabel: 'Rate Traveler',
